@@ -72,6 +72,13 @@ export class DrizzleMessageRepository implements MessageRepository {
     return { ...input, createdAt };
   }
 
+  async updateStatus(id: string, status: Message['status']): Promise<Message> {
+    await this.db.update(messages).set({ status }).where(eq(messages.id, id));
+    const [row] = await this.db.select().from(messages).where(eq(messages.id, id)).limit(1);
+    if (!row) throw new Error(`message ${id} not found`);
+    return row;
+  }
+
   async createPart(input: Omit<MessagePart, 'createdAt'>): Promise<MessagePart> {
     const createdAt = new Date();
     await this.db.insert(messageParts).values({ ...input, createdAt, jsonValue: input.jsonValue });

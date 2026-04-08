@@ -31,6 +31,7 @@ const mockModel = {
 
 export async function runAssistantTurn(ctx: RuntimeContext, input: RuntimeInput) {
   let currentToolInvocation: { id: string; toolName: string; toolCallId: string; input: Record<string, unknown> } | null = null;
+  let toolCreated = false;
   let currentToolCompleted = false;
   let assistantMessageId: string | null = null;
   let assistantPartIndex = 0;
@@ -49,7 +50,7 @@ export async function runAssistantTurn(ctx: RuntimeContext, input: RuntimeInput)
       runId: input.runId,
       role: 'assistant',
       seq: await ctx.messageRepo.nextSeq(input.threadId),
-      status: 'completed',
+      status: 'created',
       metadata: { provider: input.provider ?? 'mock', model: input.model ?? 'mock-model' }
     });
     assistantMessageId = assistantMessage.id;
@@ -73,6 +74,7 @@ export async function runAssistantTurn(ctx: RuntimeContext, input: RuntimeInput)
       status: 'running',
       input: currentToolInvocation.input
     });
+    toolCreated = true;
 
     await ctx.messageRepo.createPart({
       id: crypto.randomUUID(),
@@ -118,6 +120,7 @@ export async function runAssistantTurn(ctx: RuntimeContext, input: RuntimeInput)
       textValue: result.text
     });
 
+    await ctx.messageRepo.updateStatus(assistantMessage.id, 'completed');
     await ctx.runRepo.updateStatus(input.runId, 'completed', {
       finishedAt: new Date(),
       usage: result.usage as Record<string, unknown>
@@ -126,7 +129,7 @@ export async function runAssistantTurn(ctx: RuntimeContext, input: RuntimeInput)
     return assistantMessage;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'unknown run failure';
-    if (currentToolInvocation && !currentToolCompleted) {
+    if (toolCreated && currentToolInvocation && !currentToolCompleted) {
       await ctx.toolRepo.updateStatus(currentToolInvocation.id, 'failed', {
         error: message,
         finishedAt: new Date()
@@ -144,6 +147,9 @@ export async function runAssistantTurn(ctx: RuntimeContext, input: RuntimeInput)
           }
         });
       }
+    }
+    if (assistantMessageId) {
+      await ctx.messageRepo.updateStatus(assistantMessageId, 'failed');
     }
     await ctx.runRepo.updateStatus(input.runId, 'failed', {
       finishedAt: new Date(),
