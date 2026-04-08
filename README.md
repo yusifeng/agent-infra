@@ -23,3 +23,10 @@ Set database URL before running app:
 ```bash
 export DATABASE_URL='postgres://postgres:postgres@localhost:5432/agent_infra'
 ```
+
+Initialize database schema with Drizzle:
+
+```bash
+pnpm --filter @agent-infra/db db:generate
+pnpm --filter @agent-infra/db db:migrate
+```

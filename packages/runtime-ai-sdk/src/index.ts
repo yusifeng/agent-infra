@@ -30,6 +30,11 @@ const mockModel = {
 };
 
 export async function runAssistantTurn(ctx: RuntimeContext, input: RuntimeInput) {
+  let currentToolInvocation: { id: string; toolName: string; toolCallId: string; input: Record<string, unknown> } | null = null;
+  let currentToolCompleted = false;
+  let assistantMessageId: string | null = null;
+  let assistantPartIndex = 0;
+
   try {
     await ctx.runRepo.updateStatus(input.runId, 'running', { startedAt: new Date() });
 
@@ -37,28 +42,6 @@ export async function runAssistantTurn(ctx: RuntimeContext, input: RuntimeInput)
     const promptText = messages
       .flatMap((m) => m.parts.filter((p) => p.type === 'text').map((p) => `${m.role}: ${p.textValue ?? ''}`))
       .join('\n');
-
-    const toolCallId = crypto.randomUUID();
-    const tool = await ctx.toolRepo.create({
-      id: crypto.randomUUID(),
-      threadId: input.threadId,
-      runId: input.runId,
-      messageId: input.userMessageId,
-      toolName: 'getCurrentTime',
-      toolCallId,
-      status: 'running',
-      input: { timezone: 'UTC' }
-    });
-
-    await ctx.toolRepo.updateStatus(tool.id, 'completed', {
-      output: { now: new Date().toISOString() },
-      finishedAt: new Date()
-    });
-
-    const result = await generateText({
-      model: mockModel as any,
-      prompt: `${promptText}\nTool[getCurrentTime] executed.`
-    });
 
     const assistantMessage = await ctx.messageRepo.create({
       id: crypto.randomUUID(),
@@ -69,11 +52,68 @@ export async function runAssistantTurn(ctx: RuntimeContext, input: RuntimeInput)
       status: 'completed',
       metadata: { provider: input.provider ?? 'mock', model: input.model ?? 'mock-model' }
     });
+    assistantMessageId = assistantMessage.id;
+
+    const toolCallId = crypto.randomUUID();
+    const toolInput = { timezone: 'UTC' };
+    currentToolInvocation = {
+      id: crypto.randomUUID(),
+      toolName: 'getCurrentTime',
+      toolCallId,
+      input: toolInput
+    };
+
+    await ctx.toolRepo.create({
+      id: currentToolInvocation.id,
+      threadId: input.threadId,
+      runId: input.runId,
+      messageId: assistantMessage.id,
+      toolName: currentToolInvocation.toolName,
+      toolCallId: currentToolInvocation.toolCallId,
+      status: 'running',
+      input: currentToolInvocation.input
+    });
 
     await ctx.messageRepo.createPart({
       id: crypto.randomUUID(),
       messageId: assistantMessage.id,
-      partIndex: 0,
+      partIndex: assistantPartIndex++,
+      type: 'tool-call',
+      jsonValue: {
+        toolName: currentToolInvocation.toolName,
+        toolCallId: currentToolInvocation.toolCallId,
+        input: currentToolInvocation.input
+      }
+    });
+
+    const toolOutput = { now: new Date().toISOString() };
+    await ctx.toolRepo.updateStatus(currentToolInvocation.id, 'completed', {
+      output: toolOutput,
+      finishedAt: new Date()
+    });
+    currentToolCompleted = true;
+
+    await ctx.messageRepo.createPart({
+      id: crypto.randomUUID(),
+      messageId: assistantMessage.id,
+      partIndex: assistantPartIndex++,
+      type: 'tool-result',
+      jsonValue: {
+        toolName: currentToolInvocation.toolName,
+        toolCallId: currentToolInvocation.toolCallId,
+        output: toolOutput
+      }
+    });
+
+    const result = await generateText({
+      model: mockModel as any,
+      prompt: `${promptText}\nTool[getCurrentTime] executed.`
+    });
+
+    await ctx.messageRepo.createPart({
+      id: crypto.randomUUID(),
+      messageId: assistantMessage.id,
+      partIndex: assistantPartIndex,
       type: 'text',
       textValue: result.text
     });
@@ -86,6 +126,25 @@ export async function runAssistantTurn(ctx: RuntimeContext, input: RuntimeInput)
     return assistantMessage;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'unknown run failure';
+    if (currentToolInvocation && !currentToolCompleted) {
+      await ctx.toolRepo.updateStatus(currentToolInvocation.id, 'failed', {
+        error: message,
+        finishedAt: new Date()
+      });
+      if (assistantMessageId) {
+        await ctx.messageRepo.createPart({
+          id: crypto.randomUUID(),
+          messageId: assistantMessageId,
+          partIndex: assistantPartIndex++,
+          type: 'tool-result',
+          jsonValue: {
+            toolName: currentToolInvocation.toolName,
+            toolCallId: currentToolInvocation.toolCallId,
+            error: message
+          }
+        });
+      }
+    }
     await ctx.runRepo.updateStatus(input.runId, 'failed', {
       finishedAt: new Date(),
       error: message

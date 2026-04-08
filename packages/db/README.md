@@ -4,5 +4,12 @@ Set `DATABASE_URL` to a PostgreSQL connection string.
 
 ## Basic usage
 
-1. Create database and tables with Drizzle migrations (or manual SQL using `src/schema.ts`).
-2. Build repositories from a drizzle client.
+1. Generate migrations from `src/schema.ts`:
+   ```bash
+   pnpm --filter @agent-infra/db db:generate
+   ```
+2. Apply migrations:
+   ```bash
+   pnpm --filter @agent-infra/db db:migrate
+   ```
+3. Build repositories from a drizzle client.

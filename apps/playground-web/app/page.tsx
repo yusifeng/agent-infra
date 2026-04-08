@@ -3,7 +3,26 @@
 import { useEffect, useState } from 'react';
 
 type Thread = { id: string; title: string | null };
-type Message = { id: string; role: string; parts: Array<{ type: string; textValue?: string | null }> };
+type MessagePart = {
+  type: string;
+  textValue?: string | null;
+  jsonValue?: Record<string, unknown> | null;
+};
+type Message = { id: string; role: string; parts: MessagePart[] };
+
+function renderPart(part: MessagePart) {
+  if (part.type === 'text') return part.textValue ?? '';
+  if (part.type === 'tool-call') {
+    const json = part.jsonValue ?? {};
+    return `Tool Call: ${String(json.toolName ?? 'unknown')} (${String(json.toolCallId ?? 'n/a')}) input=${JSON.stringify(json.input ?? null)}`;
+  }
+  if (part.type === 'tool-result') {
+    const json = part.jsonValue ?? {};
+    const payload = json.error ? `error=${JSON.stringify(json.error)}` : `output=${JSON.stringify(json.output ?? null)}`;
+    return `Tool Result: ${String(json.toolName ?? 'unknown')} (${String(json.toolCallId ?? 'n/a')}) ${payload}`;
+  }
+  return JSON.stringify(part);
+}
 
 export default function HomePage() {
   const [threads, setThreads] = useState<Thread[]>([]);
@@ -83,7 +102,7 @@ export default function HomePage() {
             <strong>{m.role}</strong>
             <div>
               {m.parts.map((p, idx) => (
-                <p key={idx}>{p.type === 'text' ? p.textValue : JSON.stringify(p)}</p>
+                <p key={idx}>{renderPart(p)}</p>
               ))}
             </div>
           </li>
