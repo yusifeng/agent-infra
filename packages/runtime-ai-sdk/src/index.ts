@@ -11,7 +11,6 @@ export interface RuntimeContext {
 export interface RuntimeInput {
   threadId: string;
   runId: string;
-  userMessageId: string;
   provider?: string;
   model?: string;
 }
@@ -120,13 +119,13 @@ export async function runAssistantTurn(ctx: RuntimeContext, input: RuntimeInput)
       textValue: result.text
     });
 
-    await ctx.messageRepo.updateStatus(assistantMessage.id, 'completed');
+    const completedMessage = await ctx.messageRepo.updateStatus(assistantMessage.id, 'completed');
     await ctx.runRepo.updateStatus(input.runId, 'completed', {
       finishedAt: new Date(),
       usage: result.usage as Record<string, unknown>
     });
 
-    return assistantMessage;
+    return completedMessage;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'unknown run failure';
     if (toolCreated && currentToolInvocation && !currentToolCompleted) {

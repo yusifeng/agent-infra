@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, max } from 'drizzle-orm';
+import { asc, eq, inArray, max } from 'drizzle-orm';
 import type {
   Artifact,
   ArtifactRepository,
