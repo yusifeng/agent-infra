@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, max } from 'drizzle-orm';
+import { asc, eq, inArray, max } from 'drizzle-orm';
 import type {
   Artifact,
   ArtifactRepository,
@@ -70,6 +70,13 @@ export class DrizzleMessageRepository implements MessageRepository {
     const createdAt = new Date();
     await this.db.insert(messages).values({ ...input, createdAt });
     return { ...input, createdAt };
+  }
+
+  async updateStatus(id: string, status: Message['status']): Promise<Message> {
+    await this.db.update(messages).set({ status }).where(eq(messages.id, id));
+    const [row] = await this.db.select().from(messages).where(eq(messages.id, id)).limit(1);
+    if (!row) throw new Error(`message ${id} not found`);
+    return row;
   }
 
   async createPart(input: Omit<MessagePart, 'createdAt'>): Promise<MessagePart> {

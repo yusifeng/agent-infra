@@ -43,7 +43,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
     {
       threadId,
       runId: run.id,
-      userMessageId: userMessage.id,
       provider: 'mock',
       model: 'mock-model'
     }
