@@ -1,8 +1,9 @@
 import crypto from 'node:crypto';
 import { runAssistantTurn } from '@agent-infra/runtime-ai-sdk';
-import { repos } from '@/lib/repo';
+import { dbReady, repos, runtimeInfo } from '@/lib/repo';
 
 export async function POST(req: Request, { params }: { params: Promise<{ threadId: string }> }) {
+  await dbReady;
   const { threadId } = await params;
   const body = await req.json();
   const text: string = body.text;
@@ -29,8 +30,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
     id: crypto.randomUUID(),
     threadId,
     triggerMessageId: userMessage.id,
-    provider: 'mock',
-    model: 'mock-model',
+    provider: runtimeInfo.ai.provider,
+    model: runtimeInfo.ai.model,
     status: 'queued'
   });
 
@@ -43,8 +44,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
     {
       threadId,
       runId: run.id,
-      provider: 'mock',
-      model: 'mock-model'
+      provider: runtimeInfo.ai.provider,
+      model: runtimeInfo.ai.model
     }
   );
 
