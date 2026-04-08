@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { createOpenAI } from '@ai-sdk/openai';
 import { generateText } from 'ai';
 import type { MessageRepository, RunRepository, ToolInvocationRepository } from '@agent-infra/core';
 
@@ -15,6 +16,14 @@ export interface RuntimeInput {
   model?: string;
 }
 
+export type AiMode = 'mock' | 'real';
+
+export interface RuntimeAiConfig {
+  mode: AiMode;
+  provider: string;
+  model: string;
+}
+
 const mockModel = {
   provider: 'mock',
   modelId: 'mock-model',
@@ -28,6 +37,38 @@ const mockModel = {
   }
 };
 
+export function resolveRuntimeAiConfigFromEnv(): RuntimeAiConfig {
+  const mode = (process.env.AI_MODE ?? 'mock') as AiMode;
+  if (mode === 'mock') {
+    return {
+      mode,
+      provider: 'mock',
+      model: 'mock-model'
+    };
+  }
+
+  if (mode !== 'real') {
+    throw new Error(`Invalid AI_MODE: ${mode}. Expected "mock" or "real".`);
+  }
+
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error('AI_MODE=real requires OPENAI_API_KEY. Set OPENAI_API_KEY or switch AI_MODE=mock.');
+  }
+
+  return {
+    mode,
+    provider: 'openai',
+    model: process.env.OPENAI_MODEL ?? 'gpt-4o-mini'
+  };
+}
+
+function resolveModel(config: RuntimeAiConfig) {
+  if (config.mode === 'mock') return mockModel as any;
+  const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return openai(config.model);
+}
+
 export async function runAssistantTurn(ctx: RuntimeContext, input: RuntimeInput) {
   let currentToolInvocation: { id: string; toolName: string; toolCallId: string; input: Record<string, unknown> } | null = null;
   let toolCreated = false;
@@ -36,6 +77,8 @@ export async function runAssistantTurn(ctx: RuntimeContext, input: RuntimeInput)
   let assistantPartIndex = 0;
 
   try {
+    const runtimeAiConfig = resolveRuntimeAiConfigFromEnv();
+
     await ctx.runRepo.updateStatus(input.runId, 'running', { startedAt: new Date() });
 
     const messages = await ctx.messageRepo.listByThread(input.threadId);
@@ -50,7 +93,11 @@ export async function runAssistantTurn(ctx: RuntimeContext, input: RuntimeInput)
       role: 'assistant',
       seq: await ctx.messageRepo.nextSeq(input.threadId),
       status: 'created',
-      metadata: { provider: input.provider ?? 'mock', model: input.model ?? 'mock-model' }
+      metadata: {
+        provider: input.provider ?? runtimeAiConfig.provider,
+        model: input.model ?? runtimeAiConfig.model,
+        aiMode: runtimeAiConfig.mode
+      }
     });
     assistantMessageId = assistantMessage.id;
 
@@ -107,7 +154,7 @@ export async function runAssistantTurn(ctx: RuntimeContext, input: RuntimeInput)
     });
 
     const result = await generateText({
-      model: mockModel as any,
+      model: resolveModel(runtimeAiConfig),
       prompt: `${promptText}\nTool[getCurrentTime] executed.`
     });
 
