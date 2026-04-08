@@ -15,9 +15,11 @@ Reusable AI infrastructure base with a minimal v0.1 conversation loop.
 
 No model API key and no local Postgres are required.
 
+Environment file should be placed under `apps/playground-web` (Next.js app scope).
+
 ```bash
 pnpm install
-cp .env.example .env
+cp apps/playground-web/.env.example apps/playground-web/.env.local
 pnpm dev
 ```
 
