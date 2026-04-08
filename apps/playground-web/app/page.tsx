@@ -20,9 +20,16 @@ export default function HomePage() {
   async function createThread() {
     const res = await fetch('/api/threads', { method: 'POST' });
     const data = await res.json();
-    setActiveThreadId(data.thread.id);
+    const threadId: string = data.thread.id;
+    setActiveThreadId(threadId);
     await refreshThreads();
-    setMessages([]);
+    await loadThreadMessages(threadId);
+  }
+
+  async function loadThreadMessages(threadId: string) {
+    const res = await fetch(`/api/threads/${threadId}/messages`);
+    const data = await res.json();
+    setMessages(data.messages);
   }
 
   async function sendMessage() {
@@ -50,7 +57,14 @@ export default function HomePage() {
         <ul>
           {threads.map((thread) => (
             <li key={thread.id}>
-              <button onClick={() => setActiveThreadId(thread.id)}>{thread.title ?? thread.id}</button>
+              <button
+                onClick={() => {
+                  setActiveThreadId(thread.id);
+                  void loadThreadMessages(thread.id);
+                }}
+              >
+                {thread.title ?? thread.id}
+              </button>
             </li>
           ))}
         </ul>
