@@ -1,4 +1,4 @@
-import { and, asc, eq, max } from 'drizzle-orm';
+import { and, asc, eq, inArray, max } from 'drizzle-orm';
 import type {
   Artifact,
   ArtifactRepository,
@@ -24,7 +24,7 @@ export class DrizzleThreadRepository implements ThreadRepository {
   }
 
   async findById(id: string): Promise<Thread | null> {
-    const row = await this.db.query.threads.findFirst({ where: eq(threads.id, id) });
+    const [row] = await this.db.select().from(threads).where(eq(threads.id, id)).limit(1);
     return row ?? null;
   }
 
@@ -43,7 +43,7 @@ export class DrizzleRunRepository implements RunRepository {
   }
 
   async findById(id: string): Promise<Run | null> {
-    const row = await this.db.query.runs.findFirst({ where: eq(runs.id, id) });
+    const [row] = await this.db.select().from(runs).where(eq(runs.id, id)).limit(1);
     if (!row) return null;
     return { ...row, usage: row.usageJson };
   }
@@ -80,12 +80,25 @@ export class DrizzleMessageRepository implements MessageRepository {
 
   async listByThread(threadId: string): Promise<Array<Message & { parts: MessagePart[] }>> {
     const msgRows = await this.db.select().from(messages).where(eq(messages.threadId, threadId)).orderBy(asc(messages.seq));
-    const partRows = await this.db.select().from(messageParts);
+    if (msgRows.length === 0) return [];
+
+    const messageIds = msgRows.map((message: Message) => message.id);
+    const partRows = await this.db
+      .select()
+      .from(messageParts)
+      .where(inArray(messageParts.messageId, messageIds))
+      .orderBy(asc(messageParts.partIndex));
+
+    const partsByMessageId = new Map<string, MessagePart[]>();
+    for (const part of partRows as MessagePart[]) {
+      const existing = partsByMessageId.get(part.messageId) ?? [];
+      existing.push(part);
+      partsByMessageId.set(part.messageId, existing);
+    }
+
     return msgRows.map((m: Message) => ({
       ...m,
-      parts: partRows
-        .filter((p: MessagePart) => p.messageId === m.id)
-        .sort((a: MessagePart, b: MessagePart) => a.partIndex - b.partIndex)
+      parts: partsByMessageId.get(m.id) ?? []
     }));
   }
 
@@ -121,7 +134,7 @@ export class DrizzleToolInvocationRepository implements ToolInvocationRepository
       })
       .where(eq(toolInvocations.id, id));
 
-    const row = await this.db.query.toolInvocations.findFirst({ where: eq(toolInvocations.id, id) });
+    const [row] = await this.db.select().from(toolInvocations).where(eq(toolInvocations.id, id)).limit(1);
     if (!row) throw new Error(`tool invocation ${id} not found`);
     return { ...row, input: row.inputJson, output: row.outputJson };
   }
