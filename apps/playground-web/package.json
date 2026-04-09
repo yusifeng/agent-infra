@@ -12,6 +12,9 @@
   "dependencies": {
     "@agent-infra/db": "workspace:*",
     "@agent-infra/runtime-ai-sdk": "workspace:*",
+    "@mariozechner/pi-agent-core": "^0.1.0",
+    "@mariozechner/pi-ai": "^0.1.0",
+    "@mariozechner/pi-web-ui": "^0.1.0",
     "next": "15.5.15",
     "react": "19.1.0",
     "react-dom": "19.1.0"
