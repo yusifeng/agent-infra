@@ -25,6 +25,8 @@ export interface RuntimeAiConfig {
 }
 
 const mockModel = {
+  // AI SDK 4 expects LanguageModelV1-compatible models.
+  specificationVersion: 'v1',
   provider: 'mock',
   modelId: 'mock-model',
   async doGenerate(options: any) {
@@ -101,61 +103,80 @@ export async function runAssistantTurn(ctx: RuntimeContext, input: RuntimeInput)
     });
     assistantMessageId = assistantMessage.id;
 
-    const toolCallId = crypto.randomUUID();
-    const toolInput = { timezone: 'UTC' };
-    currentToolInvocation = {
-      id: crypto.randomUUID(),
-      toolName: 'getCurrentTime',
-      toolCallId,
-      input: toolInput
-    };
+    // In mock mode we intentionally vary the "shape" of the assistant response
+    // to exercise UI + storage paths (tool parts vs pure text).
+    const mockVariant =
+      runtimeAiConfig.mode === 'mock'
+        ? (['text-only', 'tool-then-text', 'structured-text'] as const)[crypto.randomInt(0, 3)]
+        : null;
 
-    await ctx.toolRepo.create({
-      id: currentToolInvocation.id,
-      threadId: input.threadId,
-      runId: input.runId,
-      messageId: assistantMessage.id,
-      toolName: currentToolInvocation.toolName,
-      toolCallId: currentToolInvocation.toolCallId,
-      status: 'running',
-      input: currentToolInvocation.input
-    });
-    toolCreated = true;
+    let toolOutput: { now: string } | null = null;
+    if (mockVariant === 'tool-then-text' || runtimeAiConfig.mode !== 'mock') {
+      const toolCallId = crypto.randomUUID();
+      const toolInput = { timezone: 'UTC' };
+      currentToolInvocation = {
+        id: crypto.randomUUID(),
+        toolName: 'getCurrentTime',
+        toolCallId,
+        input: toolInput
+      };
 
-    await ctx.messageRepo.createPart({
-      id: crypto.randomUUID(),
-      messageId: assistantMessage.id,
-      partIndex: assistantPartIndex++,
-      type: 'tool-call',
-      jsonValue: {
+      await ctx.toolRepo.create({
+        id: currentToolInvocation.id,
+        threadId: input.threadId,
+        runId: input.runId,
+        messageId: assistantMessage.id,
         toolName: currentToolInvocation.toolName,
         toolCallId: currentToolInvocation.toolCallId,
+        status: 'running',
         input: currentToolInvocation.input
-      }
-    });
+      });
+      toolCreated = true;
 
-    const toolOutput = { now: new Date().toISOString() };
-    await ctx.toolRepo.updateStatus(currentToolInvocation.id, 'completed', {
-      output: toolOutput,
-      finishedAt: new Date()
-    });
-    currentToolCompleted = true;
+      await ctx.messageRepo.createPart({
+        id: crypto.randomUUID(),
+        messageId: assistantMessage.id,
+        partIndex: assistantPartIndex++,
+        type: 'tool-call',
+        jsonValue: {
+          toolName: currentToolInvocation.toolName,
+          toolCallId: currentToolInvocation.toolCallId,
+          input: currentToolInvocation.input
+        }
+      });
 
-    await ctx.messageRepo.createPart({
-      id: crypto.randomUUID(),
-      messageId: assistantMessage.id,
-      partIndex: assistantPartIndex++,
-      type: 'tool-result',
-      jsonValue: {
-        toolName: currentToolInvocation.toolName,
-        toolCallId: currentToolInvocation.toolCallId,
-        output: toolOutput
-      }
-    });
+      toolOutput = { now: new Date().toISOString() };
+      await ctx.toolRepo.updateStatus(currentToolInvocation.id, 'completed', {
+        output: toolOutput,
+        finishedAt: new Date()
+      });
+      currentToolCompleted = true;
+
+      await ctx.messageRepo.createPart({
+        id: crypto.randomUUID(),
+        messageId: assistantMessage.id,
+        partIndex: assistantPartIndex++,
+        type: 'tool-result',
+        jsonValue: {
+          toolName: currentToolInvocation.toolName,
+          toolCallId: currentToolInvocation.toolCallId,
+          output: toolOutput
+        }
+      });
+    }
+
+    const promptSuffix =
+      runtimeAiConfig.mode !== 'mock'
+        ? '\nTool[getCurrentTime] executed.'
+        : mockVariant === 'tool-then-text'
+          ? `\nTool[getCurrentTime] executed. now=${toolOutput?.now ?? ''}`
+          : mockVariant === 'structured-text'
+            ? '\nPlease respond in 3 short bullet points and include an explicit "mock" marker.'
+            : '\nPlease respond with a single short sentence.';
 
     const result = await generateText({
       model: resolveModel(runtimeAiConfig),
-      prompt: `${promptText}\nTool[getCurrentTime] executed.`
+      prompt: `${promptText}${promptSuffix}`
     });
 
     await ctx.messageRepo.createPart({

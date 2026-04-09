@@ -10,6 +10,15 @@ type MessagePart = {
 };
 type Message = { id: string; role: string; parts: MessagePart[] };
 type RuntimeMeta = { aiMode: string; aiProvider: string; aiModel: string; dbMode: string };
+type NextAction =
+  | {
+      kind: 'tool';
+      toolInvocationId: string;
+      toolCallId: string;
+      toolName: string;
+      input: Record<string, unknown> | null;
+    }
+  | null;
 
 function formatPart(part: MessagePart) {
   if (part.type === 'text') {
@@ -50,6 +59,7 @@ export default function HomePage() {
   const [text, setText] = useState('');
   const [newThreadTitle, setNewThreadTitle] = useState('');
   const [meta, setMeta] = useState<RuntimeMeta | null>(null);
+  const [lastToolRoundTripError, setLastToolRoundTripError] = useState<string | null>(null);
 
   async function refreshThreads() {
     const res = await fetch('/api/threads');
@@ -85,6 +95,7 @@ export default function HomePage() {
 
   async function sendMessage() {
     if (!activeThreadId || !text.trim()) return;
+    setLastToolRoundTripError(null);
     const res = await fetch(`/api/runs/${activeThreadId}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -92,6 +103,45 @@ export default function HomePage() {
     });
     const data = await res.json();
     setMessages(data.messages);
+
+    // ReAct loop: keep executing tools until the server stops returning nextAction.
+    let nextAction: NextAction = data.nextAction ?? null;
+    let runId: string = data.runId;
+    while (nextAction?.kind === 'tool') {
+      // Simulate client-side tool execution, then send tool-result back to server (ReAct-style multi-request run).
+      let output: Record<string, unknown> | null = null;
+      let error: string | null = null;
+      try {
+        if (nextAction.toolName === 'getCurrentTime') {
+          output = { now: new Date().toISOString() };
+        } else {
+          error = `Unknown tool: ${nextAction.toolName}`;
+        }
+      } catch (e) {
+        error = e instanceof Error ? e.message : 'tool execution failed';
+      }
+
+      const r2 = await fetch(`/api/runs/${activeThreadId}/${runId}/tool-result`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          toolInvocationId: nextAction.toolInvocationId,
+          toolCallId: nextAction.toolCallId,
+          toolName: nextAction.toolName,
+          output,
+          error
+        })
+      });
+      const d2 = await r2.json();
+      if (!r2.ok) {
+        setLastToolRoundTripError(`tool-result failed (${r2.status}): ${JSON.stringify(d2)}`);
+        break;
+      }
+      setMessages(d2.messages);
+      nextAction = (d2.nextAction ?? null) as NextAction;
+      runId = d2.runId ?? runId;
+    }
+
     setText('');
   }
 
@@ -176,6 +226,11 @@ export default function HomePage() {
         </div>
 
         <footer className="border-t border-slate-200 p-4">
+          {lastToolRoundTripError ? (
+            <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              {lastToolRoundTripError}
+            </div>
+          ) : null}
           <div className="flex gap-2">
             <textarea
               value={text}
