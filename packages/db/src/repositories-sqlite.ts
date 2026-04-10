@@ -1,4 +1,4 @@
-import { asc, eq, inArray, max } from 'drizzle-orm';
+import { asc, desc, eq, inArray, max } from 'drizzle-orm';
 import type {
   Artifact,
   ArtifactRepository,
@@ -48,6 +48,16 @@ export class SqliteRunRepository implements RunRepository {
     const [row] = await this.db.select().from(runs).where(eq(runs.id, id)).limit(1);
     if (!row) return null;
     return { ...row, usage: row.usageJson };
+  }
+
+  async listByThread(threadId: string, options?: { limit?: number }): Promise<Run[]> {
+    let query = this.db.select().from(runs).where(eq(runs.threadId, threadId)).orderBy(desc(runs.createdAt));
+    if (options?.limit && options.limit > 0) {
+      query = query.limit(options.limit);
+    }
+
+    const rows = await query;
+    return rows.map((row: any) => ({ ...row, usage: row.usageJson }));
   }
 
   async updateStatus(id: string, status: Run['status'], patch: Partial<Run> = {}): Promise<Run> {

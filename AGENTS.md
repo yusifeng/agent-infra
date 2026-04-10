@@ -50,6 +50,7 @@ Recent history favors short, imperative commit subjects, for example `Add Pi Nar
 - Start commit messages with a verb and keep the first line concise.
 - In PRs, describe the affected workspace package(s), note schema or env changes, and link related issues.
 - Include screenshots only for `apps/playground-web` UI changes.
+- When behavior, routes, or user-facing workflows change, update the relevant docs/README/architecture notes in the same work loop.
 
 ## Security & Configuration Tips
 

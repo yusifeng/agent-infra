@@ -244,6 +244,12 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
           runEvents,
           toolInvocations
         };
+      },
+      async listByThread(input) {
+        await loadThreadOrThrow(dependencies.repositories, input.threadId);
+        return dependencies.repositories.runRepo.listByThread(input.threadId, {
+          limit: input.limit
+        });
       }
     }
   };

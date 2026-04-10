@@ -117,6 +117,11 @@ export interface GetRunTimelineRequestDto {
   runId: string;
 }
 
+export interface GetThreadRunsRequestDto {
+  threadId: string;
+  limit?: number;
+}
+
 export interface ThreadsResponseDto {
   threads: ThreadDto[];
   error?: string;
@@ -129,6 +134,11 @@ export interface CreateThreadResponseDto {
 
 export interface ThreadMessagesResponseDto {
   messages?: MessageDto[];
+  error?: string;
+}
+
+export interface ThreadRunsResponseDto {
+  runs: RunDto[];
   error?: string;
 }
 

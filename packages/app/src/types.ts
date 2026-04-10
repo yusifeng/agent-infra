@@ -73,6 +73,11 @@ export interface RunTimelineResult {
   toolInvocations: ToolInvocation[];
 }
 
+export interface GetThreadRunsInput {
+  threadId: string;
+  limit?: number;
+}
+
 export interface AgentInfraAppDependencies {
   repositories: AgentInfraAppRepositories;
   runtime: AgentInfraRuntimePort;
@@ -93,5 +98,6 @@ export interface AgentInfraApp {
   };
   runs: {
     getTimeline(input: GetRunTimelineInput): Promise<RunTimelineResult>;
+    listByThread(input: GetThreadRunsInput): Promise<Run[]>;
   };
 }

@@ -68,6 +68,17 @@ function createRepositories(stateRef: { current: InMemoryState }, snapshot?: InM
       async findById(id) {
         return getState().runs.get(id) ?? null;
       },
+      async listByThread(threadId, options) {
+        const runs = [...getState().runs.values()]
+          .filter((run) => run.threadId === threadId)
+          .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+
+        if (options?.limit && options.limit > 0) {
+          return runs.slice(0, options.limit);
+        }
+
+        return runs;
+      },
       async updateStatus(id, status, patch = {}) {
         const current = getState().runs.get(id);
         if (!current) {
@@ -392,6 +403,31 @@ describe('createAgentInfraApp', () => {
     expect(timeline.run.id).toBe(turn.run.id);
     expect(timeline.runEvents.map((event) => event.type)).toEqual(['agent_start']);
     expect(timeline.toolInvocations).toEqual([]);
+  });
+
+  it('lists recent runs for a thread in reverse chronological order', async () => {
+    const { app } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Recent runs path' });
+
+    const first = await app.turns.startText({
+      threadId: thread.id,
+      text: 'First'
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    const second = await app.turns.startText({
+      threadId: thread.id,
+      text: 'Second'
+    });
+
+    const runs = await app.runs.listByThread({ threadId: thread.id, limit: 1 });
+
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.id).toBe(second.run.id);
+
+    const allRuns = await app.runs.listByThread({ threadId: thread.id });
+    expect(allRuns.map((run) => run.id)).toEqual([second.run.id, first.run.id]);
   });
 
   it('throws a typed not-found error for a missing run timeline', async () => {

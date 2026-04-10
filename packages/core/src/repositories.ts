@@ -9,6 +9,7 @@ export interface ThreadRepository {
 export interface RunRepository {
   create(input: Omit<Run, 'createdAt'>): Promise<Run>;
   findById(id: string): Promise<Run | null>;
+  listByThread(threadId: string, options?: { limit?: number }): Promise<Run[]>;
   updateStatus(id: string, status: Run['status'], patch?: Partial<Run>): Promise<Run>;
 }
 

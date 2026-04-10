@@ -10,6 +10,7 @@ import type {
   RunTimelineResponseDto,
   RuntimePiMetaDto,
   ThreadMessagesResponseDto,
+  ThreadRunsResponseDto,
   ThreadDto,
   ThreadsResponseDto,
   ToolInvocationDto
@@ -80,6 +81,12 @@ function deriveLatestRunId(messages: MessageDto[]) {
   return null;
 }
 
+const RECENT_RUNS_LIMIT = 8;
+
+function compareRunsByCreatedAt(left: RunDto, right: RunDto) {
+  return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+}
+
 function upsertMessage(messages: MessageDto[], nextMessage: MessageDto) {
   const existingIndex = messages.findIndex((message) => message.id === nextMessage.id);
   if (existingIndex === -1) {
@@ -89,6 +96,17 @@ function upsertMessage(messages: MessageDto[], nextMessage: MessageDto) {
   const nextMessages = [...messages];
   nextMessages[existingIndex] = nextMessage;
   return nextMessages;
+}
+
+function upsertRun(runs: RunDto[], nextRun: RunDto) {
+  const existingIndex = runs.findIndex((run) => run.id === nextRun.id);
+  if (existingIndex === -1) {
+    return [...runs, nextRun].sort(compareRunsByCreatedAt).slice(0, RECENT_RUNS_LIMIT);
+  }
+
+  const nextRuns = [...runs];
+  nextRuns[existingIndex] = nextRun;
+  return nextRuns.sort(compareRunsByCreatedAt).slice(0, RECENT_RUNS_LIMIT);
 }
 
 function upsertRunEvent(events: RunEventDto[], nextEvent: RunEventDto) {
@@ -322,6 +340,9 @@ export function RuntimePiPlaygroundPage() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [recentRuns, setRecentRuns] = useState<RunDto[]>([]);
+  const [recentRunsLoading, setRecentRunsLoading] = useState(false);
+  const [recentRunsError, setRecentRunsError] = useState<string | null>(null);
   const [timeline, setTimeline] = useState<RunTimelineResponseDto | null>(null);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [timelineError, setTimelineError] = useState<string | null>(null);
@@ -444,28 +465,48 @@ export function RuntimePiPlaygroundPage() {
     const controller = new AbortController();
     messagesAbortControllerRef.current = controller;
     setLoadingMessages(true);
+    setRecentRunsLoading(true);
+    setRecentRunsError(null);
     try {
-      const response = await fetch(`/api/runtime-pi/threads/${threadId}/messages`, {
-        signal: controller.signal
-      });
-      const data = (await response.json()) as ThreadMessagesResponseDto;
-      if (!response.ok) {
-        throw new Error(data.error ?? `Failed to load messages (${response.status})`);
+      const [messagesResponse, runsResponse] = await Promise.all([
+        fetch(`/api/runtime-pi/threads/${threadId}/messages`, {
+          signal: controller.signal
+        }),
+        fetch(`/api/runtime-pi/threads/${threadId}/runs?limit=${RECENT_RUNS_LIMIT}`, {
+          signal: controller.signal
+        })
+      ]);
+
+      const messagesData = (await messagesResponse.json()) as ThreadMessagesResponseDto;
+      if (!messagesResponse.ok) {
+        throw new Error(messagesData.error ?? `Failed to load messages (${messagesResponse.status})`);
+      }
+
+      const runsData = (await readJsonOrEmpty<ThreadRunsResponseDto>(runsResponse)) as ThreadRunsResponseDto;
+      if (!runsResponse.ok) {
+        throw new Error(runsData.error ?? `Failed to load thread runs (${runsResponse.status})`);
       }
 
       if (controller.signal.aborted || requestId !== messagesRequestIdRef.current) {
         return;
       }
 
-      const nextMessages = data.messages ?? [];
+      const nextMessages = messagesData.messages ?? [];
+      const nextRuns = (runsData.runs ?? []).slice().sort(compareRunsByCreatedAt);
       setMessages(nextMessages);
+      setRecentRuns(nextRuns);
+      setRecentRunsError(null);
+      setRecentRunsLoading(false);
       setError(null);
-      await loadRunTimeline(deriveLatestRunId(nextMessages));
+      await loadRunTimeline(nextRuns[0]?.id ?? deriveLatestRunId(nextMessages));
     } catch (loadError) {
       if (controller.signal.aborted || requestId !== messagesRequestIdRef.current) {
         return;
       }
 
+      setRecentRuns([]);
+      setRecentRunsLoading(false);
+      setRecentRunsError(loadError instanceof Error ? loadError.message : 'Failed to load thread runs');
       setSelectedRunId(null);
       setTimeline(null);
       setTimelineError(null);
@@ -579,7 +620,17 @@ export function RuntimePiPlaygroundPage() {
           if (event.type === 'run.ready') {
             setDraft('');
             setMessages((current) => upsertMessage(current, event.userMessage));
+            setRecentRuns((current) => upsertRun(current, event.run));
             continue;
+          }
+
+          if (event.type === 'run.state' || event.type === 'run.completed') {
+            setRecentRuns((current) => upsertRun(current, event.run));
+          }
+
+          if (event.type === 'run.failed' && event.run) {
+            const failedRun = event.run;
+            setRecentRuns((current) => upsertRun(current, failedRun));
           }
 
           if (event.type === 'run.failed') {
@@ -605,9 +656,13 @@ export function RuntimePiPlaygroundPage() {
           if (event.type === 'run.ready') {
             setDraft('');
             setMessages((current) => upsertMessage(current, event.userMessage));
+            setRecentRuns((current) => upsertRun(current, event.run));
           } else if (event.type === 'run.failed') {
+            setRecentRuns((current) => (event.run ? upsertRun(current, event.run) : current));
             terminalStreamError = event.error;
             setError(event.error);
+          } else if (event.type === 'run.state' || event.type === 'run.completed') {
+            setRecentRuns((current) => upsertRun(current, event.run));
           }
         }
       }
@@ -856,6 +911,62 @@ export function RuntimePiPlaygroundPage() {
           </header>
 
           <section className="space-y-4 border-b border-slate-200 px-4 py-4">
+            <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Recent Runs</p>
+                  <p className="mt-1 text-sm text-slate-600">Switch the right-side log between durable runs for this thread.</p>
+                </div>
+                <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">{recentRuns.length}</span>
+              </div>
+
+              {recentRunsLoading ? <p className="text-sm text-slate-500">Loading recent runs...</p> : null}
+              {recentRunsError ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{recentRunsError}</div> : null}
+
+              {!recentRunsLoading && !recentRunsError && activeThreadId && recentRuns.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-sm text-slate-500">
+                  No runs yet for this thread.
+                </div>
+              ) : null}
+
+              {!recentRunsLoading && recentRuns.length > 0 ? (
+                <div className="max-h-60 space-y-2 overflow-y-auto pr-1">
+                  {recentRuns.map((run) => {
+                    const selected = run.id === selectedRunId;
+                    const live = run.id === liveStreamRunId;
+
+                    return (
+                      <button
+                        key={run.id}
+                        type="button"
+                        onClick={() => {
+                          void loadRunTimeline(run.id);
+                        }}
+                        className={`w-full rounded-xl border px-3 py-3 text-left text-sm transition ${
+                          selected ? 'border-sky-300 bg-sky-50 shadow-sm' : 'border-slate-200 bg-slate-50 hover:bg-white'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-slate-900">{run.model ?? 'unknown model'}</p>
+                            <p className="truncate text-xs text-slate-500">{run.provider ?? 'unknown provider'} · {formatDateTime(run.createdAt)}</p>
+                          </div>
+                          <div className="flex flex-col items-end gap-1">
+                            <span className={`rounded-full px-2 py-1 text-[10px] font-medium uppercase tracking-wide ${statusBadgeTone(run.status)}`}>
+                              {run.status}
+                            </span>
+                            {live ? <span className="text-[10px] font-medium uppercase tracking-wide text-sky-600">live</span> : null}
+                          </div>
+                        </div>
+                        <p className="mt-2 truncate text-xs text-slate-500">{run.id}</p>
+                        {run.error ? <p className="mt-2 break-words text-xs text-rose-700">{run.error}</p> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+
             <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
