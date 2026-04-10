@@ -1,9 +1,10 @@
 # agent-infra
 
-Contract-first durable backend primitives for agent runtimes, plus playground consumers that define how the system is used.
+Contract-first durable backend primitives for agent runtimes, plus consumer apps that define how the system is used.
 
 ## Structure
 
+- `apps/docs`: deployable official documentation site
 - `apps/playground-web`: first consumer of `agent-infra`, with both browser-local experiments and a durable runtime console
 - `packages/app`: application/use-case boundary for creating threads and running durable turns
 - `packages/core`: domain types + repository interfaces
@@ -11,12 +12,14 @@ Contract-first durable backend primitives for agent runtimes, plus playground co
 - `packages/db`: Drizzle repositories (SQLite + PostgreSQL) for durable thread/run/message/tool storage
 - `packages/runtime-pi`: pi-agent-core adapter that persists runs, messages, tool invocations, and run events
 - `packages/shared`: shared helpers
-- `docs`: architecture and roadmap
+- `docs`: internal architecture and roadmap notes
 
 ## Quick start
 
-The default app experience is the browser-local pi experiment in `playground-web`.
+The default local app experience is the browser-local pi experiment in `playground-web`.
 The same app also includes `/runtime-pi`, which exercises the durable backend through the official app boundary.
+
+The public docs site lives in `apps/docs`.
 
 Environment file should be placed under `apps/playground-web` (Next.js app scope).
 
@@ -24,6 +27,13 @@ Environment file should be placed under `apps/playground-web` (Next.js app scope
 pnpm install
 cp apps/playground-web/.env.example apps/playground-web/.env.local
 pnpm dev
+```
+
+For the docs site:
+
+```bash
+pnpm install
+pnpm dev:docs
 ```
 
 The browser-local experiment keeps sessions, settings, and provider keys in browser IndexedDB. It does not write to the durable backend packages.
@@ -45,6 +55,12 @@ The browser-local experiment keeps sessions, settings, and provider keys in brow
 - `@agent-infra/contracts` defines serialized request/response contracts for consumer-facing APIs.
 - `@agent-infra/db` implements SQLite and PostgreSQL repositories for that contract.
 - `@agent-infra/runtime-pi` is the current server-side runtime adapter mainline.
+
+## Documentation split
+
+- `apps/docs` contains the deployable official documentation site.
+- `docs/` keeps internal notes, roadmap material, and architecture working docs.
+- `apps/playground-web` remains the first consumer and experiment harness, not the documentation source of truth.
 
 ### PostgreSQL migration flow
 

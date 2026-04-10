@@ -1,0 +1,87 @@
+---
+title: Domain Model
+description: The durable storage model behind agent-infra.
+---
+
+# Domain Model
+
+The stable storage contract lives in `@agent-infra/core`.
+
+The first version of the durable model is intentionally small:
+
+- `thread`
+- `run`
+- `message`
+- `message_part`
+- `tool_invocation`
+- `run_event`
+
+## Thread
+
+`thread` is the durable conversation timeline.
+
+Use `thread` instead of `session` when the goal is to preserve a long-lived sequence of messages and runs that may continue over time.
+
+## Run
+
+`run` represents one execution attempt of the assistant against a thread.
+
+A run is useful because:
+
+- it gives you a stable unit of execution for debugging
+- it separates conversation history from runtime lifecycle
+- it lets you query failures, durations, and event traces directly
+
+## Message
+
+`message` is the container record for one actor turn, for example `user`, `assistant`, or `tool`.
+
+It should stay compact. Mixed content belongs in parts, not in ad-hoc columns.
+
+## Message Part
+
+`message_part` is the extensibility point.
+
+It allows a single message to contain:
+
+- final text
+- tool call records
+- tool results
+- reasoning or structured payloads
+- future artifact references
+
+This is why the console can show richer runtime output without changing the top-level `message` shape every time.
+
+## Tool Invocation
+
+`tool_invocation` is the durable execution record for a tool call.
+
+Keep it separate from `message_part` because:
+
+- lifecycle state belongs to the invocation record
+- display content belongs to message parts
+- tools need direct querying independent of transcript rendering
+
+## Run Event
+
+`run_event` is the append-only event log for a single run.
+
+Version 1 stores raw event payloads plus:
+
+- `threadId`
+- `runId`
+- `seq`
+- `type`
+- `createdAt`
+
+`run_event` exists to preserve runtime truth even when the projected records remain intentionally compact.
+
+## Design rule
+
+The rule of thumb is:
+
+- keep durable projections simple
+- keep runtime truth append-only
+- keep consumer contracts narrow
+
+That separation is what lets `agent-infra` stay easy to adopt without becoming too rigid.

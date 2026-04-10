@@ -1,0 +1,70 @@
+---
+title: agent-infra
+description: Durable backend primitives and runtime adapters for agent systems.
+---
+
+# agent-infra
+
+`agent-infra` is a contract-first backend foundation for agent runtimes.
+
+It keeps the durable truth of a conversation system in packages, not inside a UI app:
+
+- `@agent-infra/core` defines the domain model and repository interfaces.
+- `@agent-infra/contracts` defines the serialized request/response contracts.
+- `@agent-infra/db` implements durable storage for SQLite and PostgreSQL.
+- `@agent-infra/runtime-pi` executes server-side turns and persists runtime truth.
+- `@agent-infra/app` exposes the narrow application boundary that consumers call.
+
+## What it is for
+
+Use `agent-infra` when you want:
+
+- durable `thread` and `run` records instead of browser-only chat state
+- structured `message_part` and `tool_invocation` persistence
+- append-only `run_event` logs for traceability and replay
+- runtime adapters that stay replaceable instead of becoming product logic
+- a thin consumer app that exercises the platform through stable contracts
+
+## What it is not
+
+`agent-infra` is not trying to be:
+
+- a full chat product
+- a one-package frontend framework
+- a new agent loop implementation for its own sake
+- a replacement for upstream model/provider SDKs
+
+## Recommended reading order
+
+1. [Domain model](/concepts/domain-model)
+2. [Application boundary](/concepts/application-boundary)
+3. [DB quickstart](/guides/db-quickstart)
+4. [runtime-pi quickstart](/guides/runtime-pi-quickstart)
+5. [Runtime console guide](/guides/runtime-console)
+
+## Repository shape
+
+```text
+apps/
+  docs/             deployable official docs site
+  playground-web/   first consumer and experiment harness
+packages/
+  app/              use-case boundary
+  contracts/        transport contracts
+  core/             domain model + repo interfaces
+  db/               durable storage implementations
+  runtime-pi/       server-side Pi runtime adapter
+  shared/           small shared helpers
+docs/
+  architecture.md   internal architecture notes
+  roadmap.md        internal roadmap
+```
+
+## Deployment direction
+
+The recommended deployment shape is:
+
+- `apps/docs` for public documentation
+- `apps/playground-web` for the console and experiments
+
+This keeps stable public documentation separate from a faster-moving harness.

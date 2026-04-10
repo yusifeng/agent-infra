@@ -6,6 +6,7 @@
   "scripts": {
     "build": "pnpm -r build",
     "dev": "pnpm --filter playground-web dev",
+    "dev:docs": "pnpm --filter docs-web dev",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm --filter @agent-infra/core build && pnpm --filter @agent-infra/contracts build && pnpm --filter @agent-infra/db build && pnpm --filter @agent-infra/app build && pnpm --filter @agent-infra/runtime-pi build && pnpm -r typecheck",
     "test": "pnpm -r --if-present test"

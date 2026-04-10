@@ -1,0 +1,48 @@
+---
+title: Runtime Console
+description: How the playground console should use the platform.
+---
+
+# Runtime Console
+
+`apps/playground-web` is the first consumer of the platform.
+
+That means its most important job is to show how a real app should use `agent-infra`, not to absorb orchestration into UI code.
+
+## Current purpose
+
+The runtime console should help validate:
+
+- thread creation and selection
+- durable run execution
+- live stream observation
+- run event inspection
+- transcript rendering from durable records
+
+## Console layout
+
+The current direction is a three-column console:
+
+- left: threads
+- center: transcript
+- right: run status plus live log output
+
+This separation mirrors the durable model well:
+
+- threads are the conversation container
+- transcript is the projected read model
+- logs expose run lifecycle truth
+
+## SSE direction
+
+Live observation should use SSE for the running console experience, while durable timeline endpoints remain the source of truth for replay and refresh recovery.
+
+## What should stay out of the console
+
+Avoid turning the console into:
+
+- a replacement for the app boundary
+- a custom local state protocol for core records
+- a giant UI abstraction layer like a kitchen-sink chat package
+
+The console is most valuable when it exercises the stable package boundaries directly.

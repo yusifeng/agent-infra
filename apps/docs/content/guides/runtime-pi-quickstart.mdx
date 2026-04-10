@@ -1,0 +1,56 @@
+---
+title: runtime-pi Quickstart
+description: Run a durable server-side assistant turn with the Pi adapter.
+---
+
+# runtime-pi Quickstart
+
+`@agent-infra/runtime-pi` is the current server-side runtime adapter mainline.
+
+It uses `pi-agent-core` and persists runtime lifecycle truth into `agent-infra` records.
+
+## Configure providers
+
+Current runtime selection supports DeepSeek and OpenAI.
+
+```bash
+DEEPSEEK_API_KEY=sk-...
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4o-mini
+```
+
+If both keys are present, the current default selection prefers DeepSeek.
+
+## Run the smoke harness
+
+```bash
+pnpm --filter @agent-infra/runtime-pi smoke
+```
+
+By default this uses SQLite at `packages/runtime-pi/runtime-pi-smoke.db`.
+
+## What gets persisted
+
+During a run, the adapter persists:
+
+- `run` lifecycle updates
+- assistant `message` records
+- final assistant `message_part` text
+- `tool_invocation` records
+- `tool-call` and `tool-result` message parts
+- append-only `run_event` entries
+
+## Version 1 behavior
+
+The current adapter intentionally keeps the first version simple:
+
+- stream deltas go to `run_event`, not `message_part`
+- final content is written at assistant message end
+- local demo tools are used before business-system tools
+- the adapter does not depend on browser key storage
+
+## Integration rule
+
+Treat `runtime-pi` as a runtime adapter, not as your application boundary.
+
+Consumer apps should call the app layer, and the app layer should decide when to invoke the runtime.

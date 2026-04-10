@@ -1,0 +1,63 @@
+---
+title: DB Quickstart
+description: Set up durable storage with @agent-infra/db.
+---
+
+# DB Quickstart
+
+`@agent-infra/db` provides SQLite and PostgreSQL implementations of the repository interfaces defined in `@agent-infra/core`.
+
+## Install dependencies
+
+From the workspace root:
+
+```bash
+pnpm install
+```
+
+## Generate and apply migrations
+
+```bash
+pnpm --filter @agent-infra/db db:generate
+pnpm --filter @agent-infra/db db:migrate
+```
+
+## Supported backends
+
+- SQLite for local harnesses and fast iteration
+- PostgreSQL for durable shared environments
+
+## What the package owns
+
+The DB package owns:
+
+- schema definitions
+- repository implementations
+- dialect-specific setup
+
+It should not own application orchestration or runtime execution.
+
+## Current durable tables
+
+The core tables are:
+
+- `threads`
+- `runs`
+- `messages`
+- `message_parts`
+- `tool_invocations`
+- `run_events`
+
+## Recommended practice
+
+Use SQLite for:
+
+- local console work
+- smoke tests
+- deterministic repository verification
+
+Use PostgreSQL when you need:
+
+- shared environments
+- stronger concurrency guarantees
+- operational observability around long-lived runs

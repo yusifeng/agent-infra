@@ -1,0 +1,53 @@
+---
+title: Package Map
+description: The responsibility of each public package in the repository.
+---
+
+# Package Map
+
+## `@agent-infra/core`
+
+Defines:
+
+- domain types
+- repository interfaces
+- durable record semantics
+
+## `@agent-infra/contracts`
+
+Defines:
+
+- serialized request and response shapes
+- consumer-facing contract exports
+
+## `@agent-infra/db`
+
+Implements:
+
+- SQLite repositories
+- PostgreSQL repositories
+- schema and migration flow
+
+## `@agent-infra/app`
+
+Provides:
+
+- thread use cases
+- turn use cases
+- the stable consumer boundary
+
+## `@agent-infra/runtime-pi`
+
+Provides:
+
+- server-side runtime execution
+- provider/model selection
+- durable persistence mapping for runtime events
+
+## `apps/playground-web`
+
+Acts as:
+
+- the first consumer of the platform
+- an experiment harness
+- a runtime console, not the domain boundary

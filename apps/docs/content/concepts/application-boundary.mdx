@@ -1,0 +1,49 @@
+---
+title: Application Boundary
+description: Why packages/app exists and what consumers should call.
+---
+
+# Application Boundary
+
+`@agent-infra/app` is the consumer-facing use-case layer.
+
+It exists so that apps do not orchestrate repository calls and runtime transitions directly.
+
+## Boundary responsibilities
+
+The app layer should own:
+
+- thread creation
+- thread listing
+- reading messages for a thread
+- starting a text run against a thread
+
+The app layer should not own:
+
+- UI state
+- transport-specific request parsing
+- database schema definitions
+- model/provider SDK details
+
+## Why this matters
+
+Without an application boundary, a consumer app tends to:
+
+- import repositories directly
+- grow orchestration logic inside routes
+- couple UI decisions to storage details
+
+That works for a spike, then becomes hard to change.
+
+The boundary keeps usage simple for the default case while preserving room for custom logic above or below it.
+
+## Consumer flow
+
+The intended flow is:
+
+1. the consumer app calls `@agent-infra/app`
+2. the app layer uses `@agent-infra/db` repositories
+3. runtime execution is delegated to `@agent-infra/runtime-pi`
+4. durable records are returned through `@agent-infra/contracts`
+
+This is the core shape that `apps/playground-web` should continue to exercise.

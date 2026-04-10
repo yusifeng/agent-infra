@@ -6,6 +6,7 @@
 
 ## Layers
 
+- `apps/docs`: deployable official documentation site for public concepts, guides, and reference.
 - `packages/app`: narrow application boundary that orchestrates durable thread and turn flows.
 - `packages/core`: domain types and repository interfaces only.
 - `packages/contracts`: serialized request/response contracts for transport consumers.
@@ -46,6 +47,7 @@ This keeps the model output and tool execution trace extensible.
 
 ## Evolution
 
+- grow `apps/docs` into the public package and architecture reference
 - harden the app boundary and transaction semantics
 - expand streaming and resume-safe run state transitions beyond the initial SSE transport
 - complete artifact lifecycle and file storage integrations

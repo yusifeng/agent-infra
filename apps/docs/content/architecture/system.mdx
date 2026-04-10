@@ -1,0 +1,39 @@
+---
+title: System Architecture
+description: High-level layering of agent-infra.
+---
+
+# System Architecture
+
+The platform is intentionally split into durable truth, application orchestration, runtime execution, and consumer apps.
+
+```mermaid
+flowchart LR
+  A["Consumer App"] --> B["@agent-infra/app"]
+  B --> C["@agent-infra/runtime-pi"]
+  B --> D["@agent-infra/db"]
+  C --> D
+  D --> E["SQLite / PostgreSQL"]
+  D --> F["@agent-infra/core types"]
+  B --> G["@agent-infra/contracts"]
+```
+
+## Layering rules
+
+- `core` owns semantics
+- `contracts` own transport shapes
+- `db` owns persistence implementation
+- `app` owns use-case orchestration
+- `runtime-pi` owns runtime execution mapping
+- consumer apps own UI and transport glue
+
+## Why separate docs and playground
+
+The docs site should explain the stable platform.
+
+The playground should pressure-test it.
+
+Keeping those roles separate makes both better:
+
+- docs remain public, stable, and deployable
+- the playground can move quickly without becoming the documentation source of truth
