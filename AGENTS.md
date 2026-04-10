@@ -56,3 +56,15 @@ Recent history favors short, imperative commit subjects, for example `Add Pi Nar
 - Copy `apps/playground-web/.env.example` to `.env.local` for local app setup.
 - Do not commit API keys or local database files.
 - `runtime-pi` smoke runs may use `DEEPSEEK_API_KEY`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `SQLITE_PATH`, or `DATABASE_URL`.
+
+
+### Review Profile (Single Source of Truth)
+
+- Review command: `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`
+- Tool-call timeout for review: `timeout_ms >= 1200000`
+- Apply this profile everywhere (skills/plans/docs). Do not redefine model/reasoning/timeout in other files.
+
+- **Commit workflow (when user says “commit”)**: assume the user already ran `git add`. Do:
+  - `git status --short` and `git diff --cached` (or `git diff --cached --stat`)
+  - Generate a Conventional Commit message: `type(scope): summary` (≤72 chars, imperative)
+  - Run `git commit -m "<message>"`

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Loop Workflow"
+  short_description: "Strict local dev loop for this pnpm monorepo"
+  default_prompt: "Use $loop-workflow to execute one change with docs sync, targeted verification, and commit readiness checks."
