@@ -5,14 +5,17 @@ import type {
   MessageDto,
   MessagePartDto,
   RunDto,
+  RunEventDto,
   RunTextTurnResponseDto,
+  RunTimelineResponseDto,
+  RuntimePiMetaDto,
   ThreadMessagesResponseDto,
   ThreadDto,
   ThreadsResponseDto,
-  RuntimePiMetaDto
+  ToolInvocationDto
 } from '@agent-infra/contracts';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 function normalizeRuntimeMeta(data: Partial<RuntimePiMetaDto>): RuntimePiMetaDto {
   const modelOptions = Array.isArray(data.modelOptions) ? data.modelOptions : [];
@@ -40,6 +43,57 @@ function formatDateTime(value?: string | null) {
     month: 'short',
     day: 'numeric'
   }).format(new Date(value));
+}
+
+function formatDuration(startedAt?: string | null, finishedAt?: string | null) {
+  if (!startedAt) {
+    return 'Not started';
+  }
+
+  const start = new Date(startedAt).getTime();
+  const end = finishedAt ? new Date(finishedAt).getTime() : Date.now();
+  const durationMs = Math.max(0, end - start);
+
+  if (durationMs < 1000) {
+    return `${durationMs} ms`;
+  }
+
+  const seconds = durationMs / 1000;
+  if (seconds < 60) {
+    return `${seconds.toFixed(seconds < 10 ? 1 : 0)} s`;
+  }
+
+  const roundedSeconds = Math.round(seconds);
+  const minutes = Math.floor(roundedSeconds / 60);
+  const remainingSeconds = roundedSeconds % 60;
+  return `${minutes}m ${remainingSeconds}s`;
+}
+
+function deriveLatestRunId(messages: MessageDto[]) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const runId = messages[index]?.runId;
+    if (runId) {
+      return runId;
+    }
+  }
+
+  return null;
+}
+
+function statusBadgeTone(status: RunDto['status'] | ToolInvocationDto['status'] | MessageDto['status'] | 'idle') {
+  switch (status) {
+    case 'running':
+      return 'bg-amber-100 text-amber-800';
+    case 'queued':
+    case 'created':
+      return 'bg-slate-200 text-slate-700';
+    case 'completed':
+      return 'bg-emerald-100 text-emerald-800';
+    case 'failed':
+      return 'bg-rose-100 text-rose-800';
+    default:
+      return 'bg-slate-100 text-slate-600';
+  }
 }
 
 function formatPart(part: MessagePartDto) {
@@ -74,14 +128,65 @@ function formatPart(part: MessagePartDto) {
       <div className="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3">
         <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">Tool Result · {String(json.toolName ?? 'unknown')}</p>
         {part.textValue ? <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{part.textValue}</p> : null}
-        <pre className="overflow-auto rounded-md bg-slate-900 p-3 text-xs text-slate-100">
-          {JSON.stringify(json, null, 2)}
-        </pre>
+        <pre className="overflow-auto rounded-md bg-slate-900 p-3 text-xs text-slate-100">{JSON.stringify(json, null, 2)}</pre>
       </div>
     );
   }
 
   return <pre className="overflow-auto rounded-md bg-slate-900 p-3 text-xs text-slate-100">{JSON.stringify(part, null, 2)}</pre>;
+}
+
+function EventRow({ event }: { event: RunEventDto }) {
+  return (
+    <article className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+      <header className="flex items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2">
+          <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-slate-700">#{event.seq}</span>
+          <span className="font-medium uppercase tracking-wide text-slate-600">{event.type}</span>
+        </div>
+        <span className="text-slate-500">{formatDateTime(event.createdAt)}</span>
+      </header>
+
+      {event.payload ? (
+        <details className="mt-3">
+          <summary className="cursor-pointer text-xs font-medium text-sky-700">Raw payload</summary>
+          <pre className="mt-2 overflow-auto rounded-lg bg-slate-900 p-3 text-xs text-slate-100">{JSON.stringify(event.payload, null, 2)}</pre>
+        </details>
+      ) : null}
+    </article>
+  );
+}
+
+function ToolRow({ invocation }: { invocation: ToolInvocationDto }) {
+  return (
+    <article className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+      <header className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-slate-900">{invocation.toolName}</p>
+          <p className="truncate text-xs text-slate-500">{invocation.toolCallId}</p>
+        </div>
+        <span className={`rounded-full px-2 py-1 text-[11px] font-medium uppercase tracking-wide ${statusBadgeTone(invocation.status)}`}>
+          {invocation.status}
+        </span>
+      </header>
+
+      <div className="mt-3 grid gap-3">
+        <div>
+          <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-500">Input</p>
+          <pre className="overflow-auto rounded-lg bg-slate-900 p-3 text-xs text-slate-100">{JSON.stringify(invocation.input ?? null, null, 2)}</pre>
+        </div>
+
+        <div>
+          <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-500">Output</p>
+          <pre className="overflow-auto rounded-lg bg-slate-900 p-3 text-xs text-slate-100">{JSON.stringify(invocation.output ?? null, null, 2)}</pre>
+        </div>
+
+        {invocation.error ? (
+          <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{invocation.error}</div>
+        ) : null}
+      </div>
+    </article>
+  );
 }
 
 export function RuntimePiPlaygroundPage() {
@@ -95,15 +200,21 @@ export function RuntimePiPlaygroundPage() {
   const [sending, setSending] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastRun, setLastRun] = useState<RunDto | null>(null);
-  const [lastRunEventCount, setLastRunEventCount] = useState(0);
-  const [lastToolInvocationCount, setLastToolInvocationCount] = useState(0);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [timeline, setTimeline] = useState<RunTimelineResponseDto | null>(null);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+  const [timelineError, setTimelineError] = useState<string | null>(null);
+  const timelineRequestIdRef = useRef(0);
+  const timelineAbortControllerRef = useRef<AbortController | null>(null);
 
   const activeThread = useMemo(() => threads.find((thread) => thread.id === activeThreadId) ?? null, [threads, activeThreadId]);
   const selectedModelOption = useMemo(
     () => meta?.modelOptions.find((option) => option.key === selectedModelKey) ?? meta?.modelOptions[0] ?? null,
     [meta, selectedModelKey]
   );
+  const selectedRun = timeline?.run ?? null;
+  const runEvents = timeline?.runEvents ?? [];
+  const toolInvocations = timeline?.toolInvocations ?? [];
 
   async function refreshThreads() {
     const response = await fetch('/api/runtime-pi/threads');
@@ -113,6 +224,55 @@ export function RuntimePiPlaygroundPage() {
     }
 
     setThreads(data.threads);
+  }
+
+  async function loadRunTimeline(runId: string | null) {
+    timelineRequestIdRef.current += 1;
+    const requestId = timelineRequestIdRef.current;
+    timelineAbortControllerRef.current?.abort();
+    setSelectedRunId(runId);
+
+    if (!runId) {
+      timelineAbortControllerRef.current = null;
+      setTimeline(null);
+      setTimelineError(null);
+      setTimelineLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    timelineAbortControllerRef.current = controller;
+    setTimeline(null);
+    setTimelineLoading(true);
+    setTimelineError(null);
+
+    try {
+      const response = await fetch(`/api/runtime-pi/runs/${runId}/timeline`, {
+        signal: controller.signal
+      });
+      const data = (await response.json()) as RunTimelineResponseDto;
+      if (!response.ok) {
+        throw new Error(data.error ?? `Failed to load run timeline (${response.status})`);
+      }
+
+      if (requestId !== timelineRequestIdRef.current) {
+        return;
+      }
+
+      setTimeline(data);
+    } catch (loadError) {
+      if (controller.signal.aborted || requestId !== timelineRequestIdRef.current) {
+        return;
+      }
+
+      setTimeline(null);
+      setTimelineError(loadError instanceof Error ? loadError.message : 'Failed to load run timeline');
+    } finally {
+      if (requestId === timelineRequestIdRef.current) {
+        timelineAbortControllerRef.current = null;
+        setTimelineLoading(false);
+      }
+    }
   }
 
   async function refreshMeta() {
@@ -137,12 +297,14 @@ export function RuntimePiPlaygroundPage() {
         throw new Error(data.error ?? `Failed to load messages (${response.status})`);
       }
 
-      setMessages(data.messages ?? []);
+      const nextMessages = data.messages ?? [];
+      setMessages(nextMessages);
       setError(null);
-      setLastRun(null);
-      setLastRunEventCount(0);
-      setLastToolInvocationCount(0);
+      await loadRunTimeline(deriveLatestRunId(nextMessages));
     } catch (loadError) {
+      setSelectedRunId(null);
+      setTimeline(null);
+      setTimelineError(null);
       setError(loadError instanceof Error ? loadError.message : 'Failed to load thread messages');
     } finally {
       setLoadingMessages(false);
@@ -196,9 +358,7 @@ export function RuntimePiPlaygroundPage() {
       }
 
       setMessages(data.messages);
-      setLastRun(data.run);
-      setLastRunEventCount(data.debug?.runEventCount ?? 0);
-      setLastToolInvocationCount(data.debug?.toolInvocationCount ?? 0);
+      await loadRunTimeline(data.run?.id ?? deriveLatestRunId(data.messages));
       setDraft('');
       setError(data.error ?? null);
     } catch (sendError) {
@@ -219,8 +379,15 @@ export function RuntimePiPlaygroundPage() {
     void refreshMeta();
   }, []);
 
+  useEffect(
+    () => () => {
+      timelineAbortControllerRef.current?.abort();
+    },
+    []
+  );
+
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 p-4 lg:p-6">
+    <main className="mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-4 p-4 lg:p-6">
       <header className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-2">
@@ -250,7 +417,7 @@ export function RuntimePiPlaygroundPage() {
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
       </header>
 
-      <section className="grid min-h-[72vh] gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+      <section className="grid min-h-[72vh] gap-4 xl:grid-cols-[280px_minmax(0,1fr)_380px]">
         <aside className="flex flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="space-y-2">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Threads</h2>
@@ -300,10 +467,8 @@ export function RuntimePiPlaygroundPage() {
         <section className="flex min-w-0 flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
           <header className="flex flex-wrap items-center gap-2 border-b border-slate-200 px-4 py-3 text-sm">
             <span className="rounded-full bg-slate-100 px-3 py-1">Thread: {activeThread?.title ?? activeThreadId ?? 'none'}</span>
-            <span className="rounded-full bg-slate-100 px-3 py-1">Run: {lastRun?.status ?? 'idle'}</span>
-            <span className="rounded-full bg-slate-100 px-3 py-1">Selected model: {selectedModelOption?.model ?? 'none'}</span>
-            <span className="rounded-full bg-slate-100 px-3 py-1">Events: {lastRunEventCount}</span>
-            <span className="rounded-full bg-slate-100 px-3 py-1">Tools: {lastToolInvocationCount}</span>
+            <span className="rounded-full bg-slate-100 px-3 py-1">Model: {selectedModelOption?.model ?? 'none'}</span>
+            <span className="rounded-full bg-slate-100 px-3 py-1">Focused run: {selectedRunId ?? 'none'}</span>
           </header>
 
           <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50 p-4">
@@ -346,7 +511,7 @@ export function RuntimePiPlaygroundPage() {
                 <header className="mb-3 flex items-center justify-between gap-3 text-xs font-medium uppercase tracking-wide text-slate-500">
                   <div className="flex items-center gap-2">
                     <span>{message.role}</span>
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600">{message.status}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] ${statusBadgeTone(message.status)}`}>{message.status}</span>
                   </div>
                   <span>{formatDateTime(message.createdAt)}</span>
                 </header>
@@ -385,6 +550,7 @@ export function RuntimePiPlaygroundPage() {
                 </label>
                 <p className="text-xs text-slate-500">{selectedModelOption?.description ?? 'No runtime model is currently configured.'}</p>
               </div>
+
               <textarea
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
@@ -393,9 +559,10 @@ export function RuntimePiPlaygroundPage() {
                 disabled={!activeThreadId || !meta?.runtimeConfigured || sending || !selectedModelOption}
                 className="w-full resize-none rounded-xl border border-slate-300 px-4 py-3 text-sm leading-6 text-slate-900 outline-none ring-sky-200 placeholder:text-slate-400 focus:ring disabled:cursor-not-allowed disabled:bg-slate-50"
               />
+
               <div className="flex items-center justify-between gap-3">
                 <div className="text-xs text-slate-500">
-                  {lastRun?.finishedAt ? `Last run finished ${formatDateTime(lastRun.finishedAt)}` : 'This page uses durable server-side storage.'}
+                  {selectedRun?.finishedAt ? `Last run finished ${formatDateTime(selectedRun.finishedAt)}` : 'This page uses durable server-side storage.'}
                 </div>
                 <button
                   type="submit"
@@ -408,6 +575,102 @@ export function RuntimePiPlaygroundPage() {
             </div>
           </form>
         </section>
+
+        <aside className="flex min-h-0 flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
+          <header className="border-b border-slate-200 px-4 py-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Log</h2>
+          </header>
+
+          <section className="space-y-4 border-b border-slate-200 px-4 py-4">
+            <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Current Run</p>
+                  <p className="mt-1 break-all text-sm font-semibold text-slate-900">{selectedRunId ?? 'No run selected'}</p>
+                </div>
+                <span className={`rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide ${statusBadgeTone(selectedRun?.status ?? 'idle')}`}>
+                  {selectedRun?.status ?? 'idle'}
+                </span>
+              </div>
+
+              <dl className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Provider</dt>
+                  <dd className="mt-1 text-slate-900">{selectedRun?.provider ?? 'n/a'}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Model</dt>
+                  <dd className="mt-1 text-slate-900">{selectedRun?.model ?? 'n/a'}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Started</dt>
+                  <dd className="mt-1 text-slate-900">{selectedRun?.startedAt ? formatDateTime(selectedRun.startedAt) : 'n/a'}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Finished</dt>
+                  <dd className="mt-1 text-slate-900">{selectedRun?.finishedAt ? formatDateTime(selectedRun.finishedAt) : 'n/a'}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Duration</dt>
+                  <dd className="mt-1 text-slate-900">{selectedRun ? formatDuration(selectedRun.startedAt, selectedRun.finishedAt) : 'n/a'}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Counts</dt>
+                  <dd className="mt-1 text-slate-900">{runEvents.length} events · {toolInvocations.length} tools</dd>
+                </div>
+              </dl>
+
+              {selectedRun?.error ? (
+                <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{selectedRun.error}</div>
+              ) : null}
+            </div>
+          </section>
+
+          <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50 px-4 py-4">
+            <div className="space-y-5">
+              {timelineLoading ? <p className="text-sm text-slate-500">Loading run timeline...</p> : null}
+              {timelineError ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{timelineError}</div> : null}
+
+              {!timelineLoading && !timelineError && !selectedRunId ? (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-600">
+                  Select a thread or start a run to inspect durable logs.
+                </div>
+              ) : null}
+
+              {(toolInvocations.length > 0 || selectedRunId) && (
+                <section className="space-y-3">
+                  <header className="flex items-center justify-between">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tools</h3>
+                    <span className="text-xs text-slate-400">{toolInvocations.length}</span>
+                  </header>
+                  <div className="space-y-3">
+                    {toolInvocations.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-slate-300 bg-white p-3 text-sm text-slate-500">No tool activity for this run.</div>
+                    ) : (
+                      toolInvocations.map((invocation) => <ToolRow key={invocation.id} invocation={invocation} />)
+                    )}
+                  </div>
+                </section>
+              )}
+
+              {(runEvents.length > 0 || selectedRunId) && (
+                <section className="space-y-3">
+                  <header className="flex items-center justify-between">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Events</h3>
+                    <span className="text-xs text-slate-400">{runEvents.length}</span>
+                  </header>
+                  <div className="space-y-3">
+                    {runEvents.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-slate-300 bg-white p-3 text-sm text-slate-500">No run events for this run.</div>
+                    ) : (
+                      runEvents.map((event) => <EventRow key={event.id} event={event} />)
+                    )}
+                  </div>
+                </section>
+              )}
+            </div>
+          </div>
+        </aside>
       </section>
     </main>
   );
