@@ -1,0 +1,829 @@
+下面我不再停在“方向对不对”，而是直接收窄到：**`packages/app` 第一阶段到底做什么、边界怎么切、失败语义怎么定、以及接下来 PR 应该怎么排。**
+我会完全基于你给的 repomix 包来判断，不依赖仓库外材料；当前包里的 `core / db / runtime-pi / playground-web` 和现有测试，已经足够把第一阶段设计收窄出来。 
+
+## 1. Direction
+
+* **下一步就做 `packages/app`，而且要做成“狭窄的 application boundary”，不是新总出口。**
+  它的职责不是再包装一层大而全 SDK，而是把现在散落在 `apps/playground-web/app/api/runtime-pi/*` 里的正式 use-case 编排收回来，形成仓库自己的官方使用入口。当前 route 已经在直接做 thread 校验、user message 落库、run 创建、runtime 调用、最终 projection 回读，这正是 application layer 应该承担的内容。
+
+* **第一阶段只围绕“thread + text turn”闭合，不扩到 timeline/replay/product 面。**
+  也就是：create thread、list threads、get thread messages、run text turn。先把这条主线从 route 代码里收回主干，再谈更深的读侧 API。
+
+* **`playground-web` 要尽快变成第一消费者，而不是继续当事实上的 application layer。**
+  线程列表、消息读取、发起一次 run 的 route 都不该再直接碰 repo 或 `runAssistantTurnWithPi(...)`；只有 composition root 和 diagnostic route 才可以直接接底层。
+
+* **简单路径靠 `packages/app`，高级路径靠“注入 runtime 对象”或直接绕过 app 到底层。**
+  不要为了支持高级自定义，把 `packages/app` 的方法签名做成能接 `tools / systemPrompt / getApiKey / toolExecution mode / agent policy` 的超级入口。那些都应该留在 runtime 层。
+
+* **`contracts` 跟 use case 走，但 diagnostic contract 不要升格成主线 contract。**
+  `ThreadDto / MessageDto / RunDto` 这类 generic DTO 是对的；`RuntimePiMetaDto` 这种混合了 db mode、db connection、runtime config、model options 的 shape 更像 playground 诊断接口，不该成为整个仓库主线 API 的模板。
+
+我会明确建议包名用 **`packages/app`**，而不是 `packages/use-cases`。原因不是名字好不好看，而是它表达的是“官方 application boundary”，不是一堆散落 helper function。你要建立的是消费者应该依赖的正式入口。
+
+## 2. Narrow First Step
+
+### 结论先说
+
+**`packages/app` v1 应该只做 4 个 use case：**
+
+1. `threads.create`
+2. `threads.list`
+3. `threads.getMessages`
+4. `turns.runText`
+
+**不要只做前 3 个再把 `getThreadMessages` 留给 repo。**
+**也不要把 `getRunTimeline` 或 `getRunDetails` 放进 v1。** 
+
+### 为什么不是只做 `createThread / listThreads / runTextTurn`
+
+因为这样第一消费者还是没闭合。
+
+当前 `playground-web` 明确有单独的 `/threads/[threadId]/messages` 读路径，而且 `MessageRepository` 已经天然提供 `listByThread(threadId)`，这是一个现成、稳定、低风险的 use case。只要 v1 没有 `getThreadMessages`，`playground-web` 就还得继续直接 import repo，application layer 就是半成品。
+
+### 为什么 v1 不加 `getRunTimeline`
+
+因为它不是当前主路径的必要部分。
+
+现有 UI 在发送消息后，只把 `runEvents?.length` 和 `toolInvocations?.length` 显示成 badge，并没有单独渲染完整 timeline。这说明第一阶段真正需要的是：**发一次 text turn 后拿到最终 run 和 thread messages**，最多再加几个 debug count；还不需要把完整 timeline 作为主接口暴露出来。
+
+### 为什么现在不要做 `getRunDetails`
+
+因为它很容易成为 junk drawer。
+
+更具体地说，当前 `RunEventRepository` 和 `ToolInvocationRepository` 已经都有 `listByRun(runId)`，所以以后做 `getRunTimeline` 是顺手的；但 `MessageRepository` 现在只有 `listByThread(threadId)`，没有 `listByRun(runId)`。如果你现在硬做一个 `getRunDetails`，很容易逼着你提前扩 repo contract，或者在 app 层做一堆 awkward 的 thread messages 过滤逻辑。
+换句话说，**`getRunTimeline` 是天然独立的后续读 use case；`getRunDetails` 在当前 repo 形状下反而更像过早泛化。** 
+
+### 我建议的明确排序
+
+按“v1 必须包含”的接口集合：
+
+* 必须在 v1：`createThread`、`listThreads`、`getThreadMessages`、`runTextTurn`
+* 下一波再做：`getRunTimeline`
+* 现在不要做：`getRunDetails`
+
+按“实现顺序”我会这样排：
+
+1. `threads.create`
+2. `threads.list`
+3. `threads.getMessages`
+4. `turns.runText`
+
+不是因为 `runTextTurn` 不重要，而是前三个更简单，先把 route -> app 的基本形态跑通，再把最复杂的 write-side orchestration 放进去，风险最低。
+
+### v1 绝对不要放进去的内容
+
+* `getRunDetails`
+* `getRuntimeMeta`
+* `listModelOptions` 这类 runtime/config 诊断入口
+* generic CRUD：`messages.create`、`runs.create`、`runEvents.list`、`toolInvocations.list`
+* streaming / resume / replay
+* artifact / file / memory
+* multimodal user input、系统消息写入、任意 message part 组装
+
+第一阶段的 app layer 应该只认 **“text turn”**，不要因为底层有 `message_part` 能力，就把 app v1 直接做成任意 mixed-content write API。
+
+## 3. Boundary Design
+
+### `packages/app` 和 `core` 的边界
+
+`packages/core` 继续保持现在的角色：
+只定义 durable truth 和 repository contract，也就是 `Thread / Run / Message / MessagePart / ToolInvocation / RunEvent / Artifact`，以及对应 repo interface。这里不要塞 application service，不要塞 transaction rule，不要塞 HTTP shape。
+
+`packages/app` 只做这些：
+
+* use-case orchestration
+* precondition validation
+* write-side transaction boundary
+* 组合多个 repo / repo + runtime
+* 返回 use-case result
+* 定义 typed app error
+
+一句话说，**`core` 定义“存什么”和“怎么存”；`app` 定义“消费者正确地怎么用这些 durable primitives”。** 
+
+### `packages/app` 和 `runtime-pi` 的边界
+
+这是最关键的一刀。
+
+**`packages/app` 应该负责：**
+
+* thread 是否存在、是否允许 run
+* text 是否为空
+* runtime selection 的 preflight
+* user message + first text part + queued run 的 pre-run orchestration
+* runtime 执行结束后的 final projection 回读
+
+**`packages/runtime-pi` 应该负责：**
+
+* 把 runtime lifecycle event 翻译成 durable record
+* assistant message 的创建/补全/失败
+* tool invocation 的创建/状态推进
+* tool result message 的落成
+* run_events 的 append-only truth
+* run status 从 `queued/running` 到 `completed/failed` 的 in-run 状态推进
+
+换句话说：
+**user message + queued run 是 app 的事；assistant/tool/run_event 的 durable persistence 是 runtime adapter 的事。**
+这和当前代码已经很接近：route 在写 user message 和 run，`runtime-pi` 在处理 assistant/tool/run_event。只是现在两者没有被一个正式的 app boundary 接起来。
+
+### `packages/app` 和 `contracts` 的边界
+
+`packages/app` **不应该 import `@agent-infra/contracts`**。
+它返回的应该是 app-native result 或 core-native projection，带 `Date`、带 domain shape；controller/route 再映射成 DTO 和 ISO string。当前 `apps/playground-web/lib/runtime-pi-dto.ts` 做的 `toThreadDto / toMessageDto / toRunDto` 这种工作，原则上就属于 app 外围的 transport adapter。
+
+也就是说：
+
+* `app`：use-case result
+* `contracts`：transport shape
+* route/controller：两者之间的 mapping
+
+### 哪些逻辑应该放进 `packages/app`
+
+* `thread not found` / `thread archived` / `text is required`
+* runtime preflight：当前 provider/model 是否可用
+* user message + text part + queued run 的写入顺序
+* pre-run 原子边界
+* `runTextTurn` 的 outcome 组装
+* typed error / error code
+
+### 哪些逻辑绝对不能放进 `packages/app`
+
+* `process.env` 解析
+* API key 获取
+* tool 定义
+* system prompt
+* model catalog / model option discovery
+* agent policy / toolExecution mode
+* Next.js `Request/Response`
+* DTO/ISO 序列化
+* `dbMode / dbConnection / runtimeConfigError` 这类 meta 诊断逻辑
+
+### 防止 `packages/app` 膨胀成新大出口的 guardrails
+
+1. **只允许 task-shaped API，不允许 table-shaped API。**
+   允许 `threads.getMessages`，不允许 `messages.listByThreadRepoLike`。
+   允许 `turns.runText`，不允许 `runs.create` + `messages.create` + `messageParts.create` 这种 repo facade。
+
+2. **`packages/app` 不能读 env，不能知道 Next，不能知道 browser。**
+   它只接依赖，不做部署环境发现。
+
+3. **`packages/app` 的 public input 里，只允许 runtime selection，不允许 runtime policy。**
+   也就是允许 `provider/model`，不允许 `tools / systemPrompt / getApiKey / agent options` 进入 `runTextTurn`。
+
+4. **不用 `getRunDetails` 这种 catch-all 名字。**
+   以后加读侧，也优先 `runs.getTimeline` 这种 job-specific API。
+
+5. **不做 re-export hub。**
+   `packages/app` 不要把 `core / db / runtime-pi / contracts` 全 re-export 成一个超包。
+
+这几条如果守住，`packages/app` 就不会慢慢长成新的 `pi-web-ui` 式大出口。
+
+## 4. Interface Shape
+
+### 我建议的 app interface
+
+```ts
+type AgentInfraRepos = {
+  threadRepo: ThreadRepository;
+  runRepo: RunRepository;
+  messageRepo: MessageRepository;
+  toolRepo: ToolInvocationRepository;
+  runEventRepo: RunEventRepository;
+};
+
+type AgentInfraPersistence = AgentInfraRepos & {
+  tx<T>(fn: (repos: AgentInfraRepos) => Promise<T>): Promise<T>;
+};
+
+type ResolvedRuntimeSelection = {
+  provider: string;
+  model: string;
+};
+
+type AssistantTurnRuntime = {
+  prepare(input: { provider?: string; model?: string }): Promise<ResolvedRuntimeSelection>;
+  runTurn(
+    ctx: Pick<AgentInfraRepos, 'runRepo' | 'messageRepo' | 'toolRepo' | 'runEventRepo'>,
+    input: { threadId: string; runId: string; provider: string; model: string }
+  ): Promise<void>;
+};
+
+type RunTextTurnOutcome = {
+  run: Run;
+  messages: Array<Message & { parts: MessagePart[] }>;
+  executionError?: string | null;
+  debug: {
+    runEventCount: number;
+    toolInvocationCount: number;
+  };
+};
+
+const app = createAgentInfraApp({
+  persistence,
+  runtime,
+  idGenerator,
+  now
+});
+
+await app.threads.create({
+  appId,
+  userId: null,
+  title,
+  metadata
+});
+
+await app.threads.list({ appId });
+
+await app.threads.getMessages({ threadId });
+
+const outcome = await app.turns.runText({
+  threadId,
+  text,
+  provider,
+  model,
+  userMessageMetadata: { source: 'playground-web', runtime: 'pi' }
+});
+```
+
+这个形状有几个关键点：
+
+* `threads.* / turns.* / runs.*` 是按 use case 分组，不是按表分组
+* `runTextTurn` 只接 text + provider/model，不接 runtime policy
+* `prepare(...)` 解决当前 route 里 `getRuntimePiMeta(...)` 先做可用性检查的问题，但不把 env/config 逻辑挪进 app
+* `RunTextTurnOutcome` 先返回 `run + messages + debug counts`，而不是完整 timeline dump。因为当前 UI 实际只消费 count，不消费完整事件列表。
+
+### simple path 应该是什么
+
+**simple path = “注入一个 runtime，对 thread + text turn 走官方 use case”。**
+
+```ts
+const runtime = createPiRuntime({
+  getApiKey: resolveApiKeyFromEnvOrSecretStore,
+  tools: buildPlaygroundTools(),
+  systemPrompt: 'You are a helpful assistant.'
+});
+
+const app = createAgentInfraApp({
+  persistence,
+  runtime,
+  idGenerator: crypto.randomUUID,
+  now: () => new Date()
+});
+
+await app.threads.create({ appId: 'playground-runtime-pi', title: 'Thread' });
+await app.threads.getMessages({ threadId });
+await app.turns.runText({ threadId, text, provider, model });
+```
+
+simple path 的目标不是“把所有能力都藏起来”，而是让消费者不需要知道：
+
+* `message_part.partIndex`
+* `run_event.seq`
+* assistant/tool message 是什么时候落的
+* `tool_invocation` 和 `run_event` 怎么拼
+
+这些都不该由简单场景的消费者自己编排。
+
+### advanced path 应该是什么
+
+**advanced path 不是把更多参数塞进 `runTextTurn`，而是“替换 runtime 组合”，或者直接绕过 app。**
+
+```ts
+const runtime = createPiRuntime({
+  getApiKey: tenantKeyResolver,
+  systemPrompt: buildTenantPrompt(tenant),
+  tools: ({ threadId, runId, provider, model }) =>
+    buildTenantTools({ tenant, threadId, runId, provider, model })
+});
+
+const app = createAgentInfraApp({ persistence, runtime, idGenerator, now });
+
+await app.turns.runText({
+  threadId,
+  text,
+  provider: 'openai',
+  model: 'gpt-4o-mini'
+});
+```
+
+如果你要做的是更深的自定义编排，比如：
+
+* 不是 text turn，而是多步 synthetic turn
+* 要先写 system message 再跑
+* 要做 resume/replay
+* 要插入特殊 run policy
+* 要做非标准的 tool/result handling
+
+那就**直接绕过 `packages/app`**，去用底层 repo + runtime：
+
+```ts
+const selection = await runtime.prepare({ provider, model });
+
+// 这里做你自己的 transaction / synthetic writes
+// ...
+
+await runtime.runTurn(
+  {
+    runRepo,
+    messageRepo,
+    toolRepo,
+    runEventRepo
+  },
+  {
+    threadId,
+    runId,
+    ...selection
+  }
+);
+```
+
+这就是我建议的明确切法：
+
+* **通过 `packages/app` 注入的自定义**：runtime 实例、persistence、id generator、clock
+* **通过 app use-case input 传入的自定义**：threadId、text、provider/model、少量 server-side metadata
+* **不要通过 app 传入的自定义**：tools、systemPrompt、getApiKey、toolExecution mode、agent policy
+* **更深的自定义**：直接绕过 app，用底层包
+
+这样 simple path 很顺手，advanced path 也不会被封死。
+
+### `runtime-pi` 的高级入口，我的明确判断
+
+我建议：**公开 `createPiRuntime(...)`，不要继续把 `runAssistantTurnWithPi(...)` 扩成巨型 public API。**
+
+原因很简单：
+
+* object factory 比超长函数签名更适合以后演进
+* 它天然支持 `prepare()` 和 `runTurn()` 两段式边界
+* 它更适合作为 `packages/app` 注入依赖
+* 它不会逼着你把所有 runtime 细节都塞进一次调用里
+
+我会建议 `runtime-pi` 以后公开这样的主入口：
+
+```ts
+const runtime = createPiRuntime({
+  getApiKey,
+  systemPrompt,
+  tools,
+  resolveSelection // 可选
+});
+```
+
+然后提供：
+
+* `runtime.prepare({ provider?, model? })`
+* `runtime.runTurn(ctx, { threadId, runId, provider, model })`
+
+至于现有的 `runAssistantTurnWithPi(...)`，可以保留成薄 wrapper 或兼容入口，但**不要再把它当以后高级自定义的主入口**。
+
+### `tools / systemPrompt / getApiKey / model selection` 分别放哪
+
+* `tools`：放 `createPiRuntime(...)`
+* `systemPrompt`：放 `createPiRuntime(...)`
+* `getApiKey`：放 `createPiRuntime(...)`
+* `provider/model` 用户选择：可以放 `runTextTurn(...)` input
+* provider/model 的实际可用性解析：放 `runtime.prepare(...)`
+
+### demo tools 应该放哪
+
+**明确建议：留在 playground/smoke composition，不要继续留在 runtime-pi 默认主线里。**
+
+现在 `runAssistantTurnWithPiInternal(...)` 默认走 `createDemoTools(...)`，这对 smoke 很方便，但对正式 runtime adapter 来说太“产品化/演示化”了。
+更合理的做法是：
+
+* `runtime-pi` 继续导出 `createDemoTools`
+* `playground-web` 和 smoke harness 需要时显式注入
+* `createPiRuntime(...)` 默认不内建 demo tools
+
+否则 runtime-pi 会越来越像自带一堆场景预设的出口。
+
+### `contracts` 下一步扩到什么程度
+
+**是的，`contracts` 应该同时包含 request DTO 和 response DTO。**
+但优先级要跟第一阶段 use case 对齐，而不是一口气把所有 route 都 contract 化。
+
+我建议优先补这几个 request DTO：
+
+1. `CreateThreadRequestDto`
+2. `RunTextTurnRequestDto`
+3. `GetThreadMessagesRequestDto`
+
+`ListThreads` 的 request DTO 可以稍后再补，原因是当前 playground 的 `appId` 是 route/server 侧绑定常量，不是浏览器传参主路径。等真有 filters/pagination 再补 query contract 更合适。
+
+同时要非常明确：
+
+* `contracts` 里绝对不要放 repo contract
+* 不要放 domain rule
+* 不要放 runtime option
+* 不要放 env/config shape
+* 不要放 db connection / runtime config diagnostic 这类 meta 作为主线 contract
+
+命名上，我建议主线 contract 逐步收敛成 generic：
+
+* `CreateThreadResponseDto`
+* `ThreadsResponseDto`
+* `ThreadMessagesResponseDto`
+* `RunTextTurnResponseDto`
+
+而不是继续扩 `RuntimePiThreadsResponseDto`、`RuntimePiRunResponseDto` 这种命名。
+**保留 runtime-pi 前缀的，只应该是 runtime-pi 特有、或 playground 特有的 diagnostic contract**，例如：
+
+* `RuntimePiMetaDto`
+* `RuntimePiModelOptionDto`
+
+尤其 `RuntimePiMetaDto` 现在同时放了 `dbMode / dbConnection / runtimeConfigured / runtimeConfigError / modelOptions`，这非常明显是 diagnostic shape，不是 agent-infra 主线 API shape。
+
+另外还有一个重要区分：
+
+* `app` input 可以有 server-side internal field，比如 `appId`、`userMessageMetadata`
+* `contracts` request DTO 不一定要暴露这些
+  比如 `CreateThreadRequestDto` 完全可以只有 `title`；`RunTextTurnRequestDto` 完全可以只有 `text / provider / model`
+
+不要因为 app 有这些内部字段，就把它们一股脑暴露到 browser API。
+
+## 5. Failure Semantics
+
+这是我最建议你第一阶段就定清楚的部分。
+
+### 推荐的明确语义
+
+#### Step 1. validate thread + runtime selection
+
+先做：
+
+* thread 是否存在
+* thread 是否可运行（至少别是 archived）
+* text 是否为空
+* runtime selection 是否有效、当前配置是否可用
+
+**这一阶段失败，不允许留下 durable record。**
+也就是说，`thread not found`、`text is required`、`runtime not configured`、`model unsupported` 这种都应该在任何写入之前结束。当前 route 里其实已经这么做了一半，只是还没被抽成正式 use case。
+
+#### Step 2–4. create user message + create text part + create queued run
+
+这三步我建议作为**一个原子边界**。
+
+理由很明确：
+一旦你决定把一次 `runTextTurn` 作为 durable truth 接进系统，最小完整单位就不是“孤立 user message”，而是：
+
+* user message
+* first text part
+* queued run
+
+如果这三步中任何一步失败，留下一个没有 text part 的 user message，或者留下一个有 prompt 但没有 queued run 的 thread，都会让 durable truth 变得歧义很大。
+所以我的明确建议是：
+
+**`runTextTurn` 的 pre-run writes 必须是一个 transaction。** 
+
+这也说明了 transaction 该放在哪：
+**不是放进 `core`，而是放进 `app` 的 persistence dependency shape 里。**
+`core` 只定义 repo contract；`app` 要求一个 `tx(...)` 能力来完成这个 use case 的原子写入。
+
+#### Step 5. invoke runtime
+
+runtime 执行一定要在 transaction 外。
+这是一个长过程，里面会逐步写：
+
+* run status
+* assistant message
+* message parts
+* tool invocation
+* tool result message
+* run events
+
+**这一步允许留下 durable partial record，而且这是合理的。**
+因为 `run_events` 本来就是 append-only truth，`message_part` 和 `tool_invocation` 也本来就是为了保存执行过程。`runtime-pi` 当前的职责已经是把这些 event 翻译成 durable records。
+
+#### Step 6. read final projection
+
+这是 post-run 读操作，不应该参与 write transaction。
+
+如果这一步失败了，我的推荐是：
+
+* durable state 保持不动
+* application layer 抛 `TurnProjectionError` 之类的 typed error
+* error 里至少带 `runId` / `threadId`
+
+也就是说，**projection read 失败不是 run 失败，而是“已经持久化了，但这次响应没能正确回读”。** 
+
+### runtime 执行中失败，数据库里留下什么状态是合理的
+
+我给你一个明确版本：
+
+* run 一旦已创建，就必须最终进入 `completed` 或 `failed`
+* 如果 runtime 在任何地方抛异常，run 至少应当：
+
+  * `status = failed`
+  * `finishedAt` 有值
+  * `error` 尽量有值
+  * `run_events` 里至少补一个 `runtime_error`
+* 如果 assistant message 已经 `message_start` 了，但还没 `message_end` 就崩了：
+
+  * 这个 assistant message 应该被标成 `failed`
+  * 允许 parts 不完整
+* 如果 tool invocation 已经 `tool_execution_start` 了，但还没 `tool_execution_end` 就崩了：
+
+  * 这些 invocation 应该被标成 `failed`
+  * `finishedAt` 尽量补上
+* 已经成功落下来的 tool result message / assistant parts / run events 都应该保留
+
+这套语义里，“partial but truthful” 是允许的；
+不允许的是“状态悬空且误导人”。比如 assistant message 永远停在 `created`，tool invocation 永远停在 `running`。
+
+### application layer 应该返回什么错误语义
+
+我建议把 error 分三类：
+
+#### 1) Precondition error
+
+这些直接抛 typed error：
+
+* `ThreadNotFoundError`
+* `ThreadNotActiveError`
+* `InvalidTurnTextError`
+* `RuntimeSelectionError` / `RuntimeUnavailableError`
+
+特点：**没有 durable write**。
+
+#### 2) Persistence / projection infrastructure error
+
+这些也抛 typed error：
+
+* `TurnPersistenceError`
+* `TurnProjectionError`
+
+特点：要么 pre-run tx 没提交，要么持久化已完成但响应读失败。
+
+#### 3) Runtime execution failure
+
+这个**不应该优先被当成异常抛出去**，只要 final run 和 messages 还能读出来。
+
+更准确地说：
+
+* `runTextTurn(...)` 应该返回一个正常 outcome
+* 这个 outcome 里 `run.status` 可能是 `failed`
+* 可以额外带一个 `executionError`
+* controller 再决定 HTTP 是 200 还是别的
+
+我之所以这样建议，不是抽象理论，而是因为当前 `runtime-pi` 已经说明了这一点：
+**run 失败并不总是通过 throw 表达。**
+例如测试里的 tool failure case，`runAssistantTurnWithPiInternal(...)` 是正常 resolve 的，但最终 `run.status` 是 `failed`。这意味着 application layer 不能只靠 try/catch 判断 turn 是否失败，必须回读 final run 并以 `run.status` 为准。
+
+### 这些 failure semantics 应该放在哪层
+
+* **放在 `packages/app` 的**：
+
+  * precondition validation
+  * pre-run transaction
+  * runtime failure -> outcome 还是 exception 的判定
+  * final projection read / error mapping
+
+* **放在 `runtime adapter` 的**：
+
+  * run 内部状态推进
+  * assistant/tool partial record reconciliation
+  * `runtime_error` 事件补写
+  * open assistant message / running tool invocation 的失败收口
+
+这层分工清晰之后，责任不会乱。
+
+## 6. Recommended PR Plan
+
+### PR1 — 新增 `packages/app`，先闭合最小 use-case kernel
+
+**目的**
+建立正式 application boundary，把当前 thread + text turn 主线从 route 中抽象出来。
+
+**主要改动点**
+
+* 新增 `packages/app`
+* 定义 `createAgentInfraApp(...)`
+* 定义 4 个 use case：
+
+  * `threads.create`
+  * `threads.list`
+  * `threads.getMessages`
+  * `turns.runText`
+* 定义 app-level runtime port：
+
+  * `prepare(...)`
+  * `runTurn(...)`
+* 定义 typed app errors
+* 定义 `RunTextTurnOutcome`
+* 定义 pre-run transaction boundary shape：`tx(...)`
+
+**涉及包**
+
+* `packages/app`
+* 可能少量触及 `packages/db`，用于提供 tx-capable persistence adapter
+* `packages/core` 只复用，不扩职责
+
+**为什么排在这里**
+因为当前仓库真正没闭合的是“官方怎么用它”，不是“UI 还不够多”也不是“adapter 还不够多”。先把这个入口做出来，后面的所有消费者才会站在对的边界上。
+
+**它验证的关键假设**
+当前 `playground-web` route 里的逻辑，确实可以被压缩成一个窄而稳定的 use-case surface，而不是必须继续散落在 UI/server route 里。
+
+> 你的那个具体问题我直接给判断：
+> **`getThreadMessages` 应该在 PR1，不是 PR2。**
+> 因为不把它放进 PR1，第一消费者就无法完全脱离 repo。
+
+---
+
+### PR2 — 让 `playground-web` 只调用 `packages/app`，并补最小 request/response contracts
+
+**目的**
+把第一消费者真正切到 app boundary 上，证明 simple path 不是纸上设计。
+
+**主要改动点**
+
+* 把下面这些 route 改成只做 parse / call app / map DTO：
+
+  * `apps/playground-web/app/api/runtime-pi/threads/route.ts`
+  * `apps/playground-web/app/api/runtime-pi/threads/[threadId]/messages/route.ts`
+  * `apps/playground-web/app/api/runtime-pi/runs/[threadId]/route.ts`
+* 补最小 generic contracts：
+
+  * `CreateThreadRequestDto`
+  * `RunTextTurnRequestDto`
+  * `GetThreadMessagesRequestDto`
+  * 以及对应 generic response DTO
+* 保持 `meta/route.ts` 仍然是 diagnostic route，不走 app
+
+**涉及包**
+
+* `packages/app`
+* `packages/contracts`
+* `apps/playground-web`
+
+**为什么排在这里**
+因为你要尽快用真实消费者压这个 app surface。
+而且 route 一旦还继续直接碰 repo/runtime，app layer 就没有真正进入主线。
+
+**它验证的关键假设**
+第一消费者在不增加复杂度的情况下，可以完全停止直接 import repo 和 `runAssistantTurnWithPi(...)`。
+
+> 你另一个具体问题，我也直接给判断：
+> **`playground-web` 应该在 PR2 就切到只调用 `packages/app`。**
+> 不要拖到更后面，也不要长期保持半迁移状态。
+
+---
+
+### PR3 — 在 `runtime-pi` 正式公开 `createPiRuntime(...)`，把高级路径做对
+
+**目的**
+给高级自定义一个正式入口，避免把 `packages/app` 做成超级入口。
+
+**主要改动点**
+
+* 在 `packages/runtime-pi` 公开 `createPiRuntime(...)`
+* 公开：
+
+  * `prepare(...)`
+  * `runTurn(...)`
+* 允许在 runtime 级配置：
+
+  * `getApiKey`
+  * `systemPrompt`
+  * `tools`
+  * 可选的 selection resolver
+* 现有 `runAssistantTurnWithPi(...)` 保留成薄 wrapper 或兼容入口
+* 把 demo tools 从默认主线行为里拿掉
+* playground/smoke 显式注入 demo tools
+
+**涉及包**
+
+* `packages/runtime-pi`
+* `apps/playground-web` 的 composition root
+* 可能少量触及 `packages/app` 的 wiring
+
+**为什么排在这里**
+因为你已经先把 simple path 立住了，现在该把 advanced path 做成“换 runtime 组合”，而不是“加更多 app 参数”。
+
+**它验证的关键假设**
+高级场景可以通过 runtime composition 完成，而不需要持续扩张 `runTextTurn(...)` 的签名。
+
+---
+
+### PR4 — 强化 `runtime-pi` 的 partial failure semantics
+
+**目的**
+把 durable partial record 的语义补完整，让失败状态不悬空。
+这也和 roadmap 里写的 improved partial failure handling / improved run state machine 是一致的。
+
+**主要改动点**
+
+* runtime 抛异常时：
+
+  * 如果有 open assistant message，把它标成 `failed`
+  * 如果有 still-running tool invocation，把它们标成 `failed`
+* 尽量在 failed run 上写入 `run.error`
+* 保持 `runtime_error` 事件补写
+* 让 app 层可以稳定依赖 `run.status` 和 partial projection
+
+**涉及包**
+
+* `packages/runtime-pi`
+
+**为什么排在这里**
+因为 app boundary 已经有了，runtime public advanced API 也有了，接下来最值钱的是把 in-run durable truth 做得更可信。
+
+**它验证的关键假设**
+系统可以在失败场景下留下“真实但不误导”的 durable state，而不是一堆悬空的 `created/running` 记录。
+
+---
+
+### PR5 — 再加 `runs.getTimeline`，不要先加 `getRunDetails`
+
+**目的**
+把已经存在的 `run_events + tool_invocations` 暴露成正式读 use case，但不让 `runTextTurn` 变成 debug dump。
+
+**主要改动点**
+
+* `packages/app` 增加 `runs.getTimeline({ runId })`
+* `packages/contracts` 增加 timeline request/response DTO
+* `playground-web` 可以选择性加一个 debug/timeline 面板，但这不是产品主线
+
+**涉及包**
+
+* `packages/app`
+* `packages/contracts`
+* `apps/playground-web`
+
+**为什么排在这里**
+因为 timeline 应该建立在已经稳定的 app/use-case shape 和更可信的 failure semantics 之上，而不是反过来定义它们。
+
+**它验证的关键假设**
+`run_events` 和 `tool_invocations` 适合作为独立读侧 API 被消费，而不是挤进 `runTextTurn` 的返回里。
+
+> 你第三个具体问题也给明确判断：
+> **`getRunTimeline` 应该在 app layer 稳定后做，不应该在它稳定前做。**
+> 而且优先级在 `getRunDetails` 之前。
+
+## 7. What Not To Do
+
+* **不要把 `packages/app` 做成 repo facade。**
+  不要出现 `app.messages.create`、`app.runs.create`、`app.runEvents.list` 这种镜像底层表的 API。
+
+* **不要把 `getRunDetails` 做成第一批接口。**
+  它太容易变成未来所有 run 相关字段的垃圾桶。
+
+* **不要把 runtime policy 暴露进 `runTextTurn(...)`。**
+  不要让它接 `tools / systemPrompt / getApiKey / agent options`。
+
+* **不要把 env/config/model discovery 拉进 `packages/app`。**
+  `resolveRuntimePiConfigFromEnv(...)` 这种逻辑留在 runtime/composition 层。
+
+* **不要让 `runtime-pi` 继续默认内建 demo tools。**
+  demo tools 应该只存在于 playground/smoke composition。
+
+* **不要让 `playground-web` 长期保持半迁移状态。**
+  不要出现部分 route 走 app、部分 route 还直接碰 repo/runtime 的状态。
+
+* **不要先补第二个/第三个 runtime adapter。**
+  在 application boundary 还没收口前，继续加 adapter 只会复制错误集成方式。
+
+* **不要把 `RuntimePiMetaDto` 一类 diagnostic shape 推成主线 contract。**
+  它混合了 db info、runtime config、model options，明显不是 durable backend 主 API 的风格。
+
+* **不要现在就跳去做 streaming/resume/artifact/memory。**
+  这些都在 roadmap 后续阶段，但当前仓库最缺的不是它们，而是正式 use-case entrypoint 和 failure semantics。
+
+## 8. Acceptance Criteria
+
+做到下面这些，就说明第一阶段方向是对的：
+
+* `packages/app` v1 **只**暴露 4 个 use case：
+  `threads.create`、`threads.list`、`threads.getMessages`、`turns.runText`。
+  没有 generic CRUD，没有 `getRunDetails`。
+
+* `apps/playground-web/app/api/runtime-pi/threads/route.ts`、`threads/[threadId]/messages/route.ts`、`runs/[threadId]/route.ts`
+  **不再直接 import repo implementation，也不再直接调用 `runAssistantTurnWithPi(...)`**；它们只调用 `packages/app`。
+
+* `meta/route.ts` 仍然可以不走 app，因为它是 diagnostic route；
+  但 thread/message/run 主线 route 全部走 app。
+
+* `runTextTurn(...)` 的 public input 仍然是窄的：
+  `threadId + text + provider/model (+ 少量 server-side metadata)`；
+  没有 `tools / systemPrompt / getApiKey`。
+
+* 存在正式的 `createPiRuntime(...)` 高级入口，
+  允许自定义 `tools / systemPrompt / getApiKey / model selection policy`，
+  但 app use-case 签名本身没有因此膨胀。
+
+* `runTextTurn(...)` 的 pre-run writes 是原子的：
+  不会留下“只有 user message 没有 text part”的记录，
+  也不会留下“有 prompt 但没有 queued run”的半状态。
+
+* runtime 失败后，数据库里留下的是**failed but truthful** 的状态：
+  `run.status = failed`，有相应 `run_events`，
+  open assistant message / open tool invocation 不会永久悬在 `created/running`。
+
+* `contracts` 里开始有 generic request/response DTO，
+  而 `RuntimePiMetaDto` 这类 contract 仍然被清楚地视为 diagnostic / playground-specific。
+
+* `getRunTimeline` 只有在 app layer 稳定之后，作为独立 `runs.*` read use case 出现；
+  它不是塞进 `runTextTurn` 的 debug dump，也不是被 `getRunDetails` 吞掉。
+
+一句话收口：
+
+**第一阶段最合理的做法，是做一个非常窄的 `packages/app`：只闭合 `createThread / listThreads / getThreadMessages / runTextTurn`，让 `playground-web` 在下一步就切过去；同时把高级自定义明确放到 `createPiRuntime(...)` 这一层，而不是把 `packages/app` 做成超级入口。**
+这样你才能同时拿到三件事：简单路径顺手、复杂路径不被封死、仓库不会重新滑回大出口。

@@ -5,9 +5,10 @@
   "packageManager": "pnpm@10.11.0",
   "scripts": {
     "build": "pnpm -r build",
-    "dev": "pnpm -r --filter @agent-infra/core --filter @agent-infra/db --filter @agent-infra/runtime-ai-sdk build && pnpm --filter playground-web dev",
+    "dev": "pnpm --filter playground-web dev",
     "lint": "pnpm -r lint",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm --filter @agent-infra/core build && pnpm --filter @agent-infra/contracts build && pnpm --filter @agent-infra/db build && pnpm --filter @agent-infra/runtime-pi build && pnpm -r typecheck",
+    "test": "pnpm -r --if-present test"
   },
   "devDependencies": {
     "@types/node": "^22.15.29",

@@ -1,5 +1,5 @@
 {
-  "name": "@agent-infra/db",
+  "name": "@agent-infra/runtime-pi",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -9,18 +9,15 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "db:generate": "drizzle-kit generate --config=drizzle.config.ts",
-    "db:migrate": "drizzle-kit migrate --config=drizzle.config.ts"
+    "smoke": "pnpm build && node dist/smoke.js"
   },
   "dependencies": {
     "@agent-infra/core": "workspace:*",
-    "drizzle-orm": "^0.44.0",
-    "pg": "^8.16.0",
-    "better-sqlite3": "^12.8.0"
+    "@agent-infra/db": "workspace:*",
+    "@mariozechner/pi-agent-core": "^0.66.1",
+    "@mariozechner/pi-ai": "^0.66.1"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
-    "drizzle-kit": "^0.31.0",
     "vitest": "^3.2.4"
   }
 }

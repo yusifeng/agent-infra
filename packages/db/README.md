@@ -1,6 +1,6 @@
 # @agent-infra/db
 
-`@agent-infra/db` supports both SQLite (demo default) and PostgreSQL (advanced mode).
+`@agent-infra/db` supports both SQLite and PostgreSQL for durable `thread`, `run`, `message`, `message_part`, `tool_invocation`, `artifact`, and `run_event` storage.
 
 ## Modes
 

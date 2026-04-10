@@ -1,11 +1,16 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['@agent-infra/db', '@agent-infra/runtime-ai-sdk', '@agent-infra/core'],
+  transpilePackages: [
+    '@agent-infra/core',
+    '@agent-infra/db',
+    '@agent-infra/runtime-pi',
+    '@mariozechner/pi-agent-core',
+    '@mariozechner/pi-ai',
+    '@mariozechner/pi-web-ui',
+    '@mariozechner/mini-lit'
+  ],
   serverExternalPackages: ['better-sqlite3'],
-  experimental: {
-    serverComponentsExternalPackages: ['better-sqlite3']
-  },
   webpack: (config, { isServer }) => {
     if (isServer) {
       config.externals ??= [];

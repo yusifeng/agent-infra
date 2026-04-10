@@ -1,12 +1,13 @@
 # Roadmap
 
-## v0.1 Conversation History
+## v0.1 Durable Core
 
-- durable thread/run/message/message_part/tool_invocation
-- simple runtime adapter and playground validation
+- durable thread/run/message/message_part/tool_invocation/run_events
+- browser-local `playground-web` experiment harness
 
-## v0.2 Streaming & Resume
+## v0.2 Runtime Adapters & Streaming
 
+- `runtime-pi` hardening and provider expansion
 - streaming message parts
 - resumable runs
 - improved run state machine and partial failure handling

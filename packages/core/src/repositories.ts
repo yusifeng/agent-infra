@@ -1,4 +1,4 @@
-import type { Artifact, Message, MessagePart, Run, Thread, ToolInvocation } from './types';
+import type { Artifact, Message, MessagePart, Run, RunEvent, Thread, ToolInvocation } from './types';
 
 export interface ThreadRepository {
   create(input: Omit<Thread, 'createdAt' | 'updatedAt'>): Promise<Thread>;
@@ -12,6 +12,12 @@ export interface RunRepository {
   updateStatus(id: string, status: Run['status'], patch?: Partial<Run>): Promise<Run>;
 }
 
+export interface RunEventRepository {
+  append(input: Omit<RunEvent, 'createdAt'>): Promise<RunEvent>;
+  listByRun(runId: string): Promise<RunEvent[]>;
+  nextSeq(runId: string): Promise<number>;
+}
+
 export interface MessageRepository {
   create(input: Omit<Message, 'createdAt'>): Promise<Message>;
   updateStatus(id: string, status: Message['status']): Promise<Message>;
@@ -23,6 +29,7 @@ export interface MessageRepository {
 export interface ToolInvocationRepository {
   create(input: Omit<ToolInvocation, 'createdAt'>): Promise<ToolInvocation>;
   updateStatus(id: string, status: ToolInvocation['status'], patch?: Partial<ToolInvocation>): Promise<ToolInvocation>;
+  listByRun(runId: string): Promise<ToolInvocation[]>;
 }
 
 export interface ArtifactRepository {

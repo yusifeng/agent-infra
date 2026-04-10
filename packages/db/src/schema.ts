@@ -102,6 +102,28 @@ export const toolInvocations = pgTable(
   })
 );
 
+export const runEvents = pgTable(
+  'run_events',
+  {
+    id: text('id').primaryKey(),
+    threadId: text('thread_id')
+      .notNull()
+      .references(() => threads.id),
+    runId: text('run_id')
+      .notNull()
+      .references(() => runs.id),
+    seq: integer('seq').notNull(),
+    type: text('type').notNull(),
+    payloadJson: jsonb('payload_json'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull()
+  },
+  (table) => ({
+    runIdIdx: index('run_events_run_id_idx').on(table.runId),
+    threadIdIdx: index('run_events_thread_id_idx').on(table.threadId),
+    runSeqUnique: unique('run_events_run_id_seq_unique').on(table.runId, table.seq)
+  })
+);
+
 export const artifacts = pgTable('artifacts', {
   id: text('id').primaryKey(),
   threadId: text('thread_id')

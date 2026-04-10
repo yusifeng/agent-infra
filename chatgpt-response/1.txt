@@ -1,0 +1,424 @@
+下面是我基于 `repomix-agent-infra-direction-full.txt` 和 `repomix-agent-infra-direction-files.md` 做的纯静态判断，不依赖任何运行结果。我的结论很明确：**下一步最该做的是新增一个正式的 application/use-case layer（我建议叫 `packages/app`，也可以叫 `packages/use-cases`，但我更偏向前者）**，把“如何正确使用这套 durable backend”从 `apps/playground-web` 的 route 代码里收回来，形成 `agent-infra` 的官方入口。 
+
+之所以是这条线，而不是继续先堆 UI、先堆更多 runtime adapter、或者先做 replay/observability 产品面，是因为现在 `packages/core`、`packages/db`、`packages/runtime-pi` 三层其实已经把 durable truth、persistence、runtime event -> durable record 的翻译做出来了；**真正没闭合的是“消费者到底应该怎么调用它”**。目前这个空缺，正被 `apps/playground-web/app/api/runtime-pi/*.ts` 里的 route 直接填补。
+
+## 1. Direction Summary
+
+* **主线先补 `packages/app`，不是先补更多 adapter。**
+  现在仓库最缺的不是“再接一个 runtime”，而是“一个正式、稳定、可复用的调用入口”。否则每个消费者都会重复 `thread 存在性检查 -> create user message -> create message part -> create queued run -> invoke runtime -> hydrate result` 这条编排链。
+
+* **`playground-web` 要从“直接编排底层包”的消费者，变成“调用官方 use-case API 的第一消费者”。**
+  它仍然非常重要，但它的价值应该是反向定义接口，而不是继续把 application logic 长在 `apps/playground-web/app/api/runtime-pi/*` 里。
+
+* **`contracts` 要跟着 use case 走，而不是先把当前 route 形状固定下来。**
+  现在 `packages/contracts` 已经有 DTO 和 response envelope，这是对的；下一步应该补 request/input contracts，并逐步把公开 contract 从 `RuntimePi*` 命名收敛到更 generic 的 thread/run/message/use-case contract。
+
+* **observability/timeline/replay 先做“读侧 use case”，不要先做产品化界面。**
+  `run_events`、`tool_invocation`、`message_part` 的 durable truth 已经在写侧存在了；短板不是“没落库”，而是“还没有正式读出来给消费者的 API”。
+
+* **避免把 `runtime-pi` 或 `contracts` 继续长成大出口。**
+  `runtime-pi` 应该保持“runtime adapter”；`contracts` 应该保持“transport shape”；`packages/app` 才是跨 thread/run/runtime 的正式入口。这样最不容易滑回 `pi-web-ui` 式的大杂烩。
+
+## 2. Architecture Judgment
+
+### 当前这套分层，哪些已经对了
+
+* `packages/core` 的方向是对的。
+  它只定义 durable entities 和 repository interfaces：`Thread / Run / Message / MessagePart / ToolInvocation / RunEvent / Artifact`，以及 `ThreadRepository / RunRepository / MessageRepository / ToolInvocationRepository / RunEventRepository / ArtifactRepository`。这层现在是窄且稳的，不应该把 application service 塞进去。
+
+* `packages/db` 的方向也是对的。
+  它实现的是 persistence adapter：SQLite / PostgreSQL schema 和 repository implementation。对于“durable truth 落库”这件事，这层已经是闭合的。
+
+* `packages/runtime-pi` 的角色也基本是对的。
+  从 `packages/runtime-pi/src/runtime.ts` 看，它做的是 runtime lifecycle 到 durable records 的翻译：`agent_start` 更新 run，`message_start/message_end` 持久化 assistant message 和 parts，`tool_execution_start/end` 写 tool invocation 与 tool result message，`agent_end` 最终更新 run 和 usage，并把每个 event append 到 `run_events`。这正是 runtime adapter 应该干的事。
+
+* `message_part` + `run_events` 的设计是对的。
+  一个用于 compact projection，一个用于 append-only lifecycle truth。这个组合其实已经给后续 timeline/replay/resume 留好了 durable 基础。
+
+### 现在还没闭合的地方
+
+* **application/use-case layer 缺位。**
+  这是当前最大的架构缺口。`apps/playground-web/app/api/runtime-pi/runs/[threadId]/route.ts` 里直接做了：
+
+  1. `threadRepo.findById`
+  2. body parsing / text validation
+  3. runtime config resolve
+  4. `messageRepo.create` + `createPart` 持久化 user message
+  5. `runRepo.create` 创建 queued run
+  6. `runAssistantTurnWithPi(...)`
+  7. 再读 messages / run / runEvents / toolInvocations 并映射 DTO
+     这整条链就是 application logic，不应该继续长在 consumer route 里。`threads/route.ts` 和 `threads/[threadId]/messages/route.ts` 也是同样问题。
+
+* **`playground-web` 现在实际上充当了“缺失的 app layer”。**
+  这不是 UI 问题，而是 server-side route 已经在直接编排 repo 和 runtime。这样继续演进，最后“官方用法”会被 UI route 定义，而不是由 `agent-infra` 自己定义。
+
+* **`packages/contracts` 方向对，但还只是半闭合。**
+  它现在已经有 `ThreadDto / RunDto / MessageDto / ToolInvocationDto / RunEventDto` 以及 `RuntimePiThreadsResponseDto / RuntimePiRunResponseDto` 这类 response shape，但缺 request/input contracts，而且 contract 名称还比较贴近当前 `runtime-pi` route，而不是贴近更通用的 application use case。
+
+* **`runtime-pi` 的“高级自定义路径”还不够公开。**
+  当前真正带 `model / getApiKey / systemPrompt / tools` 扩展点的是 `runAssistantTurnWithPiInternal` 的 internal options，但公开导出的只有 `runAssistantTurnWithPi(ctx, input)`。这意味着要做高级自定义，目前很容易滑到“用内部函数”或者“改包源码”。这会让以后 app layer 要么包装太死，要么被迫把 pi-specific knob 全都暴露出去。
+
+* **有些现在的 contract/route 是 playground 诊断接口，不该升格成主线 API。**
+  比如 `apps/playground-web/app/api/runtime-pi/meta/route.ts` 暴露的 `RuntimePiMetaDto` 里包含 `dbConnection`、`runtimeConfigError`、`runtimeConfigured` 之类信息，这对于 harness 很有用，但它不是 durable backend 的核心 use case，不该成为整个仓库下一阶段的主 contract。
+
+## 3. Recommended Interface Shape
+
+### 我建议的 package boundaries
+
+```text
+packages/core
+  - durable truth
+  - entities / enums / repository ports
+  - 不放 use case，不放 DTO，不放 runtime-specific logic
+
+packages/db
+  - persistence adapters
+  - SQLite / PostgreSQL implementations
+  - schema / repo impl / db config helpers
+
+packages/runtime-pi
+  - pi runtime adapter
+  - 负责把 runtime execution 翻译成 run/message/message_part/tool_invocation/run_events
+  - 不负责 thread existence check / create user message / create run / response projection
+
+packages/app   <-- 建议新增
+  - official application/use-case entrypoint
+  - 编排 repos + runtime adapter
+  - 负责 create thread / list threads / get thread messages / run text turn / get run timeline
+  - 可导出 typed errors / result types
+  - 不依赖 HTTP，不依赖 Next，不依赖 browser
+
+packages/contracts
+  - browser/API DTO contracts
+  - response DTO + request/input DTO
+  - 只放 transport shape
+  - 不放 domain rule / repo contract / runtime orchestration
+
+apps/playground-web
+  - 第一消费者 + 真实使用压力测试
+  - route 只做 request parse -> call app -> map contract
+  - UI 只认 contracts
+```
+
+这个切法的关键点是：**把“正式入口”放到 `packages/app`，但把“底层自由度”留在 `core/db/runtime-pi`。** 这样 simple path 好用，advanced path 也不会被封死。
+
+### 为什么我明确建议新增 `packages/app`
+
+因为现在更重要的问题不是“UI 还不够完整”，而是**仓库本身还没有一个正式告诉消费者“应该怎样用 agent-infra” 的入口**。继续改 UI，只会让更多 use case 语义沉淀在 `apps/playground-web/app/api/runtime-pi/*.ts` 里；而新增 `packages/app` 会把这些语义收回主干，让 `playground-web` 真正成为第一消费者，而不是事实上的 application layer。
+
+另外，这层比继续扩张 `packages/runtime-pi` 更合理，因为当前缺失的能力不是 pi-specific：
+它跨越 `thread`、`message`、`run`、`DTO projection`、`错误语义`、`消费者入口`。这些放进 `runtime-pi`，只会把一个 runtime adapter 变成半个产品服务层。那就是重新滑回大出口。
+
+### `packages/app` 和其他包的边界
+
+* 和 `packages/core` 的边界：
+  `core` 继续只管 durable truth 和 repository ports；`app` 不把 use case 回塞进 `core`。
+
+* 和 `packages/runtime-pi` 的边界：
+  `runtime-pi` 只接“一个已经存在的 thread/run 上下文”，负责执行并持久化 runtime lifecycle；
+  `app` 负责 run 前后的 orchestration：校验 thread、写 user message、建 run、调用 adapter、收集 projection。
+
+* 和 `packages/contracts` 的边界：
+  `app` 最好不要直接依赖 `contracts`。
+  `app` 返回 app-native result types 或 domain-oriented projection；
+  route/controller 再把它们映射成 `contracts`。
+  这样 transport shape 不会反向污染 use case。
+
+### Simple path
+
+我建议 simple path 只覆盖最常见、最稳定的用法：
+
+```ts
+const app = createAgentInfraApp({
+  repos,
+  runtimes: {
+    pi: createPiRuntime({
+      getApiKey,
+      systemPrompt,
+      tools
+    })
+  }
+});
+
+const thread = await app.threads.create({
+  appId: 'playground-runtime-pi',
+  title: 'Runtime PI Thread',
+  metadata: { source: 'playground-web' }
+});
+
+const result = await app.turns.runText({
+  threadId: thread.id,
+  text: 'hello',
+  runtime: {
+    kind: 'pi',
+    provider: 'deepseek',
+    model: 'deepseek-chat'
+  },
+  metadata: { source: 'playground-web' }
+});
+```
+
+这个 simple path 应该内建完成：
+
+* thread existence check
+* create user message + first text part
+* create queued run
+* invoke runtime adapter
+* return final run + messages + lightweight run/tool summaries
+
+也就是说：**简单场景下，消费者不需要知道 `message_part`、`run_event`、`tool_invocation` 这些内部表怎么拼。**
+
+### Advanced path
+
+高级路径不要靠把 `packages/app` 做成“什么都能传进去的巨型函数”来实现。
+更好的方式是两条：
+
+* **在 composition root 注入 runtime/custom policy**
+* **保留直接使用底层包的能力**
+
+例如：
+
+```ts
+// advanced path 1: still through app, but inject your own runtime instance
+const app = createAgentInfraApp({
+  repos,
+  runtimes: {
+    pi: createPiRuntime({
+      tools: customTools,
+      systemPrompt: customPrompt,
+      getApiKey: myKeyResolver
+    })
+  },
+  idGenerator: myIdGenerator,
+  now: myClock
+});
+```
+
+```ts
+// advanced path 2: bypass app entirely for full control
+const run = await runRepo.create(...);
+await messageRepo.create(...);
+await messageRepo.createPart(...);
+
+await piRuntime.runTurn(
+  { runRepo, messageRepo, toolRepo, runEventRepo },
+  { threadId, runId, provider, model }
+);
+```
+
+这就是“简单易用，但不封死自定义逻辑”的关键：
+**高层包给默认编排；底层包仍然公开。** 不要要求所有高级需求都穿过 `packages/app` 的 generic API。
+
+### `contracts` 的边界
+
+我建议 `packages/contracts` 做这三类东西：
+
+* entity/view DTO
+  如 `ThreadDto / MessageDto / RunDto / ToolInvocationDto / RunEventDto`
+
+* use-case request/input contracts
+  如 `CreateThreadRequestDto`、`RunTextTurnRequestDto`、`GetThreadMessagesRequestDto`
+
+* use-case response contracts
+  如 `ThreadsResponseDto`、`CreateThreadResponseDto`、`RunTextTurnResponseDto`、`RunTimelineResponseDto`
+
+但不要放：
+
+* repository interfaces
+* domain rule
+* runtime state machine 规则
+* env/config discovery 逻辑
+* playground 诊断信息主线化
+
+我会特别建议：**不要继续把稳定 contract 统一命名成 `RuntimePi*`。**
+`ThreadDto / MessageDto / RunDto` 已经是通用的；接下来 request/response contract 也应该越来越 generic，只有明确是 harness 诊断的东西才保留 runtime-pi 前缀。像 `RuntimePiMetaDto` 这种更像 playground diagnostic contract，不像 agent-infra 的主线 contract。
+
+## 4. Recommended Next PRs
+
+### PR 1 — 新增 `packages/app`，把正式 use case 从 `playground-web` route 抽出来
+
+**目的**
+建立 agent-infra 的正式入口，先闭合最核心的 4 条用法：
+
+* `createThread`
+* `listThreads`
+* `getThreadMessages`
+* `runTextTurn`
+
+**主要改动点**
+
+* 新增 `packages/app`
+* 定义 app-level deps，例如：
+
+  * repo bundle
+  * minimal runtime port（先放在 `packages/app` 内部，不急着单独抽 `packages/runtime`）
+  * `idGenerator` / `now`
+* 实现 `threads.create/list/getMessages`
+* 实现 `turns.runText`
+* app 返回 app-native result types / typed errors
+
+**涉及包**
+
+* `packages/app`（新增）
+* `packages/core`（只复用，不扩大职责）
+* `packages/runtime-pi`（先接入现有 adapter）
+* `apps/playground-web`（后续 PR 再切）
+
+**为什么排第一**
+因为这一步是在补“官方入口”。没有它，后面不管是继续改 UI、继续加 adapter、还是补 observability，都会建立在错误的集成方式上。
+
+### PR 2 — 让 `apps/playground-web` 只调用 `packages/app`，并补齐 request/input contracts
+
+**目的**
+把第一消费者真正变成第一消费者，而不是 application layer 本体。
+
+**主要改动点**
+
+* `apps/playground-web/app/api/runtime-pi/threads/route.ts`
+* `apps/playground-web/app/api/runtime-pi/threads/[threadId]/messages/route.ts`
+* `apps/playground-web/app/api/runtime-pi/runs/[threadId]/route.ts`
+
+以上 route 全部改成：
+
+* parse request
+* call `packages/app`
+* map to `packages/contracts`
+
+同时在 `packages/contracts` 里新增：
+
+* `CreateThreadRequestDto`
+* `RunTextTurnRequestDto`
+* 可能还有统一的 error response shape
+
+**涉及包**
+
+* `packages/contracts`
+* `packages/app`
+* `apps/playground-web`
+
+**为什么排第二**
+因为只有用真实消费者把 app layer 走通，才能知道它是不是“简单可用”。而且 contract 要跟着 use case 收敛，不应该先于它被硬编码。
+
+### PR 3 — 公开 `runtime-pi` 的可配置入口，去掉“高级路径只能碰内部函数”的状态
+
+**目的**
+保证 `packages/app` 不是死包装，给高级自定义留下正式扩展点。
+
+**主要改动点**
+
+* 在 `packages/runtime-pi` 公开一个正式的可配置 runtime 入口，例如：
+
+  * `createPiRuntime(...)`
+  * 或导出带 options 的 public `runAssistantTurnWithPi(...)`
+* 把 `tools / systemPrompt / getApiKey / model resolution` 这些扩展点变成 public API
+* 不再把 demo tools 作为默认正式能力硬编码在 mainline simple path 里；它们更适合 playground/smoke composition
+
+**涉及包**
+
+* `packages/runtime-pi`
+* `packages/app`
+* `apps/playground-web`（把 demo tools 放回 consumer composition）
+
+**为什么排第三**
+因为你要的目标之一是“需要自定义逻辑时不会因为包装太死而很难扩展”。这一步不做，`packages/app` 很容易变成只能走默认 DeepSeek/OpenAI + demo tools 的薄封装。
+
+### PR 4 — 增加 run timeline/read-side use case，而不是先做 replay 产品
+
+**目的**
+把已经写进 durable storage 的 `run_events / tool_invocations / messages` 正式暴露成可消费的 read model。
+
+**主要改动点**
+
+* `packages/app` 增加：
+
+  * `runs.getTimeline(runId)`
+  * 或 `runs.getDetails(runId)`
+* `packages/contracts` 增加：
+
+  * `RunTimelineResponseDto`
+  * 更完整的 `RunEventDto` / `ToolInvocationDto` read contract
+* `playground-web` 可以选择展示 timeline，但 UI 不是重点
+
+**涉及包**
+
+* `packages/app`
+* `packages/contracts`
+* `apps/playground-web`
+
+**为什么排第四**
+因为写侧 durable truth 已经在；现在补的是读侧 use case。先有正式 timeline API，再决定要不要做 replay/调试页面，顺序才是对的。
+
+### PR 5 — 再回头做 `runtime-pi` hardening（streaming / resume-safe state transitions）
+
+**目的**
+在官方入口和读侧形状稳定后，再加深 runtime correctness。
+
+**主要改动点**
+
+* streaming message parts
+* resumable runs
+* 更清晰的 partial failure handling
+* 更严格的 run state transitions
+
+**涉及包**
+
+* `packages/runtime-pi`
+* 可能少量触及 `packages/app`
+* 可能少量触及 `packages/contracts`
+
+**为什么排第五**
+因为 roadmap 里这些确实是下一阶段方向，但它们是“把现有 adapter 做深”，不是“先把正式入口补齐”。在入口缺位时先做这层，收益不如前四个 PR 大。
+
+## 5. What Not To Do
+
+* **不要继续让 `apps/playground-web/app/api/runtime-pi/*.ts` 直接碰 repo 和 runtime。**
+  这会让 consumer route 变成事实上的 app layer。
+
+* **不要把 `packages/runtime-pi` 继续长成“thread + run + contracts + env + diagnostics + use cases”的大包。**
+  缺的是 app layer，不是让 runtime adapter 升格成平台入口。
+
+* **不要先做第二个/第三个 runtime adapter。**
+  在 application boundary 没定之前，新增 adapter 只会复制一遍错误的集成方式。
+
+* **不要先把 `contracts` 做成一堆固定的 `RuntimePi*` API 形状。**
+  这会把当前 accidental route design 固化下来。
+
+* **不要把 `RuntimePiMetaDto` 这类 playground 诊断 contract 当成主线 contract 扩张。**
+  `dbConnection`、`runtimeConfigError` 这些更像 harness/debug 信息，不是 durable backend 的主 use case。
+
+* **不要为了“支持高级自定义”把 `packages/app` 做成一个接受海量 pi-specific 参数的超级入口。**
+  generic 的留在 app，pi-specific 的留在 `runtime-pi`，更高级的就允许用户直用底层包。
+
+* **不要现在跳去做 artifact/files/memory。**
+  roadmap 里它们在更后面，而且当前主线短板不是这些。
+
+## 6. Acceptance Criteria
+
+做到下面这些，说明方向基本对了：
+
+* `apps/playground-web/app/api/runtime-pi/threads/route.ts`、`apps/playground-web/app/api/runtime-pi/threads/[threadId]/messages/route.ts`、`apps/playground-web/app/api/runtime-pi/runs/[threadId]/route.ts` **不再直接 import repository implementation，也不再直接调用 `runAssistantTurnWithPi`**；它们只调用 `packages/app`。
+
+* 一个新消费者要接入 durable thread + run mainline，只需要理解 2 到 4 个 use case，而不需要知道 `message_part / run_event / tool_invocation` 的写入顺序。
+
+* `packages/contracts` 同时包含 request/input contract 和 response contract，但**不包含 repository contract、runtime state rule、env/config discovery**。
+
+* `packages/runtime-pi` 存在正式 public 的高级自定义入口，允许注入 tools/systemPrompt/key resolution；高级用户不需要依赖 internal-only API。
+
+* `playground-web` 作为第一消费者，新增需求时可以清晰区分：
+
+  * 这是稳定 use case，应该加到 `packages/app` + `packages/contracts`
+  * 这是 playground 诊断/实验能力，应该留在 app 本地
+    只要这个分流能持续做对，仓库就不容易重新滑向大杂烩出口。
+
+* 在不增加任何 UI 复杂度的情况下，仓库已经能明确回答“如何正式使用这套 agent-infra”：
+  **create thread -> run text turn -> read thread messages -> read run timeline**。
+  当这条路径不再藏在 `apps/playground-web` route 里，而是藏在 `packages/app` 里，方向就对了。
+
+一句话总结：
+
+**下一阶段最该做的，不是继续做 UI，不是继续堆 runtime adapter，也不是先做 replay，而是补出 `@agent-infra/app` 这一层，把“官方如何使用 agent-infra”从 `playground-web` 收回主干；随后让 `playground-web` 只作为第一消费者来压这个 API。**
+这样才能同时满足：
+
+* 简单场景好用
+* 高级场景不被封死
+* 仓库不重新滑向 `pi-web-ui` 式的大出口。

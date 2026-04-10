@@ -2,14 +2,14 @@
 
 ## Project goal
 
-`agent-infra` focuses on reusable conversation and execution infrastructure, not a full chat product.
+`agent-infra` focuses on durable backend infrastructure for agent runtimes, not a full chat product.
 
 ## Layers
 
 - `packages/core`: domain types and repository interfaces only.
-- `packages/db`: Drizzle schema and PostgreSQL repository implementations.
-- `packages/runtime-ai-sdk`: runtime adapter from core message parts to AI SDK model calls.
-- `apps/playground-web`: minimal Next.js app to verify end-to-end flow.
+- `packages/db`: Drizzle schema plus SQLite / PostgreSQL repository implementations.
+- `packages/runtime-pi`: pi-agent-core adapter that translates runtime events into durable records.
+- `apps/playground-web`: browser-local pi experiment harness, intentionally separate from durable persistence.
 
 ## Why `thread` instead of `session`
 
@@ -20,12 +20,15 @@
 `message_part` enables mixed content in one message: text, tool-call, tool-result, reasoning, and structured data.
 This keeps the model output and tool execution trace extensible.
 
+## Why `run_events`
+
+`run_events` is the append-only event log for a run. It preserves runtime lifecycle truth even when durable projections stay intentionally compact.
+
 ## v0.1 scope
 
-- thread / run / message / message_part / tool_invocation persistence
-- minimal runtime turn execution
-- one mock tool call (`getCurrentTime`)
-- minimal playground UI for create thread + send message + receive assistant response
+- thread / run / message / message_part / tool_invocation / run_event persistence
+- browser-local `playground-web` experiment for pi runtime feel and storage UX
+- one server-side runtime adapter mainline: `runtime-pi`
 
 ## Evolution
 

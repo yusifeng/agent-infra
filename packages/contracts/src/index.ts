@@ -1,0 +1,121 @@
+import type { MessagePartType, MessageRole, RunStatus, ToolInvocationStatus } from '@agent-infra/core';
+
+export type IsoDateString = string;
+
+export interface ThreadDto {
+  id: string;
+  appId: string;
+  userId?: string | null;
+  title?: string | null;
+  status: 'active' | 'archived';
+  metadata?: Record<string, unknown> | null;
+  createdAt: IsoDateString;
+  updatedAt: IsoDateString;
+  archivedAt?: IsoDateString | null;
+}
+
+export interface RunDto {
+  id: string;
+  threadId: string;
+  triggerMessageId?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  status: RunStatus;
+  usage?: Record<string, unknown> | null;
+  error?: string | null;
+  startedAt?: IsoDateString | null;
+  finishedAt?: IsoDateString | null;
+  createdAt: IsoDateString;
+}
+
+export interface MessagePartDto {
+  id: string;
+  messageId: string;
+  partIndex: number;
+  type: MessagePartType;
+  textValue?: string | null;
+  jsonValue?: Record<string, unknown> | null;
+  createdAt: IsoDateString;
+}
+
+export interface MessageDto {
+  id: string;
+  threadId: string;
+  runId?: string | null;
+  role: MessageRole;
+  seq: number;
+  status: 'created' | 'completed' | 'failed';
+  metadata?: Record<string, unknown> | null;
+  createdAt: IsoDateString;
+  parts: MessagePartDto[];
+}
+
+export interface ToolInvocationDto {
+  id: string;
+  threadId: string;
+  runId: string;
+  messageId: string;
+  toolName: string;
+  toolCallId: string;
+  status: ToolInvocationStatus;
+  input?: Record<string, unknown> | null;
+  output?: Record<string, unknown> | null;
+  error?: string | null;
+  startedAt?: IsoDateString | null;
+  finishedAt?: IsoDateString | null;
+  createdAt: IsoDateString;
+}
+
+export interface RunEventDto {
+  id: string;
+  threadId: string;
+  runId: string;
+  seq: number;
+  type: string;
+  payload: Record<string, unknown> | null;
+  createdAt: IsoDateString;
+}
+
+export interface RuntimePiModelOptionDto {
+  key: string;
+  provider: string;
+  model: string;
+  label: string;
+  description: string;
+}
+
+export interface RuntimePiMetaDto {
+  dbMode: string;
+  dbConnection: string;
+  runtimeConfigured: boolean;
+  runtimeProvider: string;
+  runtimeModel: string;
+  defaultModelKey: string | null;
+  modelOptions: RuntimePiModelOptionDto[];
+  runtimeConfigError: string | null;
+}
+
+export type RunEventSummaryDto = Pick<RunEventDto, 'seq' | 'type'>;
+
+export type ToolInvocationSummaryDto = Pick<ToolInvocationDto, 'id' | 'toolName' | 'status'>;
+
+export interface RuntimePiThreadsResponseDto {
+  threads: ThreadDto[];
+}
+
+export interface RuntimePiCreateThreadResponseDto {
+  thread: ThreadDto;
+}
+
+export interface RuntimePiMessagesResponseDto {
+  messages?: MessageDto[];
+  error?: string;
+}
+
+export interface RuntimePiRunResponseDto {
+  run: RunDto | null;
+  messages: MessageDto[];
+  runEvents?: RunEventSummaryDto[];
+  toolInvocations?: ToolInvocationSummaryDto[];
+  error?: string;
+}

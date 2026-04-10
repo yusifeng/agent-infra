@@ -102,6 +102,28 @@ export const toolInvocations = sqliteTable(
   })
 );
 
+export const runEvents = sqliteTable(
+  'run_events',
+  {
+    id: text('id').primaryKey(),
+    threadId: text('thread_id')
+      .notNull()
+      .references(() => threads.id),
+    runId: text('run_id')
+      .notNull()
+      .references(() => runs.id),
+    seq: integer('seq').notNull(),
+    type: text('type').notNull(),
+    payloadJson: text('payload_json', { mode: 'json' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull()
+  },
+  (table) => ({
+    runIdIdx: index('run_events_run_id_idx').on(table.runId),
+    threadIdIdx: index('run_events_thread_id_idx').on(table.threadId),
+    runSeqUnique: uniqueIndex('run_events_run_id_seq_unique').on(table.runId, table.seq)
+  })
+);
+
 export const artifacts = sqliteTable('artifacts', {
   id: text('id').primaryKey(),
   threadId: text('thread_id')
@@ -181,6 +203,18 @@ export const SQLITE_SCHEMA_STATEMENTS = [
   )`,
   'CREATE INDEX IF NOT EXISTS tool_invocations_run_id_idx ON tool_invocations(run_id)',
   'CREATE INDEX IF NOT EXISTS tool_invocations_thread_id_idx ON tool_invocations(thread_id)',
+  `CREATE TABLE IF NOT EXISTS run_events (
+    id TEXT PRIMARY KEY,
+    thread_id TEXT NOT NULL REFERENCES threads(id),
+    run_id TEXT NOT NULL REFERENCES runs(id),
+    seq INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    payload_json TEXT,
+    created_at INTEGER NOT NULL
+  )`,
+  'CREATE INDEX IF NOT EXISTS run_events_run_id_idx ON run_events(run_id)',
+  'CREATE INDEX IF NOT EXISTS run_events_thread_id_idx ON run_events(thread_id)',
+  'CREATE UNIQUE INDEX IF NOT EXISTS run_events_run_id_seq_unique ON run_events(run_id, seq)',
   `CREATE TABLE IF NOT EXISTS artifacts (
     id TEXT PRIMARY KEY,
     thread_id TEXT NOT NULL REFERENCES threads(id),

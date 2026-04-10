@@ -1,19 +1,19 @@
 # agent-infra
 
-Reusable AI infrastructure base with a minimal v0.1 conversation loop.
+Durable backend primitives for agent runtimes, plus a browser-local pi experiment harness.
 
 ## Structure
 
-- `apps/playground-web`: Next.js demo playground UI
+- `apps/playground-web`: browser-local pi experiment harness
 - `packages/core`: domain types + repository interfaces
-- `packages/db`: Drizzle repositories (SQLite + PostgreSQL)
-- `packages/runtime-ai-sdk`: runtime adapter with `mock` / `real` AI mode
+- `packages/db`: Drizzle repositories (SQLite + PostgreSQL) for durable thread/run/message/tool storage
+- `packages/runtime-pi`: pi-agent-core adapter that persists runs, messages, tool invocations, and run events
 - `packages/shared`: shared helpers
 - `docs`: architecture and roadmap
 
-## Quick start (zero-config demo)
+## Quick start
 
-No model API key and no local Postgres are required.
+The default app experience is the browser-local pi experiment in `playground-web`.
 
 Environment file should be placed under `apps/playground-web` (Next.js app scope).
 
@@ -23,42 +23,44 @@ cp apps/playground-web/.env.example apps/playground-web/.env.local
 pnpm dev
 ```
 
-Default behavior:
+This route keeps sessions, settings, and provider keys in browser IndexedDB. It does not write to the durable backend packages.
 
-- `AI_MODE=mock`
-- database is local SQLite file (`./local.db`)
-- SQLite schema is auto-initialized on first app start
+## Durable backend packages
 
-## Advanced mode
+- `@agent-infra/core` defines the stable storage contract:
+  - `thread`
+  - `run`
+  - `message`
+  - `message_part`
+  - `tool_invocation`
+  - `run_event`
+- `@agent-infra/db` implements SQLite and PostgreSQL repositories for that contract.
+- `@agent-infra/runtime-pi` is the current server-side runtime adapter mainline.
 
-### Real model mode
-
-Use a real model by setting:
-
-```bash
-AI_MODE=real
-OPENAI_API_KEY=sk-...
-# optional
-OPENAI_MODEL=gpt-4o-mini
-```
-
-If `AI_MODE=real` is set but `OPENAI_API_KEY` is missing, the runtime fails fast with a clear error.
-
-### PostgreSQL mode
-
-To switch database from SQLite to PostgreSQL, set:
-
-```bash
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/agent_infra
-```
-
-When `DATABASE_URL` is provided, playground uses Postgres repositories.
-
-### Postgres schema migration
-
-Use Drizzle migration flow for PostgreSQL:
+### PostgreSQL migration flow
 
 ```bash
 pnpm --filter @agent-infra/db db:generate
 pnpm --filter @agent-infra/db db:migrate
 ```
+
+### runtime-pi configuration
+
+`@agent-infra/runtime-pi` supports DeepSeek and OpenAI. If both keys are present, it defaults to DeepSeek:
+
+```bash
+DEEPSEEK_API_KEY=sk-...
+# optional OpenAI fallback / alternate selection
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4o-mini
+```
+
+### runtime-pi smoke harness
+
+Run a real server-side smoke pass against `@agent-infra/db` repositories:
+
+```bash
+DEEPSEEK_API_KEY=sk-... pnpm --filter @agent-infra/runtime-pi smoke
+```
+
+By default this uses SQLite at `packages/runtime-pi/runtime-pi-smoke.db`. You can override with `SQLITE_PATH` or point to PostgreSQL with `DATABASE_URL`.

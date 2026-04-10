@@ -32,6 +32,16 @@ export interface Run {
   createdAt: Date;
 }
 
+export interface RunEvent {
+  id: string;
+  threadId: string;
+  runId: string;
+  seq: number;
+  type: string;
+  payload: Record<string, unknown> | null;
+  createdAt: Date;
+}
+
 export interface Message {
   id: string;
   threadId: string;
