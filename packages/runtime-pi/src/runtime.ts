@@ -7,7 +7,17 @@ import { getModels, type AssistantMessage, type Message as PiMessage, type Model
 
 import { buildInitialAgentState, convertToLlm } from './messages';
 import { createDemoTools } from './tools';
-import type { RuntimePiConfig, RuntimePiContext, RuntimePiInput, RuntimePiModelOption, RuntimePiProvider } from './types';
+import type {
+  RuntimePiConfig,
+  RuntimePiContext,
+  RuntimePiInput,
+  RuntimePiModelOption,
+  RuntimePiProvider,
+  RuntimePiRuntime,
+  RuntimePiRuntimeOptions,
+  RuntimePiSelection,
+  RuntimePiToolProvider
+} from './types';
 
 const DEEPSEEK_BASE_URL = 'https://api.deepseek.com/v1';
 const DEFAULT_DEEPSEEK_MODEL = 'deepseek-chat';
@@ -42,15 +52,14 @@ type RuntimePiState = {
   nextMessageSeq: number;
   nextRunEventSeq: number;
   currentAssistantMessageId: string | null;
+  openAssistantMessageId: string | null;
   nextPartIndexByMessageId: Map<string, number>;
-  toolInvocationByCallId: Map<string, { id: string; messageId: string }>;
+  toolInvocationByCallId: Map<string, { id: string; messageId: string; status: 'running' | 'completed' | 'failed' }>;
   persistedToolCallIds: Set<string>;
 };
 
-export type RuntimePiInternalOptions = {
-  model?: Model<any>;
-  getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
-  systemPrompt?: string;
+export type RuntimePiInternalOptions = RuntimePiRuntimeOptions & {
+  resolvedConfig?: RuntimePiConfig | null;
   tools?: AgentTool[];
 };
 
@@ -213,6 +222,58 @@ function resolveConfiguredModel(config: RuntimePiConfig): Model<any> {
   return resolveOpenAiModel(config.model);
 }
 
+function toRuntimeSelection(config: RuntimePiConfig): RuntimePiSelection {
+  return {
+    provider: config.provider,
+    model: config.model
+  };
+}
+
+async function resolveRuntimeConfig(
+  options: RuntimePiRuntimeOptions,
+  preferred: Pick<RuntimePiInput, 'provider' | 'model'> = {}
+): Promise<RuntimePiConfig | null> {
+  if (options.model) {
+    return null;
+  }
+
+  if (options.resolveConfig) {
+    return await options.resolveConfig(preferred);
+  }
+
+  return resolveRuntimePiConfigFromEnv(preferred);
+}
+
+async function resolveRuntimeSelection(
+  options: RuntimePiRuntimeOptions,
+  preferred: Pick<RuntimePiInput, 'provider' | 'model'> = {}
+): Promise<RuntimePiSelection> {
+  if (options.model) {
+    return {
+      provider: String(options.model.provider),
+      model: options.model.id
+    };
+  }
+
+  const config = await resolveRuntimeConfig(options, preferred);
+  return toRuntimeSelection(config as RuntimePiConfig);
+}
+
+async function resolveTools(
+  tools: RuntimePiToolProvider | undefined,
+  context: { threadId: string; runId: string; provider: string; model: string }
+) {
+  if (!tools) {
+    return [] as AgentTool[];
+  }
+
+  if (Array.isArray(tools)) {
+    return tools;
+  }
+
+  return await tools(context);
+}
+
 function createUsageSummary(messages: PiMessage[]) {
   return messages.reduce(
     (usage, message) => {
@@ -313,7 +374,6 @@ async function appendMessagePart(
   }
 ) {
   const nextPartIndex = state.nextPartIndexByMessageId.get(messageId) ?? 0;
-  state.nextPartIndexByMessageId.set(messageId, nextPartIndex + 1);
 
   await ctx.messageRepo.createPart({
     id: crypto.randomUUID(),
@@ -323,6 +383,8 @@ async function appendMessagePart(
     textValue: options.textValue ?? null,
     jsonValue: options.jsonValue ?? null
   });
+
+  state.nextPartIndexByMessageId.set(messageId, nextPartIndex + 1);
 }
 
 async function persistAssistantMessage(
@@ -363,6 +425,7 @@ async function persistAssistantMessage(
   }
 
   await ctx.messageRepo.updateStatus(messageId, assistantMessage.stopReason === 'error' || assistantMessage.stopReason === 'aborted' ? 'failed' : 'completed');
+  state.openAssistantMessageId = null;
 }
 
 async function persistToolResultMessage(
@@ -404,6 +467,7 @@ async function handleAgentEvent(ctx: RuntimePiContext, state: RuntimePiState, in
     });
 
     state.currentAssistantMessageId = message.id;
+    state.openAssistantMessageId = message.id;
     await appendRunEvent(ctx, state, input, event);
     return;
   }
@@ -435,7 +499,7 @@ async function handleAgentEvent(ctx: RuntimePiContext, state: RuntimePiState, in
       finishedAt: null
     });
 
-    state.toolInvocationByCallId.set(event.toolCallId, { id: invocation.id, messageId: assistantMessageId });
+    state.toolInvocationByCallId.set(event.toolCallId, { id: invocation.id, messageId: assistantMessageId, status: 'running' });
     state.persistedToolCallIds.add(event.toolCallId);
 
     await appendMessagePart(ctx, state, assistantMessageId, 'tool-call', {
@@ -456,7 +520,8 @@ async function handleAgentEvent(ctx: RuntimePiContext, state: RuntimePiState, in
       throw new Error(`Tool invocation not found for ${event.toolCallId}`);
     }
 
-    await ctx.toolRepo.updateStatus(invocation.id, event.isError ? 'failed' : 'completed', {
+    const nextStatus = event.isError ? 'failed' : 'completed';
+    await ctx.toolRepo.updateStatus(invocation.id, nextStatus, {
       output: {
         content: Array.isArray(event.result?.content) ? event.result.content : [],
         details: event.result?.details ?? null,
@@ -464,6 +529,10 @@ async function handleAgentEvent(ctx: RuntimePiContext, state: RuntimePiState, in
       },
       error: event.isError ? extractTextContent(Array.isArray(event.result?.content) ? event.result.content : []) || event.toolName : null,
       finishedAt: new Date()
+    });
+    state.toolInvocationByCallId.set(event.toolCallId, {
+      ...invocation,
+      status: nextStatus
     });
 
     await persistToolResultMessage(ctx, state, input, event);
@@ -492,12 +561,94 @@ async function handleAgentEvent(ctx: RuntimePiContext, state: RuntimePiState, in
   await appendRunEvent(ctx, state, input, event);
 }
 
+async function hardenFailureState(ctx: RuntimePiContext, state: RuntimePiState, errorMessage: string) {
+  const finishedAt = new Date();
+  const repairs: Array<Promise<unknown>> = [];
+
+  if (state.openAssistantMessageId) {
+    const messageId = state.openAssistantMessageId;
+    repairs.push(
+      (async () => {
+        if ((state.nextPartIndexByMessageId.get(messageId) ?? 0) === 0) {
+          await appendMessagePart(ctx, state, messageId, 'text', {
+            textValue: errorMessage
+          });
+        }
+
+        await ctx.messageRepo.updateStatus(messageId, 'failed');
+      })()
+    );
+    state.openAssistantMessageId = null;
+  }
+
+  for (const [toolCallId, invocation] of state.toolInvocationByCallId.entries()) {
+    if (invocation.status !== 'running') {
+      continue;
+    }
+
+    repairs.push(
+      ctx.toolRepo.updateStatus(invocation.id, 'failed', {
+        error: errorMessage,
+        finishedAt
+      })
+    );
+    state.toolInvocationByCallId.set(toolCallId, {
+      ...invocation,
+      status: 'failed'
+    });
+  }
+
+  await Promise.allSettled(repairs);
+}
+
+export function createPiRuntime(options: RuntimePiRuntimeOptions = {}): RuntimePiRuntime {
+  return {
+    async prepare(input = {}) {
+      return resolveRuntimeSelection(options, input);
+    },
+    async runTurn(ctx, input) {
+      const resolvedConfig = await resolveRuntimeConfig(options, {
+        provider: input.provider,
+        model: input.model
+      });
+      const selection =
+        resolvedConfig != null
+          ? toRuntimeSelection(resolvedConfig)
+          : {
+              provider: String(options.model?.provider),
+              model: options.model?.id ?? input.model ?? ''
+            };
+
+      const tools = await resolveTools(options.tools, {
+        threadId: input.threadId,
+        runId: input.runId,
+        provider: selection.provider,
+        model: selection.model
+      });
+
+      await runAssistantTurnWithPiInternal(
+        ctx,
+        {
+          ...input,
+          provider: selection.provider,
+          model: selection.model
+        },
+        {
+          ...options,
+          tools,
+          resolvedConfig
+        }
+      );
+    }
+  };
+}
+
 export async function runAssistantTurnWithPiInternal(
   ctx: RuntimePiContext,
   input: RuntimePiInput,
   options: RuntimePiInternalOptions = {}
 ) {
-  const config = options.model ? null : resolveRuntimePiConfigFromEnv({ provider: input.provider, model: input.model });
+  const config = options.resolvedConfig ?? (options.model ? null : resolveRuntimePiConfigFromEnv({ provider: input.provider, model: input.model }));
 
   const model = options.model ?? resolveConfiguredModel(config as RuntimePiConfig);
   const history = await ctx.messageRepo.listByThread(input.threadId);
@@ -512,17 +663,13 @@ export async function runAssistantTurnWithPiInternal(
     nextMessageSeq: await ctx.messageRepo.nextSeq(input.threadId),
     nextRunEventSeq: await ctx.runEventRepo.nextSeq(input.runId),
     currentAssistantMessageId: null,
+    openAssistantMessageId: null,
     nextPartIndexByMessageId: new Map(),
     toolInvocationByCallId: new Map(),
     persistedToolCallIds: new Set()
   };
 
-  const tools = options.tools ?? createDemoTools({
-    threadId: input.threadId,
-    runId: input.runId,
-    provider: config?.provider ?? (model.provider as string),
-    model: config?.model ?? model.id
-  });
+  const tools = options.tools ?? [];
 
   const agent = new Agent({
     initialState: {
@@ -537,14 +684,31 @@ export async function runAssistantTurnWithPiInternal(
     toolExecution: 'parallel'
   });
 
-  const unsubscribe = agent.subscribe(async (event) => {
-    await handleAgentEvent(ctx, state, input, model, event);
+  let eventChain = Promise.resolve();
+  let subscriberFailure: unknown = null;
+
+  const unsubscribe = agent.subscribe((event) => {
+    eventChain = eventChain.then(async () => {
+      if (subscriberFailure) {
+        return;
+      }
+
+      await handleAgentEvent(ctx, state, input, model, event);
+    }).catch((error) => {
+      subscriberFailure = error;
+      throw error;
+    });
   });
 
   try {
     await agent.continue();
+    await eventChain;
+    if (subscriberFailure) {
+      throw subscriberFailure;
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown runtime-pi failure';
+    await hardenFailureState(ctx, state, message);
     await ctx.runRepo.updateStatus(input.runId, 'failed', {
       finishedAt: new Date(),
       error: message
@@ -566,5 +730,7 @@ export async function runAssistantTurnWithPiInternal(
 }
 
 export async function runAssistantTurnWithPi(ctx: RuntimePiContext, input: RuntimePiInput): Promise<void> {
-  await runAssistantTurnWithPiInternal(ctx, input);
+  await createPiRuntime({
+    tools: (context) => createDemoTools(context)
+  }).runTurn(ctx, input);
 }

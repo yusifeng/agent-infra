@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@agent-infra/app": "workspace:*",
     "@agent-infra/contracts": "workspace:*",
     "@agent-infra/core": "workspace:*",
     "@agent-infra/db": "workspace:*",

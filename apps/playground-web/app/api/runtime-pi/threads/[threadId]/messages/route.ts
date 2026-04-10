@@ -1,22 +1,24 @@
-import type { RuntimePiMessagesResponseDto } from '@agent-infra/contracts';
+import type { ThreadMessagesResponseDto } from '@agent-infra/contracts';
 
 import { toMessageDto } from '@/lib/runtime-pi-dto';
-import { dbReady, runtimePiRepos } from '@/lib/runtime-pi-repo';
+import { getRouteErrorMessage, getRouteErrorStatus } from '@/lib/runtime-pi-route-errors';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ threadId: string }> }) {
+  const { dbReady, runtimePiApp } = await import('@/lib/runtime-pi-repo');
   await dbReady;
   const { threadId } = await params;
 
-  const thread = await runtimePiRepos.threadRepo.findById(threadId);
-  if (!thread) {
-    const response: RuntimePiMessagesResponseDto = { error: 'thread not found' };
-    return Response.json(response, { status: 404 });
+  try {
+    const messages = await runtimePiApp.threads.getMessages({ threadId });
+    const response: ThreadMessagesResponseDto = {
+      messages: messages.map(toMessageDto)
+    };
+
+    return Response.json(response);
+  } catch (error) {
+    const response: ThreadMessagesResponseDto = {
+      error: getRouteErrorMessage(error, 'failed to load thread messages')
+    };
+    return Response.json(response, { status: getRouteErrorStatus(error) });
   }
-
-  const messages = await runtimePiRepos.messageRepo.listByThread(threadId);
-  const response: RuntimePiMessagesResponseDto = {
-    messages: messages.map(toMessageDto)
-  };
-
-  return Response.json(response);
 }

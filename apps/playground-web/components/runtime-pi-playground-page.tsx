@@ -1,15 +1,15 @@
 'use client';
 
 import type {
+  CreateThreadResponseDto,
   MessageDto,
   MessagePartDto,
   RunDto,
-  RuntimePiCreateThreadResponseDto,
-  RuntimePiMessagesResponseDto,
-  RuntimePiMetaDto,
-  RuntimePiRunResponseDto,
-  RuntimePiThreadsResponseDto,
-  ThreadDto
+  RunTextTurnResponseDto,
+  ThreadMessagesResponseDto,
+  ThreadDto,
+  ThreadsResponseDto,
+  RuntimePiMetaDto
 } from '@agent-infra/contracts';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
@@ -107,7 +107,11 @@ export function RuntimePiPlaygroundPage() {
 
   async function refreshThreads() {
     const response = await fetch('/api/runtime-pi/threads');
-    const data = (await response.json()) as RuntimePiThreadsResponseDto;
+    const data = (await response.json()) as ThreadsResponseDto;
+    if (!response.ok) {
+      throw new Error(data.error ?? `Failed to load threads (${response.status})`);
+    }
+
     setThreads(data.threads);
   }
 
@@ -128,7 +132,7 @@ export function RuntimePiPlaygroundPage() {
     setLoadingMessages(true);
     try {
       const response = await fetch(`/api/runtime-pi/threads/${threadId}/messages`);
-      const data = (await response.json()) as RuntimePiMessagesResponseDto;
+      const data = (await response.json()) as ThreadMessagesResponseDto;
       if (!response.ok) {
         throw new Error(data.error ?? `Failed to load messages (${response.status})`);
       }
@@ -146,16 +150,25 @@ export function RuntimePiPlaygroundPage() {
   }
 
   async function createThread() {
-    const response = await fetch('/api/runtime-pi/threads', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ title: newThreadTitle.trim() || undefined })
-    });
-    const data = (await response.json()) as RuntimePiCreateThreadResponseDto;
-    setNewThreadTitle('');
-    setActiveThreadId(data.thread.id);
-    await refreshThreads();
-    await loadThreadMessages(data.thread.id);
+    try {
+      const response = await fetch('/api/runtime-pi/threads', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title: newThreadTitle.trim() || undefined })
+      });
+      const data = (await response.json()) as CreateThreadResponseDto;
+      if (!response.ok || !data.thread) {
+        throw new Error(data.error ?? `Failed to create thread (${response.status})`);
+      }
+
+      setNewThreadTitle('');
+      setActiveThreadId(data.thread.id);
+      await refreshThreads();
+      await loadThreadMessages(data.thread.id);
+      setError(null);
+    } catch (createError) {
+      setError(createError instanceof Error ? createError.message : 'Failed to create thread');
+    }
   }
 
   async function sendMessage() {
@@ -177,16 +190,17 @@ export function RuntimePiPlaygroundPage() {
         })
       });
 
-      const data = (await response.json()) as RuntimePiRunResponseDto;
+      const data = (await response.json()) as RunTextTurnResponseDto;
       if (!response.ok) {
         throw new Error(data.error ?? `runtime-pi request failed (${response.status})`);
       }
 
       setMessages(data.messages);
       setLastRun(data.run);
-      setLastRunEventCount(data.runEvents?.length ?? 0);
-      setLastToolInvocationCount(data.toolInvocations?.length ?? 0);
+      setLastRunEventCount(data.debug?.runEventCount ?? 0);
+      setLastToolInvocationCount(data.debug?.toolInvocationCount ?? 0);
       setDraft('');
+      setError(data.error ?? null);
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : 'Failed to send message');
     } finally {
@@ -195,7 +209,13 @@ export function RuntimePiPlaygroundPage() {
   }
 
   useEffect(() => {
-    void refreshThreads();
+    void (async () => {
+      try {
+        await refreshThreads();
+      } catch (refreshError) {
+        setError(refreshError instanceof Error ? refreshError.message : 'Failed to load threads');
+      }
+    })();
     void refreshMeta();
   }, []);
 

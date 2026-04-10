@@ -1,11 +1,13 @@
 # agent-infra
 
-Durable backend primitives for agent runtimes, plus a browser-local pi experiment harness.
+Contract-first durable backend primitives for agent runtimes, plus playground consumers that define how the system is used.
 
 ## Structure
 
-- `apps/playground-web`: browser-local pi experiment harness
+- `apps/playground-web`: first consumer of `agent-infra`, with both browser-local experiments and a durable runtime console
+- `packages/app`: application/use-case boundary for creating threads and running durable turns
 - `packages/core`: domain types + repository interfaces
+- `packages/contracts`: serialized request/response contracts for browser and HTTP consumers
 - `packages/db`: Drizzle repositories (SQLite + PostgreSQL) for durable thread/run/message/tool storage
 - `packages/runtime-pi`: pi-agent-core adapter that persists runs, messages, tool invocations, and run events
 - `packages/shared`: shared helpers
@@ -14,6 +16,7 @@ Durable backend primitives for agent runtimes, plus a browser-local pi experimen
 ## Quick start
 
 The default app experience is the browser-local pi experiment in `playground-web`.
+The same app also includes `/runtime-pi`, which exercises the durable backend through the official app boundary.
 
 Environment file should be placed under `apps/playground-web` (Next.js app scope).
 
@@ -23,10 +26,15 @@ cp apps/playground-web/.env.example apps/playground-web/.env.local
 pnpm dev
 ```
 
-This route keeps sessions, settings, and provider keys in browser IndexedDB. It does not write to the durable backend packages.
+The browser-local experiment keeps sessions, settings, and provider keys in browser IndexedDB. It does not write to the durable backend packages.
 
 ## Durable backend packages
 
+- `@agent-infra/app` defines the narrow application boundary used by consumers:
+  - `threads.create`
+  - `threads.list`
+  - `threads.getMessages`
+  - `turns.runText`
 - `@agent-infra/core` defines the stable storage contract:
   - `thread`
   - `run`
@@ -34,6 +42,7 @@ This route keeps sessions, settings, and provider keys in browser IndexedDB. It 
   - `message_part`
   - `tool_invocation`
   - `run_event`
+- `@agent-infra/contracts` defines serialized request/response contracts for consumer-facing APIs.
 - `@agent-infra/db` implements SQLite and PostgreSQL repositories for that contract.
 - `@agent-infra/runtime-pi` is the current server-side runtime adapter mainline.
 

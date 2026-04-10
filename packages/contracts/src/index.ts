@@ -99,23 +99,57 @@ export type RunEventSummaryDto = Pick<RunEventDto, 'seq' | 'type'>;
 
 export type ToolInvocationSummaryDto = Pick<ToolInvocationDto, 'id' | 'toolName' | 'status'>;
 
-export interface RuntimePiThreadsResponseDto {
+export interface CreateThreadRequestDto {
+  title?: string;
+}
+
+export interface GetThreadMessagesRequestDto {
+  threadId: string;
+}
+
+export interface RunTextTurnRequestDto {
+  text: string;
+  provider?: string;
+  model?: string;
+}
+
+export interface GetRunTimelineRequestDto {
+  runId: string;
+}
+
+export interface ThreadsResponseDto {
   threads: ThreadDto[];
+  error?: string;
 }
 
-export interface RuntimePiCreateThreadResponseDto {
-  thread: ThreadDto;
+export interface CreateThreadResponseDto {
+  thread?: ThreadDto;
+  error?: string;
 }
 
-export interface RuntimePiMessagesResponseDto {
+export interface ThreadMessagesResponseDto {
   messages?: MessageDto[];
   error?: string;
 }
 
-export interface RuntimePiRunResponseDto {
+export interface RunTextTurnResponseDto {
   run: RunDto | null;
   messages: MessageDto[];
-  runEvents?: RunEventSummaryDto[];
-  toolInvocations?: ToolInvocationSummaryDto[];
+  debug?: {
+    runEventCount: number;
+    toolInvocationCount: number;
+  };
   error?: string;
 }
+
+export interface RunTimelineResponseDto {
+  run: RunDto | null;
+  runEvents: RunEventDto[];
+  toolInvocations: ToolInvocationDto[];
+  error?: string;
+}
+
+export type RuntimePiThreadsResponseDto = ThreadsResponseDto;
+export type RuntimePiCreateThreadResponseDto = CreateThreadResponseDto;
+export type RuntimePiMessagesResponseDto = ThreadMessagesResponseDto;
+export type RuntimePiRunResponseDto = RunTextTurnResponseDto;

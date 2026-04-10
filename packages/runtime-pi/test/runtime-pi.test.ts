@@ -16,7 +16,7 @@ import type { AgentTool } from '@mariozechner/pi-agent-core';
 import { fauxAssistantMessage, fauxToolCall, registerFauxProvider, Type } from '@mariozechner/pi-ai';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { resolveRuntimePiConfigFromEnv, runAssistantTurnWithPiInternal } from '../src/runtime';
+import { createPiRuntime, resolveRuntimePiConfigFromEnv, runAssistantTurnWithPiInternal } from '../src/runtime';
 
 type StoredMessage = Message & { parts: MessagePart[] };
 
@@ -118,6 +118,31 @@ class InMemoryToolInvocationRepository implements ToolInvocationRepository {
   }
 }
 
+class FailOnceAssistantMessageRepository extends InMemoryMessageRepository {
+  private failed = false;
+  override async createPart(input: Omit<MessagePart, 'createdAt'>): Promise<MessagePart> {
+    const message = this.messages.get(input.messageId);
+    if (!this.failed && input.type === 'text' && message?.role === 'assistant') {
+      this.failed = true;
+      throw new Error('assistant persistence exploded');
+    }
+
+    return super.createPart(input);
+  }
+}
+
+class FailOnceToolInvocationRepository extends InMemoryToolInvocationRepository {
+  private failed = false;
+  override async updateStatus(id: string, status: ToolInvocation['status'], patch: Partial<ToolInvocation> = {}): Promise<ToolInvocation> {
+    if (!this.failed && status !== 'running') {
+      this.failed = true;
+      throw new Error('tool invocation persistence exploded');
+    }
+
+    return super.updateStatus(id, status, patch);
+  }
+}
+
 class InMemoryRunEventRepository implements RunEventRepository {
   readonly events = new Map<string, RunEvent>();
 
@@ -199,6 +224,18 @@ async function createContext() {
     },
     thread,
     run
+  };
+}
+
+async function createContextWithOverrides(overrides: Partial<typeof createContext extends () => Promise<infer T> ? T['ctx'] : never>) {
+  const base = await createContext();
+  return {
+    ctx: {
+      ...base.ctx,
+      ...overrides
+    },
+    thread: base.thread,
+    run: base.run
   };
 }
 
@@ -284,6 +321,94 @@ describe('runAssistantTurnWithPiInternal', () => {
     expect(events.at(-1)?.type).toBe('agent_end');
   });
 
+  it('runs through the public runtime object with explicit tool injection', async () => {
+    const { ctx, thread, run } = await createContext();
+    await createSeedThread(ctx.messageRepo, thread.id, 'run public runtime');
+
+    const faux = registerFauxProvider({
+      models: [{ id: 'faux-public-model' }]
+    });
+    unregisterCallbacks.push(faux.unregister);
+    faux.setResponses([
+      fauxAssistantMessage([fauxToolCall('echoText', { text: 'from-public-runtime' }, { id: 'call-echo' })], { stopReason: 'toolUse' }),
+      fauxAssistantMessage('Public runtime complete.')
+    ]);
+
+    const runtime = createPiRuntime({
+      model: faux.getModel('faux-public-model'),
+      getApiKey: async () => 'faux-key',
+      tools: [
+        {
+          name: 'echoText',
+          label: 'Echo Text',
+          description: 'Echo test tool.',
+          parameters: Type.Object({
+            text: Type.String({ description: 'Echo value.' })
+          }),
+          async execute(_toolCallId, params) {
+            const input = params as { text: string };
+            return {
+              content: [{ type: 'text', text: input.text }],
+              details: { echoedText: input.text }
+            };
+          }
+        }
+      ]
+    });
+
+    await runtime.runTurn(ctx, { threadId: thread.id, runId: run.id });
+
+    const messages = await ctx.messageRepo.listByThread(thread.id);
+    const invocations = await ctx.toolRepo.listByRun(run.id);
+
+    expect(messages.map((message) => message.role)).toEqual(['user', 'assistant', 'tool', 'assistant']);
+    expect(invocations).toHaveLength(1);
+    expect(invocations[0]?.toolName).toBe('echoText');
+  });
+
+  it('keeps model precedence consistent between prepare and runTurn when resolveConfig is also provided', async () => {
+    const { ctx, thread, run } = await createContext();
+    await createSeedThread(ctx.messageRepo, thread.id, 'run consistent public runtime');
+
+    const faux = registerFauxProvider({
+      models: [{ id: 'faux-preferred-model' }]
+    });
+    unregisterCallbacks.push(faux.unregister);
+    faux.setResponses([fauxAssistantMessage('Consistent runtime complete.')]);
+    const toolContexts: Array<{ provider: string; model: string }> = [];
+
+    const runtime = createPiRuntime({
+      model: faux.getModel('faux-preferred-model'),
+      getApiKey: async () => 'faux-key',
+      resolveConfig: async () => ({
+        provider: 'deepseek',
+        model: 'deepseek-chat',
+        apiKey: 'unused-key'
+      }),
+      tools: (context) => {
+        toolContexts.push({
+          provider: context.provider,
+          model: context.model
+        });
+        return [];
+      }
+    });
+
+    await expect(runtime.prepare()).resolves.toEqual({
+      provider: 'faux',
+      model: 'faux-preferred-model'
+    });
+
+    await runtime.runTurn(ctx, { threadId: thread.id, runId: run.id });
+
+    expect(toolContexts).toEqual([
+      {
+        provider: 'faux',
+        model: 'faux-preferred-model'
+      }
+    ]);
+  });
+
   it('persists multiple tool calls, tool results, and final assistant text', async () => {
     const { ctx, thread, run } = await createContext();
     await createSeedThread(ctx.messageRepo, thread.id, 'run tools');
@@ -308,7 +433,35 @@ describe('runAssistantTurnWithPiInternal', () => {
       { threadId: thread.id, runId: run.id },
       {
         model: faux.getModel('faux-tool-model'),
-        getApiKey: async () => 'faux-key'
+        getApiKey: async () => 'faux-key',
+        tools: [
+          {
+            name: 'getCurrentTime',
+            label: 'Get Current Time',
+            description: 'Return the current time.',
+            parameters: Type.Object({
+              timezone: Type.Optional(Type.String({ description: 'Timezone.' }))
+            }),
+            async execute() {
+              return {
+                content: [{ type: 'text', text: 'UTC now' }],
+                details: { timezone: 'UTC' }
+              };
+            }
+          },
+          {
+            name: 'getRuntimeInfo',
+            label: 'Get Runtime Info',
+            description: 'Return runtime info.',
+            parameters: Type.Object({}),
+            async execute() {
+              return {
+                content: [{ type: 'text', text: 'runtime-info' }],
+                details: { runtime: 'pi' }
+              };
+            }
+          }
+        ]
       }
     );
 
@@ -373,5 +526,92 @@ describe('runAssistantTurnWithPiInternal', () => {
     expect(invocations[0]?.status).toBe('failed');
     expect(toolMessages[0]?.parts[0]?.jsonValue?.isError).toBe(true);
     expect(events.at(-1)?.type).toBe('agent_end');
+  });
+
+  it('marks an open assistant message as failed when runtime crashes mid-message', async () => {
+    const messageRepo = new FailOnceAssistantMessageRepository();
+    const { ctx, thread, run } = await createContextWithOverrides({
+      messageRepo
+    });
+    await createSeedThread(messageRepo, thread.id, 'break assistant persistence');
+
+    const faux = registerFauxProvider();
+    unregisterCallbacks.push(faux.unregister);
+    faux.setResponses([fauxAssistantMessage('Will fail while persisting.')]);
+
+    await expect(
+      runAssistantTurnWithPiInternal(
+        ctx,
+        { threadId: thread.id, runId: run.id },
+        {
+          model: faux.getModel(),
+          getApiKey: async () => 'faux-key'
+        }
+      )
+    ).rejects.toThrow('assistant persistence exploded');
+
+    const messages = await ctx.messageRepo.listByThread(thread.id);
+    const runEvents = await ctx.runEventRepo.listByRun(run.id);
+    const assistant = messages.find((message) => message.role === 'assistant');
+    const storedRun = await ctx.runRepo.findById(run.id);
+
+    expect(assistant?.status).toBe('failed');
+    expect(assistant?.parts[0]?.textValue).toBe('assistant persistence exploded');
+    expect(storedRun?.status).toBe('failed');
+    expect(runEvents.at(-1)?.type).toBe('runtime_error');
+  });
+
+  it('marks running tool invocations as failed when runtime crashes after tool start', async () => {
+    const toolRepo = new FailOnceToolInvocationRepository();
+    const { ctx, thread, run } = await createContextWithOverrides({
+      toolRepo
+    });
+    await createSeedThread(ctx.messageRepo as InMemoryMessageRepository, thread.id, 'break tool persistence');
+
+    const faux = registerFauxProvider({
+      models: [{ id: 'faux-tool-hardening-model' }]
+    });
+    unregisterCallbacks.push(faux.unregister);
+    faux.setResponses([
+      fauxAssistantMessage([fauxToolCall('echoText', { text: 'tool path' }, { id: 'call-tool-hardening' })], { stopReason: 'toolUse' }),
+      fauxAssistantMessage('Should not reach final text')
+    ]);
+
+    await expect(
+      runAssistantTurnWithPiInternal(
+        ctx,
+        { threadId: thread.id, runId: run.id },
+        {
+          model: faux.getModel('faux-tool-hardening-model'),
+          getApiKey: async () => 'faux-key',
+          tools: [
+            {
+              name: 'echoText',
+              label: 'Echo Text',
+              description: 'Echo test tool.',
+              parameters: Type.Object({
+                text: Type.String({ description: 'Echo value.' })
+              }),
+              async execute(_toolCallId, params) {
+                const input = params as { text: string };
+                return {
+                  content: [{ type: 'text', text: input.text }],
+                  details: { echoedText: input.text }
+                };
+              }
+            }
+          ]
+        }
+      )
+    ).rejects.toThrow('tool invocation persistence exploded');
+
+    const invocations = await ctx.toolRepo.listByRun(run.id);
+    const storedRun = await ctx.runRepo.findById(run.id);
+    const runEvents = await ctx.runEventRepo.listByRun(run.id);
+
+    expect(invocations[0]?.status).toBe('failed');
+    expect(invocations[0]?.error).toBe('tool invocation persistence exploded');
+    expect(storedRun?.status).toBe('failed');
+    expect(runEvents.at(-1)?.type).toBe('runtime_error');
   });
 });

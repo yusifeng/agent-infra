@@ -14,7 +14,8 @@ import {
   SqliteToolInvocationRepository
 } from '@agent-infra/db';
 
-import { resolveRuntimePiConfigFromEnv, runAssistantTurnWithPi } from './runtime';
+import { createPiRuntime, resolveRuntimePiConfigFromEnv } from './runtime';
+import { createDemoTools } from './tools';
 
 type RepoBundle = {
   threadRepo: DrizzleThreadRepository | SqliteThreadRepository;
@@ -85,6 +86,9 @@ async function main() {
   const prompt = readPrompt();
   const { repos, dbMode, connectionString, initialize } = createRepos();
   const runtime = resolveRuntimePiConfigFromEnv();
+  const piRuntime = createPiRuntime({
+    tools: (context) => createDemoTools(context)
+  });
 
   await initialize();
 
@@ -134,7 +138,7 @@ async function main() {
     finishedAt: null
   });
 
-  await runAssistantTurnWithPi(
+  await piRuntime.runTurn(
     {
       runRepo: repos.runRepo,
       messageRepo: repos.messageRepo,

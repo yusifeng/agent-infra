@@ -1,9 +1,9 @@
 import type { RuntimePiMetaDto } from '@agent-infra/contracts';
 
-import { getRuntimePiMeta, runtimePiDbInfo } from '@/lib/runtime-pi-repo';
 import { toRuntimePiMetaDto } from '@/lib/runtime-pi-dto';
 
 export async function GET() {
+  const { getRuntimePiMeta, runtimePiDbInfo } = await import('@/lib/runtime-pi-repo');
   const runtime = getRuntimePiMeta();
 
   const response: RuntimePiMetaDto = toRuntimePiMetaDto({

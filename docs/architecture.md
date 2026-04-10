@@ -6,10 +6,22 @@
 
 ## Layers
 
+- `packages/app`: narrow application boundary that orchestrates durable thread and turn flows.
 - `packages/core`: domain types and repository interfaces only.
+- `packages/contracts`: serialized request/response contracts for transport consumers.
 - `packages/db`: Drizzle schema plus SQLite / PostgreSQL repository implementations.
 - `packages/runtime-pi`: pi-agent-core adapter that translates runtime events into durable records.
-- `apps/playground-web`: browser-local pi experiment harness, intentionally separate from durable persistence.
+- `apps/playground-web`: first consumer of `agent-infra`, with both browser-local experiments and a durable runtime console.
+
+## Consumer boundary
+
+`playground-web` is intentionally treated as the first consumer of `agent-infra`, not the place where orchestration rules live.
+The intended flow is:
+
+- `packages/app` owns thread and turn use cases.
+- `packages/runtime-pi` owns runtime execution and event persistence.
+- `packages/contracts` owns serialized HTTP/browser shapes.
+- `playground-web` calls the app layer and renders the resulting contracts.
 
 ## Why `thread` instead of `session`
 
@@ -27,11 +39,13 @@ This keeps the model output and tool execution trace extensible.
 ## v0.1 scope
 
 - thread / run / message / message_part / tool_invocation / run_event persistence
-- browser-local `playground-web` experiment for pi runtime feel and storage UX
+- app-layer use cases for thread creation, listing, message reads, and text turns
+- browser-local `playground-web` experiment plus durable runtime console
 - one server-side runtime adapter mainline: `runtime-pi`
 
 ## Evolution
 
+- harden the app boundary and transaction semantics
 - add streaming and resume-safe run state transitions
 - complete artifact lifecycle and file storage integrations
 - add memory interfaces above conversation history

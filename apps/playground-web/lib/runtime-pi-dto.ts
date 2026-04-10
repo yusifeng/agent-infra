@@ -3,9 +3,11 @@ import type {
   MessageDto,
   MessagePartDto,
   RunDto,
+  RunEventDto,
   RunEventSummaryDto,
   RuntimePiMetaDto,
   ThreadDto,
+  ToolInvocationDto,
   ToolInvocationSummaryDto
 } from '@agent-infra/contracts';
 
@@ -95,11 +97,41 @@ export function toRunEventSummaryDto(event: RunEvent): RunEventSummaryDto {
   };
 }
 
+export function toRunEventDto(event: RunEvent): RunEventDto {
+  return {
+    id: event.id,
+    threadId: event.threadId,
+    runId: event.runId,
+    seq: event.seq,
+    type: event.type,
+    payload: event.payload,
+    createdAt: event.createdAt.toISOString()
+  };
+}
+
 export function toToolInvocationSummaryDto(invocation: ToolInvocation): ToolInvocationSummaryDto {
   return {
     id: invocation.id,
     toolName: invocation.toolName,
     status: invocation.status
+  };
+}
+
+export function toToolInvocationDto(invocation: ToolInvocation): ToolInvocationDto {
+  return {
+    id: invocation.id,
+    threadId: invocation.threadId,
+    runId: invocation.runId,
+    messageId: invocation.messageId,
+    toolName: invocation.toolName,
+    toolCallId: invocation.toolCallId,
+    status: invocation.status,
+    input: invocation.input ?? null,
+    output: invocation.output ?? null,
+    error: invocation.error ?? null,
+    startedAt: serializeDate(invocation.startedAt),
+    finishedAt: serializeDate(invocation.finishedAt),
+    createdAt: invocation.createdAt.toISOString()
   };
 }
 

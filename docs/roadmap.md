@@ -3,11 +3,13 @@
 ## v0.1 Durable Core
 
 - durable thread/run/message/message_part/tool_invocation/run_events
-- browser-local `playground-web` experiment harness
+- `packages/app` use-case boundary for thread and turn orchestration
+- `playground-web` as the first consumer of the platform contracts
 
 ## v0.2 Runtime Adapters & Streaming
 
 - `runtime-pi` hardening and provider expansion
+- read-side timeline APIs
 - streaming message parts
 - resumable runs
 - improved run state machine and partial failure handling
