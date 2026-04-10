@@ -1,0 +1,48 @@
+---
+title: Runtime Console
+description: playground 控制台应该如何使用平台能力。
+---
+
+# Runtime Console
+
+`apps/playground-web` 是这套平台的第一个使用方。
+
+这意味着它最重要的职责，是展示真实应用应该如何使用 `agent-infra`，而不是把 orchestration 再塞回 UI 代码中。
+
+## 当前目的
+
+Runtime Console 应该帮助验证这些能力：
+
+- 创建与切换 threads
+- 执行 durable run
+- 观察 live stream
+- 查看 run events
+- 基于 durable records 渲染 transcript
+
+## 控制台布局
+
+当前推荐的控制台方向是三栏结构：
+
+- 左侧：threads
+- 中间：transcript
+- 右侧：run 状态与实时日志
+
+这种分法和 durable model 是对齐的：
+
+- threads 是会话容器
+- transcript 是投影视图
+- logs 展示 runtime lifecycle truth
+
+## SSE 方向
+
+在线运行阶段应通过 SSE 观察实时状态；而 durable timeline endpoints 仍然是真正用于 replay 与刷新恢复的真相源。
+
+## 什么不该继续堆进 console
+
+要避免把 console 继续演化成：
+
+- app boundary 的替代品
+- 一套自定义的 core records 本地状态协议
+- 一个像厨房水槽一样什么都包的 UI 抽象层
+
+当 console 直接验证稳定 package boundaries 时，它的价值才最高。

@@ -6,7 +6,7 @@
 
 ## Layers
 
-- `apps/docs`: deployable official documentation site for public concepts, guides, and reference.
+- `apps/docs`: deployable official documentation site for public concepts, guides, and reference, with locale-aware docs routes.
 - `packages/app`: narrow application boundary that orchestrates durable thread and turn flows.
 - `packages/core`: domain types and repository interfaces only.
 - `packages/contracts`: serialized request/response contracts for transport consumers.

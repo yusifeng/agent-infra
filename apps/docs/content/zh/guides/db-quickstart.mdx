@@ -1,0 +1,63 @@
+---
+title: DB 快速开始
+description: 使用 @agent-infra/db 搭建持久化存储。
+---
+
+# DB 快速开始
+
+`@agent-infra/db` 提供了 `@agent-infra/core` 中 repository interfaces 的 SQLite 与 PostgreSQL 实现。
+
+## 安装依赖
+
+在 workspace 根目录执行：
+
+```bash
+pnpm install
+```
+
+## 生成并应用 migrations
+
+```bash
+pnpm --filter @agent-infra/db db:generate
+pnpm --filter @agent-infra/db db:migrate
+```
+
+## 支持的后端
+
+- SQLite：适合本地实验载体与快速迭代
+- PostgreSQL：适合共享环境与长期持久化
+
+## 这个 package 负责什么
+
+这个 package 负责：
+
+- schema definitions
+- repository implementations
+- 针对不同 dialect 的初始化方式
+
+它不应该负责应用 orchestration 或 runtime execution。
+
+## 当前 durable tables
+
+当前核心表包括：
+
+- `threads`
+- `runs`
+- `messages`
+- `message_parts`
+- `tool_invocations`
+- `run_events`
+
+## 推荐实践
+
+下面这些场景更适合 SQLite：
+
+- 本地 console 调试
+- smoke tests
+- 确定性的 repository 验证
+
+下面这些场景更适合 PostgreSQL：
+
+- 多人共享环境
+- 更强的并发保证
+- 针对长生命周期 runs 的运维与观测

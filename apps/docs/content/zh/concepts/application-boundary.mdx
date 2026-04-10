@@ -1,0 +1,49 @@
+---
+title: 应用边界
+description: 为什么需要 packages/app，以及使用方应该调用什么。
+---
+
+# 应用边界
+
+`@agent-infra/app` 是面向使用方的 use-case layer。
+
+它存在的目的，是避免应用直接编排 repository 调用与 runtime 状态迁移。
+
+## 边界职责
+
+app layer 应该负责：
+
+- 创建 thread
+- 列出 threads
+- 读取某个 thread 的 messages
+- 发起一个针对 thread 的 text run
+
+app layer 不应该负责：
+
+- UI state
+- 特定传输层的 request parsing
+- 数据库 schema 定义
+- model/provider SDK 细节
+
+## 为什么这很重要
+
+没有应用边界时，使用方应用通常会逐渐变成这样：
+
+- 直接 import repositories
+- 在 routes 中长出 orchestration logic
+- 把 UI 决策和存储细节耦合到一起
+
+这种写法在 spike 阶段能工作，但后续会越来越难调整。
+
+应用边界的价值在于：默认用法足够简单，同时又给更上层或更底层的自定义逻辑留出空间。
+
+## 使用方调用流
+
+推荐的调用流是：
+
+1. 使用方应用调用 `@agent-infra/app`
+2. app layer 使用 `@agent-infra/db` repositories
+3. runtime execution 交给 `@agent-infra/runtime-pi`
+4. 通过 `@agent-infra/contracts` 返回 durable records
+
+这也是 `apps/playground-web` 应该持续用来验证的平台接入方式。

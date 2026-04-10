@@ -19,7 +19,7 @@ Contract-first durable backend primitives for agent runtimes, plus consumer apps
 The default local app experience is the browser-local pi experiment in `playground-web`.
 The same app also includes `/runtime-pi`, which exercises the durable backend through the official app boundary.
 
-The public docs site lives in `apps/docs`.
+The public docs site lives in `apps/docs` and is organized as locale-aware docs routes such as `/en/...` and `/zh/...`.
 
 Environment file should be placed under `apps/playground-web` (Next.js app scope).
 

@@ -1,0 +1,53 @@
+---
+title: Package 地图
+description: 仓库中各个公开 package 的职责划分。
+---
+
+# Package 地图
+
+## `@agent-infra/core`
+
+定义：
+
+- domain types
+- repository interfaces
+- durable record 语义
+
+## `@agent-infra/contracts`
+
+定义：
+
+- 序列化后的 request / response shapes
+- 面向使用方的 contract exports
+
+## `@agent-infra/db`
+
+实现：
+
+- SQLite repositories
+- PostgreSQL repositories
+- schema 与 migration flow
+
+## `@agent-infra/app`
+
+提供：
+
+- thread use cases
+- turn use cases
+- 稳定的 consumer boundary
+
+## `@agent-infra/runtime-pi`
+
+提供：
+
+- 服务端 runtime execution
+- provider/model selection
+- runtime events 到 durable records 的持久化映射
+
+## `apps/playground-web`
+
+它的定位是：
+
+- 平台的第一个使用方
+- 一个实验载体
+- 一个 runtime console，而不是 domain boundary

@@ -1,0 +1,70 @@
+---
+title: agent-infra
+description: 面向 agent 系统的持久化后端基础设施与 runtime adapters。
+---
+
+# agent-infra
+
+`agent-infra` 是一套面向 agent runtime 的 contract-first 后端基础设施。
+
+它把会话系统中的持久化真相放在 packages 中，而不是塞进某个 UI 应用中：
+
+- `@agent-infra/core` 定义领域模型与 repository interfaces。
+- `@agent-infra/contracts` 定义序列化后的 request/response contracts。
+- `@agent-infra/db` 提供 SQLite 与 PostgreSQL 的持久化实现。
+- `@agent-infra/runtime-pi` 负责执行服务端 turn，并把 runtime truth 持久化落库。
+- `@agent-infra/app` 暴露给使用方调用的窄应用边界。
+
+## 它适合解决什么问题
+
+当你需要下面这些能力时，可以使用 `agent-infra`：
+
+- 用持久化的 `thread` 与 `run` 取代仅存在于浏览器内的聊天状态
+- 以结构化方式保存 `message_part` 与 `tool_invocation`
+- 通过 append-only 的 `run_event` 获得可追踪、可回放的运行日志
+- 让 runtime adapter 保持可替换，而不是演变为产品业务逻辑
+- 让一个轻量的使用方应用通过稳定 contracts 来验证平台能力
+
+## 它不打算做什么
+
+`agent-infra` 并不试图成为：
+
+- 一个完整聊天产品
+- 一个大而全的前端框架包
+- 一套为了重复造轮子而存在的新 agent loop
+- 上游 model/provider SDK 的替代品
+
+## 推荐阅读顺序
+
+1. [领域模型](/zh/concepts/domain-model)
+2. [应用边界](/zh/concepts/application-boundary)
+3. [DB 快速开始](/zh/guides/db-quickstart)
+4. [runtime-pi 快速开始](/zh/guides/runtime-pi-quickstart)
+5. [Runtime Console 指南](/zh/guides/runtime-console)
+
+## 仓库结构
+
+```text
+apps/
+  docs/             可部署的官方文档站
+  playground-web/   第一个使用方与实验载体
+packages/
+  app/              use-case boundary
+  contracts/        transport contracts
+  core/             domain model + repo interfaces
+  db/               durable storage implementations
+  runtime-pi/       server-side Pi runtime adapter
+  shared/           small shared helpers
+docs/
+  architecture.md   内部架构说明
+  roadmap.md        内部路线图
+```
+
+## 推荐部署形态
+
+建议采用下面这种职责分离：
+
+- `apps/docs` 负责公开文档
+- `apps/playground-web` 负责控制台与实验
+
+这样可以把稳定的官方文档与迭代更快的实验载体明确分开。

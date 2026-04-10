@@ -1,0 +1,87 @@
+---
+title: 领域模型
+description: agent-infra 背后的持久化存储模型。
+---
+
+# 领域模型
+
+稳定的存储契约定义在 `@agent-infra/core` 中。
+
+第一版 durable model 被刻意保持得足够小：
+
+- `thread`
+- `run`
+- `message`
+- `message_part`
+- `tool_invocation`
+- `run_event`
+
+## Thread
+
+`thread` 是持久化的会话时间线。
+
+当目标是长期保存一段会持续演进的消息与运行序列时，使用 `thread` 比 `session` 更合适。
+
+## Run
+
+`run` 表示 assistant 针对某个 thread 的一次执行尝试。
+
+它的价值在于：
+
+- 给调试提供稳定的执行单元
+- 把会话历史与 runtime lifecycle 清晰分离
+- 让失败、耗时与事件追踪可以被直接查询
+
+## Message
+
+`message` 是一次 actor turn 的容器记录，例如 `user`、`assistant` 或 `tool`。
+
+它本身应保持紧凑。混合内容不应该继续堆进顶层字段，而是应该进入 parts。
+
+## Message Part
+
+`message_part` 是主要的扩展点。
+
+一个 message 可以通过它承载：
+
+- 最终文本
+- tool call 记录
+- tool result
+- reasoning 或结构化 payload
+- 未来的 artifact 引用
+
+这就是为什么控制台可以展示更丰富的 runtime 输出，而无需不断改动顶层 `message` 结构。
+
+## Tool Invocation
+
+`tool_invocation` 是一次工具调用的持久化执行记录。
+
+它需要和 `message_part` 分开，因为：
+
+- 生命周期状态属于 invocation record
+- 展示内容属于 message parts
+- 工具查询需要独立于 transcript 渲染
+
+## Run Event
+
+`run_event` 是单个 run 的 append-only 事件日志。
+
+第一版保存原始事件 payload，并带有这些固定字段：
+
+- `threadId`
+- `runId`
+- `seq`
+- `type`
+- `createdAt`
+
+`run_event` 的存在，是为了在 projection records 保持紧凑的同时，依然保留 runtime truth。
+
+## 设计原则
+
+核心规则是：
+
+- durable projections 保持简单
+- runtime truth 使用 append-only 方式保真
+- consumer contracts 保持窄边界
+
+正是这种分层，使得 `agent-infra` 既容易接入，又不会因为封装过死而失去扩展性。

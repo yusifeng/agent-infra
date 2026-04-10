@@ -1,0 +1,56 @@
+---
+title: runtime-pi 快速开始
+description: 使用 Pi adapter 跑通一个持久化的服务端 assistant turn。
+---
+
+# runtime-pi 快速开始
+
+`@agent-infra/runtime-pi` 是当前服务端 runtime adapter 的主线实现。
+
+它基于 `pi-agent-core`，并把 runtime lifecycle truth 持久化到 `agent-infra` records 中。
+
+## 配置 providers
+
+当前 runtime 选择支持 DeepSeek 与 OpenAI。
+
+```bash
+DEEPSEEK_API_KEY=sk-...
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4o-mini
+```
+
+如果两者同时存在，当前默认选择会优先使用 DeepSeek。
+
+## 运行 smoke harness
+
+```bash
+pnpm --filter @agent-infra/runtime-pi smoke
+```
+
+默认情况下，它会使用位于 `packages/runtime-pi/runtime-pi-smoke.db` 的 SQLite 数据库。
+
+## 会持久化哪些内容
+
+在一次 run 过程中，adapter 会保存：
+
+- `run` 的生命周期状态变化
+- assistant `message` records
+- 最终 assistant `message_part` 文本
+- `tool_invocation` records
+- `tool-call` 与 `tool-result` message parts
+- append-only 的 `run_event` 记录
+
+## Version 1 行为
+
+当前 adapter 的第一版刻意保持简单：
+
+- stream deltas 进入 `run_event`，而不是 `message_part`
+- 最终内容在 assistant message 结束时统一写入
+- 优先接本地 demo tools，再接业务系统 tools
+- adapter 不依赖浏览器端 key storage
+
+## 集成规则
+
+应把 `runtime-pi` 视为 runtime adapter，而不是应用边界本身。
+
+使用方应用应该调用 app layer，再由 app layer 决定何时触发 runtime。
