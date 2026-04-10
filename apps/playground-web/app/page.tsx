@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 
 type Thread = { id: string; title: string | null };
 type MessagePart = {
@@ -157,6 +158,11 @@ export default function HomePage() {
       <aside className="w-full max-w-xs rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <h1 className="text-lg font-semibold">agent-infra playground</h1>
         <p className="mt-1 text-sm text-slate-500">Zero-config demo workspace</p>
+        <p className="mt-2 text-sm">
+          <Link href="/pi" className="font-medium text-sky-700 hover:text-sky-600 hover:underline">
+            Try pi-web-ui experiment →
+          </Link>
+        </p>
 
         <div className="mt-4 space-y-2">
           <input

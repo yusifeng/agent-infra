@@ -62,3 +62,16 @@ Use Drizzle migration flow for PostgreSQL:
 pnpm --filter @agent-infra/db db:generate
 pnpm --filter @agent-infra/db db:migrate
 ```
+
+## `playground-web` routes
+
+- `/`: existing `agent-infra` demo (thread/run/message loop backed by SQLite/Postgres repos in this monorepo).
+- `/pi`: **experimental** `pi-web-ui` entry for UX evaluation of `pi-agent-core` + `pi-web-ui`.
+
+### `/pi` experiment notes
+
+- Goal: quickly evaluate pi runtime/UI feel without changing current architecture.
+- Storage: uses pi-web-ui local browser storage (IndexedDB via `AppStorage` + stores).
+- Persistence boundary: does **not** write session/message history into current `agent-infra` durable backend.
+- Provider keys: configured in pi-web-ui's own provider-key/settings flow on the `/pi` page (if required by provider/model).
+- Existing `/` demo remains zero-config (`AI_MODE=mock`) and is not affected by `/pi`.
