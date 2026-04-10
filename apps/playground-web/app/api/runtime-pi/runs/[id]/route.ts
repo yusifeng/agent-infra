@@ -3,14 +3,14 @@ import type { RunTextTurnRequestDto, RunTextTurnResponseDto } from '@agent-infra
 import { toMessageDto, toRunDto } from '@/lib/runtime-pi-dto';
 import { getRouteErrorMessage, getRouteErrorStatus } from '@/lib/runtime-pi-route-errors';
 
-export async function POST(req: Request, { params }: { params: Promise<{ threadId: string }> }) {
-  const { dbReady, runtimePiApp } = await import('@/lib/runtime-pi-repo');
-  await dbReady;
-  const { threadId } = await params;
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { getRuntimePiServices } = await import('@/lib/runtime-pi-repo');
+  const { id: threadId } = await params;
   const body = (await req.json().catch(() => ({}))) as RunTextTurnRequestDto;
 
   try {
-    const result = await runtimePiApp.turns.runText({
+    const { app } = await getRuntimePiServices();
+    const result = await app.turns.runText({
       threadId,
       text: typeof body.text === 'string' ? body.text : '',
       provider: typeof body.provider === 'string' ? body.provider.trim() : undefined,

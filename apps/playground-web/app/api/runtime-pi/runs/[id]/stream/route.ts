@@ -35,16 +35,16 @@ async function writeSseEvent(
   }
 }
 
-export async function POST(req: Request, { params }: { params: Promise<{ threadId: string }> }) {
-  const { dbReady, durableRuntime, runtimePiApp, runtimePiRepos } = await import('@/lib/runtime-pi-repo');
-  await dbReady;
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { getRuntimePiServices } = await import('@/lib/runtime-pi-repo');
 
-  const { threadId } = await params;
+  const { id: threadId } = await params;
   const body = (await req.json().catch(() => ({}))) as RunTextTurnRequestDto;
 
   let started;
   try {
-    started = await runtimePiApp.turns.startText({
+    const { app } = await getRuntimePiServices();
+    started = await app.turns.startText({
       threadId,
       text: typeof body.text === 'string' ? body.text : '',
       provider: typeof body.provider === 'string' ? body.provider.trim() : undefined,
@@ -67,6 +67,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
   const streamState = { closed: false };
 
   const runId = started.run.id;
+  const services = await getRuntimePiServices();
   const runtimeInput = {
     threadId,
     runId,
@@ -84,12 +85,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
       };
       await writeSseEvent(writer, encoder, readyEvent, streamState);
 
-      await durableRuntime.runTurn(
+      await services.durableRuntime.runTurn(
         {
-          runRepo: runtimePiRepos.runRepo,
-          messageRepo: runtimePiRepos.messageRepo,
-          toolRepo: runtimePiRepos.toolRepo,
-          runEventRepo: runtimePiRepos.runEventRepo
+          runRepo: services.repos.runRepo,
+          messageRepo: services.repos.messageRepo,
+          toolRepo: services.repos.toolRepo,
+          runEventRepo: services.repos.runEventRepo
         },
         runtimeInput,
         {
@@ -122,7 +123,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
         }
       );
 
-      const finalRun = await runtimePiRepos.runRepo.findById(runId);
+      const finalRun = await services.repos.runRepo.findById(runId);
       if (finalRun?.status === 'failed') {
         const failedEvent: RunStreamFailedEventDto = {
           type: 'run.failed',
@@ -140,7 +141,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
         await writeSseEvent(writer, encoder, completedEvent, streamState);
       }
     } catch (error) {
-      const finalRun = await runtimePiRepos.runRepo.findById(runId);
+      const finalRun = await services.repos.runRepo.findById(runId);
       const failedEvent: RunStreamFailedEventDto = {
         type: 'run.failed',
         runId,

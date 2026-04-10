@@ -6,11 +6,11 @@ import { getRouteErrorMessage, getRouteErrorStatus } from '@/lib/runtime-pi-rout
 const APP_ID = 'playground-runtime-pi';
 
 export async function GET() {
-  const { dbReady, runtimePiApp } = await import('@/lib/runtime-pi-repo');
-  await dbReady;
+  const { getRuntimePiServices } = await import('@/lib/runtime-pi-repo');
 
   try {
-    const threads = await runtimePiApp.threads.list({ appId: APP_ID });
+    const { app } = await getRuntimePiServices();
+    const threads = await app.threads.list({ appId: APP_ID });
     const response: ThreadsResponseDto = {
       threads: threads.map(toThreadDto)
     };
@@ -27,14 +27,14 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { dbReady, runtimePiApp } = await import('@/lib/runtime-pi-repo');
-  await dbReady;
+  const { getRuntimePiServices } = await import('@/lib/runtime-pi-repo');
 
   const body = (await req.json().catch(() => ({}))) as CreateThreadRequestDto;
   const title = typeof body?.title === 'string' && body.title.trim() ? body.title.trim() : 'Runtime PI Thread';
 
   try {
-    const thread = await runtimePiApp.threads.create({
+    const { app } = await getRuntimePiServices();
+    const thread = await app.threads.create({
       appId: APP_ID,
       title,
       metadata: {

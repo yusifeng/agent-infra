@@ -343,13 +343,26 @@ export function RuntimePiPlaygroundPage() {
   const runEvents = timeline?.runEvents ?? [];
   const toolInvocations = timeline?.toolInvocations ?? [];
 
+  async function readJsonOrEmpty<T>(response: Response): Promise<Partial<T>> {
+    const text = await response.text();
+    if (!text) {
+      return {};
+    }
+
+    try {
+      return JSON.parse(text) as Partial<T>;
+    } catch {
+      return {};
+    }
+  }
+
   useEffect(() => {
     activeThreadIdRef.current = activeThreadId;
   }, [activeThreadId]);
 
   async function refreshThreads() {
     const response = await fetch('/api/runtime-pi/threads');
-    const data = (await response.json()) as ThreadsResponseDto;
+    const data = (await readJsonOrEmpty<ThreadsResponseDto>(response)) as ThreadsResponseDto;
     if (!response.ok) {
       throw new Error(data.error ?? `Failed to load threads (${response.status})`);
     }
@@ -408,8 +421,13 @@ export function RuntimePiPlaygroundPage() {
 
   async function refreshMeta() {
     const response = await fetch('/api/runtime-pi/meta');
-    const data = normalizeRuntimeMeta((await response.json()) as Partial<RuntimePiMetaDto>);
+    const data = normalizeRuntimeMeta((await readJsonOrEmpty<RuntimePiMetaDto>(response)) as Partial<RuntimePiMetaDto>);
     setMeta(data);
+    if (!response.ok) {
+      setError(data.runtimeConfigError ?? `Failed to load runtime metadata (${response.status})`);
+      return;
+    }
+
     setSelectedModelKey((current) => {
       if (current && data.modelOptions.some((option) => option.key === current)) {
         return current;
@@ -671,8 +689,8 @@ export function RuntimePiPlaygroundPage() {
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
       </header>
 
-      <section className="grid min-h-[72vh] gap-4 xl:grid-cols-[280px_minmax(0,1fr)_380px]">
-        <aside className="flex flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="grid min-h-[72vh] gap-4 xl:h-[72vh] xl:grid-cols-[280px_minmax(0,1fr)_380px]">
+        <aside className="flex min-h-0 flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="space-y-2">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Threads</h2>
             <input
@@ -719,7 +737,7 @@ export function RuntimePiPlaygroundPage() {
           </div>
         </aside>
 
-        <section className="flex min-w-0 flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
+        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <header className="flex flex-wrap items-center gap-2 border-b border-slate-200 px-4 py-3 text-sm">
             <span className="rounded-full bg-slate-100 px-3 py-1">Thread: {activeThread?.title ?? activeThreadId ?? 'none'}</span>
             <span className="rounded-full bg-slate-100 px-3 py-1">Model: {selectedModelOption?.model ?? 'none'}</span>
@@ -832,7 +850,7 @@ export function RuntimePiPlaygroundPage() {
           </form>
         </section>
 
-        <aside className="flex min-h-0 flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
+        <aside className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <header className="border-b border-slate-200 px-4 py-3">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Log</h2>
           </header>

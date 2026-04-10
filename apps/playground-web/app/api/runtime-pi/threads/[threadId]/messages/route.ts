@@ -4,12 +4,12 @@ import { toMessageDto } from '@/lib/runtime-pi-dto';
 import { getRouteErrorMessage, getRouteErrorStatus } from '@/lib/runtime-pi-route-errors';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ threadId: string }> }) {
-  const { dbReady, runtimePiApp } = await import('@/lib/runtime-pi-repo');
-  await dbReady;
+  const { getRuntimePiServices } = await import('@/lib/runtime-pi-repo');
   const { threadId } = await params;
 
   try {
-    const messages = await runtimePiApp.threads.getMessages({ threadId });
+    const { app } = await getRuntimePiServices();
+    const messages = await app.threads.getMessages({ threadId });
     const response: ThreadMessagesResponseDto = {
       messages: messages.map(toMessageDto)
     };

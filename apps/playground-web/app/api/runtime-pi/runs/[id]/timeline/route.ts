@@ -3,13 +3,13 @@ import type { RunTimelineResponseDto } from '@agent-infra/contracts';
 import { toRunDto, toRunEventDto, toToolInvocationDto } from '@/lib/runtime-pi-dto';
 import { getRouteErrorMessage, getRouteErrorStatus } from '@/lib/runtime-pi-route-errors';
 
-export async function GET(_req: Request, { params }: { params: Promise<{ runId: string }> }) {
-  const { dbReady, runtimePiApp } = await import('@/lib/runtime-pi-repo');
-  await dbReady;
-  const { runId } = await params;
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { getRuntimePiServices } = await import('@/lib/runtime-pi-repo');
+  const { id: runId } = await params;
 
   try {
-    const timeline = await runtimePiApp.runs.getTimeline({ runId });
+    const { app } = await getRuntimePiServices();
+    const timeline = await app.runs.getTimeline({ runId });
     const response: RunTimelineResponseDto = {
       run: toRunDto(timeline.run),
       runEvents: timeline.runEvents.map(toRunEventDto),
