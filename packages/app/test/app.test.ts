@@ -336,6 +336,28 @@ describe('createAgentInfraApp', () => {
     expect(result.executionError).toBeUndefined();
   });
 
+  it('queues a text turn and returns the run plus user message before runtime execution', async () => {
+    const { app, repositories } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Queued path' });
+
+    const started = await app.turns.startText({
+      threadId: thread.id,
+      text: 'Queue me',
+      provider: 'deepseek',
+      model: 'deepseek-chat'
+    });
+
+    expect(started.run.status).toBe('queued');
+    expect(started.runtimeSelection).toEqual({
+      provider: 'deepseek',
+      model: 'deepseek-chat'
+    });
+    expect(started.userMessage.role).toBe('user');
+    expect(started.userMessage.parts[0]?.textValue).toBe('Queue me');
+    expect(await repositories.messageRepo.listByThread(thread.id)).toHaveLength(1);
+    expect(await repositories.runRepo.findById(started.run.id)).not.toBeNull();
+  });
+
   it('returns projected failed state when runtime execution throws after persistence', async () => {
     const { app } = createDependencies(createFailingRuntime());
     const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Failure path' });

@@ -1,4 +1,4 @@
-import type { MessageRepository, RunEventRepository, RunRepository, ToolInvocationRepository } from '@agent-infra/core';
+import type { MessageRepository, Run, RunEvent, RunEventRepository, RunRepository, ToolInvocation, ToolInvocationRepository } from '@agent-infra/core';
 import type { AgentTool } from '@mariozechner/pi-agent-core';
 import type { Model } from '@mariozechner/pi-ai';
 
@@ -54,7 +54,17 @@ export interface RuntimePiRuntimeOptions {
   resolveConfig?: (preferred: Pick<RuntimePiInput, 'provider' | 'model'>) => RuntimePiConfig | Promise<RuntimePiConfig>;
 }
 
+export interface RuntimePiPersistedUpdate {
+  runEvent: RunEvent;
+  run?: Run | null;
+  toolInvocation?: ToolInvocation | null;
+}
+
+export interface RuntimePiRunTurnOptions {
+  onPersistedUpdate?: (update: RuntimePiPersistedUpdate) => void | Promise<void>;
+}
+
 export interface RuntimePiRuntime {
   prepare(input?: Pick<RuntimePiInput, 'provider' | 'model'>): Promise<RuntimePiSelection>;
-  runTurn(ctx: RuntimePiContext, input: RuntimePiInput): Promise<void>;
+  runTurn(ctx: RuntimePiContext, input: RuntimePiInput, options?: RuntimePiRunTurnOptions): Promise<void>;
 }

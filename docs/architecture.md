@@ -41,11 +41,12 @@ This keeps the model output and tool execution trace extensible.
 - thread / run / message / message_part / tool_invocation / run_event persistence
 - app-layer use cases for thread creation, listing, message reads, and text turns
 - browser-local `playground-web` experiment plus durable runtime console
+- initial SSE transport for live run observation, with durable timeline endpoints kept as the source of truth
 - one server-side runtime adapter mainline: `runtime-pi`
 
 ## Evolution
 
 - harden the app boundary and transaction semantics
-- add streaming and resume-safe run state transitions
+- expand streaming and resume-safe run state transitions beyond the initial SSE transport
 - complete artifact lifecycle and file storage integrations
 - add memory interfaces above conversation history

@@ -12,7 +12,9 @@ import type {
   RuntimePiContext,
   RuntimePiInput,
   RuntimePiModelOption,
+  RuntimePiPersistedUpdate,
   RuntimePiProvider,
+  RuntimePiRunTurnOptions,
   RuntimePiRuntime,
   RuntimePiRuntimeOptions,
   RuntimePiSelection,
@@ -331,7 +333,7 @@ function serializeEventPayload(event: AgentEvent): Record<string, unknown> | nul
 }
 
 async function appendRunEvent(ctx: RuntimePiContext, state: RuntimePiState, input: RuntimePiInput, event: AgentEvent) {
-  await ctx.runEventRepo.append({
+  return await ctx.runEventRepo.append({
     id: crypto.randomUUID(),
     threadId: input.threadId,
     runId: input.runId,
@@ -452,11 +454,29 @@ async function persistToolResultMessage(
   });
 }
 
-async function handleAgentEvent(ctx: RuntimePiContext, state: RuntimePiState, input: RuntimePiInput, model: Model<any>, event: AgentEvent) {
-  if (event.type === 'agent_start') {
-    await ctx.runRepo.updateStatus(input.runId, 'running', { startedAt: new Date() });
-    await appendRunEvent(ctx, state, input, event);
+async function emitPersistedUpdate(options: RuntimePiRunTurnOptions | undefined, update: RuntimePiPersistedUpdate) {
+  if (!options?.onPersistedUpdate) {
     return;
+  }
+
+  try {
+    await options.onPersistedUpdate(update);
+  } catch {
+    // Transport observers are best-effort and must not mutate durable run outcome.
+  }
+}
+
+async function handleAgentEvent(
+  ctx: RuntimePiContext,
+  state: RuntimePiState,
+  input: RuntimePiInput,
+  model: Model<any>,
+  event: AgentEvent
+): Promise<RuntimePiPersistedUpdate> {
+  if (event.type === 'agent_start') {
+    const run = await ctx.runRepo.updateStatus(input.runId, 'running', { startedAt: new Date() });
+    const runEvent = await appendRunEvent(ctx, state, input, event);
+    return { runEvent, run };
   }
 
   if (event.type === 'message_start' && event.message.role === 'assistant') {
@@ -468,14 +488,14 @@ async function handleAgentEvent(ctx: RuntimePiContext, state: RuntimePiState, in
 
     state.currentAssistantMessageId = message.id;
     state.openAssistantMessageId = message.id;
-    await appendRunEvent(ctx, state, input, event);
-    return;
+    const runEvent = await appendRunEvent(ctx, state, input, event);
+    return { runEvent };
   }
 
   if (event.type === 'message_end' && event.message.role === 'assistant') {
     await persistAssistantMessage(ctx, state, event.message);
-    await appendRunEvent(ctx, state, input, event);
-    return;
+    const runEvent = await appendRunEvent(ctx, state, input, event);
+    return { runEvent };
   }
 
   if (event.type === 'tool_execution_start') {
@@ -510,8 +530,8 @@ async function handleAgentEvent(ctx: RuntimePiContext, state: RuntimePiState, in
       }
     });
 
-    await appendRunEvent(ctx, state, input, event);
-    return;
+    const runEvent = await appendRunEvent(ctx, state, input, event);
+    return { runEvent, toolInvocation: invocation };
   }
 
   if (event.type === 'tool_execution_end') {
@@ -521,7 +541,7 @@ async function handleAgentEvent(ctx: RuntimePiContext, state: RuntimePiState, in
     }
 
     const nextStatus = event.isError ? 'failed' : 'completed';
-    await ctx.toolRepo.updateStatus(invocation.id, nextStatus, {
+    const updatedInvocation = await ctx.toolRepo.updateStatus(invocation.id, nextStatus, {
       output: {
         content: Array.isArray(event.result?.content) ? event.result.content : [],
         details: event.result?.details ?? null,
@@ -536,8 +556,8 @@ async function handleAgentEvent(ctx: RuntimePiContext, state: RuntimePiState, in
     });
 
     await persistToolResultMessage(ctx, state, input, event);
-    await appendRunEvent(ctx, state, input, event);
-    return;
+    const runEvent = await appendRunEvent(ctx, state, input, event);
+    return { runEvent, toolInvocation: updatedInvocation };
   }
 
   if (event.type === 'agent_end') {
@@ -545,7 +565,7 @@ async function handleAgentEvent(ctx: RuntimePiContext, state: RuntimePiState, in
       ? 'failed'
       : 'completed';
 
-    await ctx.runRepo.updateStatus(input.runId, status, {
+    const run = await ctx.runRepo.updateStatus(input.runId, status, {
       finishedAt: new Date(),
       usage: createUsageSummary(
         event.messages.filter(
@@ -554,11 +574,12 @@ async function handleAgentEvent(ctx: RuntimePiContext, state: RuntimePiState, in
       )
     });
 
-    await appendRunEvent(ctx, state, input, event);
-    return;
+    const runEvent = await appendRunEvent(ctx, state, input, event);
+    return { runEvent, run };
   }
 
-  await appendRunEvent(ctx, state, input, event);
+  const runEvent = await appendRunEvent(ctx, state, input, event);
+  return { runEvent };
 }
 
 async function hardenFailureState(ctx: RuntimePiContext, state: RuntimePiState, errorMessage: string) {
@@ -606,7 +627,7 @@ export function createPiRuntime(options: RuntimePiRuntimeOptions = {}): RuntimeP
     async prepare(input = {}) {
       return resolveRuntimeSelection(options, input);
     },
-    async runTurn(ctx, input) {
+    async runTurn(ctx, input, runOptions) {
       const resolvedConfig = await resolveRuntimeConfig(options, {
         provider: input.provider,
         model: input.model
@@ -637,7 +658,8 @@ export function createPiRuntime(options: RuntimePiRuntimeOptions = {}): RuntimeP
           ...options,
           tools,
           resolvedConfig
-        }
+        },
+        runOptions
       );
     }
   };
@@ -646,7 +668,8 @@ export function createPiRuntime(options: RuntimePiRuntimeOptions = {}): RuntimeP
 export async function runAssistantTurnWithPiInternal(
   ctx: RuntimePiContext,
   input: RuntimePiInput,
-  options: RuntimePiInternalOptions = {}
+  options: RuntimePiInternalOptions = {},
+  runOptions?: RuntimePiRunTurnOptions
 ) {
   const config = options.resolvedConfig ?? (options.model ? null : resolveRuntimePiConfigFromEnv({ provider: input.provider, model: input.model }));
 
@@ -693,7 +716,8 @@ export async function runAssistantTurnWithPiInternal(
         return;
       }
 
-      await handleAgentEvent(ctx, state, input, model, event);
+      const update = await handleAgentEvent(ctx, state, input, model, event);
+      await emitPersistedUpdate(runOptions, update);
     }).catch((error) => {
       subscriberFailure = error;
       throw error;
@@ -709,18 +733,22 @@ export async function runAssistantTurnWithPiInternal(
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown runtime-pi failure';
     await hardenFailureState(ctx, state, message);
-    await ctx.runRepo.updateStatus(input.runId, 'failed', {
+    const failedRun = await ctx.runRepo.updateStatus(input.runId, 'failed', {
       finishedAt: new Date(),
       error: message
     });
 
-    await ctx.runEventRepo.append({
+    const runtimeErrorEvent = await ctx.runEventRepo.append({
       id: crypto.randomUUID(),
       threadId: input.threadId,
       runId: input.runId,
       seq: state.nextRunEventSeq++,
       type: 'runtime_error',
       payload: { message }
+    });
+    await emitPersistedUpdate(runOptions, {
+      runEvent: runtimeErrorEvent,
+      run: failedRun
     });
 
     throw error;

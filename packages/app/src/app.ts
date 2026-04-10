@@ -1,5 +1,7 @@
 import crypto from 'node:crypto';
 
+import type { Message, MessagePart, Run } from '@agent-infra/core';
+
 import {
   AgentInfraAppError,
   InvalidTurnTextError,
@@ -89,6 +91,89 @@ async function readProjectedTurnOutcome(repositories: AgentInfraAppRepositories,
   }
 }
 
+async function queueTextTurn(
+  dependencies: AgentInfraAppDependencies,
+  input: RunTextTurnInput,
+  generateId: () => string
+): Promise<{
+  thread: Awaited<ReturnType<typeof loadThreadOrThrow>>;
+  text: string;
+  run: Run;
+  userMessage: Message & { parts: MessagePart[] };
+  runtimeSelection: RuntimeSelection;
+}> {
+  const text = trimTurnText(input.text);
+  const thread = await loadThreadOrThrow(dependencies.repositories, input.threadId);
+  if (thread.status !== 'active') {
+    throw new ThreadNotActiveError(thread.id, thread.status);
+  }
+
+  const runtimeSelection = await resolveRuntimeSelection(dependencies, input);
+  let queuedRunId = '';
+  let queuedRun: Run | null = null;
+  let queuedMessage: (Message & { parts: MessagePart[] }) | null = null;
+
+  try {
+    await dependencies.transaction(async (repositories) => {
+      const messageId = generateId();
+      const runId = generateId();
+      queuedRunId = runId;
+
+      const userMessage = await repositories.messageRepo.create({
+        id: messageId,
+        threadId: thread.id,
+        runId: null,
+        role: 'user',
+        seq: await repositories.messageRepo.nextSeq(thread.id),
+        status: 'completed',
+        metadata: null
+      });
+
+      const firstPart = await repositories.messageRepo.createPart({
+        id: generateId(),
+        messageId: userMessage.id,
+        partIndex: 0,
+        type: 'text',
+        textValue: text,
+        jsonValue: null
+      });
+
+      const run = await repositories.runRepo.create({
+        id: runId,
+        threadId: thread.id,
+        triggerMessageId: userMessage.id,
+        provider: runtimeSelection.provider,
+        model: runtimeSelection.model,
+        status: 'queued',
+        usage: null,
+        error: null,
+        startedAt: null,
+        finishedAt: null
+      });
+
+      queuedMessage = {
+        ...userMessage,
+        parts: [firstPart]
+      };
+      queuedRun = run;
+    });
+  } catch (error) {
+    throw new TurnPersistenceError('failed to persist queued turn state', { threadId: thread.id, runId: queuedRunId }, error);
+  }
+
+  if (!queuedRun || !queuedMessage) {
+    throw new TurnPersistenceError('queued turn state was not committed', { threadId: thread.id, runId: queuedRunId });
+  }
+
+  return {
+    thread,
+    text,
+    run: queuedRun,
+    userMessage: queuedMessage,
+    runtimeSelection
+  };
+}
+
 export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): AgentInfraApp {
   const generateId = dependencies.idGenerator ?? crypto.randomUUID;
   void dependencies.now;
@@ -115,70 +200,31 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
       }
     },
     turns: {
+      async startText(input) {
+        const queued = await queueTextTurn(dependencies, input, generateId);
+        return {
+          run: queued.run,
+          userMessage: queued.userMessage,
+          runtimeSelection: queued.runtimeSelection
+        };
+      },
       async runText(input) {
-        const text = trimTurnText(input.text);
-        const thread = await loadThreadOrThrow(dependencies.repositories, input.threadId);
-        if (thread.status !== 'active') {
-          throw new ThreadNotActiveError(thread.id, thread.status);
-        }
-
-        const runtimeSelection = await resolveRuntimeSelection(dependencies, input);
-        let runId = '';
-
-        try {
-          await dependencies.transaction(async (repositories) => {
-            const messageId = generateId();
-            runId = generateId();
-
-            const userMessage = await repositories.messageRepo.create({
-              id: messageId,
-              threadId: thread.id,
-              runId: null,
-              role: 'user',
-              seq: await repositories.messageRepo.nextSeq(thread.id),
-              status: 'completed',
-              metadata: null
-            });
-
-            await repositories.messageRepo.createPart({
-              id: generateId(),
-              messageId: userMessage.id,
-              partIndex: 0,
-              type: 'text',
-              textValue: text,
-              jsonValue: null
-            });
-
-            await repositories.runRepo.create({
-              id: runId,
-              threadId: thread.id,
-              triggerMessageId: userMessage.id,
-              provider: runtimeSelection.provider,
-              model: runtimeSelection.model,
-              status: 'queued',
-              usage: null,
-              error: null,
-              startedAt: null,
-              finishedAt: null
-            });
-          });
-        } catch (error) {
-          throw new TurnPersistenceError('failed to persist queued turn state', { threadId: thread.id, runId }, error);
-        }
+        const queued = await queueTextTurn(dependencies, input, generateId);
+        const runId = queued.run.id;
 
         let executionError: string | undefined;
         try {
           await dependencies.runtime.runTextTurn(dependencies.repositories, {
-            threadId: thread.id,
+            threadId: queued.thread.id,
             runId,
-            provider: runtimeSelection.provider,
-            model: runtimeSelection.model
+            provider: queued.runtimeSelection.provider,
+            model: queued.runtimeSelection.model
           });
         } catch (error) {
           executionError = toErrorMessage(error, 'runtime execution failed');
         }
 
-        const projection = await readProjectedTurnOutcome(dependencies.repositories, thread.id, runId);
+        const projection = await readProjectedTurnOutcome(dependencies.repositories, queued.thread.id, runId);
         return {
           ...projection,
           executionError

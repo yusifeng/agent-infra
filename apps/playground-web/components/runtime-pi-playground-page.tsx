@@ -6,7 +6,7 @@ import type {
   MessagePartDto,
   RunDto,
   RunEventDto,
-  RunTextTurnResponseDto,
+  RunStreamEventDto,
   RunTimelineResponseDto,
   RuntimePiMetaDto,
   ThreadMessagesResponseDto,
@@ -78,6 +78,127 @@ function deriveLatestRunId(messages: MessageDto[]) {
   }
 
   return null;
+}
+
+function upsertMessage(messages: MessageDto[], nextMessage: MessageDto) {
+  const existingIndex = messages.findIndex((message) => message.id === nextMessage.id);
+  if (existingIndex === -1) {
+    return [...messages, nextMessage].sort((left, right) => left.seq - right.seq);
+  }
+
+  const nextMessages = [...messages];
+  nextMessages[existingIndex] = nextMessage;
+  return nextMessages;
+}
+
+function upsertRunEvent(events: RunEventDto[], nextEvent: RunEventDto) {
+  const existingIndex = events.findIndex((event) => event.id === nextEvent.id);
+  if (existingIndex === -1) {
+    return [...events, nextEvent].sort((left, right) => left.seq - right.seq);
+  }
+
+  const nextEvents = [...events];
+  nextEvents[existingIndex] = nextEvent;
+  return nextEvents.sort((left, right) => left.seq - right.seq);
+}
+
+function upsertToolInvocation(invocations: ToolInvocationDto[], nextInvocation: ToolInvocationDto) {
+  const existingIndex = invocations.findIndex((invocation) => invocation.id === nextInvocation.id);
+  if (existingIndex === -1) {
+    return [...invocations, nextInvocation];
+  }
+
+  const nextInvocations = [...invocations];
+  nextInvocations[existingIndex] = nextInvocation;
+  return nextInvocations;
+}
+
+function applyRunStreamEvent(current: RunTimelineResponseDto | null, event: RunStreamEventDto): RunTimelineResponseDto {
+  switch (event.type) {
+    case 'run.ready':
+      return {
+        run: event.run,
+        runEvents: [],
+        toolInvocations: []
+      };
+    case 'run.state':
+      return {
+        run: event.run,
+        runEvents: current?.runEvents ?? [],
+        toolInvocations: current?.toolInvocations ?? []
+      };
+    case 'run.event':
+      return {
+        run: current?.run ?? null,
+        runEvents: upsertRunEvent(current?.runEvents ?? [], event.event),
+        toolInvocations: current?.toolInvocations ?? []
+      };
+    case 'run.tool':
+      return {
+        run: current?.run ?? null,
+        runEvents: current?.runEvents ?? [],
+        toolInvocations: upsertToolInvocation(current?.toolInvocations ?? [], event.toolInvocation)
+      };
+    case 'run.completed':
+      return {
+        run: event.run,
+        runEvents: current?.runEvents ?? [],
+        toolInvocations: current?.toolInvocations ?? []
+      };
+    case 'run.failed':
+      return {
+        run: event.run,
+        runEvents: current?.runEvents ?? [],
+        toolInvocations: current?.toolInvocations ?? []
+      };
+    default:
+      return current ?? {
+        run: null,
+        runEvents: [],
+        toolInvocations: []
+      };
+  }
+}
+
+function parseSseChunk(buffer: string) {
+  const frames = buffer.split('\n\n');
+  const remainder = frames.pop() ?? '';
+  const events: RunStreamEventDto[] = [];
+
+  for (const frame of frames) {
+    const lines = frame.split('\n');
+    let eventName = '';
+    let data = '';
+
+    for (const line of lines) {
+      if (line.startsWith('event:')) {
+        eventName = line.slice(6).trim();
+        continue;
+      }
+
+      if (line.startsWith('data:')) {
+        data += line.slice(5).trim();
+      }
+    }
+
+    if (!eventName || !data) {
+      continue;
+    }
+
+    try {
+      const parsed = JSON.parse(data) as RunStreamEventDto;
+      if (parsed.type === eventName) {
+        events.push(parsed);
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return {
+    events,
+    remainder
+  };
 }
 
 function statusBadgeTone(status: RunDto['status'] | ToolInvocationDto['status'] | MessageDto['status'] | 'idle') {
@@ -204,8 +325,14 @@ export function RuntimePiPlaygroundPage() {
   const [timeline, setTimeline] = useState<RunTimelineResponseDto | null>(null);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [timelineError, setTimelineError] = useState<string | null>(null);
+  const [liveStreamRunId, setLiveStreamRunId] = useState<string | null>(null);
+  const activeThreadIdRef = useRef<string | null>(null);
+  const messagesRequestIdRef = useRef(0);
+  const messagesAbortControllerRef = useRef<AbortController | null>(null);
   const timelineRequestIdRef = useRef(0);
   const timelineAbortControllerRef = useRef<AbortController | null>(null);
+  const sendRequestIdRef = useRef(0);
+  const sendAbortControllerRef = useRef<AbortController | null>(null);
 
   const activeThread = useMemo(() => threads.find((thread) => thread.id === activeThreadId) ?? null, [threads, activeThreadId]);
   const selectedModelOption = useMemo(
@@ -215,6 +342,10 @@ export function RuntimePiPlaygroundPage() {
   const selectedRun = timeline?.run ?? null;
   const runEvents = timeline?.runEvents ?? [];
   const toolInvocations = timeline?.toolInvocations ?? [];
+
+  useEffect(() => {
+    activeThreadIdRef.current = activeThreadId;
+  }, [activeThreadId]);
 
   async function refreshThreads() {
     const response = await fetch('/api/runtime-pi/threads');
@@ -289,12 +420,23 @@ export function RuntimePiPlaygroundPage() {
   }
 
   async function loadThreadMessages(threadId: string) {
+    messagesRequestIdRef.current += 1;
+    const requestId = messagesRequestIdRef.current;
+    messagesAbortControllerRef.current?.abort();
+    const controller = new AbortController();
+    messagesAbortControllerRef.current = controller;
     setLoadingMessages(true);
     try {
-      const response = await fetch(`/api/runtime-pi/threads/${threadId}/messages`);
+      const response = await fetch(`/api/runtime-pi/threads/${threadId}/messages`, {
+        signal: controller.signal
+      });
       const data = (await response.json()) as ThreadMessagesResponseDto;
       if (!response.ok) {
         throw new Error(data.error ?? `Failed to load messages (${response.status})`);
+      }
+
+      if (controller.signal.aborted || requestId !== messagesRequestIdRef.current) {
+        return;
       }
 
       const nextMessages = data.messages ?? [];
@@ -302,12 +444,19 @@ export function RuntimePiPlaygroundPage() {
       setError(null);
       await loadRunTimeline(deriveLatestRunId(nextMessages));
     } catch (loadError) {
+      if (controller.signal.aborted || requestId !== messagesRequestIdRef.current) {
+        return;
+      }
+
       setSelectedRunId(null);
       setTimeline(null);
       setTimelineError(null);
       setError(loadError instanceof Error ? loadError.message : 'Failed to load thread messages');
     } finally {
-      setLoadingMessages(false);
+      if (requestId === messagesRequestIdRef.current) {
+        messagesAbortControllerRef.current = null;
+        setLoadingMessages(false);
+      }
     }
   }
 
@@ -334,37 +483,140 @@ export function RuntimePiPlaygroundPage() {
   }
 
   async function sendMessage() {
-    if (!activeThreadId || !draft.trim() || sending) {
+    if (!activeThreadId || !draft.trim() || sending || !selectedModelOption) {
       return;
     }
 
+    const threadId = activeThreadId;
+    const text = draft.trim();
+    const requestId = sendRequestIdRef.current + 1;
+    sendRequestIdRef.current = requestId;
+    sendAbortControllerRef.current?.abort();
+    const controller = new AbortController();
+    sendAbortControllerRef.current = controller;
+
+    let streamedRunId: string | null = null;
+    let streamSessionStarted = false;
+    let terminalStreamError: string | null = null;
     setSending(true);
     setError(null);
+    setLiveStreamRunId(null);
+    timelineRequestIdRef.current += 1;
+    timelineAbortControllerRef.current?.abort();
+    setSelectedRunId(null);
+    setTimeline(null);
+    setTimelineLoading(false);
+    setTimelineError(null);
 
     try {
-      const response = await fetch(`/api/runtime-pi/runs/${activeThreadId}`, {
+      const response = await fetch(`/api/runtime-pi/runs/${threadId}/stream`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          text: draft,
+          text,
           provider: selectedModelOption?.provider,
           model: selectedModelOption?.model
-        })
+        }),
+        signal: controller.signal
       });
 
-      const data = (await response.json()) as RunTextTurnResponseDto;
       if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as { error?: string };
         throw new Error(data.error ?? `runtime-pi request failed (${response.status})`);
       }
 
-      setMessages(data.messages);
-      await loadRunTimeline(data.run?.id ?? deriveLatestRunId(data.messages));
-      setDraft('');
-      setError(data.error ?? null);
+      if (!response.body) {
+        throw new Error('runtime-pi stream response body is unavailable');
+      }
+
+      streamSessionStarted = true;
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+
+        if (controller.signal.aborted || requestId !== sendRequestIdRef.current) {
+          return;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const parsed = parseSseChunk(buffer);
+        buffer = parsed.remainder;
+
+        for (const event of parsed.events) {
+          if (controller.signal.aborted || requestId !== sendRequestIdRef.current) {
+            return;
+          }
+
+          streamedRunId = event.runId;
+          setLiveStreamRunId(event.runId);
+          setSelectedRunId(event.runId);
+          setTimeline((current) => applyRunStreamEvent(current, event));
+
+          if (event.type === 'run.ready') {
+            setDraft('');
+            setMessages((current) => upsertMessage(current, event.userMessage));
+            continue;
+          }
+
+          if (event.type === 'run.failed') {
+            terminalStreamError = event.error;
+            setError(event.error);
+            continue;
+          }
+
+          if (event.type === 'run.completed') {
+            setError(null);
+          }
+        }
+      }
+
+      const finalChunk = decoder.decode();
+      if (finalChunk) {
+        const parsed = parseSseChunk(`${buffer}${finalChunk}\n\n`);
+        for (const event of parsed.events) {
+          streamedRunId = event.runId;
+          setLiveStreamRunId(event.runId);
+          setSelectedRunId(event.runId);
+          setTimeline((current) => applyRunStreamEvent(current, event));
+          if (event.type === 'run.ready') {
+            setDraft('');
+            setMessages((current) => upsertMessage(current, event.userMessage));
+          } else if (event.type === 'run.failed') {
+            terminalStreamError = event.error;
+            setError(event.error);
+          }
+        }
+      }
     } catch (sendError) {
+      if (controller.signal.aborted || requestId !== sendRequestIdRef.current) {
+        return;
+      }
+
       setError(sendError instanceof Error ? sendError.message : 'Failed to send message');
     } finally {
-      setSending(false);
+      if (requestId === sendRequestIdRef.current) {
+        sendAbortControllerRef.current = null;
+        setSending(false);
+        setLiveStreamRunId(null);
+      }
+
+      if (!controller.signal.aborted && requestId === sendRequestIdRef.current && (streamSessionStarted || streamedRunId)) {
+        if (activeThreadIdRef.current === threadId) {
+          await loadThreadMessages(threadId);
+        } else {
+          await refreshThreads();
+        }
+
+        if (terminalStreamError) {
+          setError(terminalStreamError);
+        }
+      }
     }
   }
 
@@ -381,6 +633,8 @@ export function RuntimePiPlaygroundPage() {
 
   useEffect(
     () => () => {
+      sendAbortControllerRef.current?.abort();
+      messagesAbortControllerRef.current?.abort();
       timelineAbortControllerRef.current?.abort();
     },
     []
@@ -444,12 +698,13 @@ export function RuntimePiPlaygroundPage() {
                 const active = thread.id === activeThreadId;
                 return (
                   <li key={thread.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActiveThreadId(thread.id);
-                        void loadThreadMessages(thread.id);
-                      }}
+	                    <button
+	                      type="button"
+	                      onClick={() => {
+	                        sendAbortControllerRef.current?.abort();
+	                        setActiveThreadId(thread.id);
+	                        void loadThreadMessages(thread.id);
+	                      }}
                       className={`w-full rounded-md border px-3 py-2 text-left text-sm ${
                         active ? 'border-sky-300 bg-sky-50' : 'border-slate-200 bg-white hover:bg-slate-50'
                       }`}
@@ -469,6 +724,7 @@ export function RuntimePiPlaygroundPage() {
             <span className="rounded-full bg-slate-100 px-3 py-1">Thread: {activeThread?.title ?? activeThreadId ?? 'none'}</span>
             <span className="rounded-full bg-slate-100 px-3 py-1">Model: {selectedModelOption?.model ?? 'none'}</span>
             <span className="rounded-full bg-slate-100 px-3 py-1">Focused run: {selectedRunId ?? 'none'}</span>
+            <span className="rounded-full bg-slate-100 px-3 py-1">Stream: {liveStreamRunId ?? 'idle'}</span>
           </header>
 
           <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50 p-4">

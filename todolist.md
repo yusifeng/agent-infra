@@ -322,57 +322,57 @@
 
 ## Phase 4: Add a Proper SSE Transport Contract
 
-- [ ] Decide the SSE transport shape explicitly before coding:
+- [x] Decide the SSE transport shape explicitly before coding:
   - single request that starts a run and streams events
   - or two-step create-then-stream flow
-- [ ] Prefer a design that keeps `runId` available immediately for UI state.
-- [ ] Keep SSE event names explicit and stable.
-- [ ] Add transport DTO/event contracts for the stream payloads.
-- [ ] Keep SSE payloads serializable and browser-consumable.
-- [ ] Do not make SSE events the only way to reconstruct state; the timeline endpoint must remain usable for reload/reconnect.
-- [ ] Do not make the stream payload depend on internal-only runtime objects.
+- [x] Prefer a design that keeps `runId` available immediately for UI state.
+- [x] Keep SSE event names explicit and stable.
+- [x] Add transport DTO/event contracts for the stream payloads.
+- [x] Keep SSE payloads serializable and browser-consumable.
+- [x] Do not make SSE events the only way to reconstruct state; the timeline endpoint must remain usable for reload/reconnect.
+- [x] Do not make the stream payload depend on internal-only runtime objects.
 
 ## Phase 5: Refactor the Write Path for Streaming
 
-- [ ] Split the current one-shot `turns.runText(...)` flow into pieces only if needed for streaming.
-- [ ] If splitting is needed, define a narrow start-run use case that:
+- [x] Split the current one-shot `turns.runText(...)` flow into pieces only if needed for streaming.
+- [x] If splitting is needed, define a narrow start-run use case that:
   - validates preconditions
   - writes user message + first text part + queued run atomically
   - returns `runId` and initial run metadata
-- [ ] Keep runtime execution outside the pre-run transaction.
-- [ ] Add a server path that starts execution and emits SSE frames as the run progresses.
-- [ ] Ensure the route still maps typed app errors to proper HTTP status before streaming begins.
-- [ ] Ensure once streaming begins, terminal failure information is still written durably.
-- [ ] Keep the non-SSE compatibility path until the SSE path is stable.
+- [x] Keep runtime execution outside the pre-run transaction.
+- [x] Add a server path that starts execution and emits SSE frames as the run progresses.
+- [x] Ensure the route still maps typed app errors to proper HTTP status before streaming begins.
+- [x] Ensure once streaming begins, terminal failure information is still written durably.
+- [x] Keep the non-SSE compatibility path until the SSE path is stable.
 
 ## Phase 6: Stream Useful Log Events
 
-- [ ] Stream at least these SSE event categories:
+- [x] Stream at least these SSE event categories:
   - run lifecycle
   - assistant/message lifecycle
   - tool lifecycle
   - terminal completion/failure
-- [ ] Include `runId` on all stream events.
-- [ ] Include enough data to update the right-side summary incrementally.
-- [ ] Include enough data to append rows to the log viewport incrementally.
-- [ ] Include terminal events that let the client stop listening cleanly.
+- [x] Include `runId` on all stream events.
+- [x] Include enough data to update the right-side summary incrementally.
+- [x] Include enough data to append rows to the log viewport incrementally.
+- [x] Include terminal events that let the client stop listening cleanly.
 - [ ] Keep event ordering stable and compatible with persisted `run_events.seq`.
 - [ ] Avoid sending giant repeated payloads when a smaller incremental event is enough.
 
 ## Phase 7: Wire the Page to SSE
 
-- [ ] Replace the current one-shot send flow in the page with an SSE-aware flow.
-- [ ] When the user sends a prompt:
+- [x] Replace the current one-shot send flow in the page with an SSE-aware flow.
+- [x] When the user sends a prompt:
   - create/start the run
   - set `selectedRunId`
   - open the stream
   - update the right-side summary live
   - append log rows live
 - [ ] Keep transcript updates coherent while the stream is in flight.
-- [ ] On stream completion, refresh the canonical timeline from the backend.
-- [ ] On stream failure, surface the error in the log panel and then reconcile from the backend.
-- [ ] Handle browser navigation or thread switching while a stream is active.
-- [ ] Ensure only one active send stream per selected thread/composer interaction.
+- [x] On stream completion, refresh the canonical timeline from the backend.
+- [x] On stream failure, surface the error in the log panel and then reconcile from the backend.
+- [x] Handle browser navigation or thread switching while a stream is active.
+- [x] Ensure only one active send stream per selected thread/composer interaction.
 
 ## Phase 8: Reconciliation and Reload Safety
 
@@ -428,4 +428,4 @@
 - [ ] The page updates the log panel live while the run is in progress.
 - [ ] The page reconciles against durable backend state after the stream finishes.
 - [ ] Refreshing the page still reconstructs the same run summary and logs from the backend.
-- [ ] The center transcript remains usable and understandable during and after streaming.
+- [x] The center transcript remains usable and understandable during and after streaming.

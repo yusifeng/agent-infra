@@ -149,6 +149,52 @@ export interface RunTimelineResponseDto {
   error?: string;
 }
 
+export interface RunStreamReadyEventDto {
+  type: 'run.ready';
+  runId: string;
+  run: RunDto;
+  userMessage: MessageDto;
+}
+
+export interface RunStreamStateEventDto {
+  type: 'run.state';
+  runId: string;
+  run: RunDto;
+}
+
+export interface RunStreamEventRowDto {
+  type: 'run.event';
+  runId: string;
+  event: RunEventDto;
+}
+
+export interface RunStreamToolRowDto {
+  type: 'run.tool';
+  runId: string;
+  toolInvocation: ToolInvocationDto;
+}
+
+export interface RunStreamCompletedEventDto {
+  type: 'run.completed';
+  runId: string;
+  run: RunDto;
+}
+
+export interface RunStreamFailedEventDto {
+  type: 'run.failed';
+  runId: string;
+  run: RunDto | null;
+  error: string;
+}
+
+export type RunStreamEventDto =
+  | RunStreamReadyEventDto
+  | RunStreamStateEventDto
+  | RunStreamEventRowDto
+  | RunStreamToolRowDto
+  | RunStreamCompletedEventDto
+  | RunStreamFailedEventDto;
+
 export type RuntimePiThreadsResponseDto = ThreadsResponseDto;
 export type RuntimePiCreateThreadResponseDto = CreateThreadResponseDto;
 export type RuntimePiMessagesResponseDto = ThreadMessagesResponseDto;

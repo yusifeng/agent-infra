@@ -66,7 +66,7 @@ function mapRuntimePiConfigError(error: unknown) {
 
 export const runtimePiRepos = createRuntimePiRepositories(dbConfig.db);
 
-const durableRuntime = createPiRuntime({
+export const durableRuntime = createPiRuntime({
   tools: (context) => createDemoTools(context)
 });
 

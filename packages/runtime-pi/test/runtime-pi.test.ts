@@ -366,6 +366,75 @@ describe('runAssistantTurnWithPiInternal', () => {
     expect(invocations[0]?.toolName).toBe('echoText');
   });
 
+  it('emits persisted updates while a run is executing', async () => {
+    const { ctx, thread, run } = await createContext();
+    await createSeedThread(ctx.messageRepo, thread.id, 'stream public runtime');
+
+    const faux = registerFauxProvider({
+      models: [{ id: 'faux-stream-model' }]
+    });
+    unregisterCallbacks.push(faux.unregister);
+    faux.setResponses([fauxAssistantMessage('Stream me.')]);
+
+    const runtime = createPiRuntime({
+      model: faux.getModel('faux-stream-model'),
+      getApiKey: async () => 'faux-key'
+    });
+
+    const updates: Array<{ type: string; hasRun: boolean }> = [];
+
+    await runtime.runTurn(
+      ctx,
+      { threadId: thread.id, runId: run.id },
+      {
+        onPersistedUpdate(update) {
+          updates.push({
+            type: update.runEvent.type,
+            hasRun: Boolean(update.run)
+          });
+        }
+      }
+    );
+
+    expect(updates.map((update) => update.type)).toContain('agent_start');
+    expect(updates.map((update) => update.type)).toContain('message_end');
+    expect(updates.at(-1)).toEqual({
+      type: 'agent_end',
+      hasRun: true
+    });
+  });
+
+  it('does not fail a run when the persisted-update observer throws', async () => {
+    const { ctx, thread, run } = await createContext();
+    await createSeedThread(ctx.messageRepo, thread.id, 'observer failure should not fail run');
+
+    const faux = registerFauxProvider({
+      models: [{ id: 'faux-observer-model' }]
+    });
+    unregisterCallbacks.push(faux.unregister);
+    faux.setResponses([fauxAssistantMessage('Observer-safe response.')]);
+
+    const runtime = createPiRuntime({
+      model: faux.getModel('faux-observer-model'),
+      getApiKey: async () => 'faux-key'
+    });
+
+    await expect(
+      runtime.runTurn(
+        ctx,
+        { threadId: thread.id, runId: run.id },
+        {
+          onPersistedUpdate() {
+            throw new Error('transport disconnected');
+          }
+        }
+      )
+    ).resolves.toBeUndefined();
+
+    const storedRun = await ctx.runRepo.findById(run.id);
+    expect(storedRun?.status).toBe('completed');
+  });
+
   it('keeps model precedence consistent between prepare and runTurn when resolveConfig is also provided', async () => {
     const { ctx, thread, run } = await createContext();
     await createSeedThread(ctx.messageRepo, thread.id, 'run consistent public runtime');

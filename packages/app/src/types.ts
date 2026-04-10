@@ -20,6 +20,12 @@ export interface RunTextRuntimeInput {
   model: string;
 }
 
+export interface StartTextTurnResult {
+  run: Run;
+  userMessage: Message & { parts: MessagePart[] };
+  runtimeSelection: RuntimeSelection;
+}
+
 export interface AgentInfraRuntimePort {
   prepare(input: { provider?: string; model?: string }): Promise<RuntimeSelection>;
   runTextTurn(repositories: AgentInfraAppRepositories, input: RunTextRuntimeInput): Promise<void>;
@@ -82,6 +88,7 @@ export interface AgentInfraApp {
     getMessages(input: GetThreadMessagesInput): Promise<Array<Message & { parts: MessagePart[] }>>;
   };
   turns: {
+    startText(input: RunTextTurnInput): Promise<StartTextTurnResult>;
     runText(input: RunTextTurnInput): Promise<RunTextTurnResult>;
   };
   runs: {
