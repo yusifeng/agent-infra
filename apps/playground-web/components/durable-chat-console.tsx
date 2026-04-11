@@ -22,6 +22,7 @@ import {
   Blocks,
   CircleStop,
   ChevronDown,
+  Copy,
   Eraser,
   GalleryVerticalEnd,
   Globe,
@@ -32,6 +33,7 @@ import {
   MessageSquarePlus,
   PanelLeftClose,
   PanelLeftOpen,
+  RotateCw,
   Search,
   Send,
   SlidersHorizontal,
@@ -52,19 +54,20 @@ const SUGGESTED_PROMPTS = [
 
 const maxWithTW = 'max-w-3xl';
 const composerMaxWithTW = 'max-w-[820px]';
+const messageListMinHeight = { minHeight: 'max(0px, calc(-400px + 100dvh))' };
 
 const useStyles = createStyles(({ css, token }) => ({
   shell: css`
     height: 100%;
     overflow: hidden;
-    background: ${token.colorBgContainer};
+    background: ${token.colorBgLayout};
   `,
   secondarySurface: css`
     border: 1px solid ${token.colorBorderSecondary};
     background: ${token.colorBgContainer};
   `,
   sidebar: css`
-    background: ${token.colorBgLayout};
+    background: var(--lobe-colorBgContainerSecondary, ${token.colorBgLayout});
     border-right: 1px solid ${token.colorBorderSecondary};
   `,
   threadItem: css`
@@ -105,10 +108,12 @@ const useStyles = createStyles(({ css, token }) => ({
     white-space: nowrap;
   `,
   chatPane: css`
-    background: ${token.colorBgContainer};
+    background: var(--lobe-colorBgLayout, ${token.colorBgLayout});
   `,
   messageViewport: css`
-    background: ${token.colorBgContainer};
+    background: var(--lobe-colorBgLayout, ${token.colorBgLayout});
+    overscroll-behavior: contain;
+    scroll-padding-block-end: 220px;
   `,
   assistantBubble: css`
     color: ${token.colorText};
@@ -138,13 +143,14 @@ const useStyles = createStyles(({ css, token }) => ({
     color: #e2e8f0;
   `,
   composerDock: css`
-    background: rgba(248, 250, 252, 0.9);
+    background: var(--lobe-colorBgLayout, ${token.colorBgLayout});
     backdrop-filter: blur(8px);
   `,
   composerCard: css`
     border: 1px solid ${token.colorBorderSecondary};
-    background: ${token.colorBgContainer};
+    background: var(--lobe-colorBgContainer, ${token.colorBgContainer});
     border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
   `,
   textarea: css`
     color: ${token.colorText};
@@ -562,9 +568,11 @@ type LiveAssistantDraft = {
 function ThreadTitle({ thread }: { thread: ThreadDto }) {
   const title = thread.title?.trim() || 'Untitled thread';
   return (
-    <>
-      <p className="truncate text-sm">{title}</p>
-    </>
+    <div className="flex min-w-0 flex-1 items-center gap-2">
+      <span className="overflow-hidden text-ellipsis whitespace-nowrap text-sm leading-[1.2]">
+        {title}
+      </span>
+    </div>
   );
 }
 
@@ -583,8 +591,8 @@ function WelcomeMessage({
   })();
 
   return (
-    <div className="flex h-full items-center justify-center">
-      <div className="flex w-full max-w-[800px] flex-col items-center gap-4 p-4">
+    <div className="flex w-full items-center justify-center p-4">
+      <div className="flex w-full max-w-[800px] flex-col items-center gap-4">
         <div className="flex items-center gap-2">
           <AnimatedEmoji emoji="👋" size={40} />
           <h1 className={clsx('my-1 text-[32px]', styles.welcomeTitle)}>
@@ -664,11 +672,93 @@ function EventRow({ event }: { event: RunEventDto }) {
   );
 }
 
-function MessagePartView({ part }: { part: MessagePartDto }) {
+function buildMessageCopyText(message: MessageDto) {
+  return message.parts
+    .flatMap((part) => {
+      if (part.type === 'text' || part.type === 'reasoning') {
+        return part.textValue ? [part.textValue] : [];
+      }
+
+      if (part.type === 'tool-result') {
+        return part.textValue ? [part.textValue] : [];
+      }
+
+      return [];
+    })
+    .join('\n\n')
+    .trim();
+}
+
+async function copyMessageToClipboard(message: MessageDto) {
+  const text = buildMessageCopyText(message);
+  if (!text || typeof navigator === 'undefined' || !navigator.clipboard) {
+    return;
+  }
+
+  await navigator.clipboard.writeText(text);
+}
+
+function MessageActions({
+  items,
+  align = 'start',
+  onActionClick
+}: {
+  items: Array<{
+    disabled?: boolean;
+    icon: ComponentType<{ className?: string }>;
+    key: string;
+    label: string;
+  }>;
+  align?: 'start' | 'end';
+  onActionClick: (key: string) => void;
+}) {
+  return (
+    <div
+      className={clsx(
+        'mt-1 flex w-full translate-y-1 opacity-0 transition duration-150 ease-out pointer-events-none group-hover:translate-y-0 group-hover:opacity-100 group-hover:pointer-events-auto',
+        align === 'end' ? 'justify-end' : 'justify-start'
+      )}
+      data-message-actions="true"
+    >
+      <div className="flex items-center gap-1">
+        {items.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            disabled={item.disabled}
+            title={item.label}
+            aria-label={item.label}
+            onClick={() => {
+              if (!item.disabled) {
+                onActionClick(item.key);
+              }
+            }}
+            className={clsx(
+              'flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40'
+            )}
+          >
+            <item.icon className="h-[15px] w-[15px]" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MessagePartView({ part, role = 'assistant' }: { part: MessagePartDto; role?: MessageDto['role'] }) {
   const { styles } = useStyles();
 
   if (part.type === 'text') {
-    return <p className="whitespace-pre-wrap text-sm leading-7 text-slate-800">{part.textValue ?? ''}</p>;
+    return (
+      <div
+        className={clsx(
+          'whitespace-pre-wrap text-sm text-slate-800',
+          role === 'user' ? 'leading-relaxed' : 'leading-relaxed'
+        )}
+      >
+        {part.textValue ?? ''}
+      </div>
+    );
   }
 
   if (part.type === 'reasoning') {
@@ -711,14 +801,43 @@ function MessagePartView({ part }: { part: MessagePartDto }) {
 function MessageCard({ message }: { message: MessageDto }) {
   const { styles } = useStyles();
   const isUser = message.role === 'user';
+  const userActions = [
+    {
+      icon: Copy,
+      key: 'copy',
+      label: 'Copy'
+    }
+  ];
+  const assistantActions = [
+    {
+      icon: Copy,
+      key: 'copy',
+      label: 'Copy'
+    },
+    {
+      disabled: true,
+      icon: RotateCw,
+      key: 'regenerate',
+      label: 'Regenerate'
+    }
+  ];
 
   if (isUser) {
     return (
       <div className={clsx('group relative flex w-full max-w-screen justify-end px-4', styles.messageAppear)}>
         <div className="max-w-[65%]">
           <div className={clsx('relative flex flex-col gap-3 rounded-lg px-3 py-2', styles.userBubble)}>
-            <div className="space-y-3">{message.parts.map((part) => <MessagePartView key={part.id} part={part} />)}</div>
+            <div className="space-y-2">{message.parts.map((part) => <MessagePartView key={part.id} part={part} role="user" />)}</div>
           </div>
+          <MessageActions
+            align="end"
+            items={userActions}
+            onActionClick={(key) => {
+              if (key === 'copy') {
+                void copyMessageToClipboard(message);
+              }
+            }}
+          />
         </div>
       </div>
     );
@@ -727,8 +846,16 @@ function MessageCard({ message }: { message: MessageDto }) {
   return (
     <div className={clsx('group relative w-[90%] max-w-screen px-4', styles.messageAppear)}>
       <div className={clsx('relative flex flex-col gap-2 pt-1.5', styles.assistantBubble)}>
-        <div className="space-y-3">{message.parts.map((part) => <MessagePartView key={part.id} part={part} />)}</div>
+        <div className="space-y-2">{message.parts.map((part) => <MessagePartView key={part.id} part={part} role="assistant" />)}</div>
       </div>
+      <MessageActions
+        items={assistantActions}
+        onActionClick={(key) => {
+          if (key === 'copy') {
+            void copyMessageToClipboard(message);
+          }
+        }}
+      />
     </div>
   );
 }
@@ -751,7 +878,7 @@ function LiveAssistantCard({ liveAssistantDraft }: { liveAssistantDraft: LiveAss
         ) : null}
 
         {liveAssistantDraft.partialText ? (
-          <p className="whitespace-pre-wrap text-sm leading-7 text-slate-800">{liveAssistantDraft.partialText}</p>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{liveAssistantDraft.partialText}</p>
         ) : (
           <div className="flex items-center gap-2 text-sm text-slate-500">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -1513,48 +1640,62 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
         </aside>
       </div>
 
-      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-        <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <header className="flex h-10 items-center justify-between px-2">
-              <div className="flex min-w-0 items-center gap-3">
-                {!sidebarOpen ? (
-                  <IconButton icon={PanelLeftOpen} onClick={() => setSidebarOpen(true)} size="small" title="打开侧边栏" />
-                ) : null}
-                <ChatAvatar size={28} title={currentThreadTitle} />
-                <div className="relative flex max-w-full flex-1 items-center gap-2 overflow-hidden">
-                  <div className={styles.chatHeaderTitle}>{currentThreadTitle}</div>
-                </div>
+      <div className="flex flex-1 min-h-0 min-w-0 relative overflow-hidden">
+        <div className={clsx('flex flex-1 min-h-0 min-w-0 relative flex-col overflow-hidden', styles.chatPane)}>
+          <header className="flex h-10 items-center justify-between border-b border-slate-200 px-2">
+            <div className="flex min-w-0 items-center gap-3">
+              {!sidebarOpen ? (
+                <IconButton icon={PanelLeftOpen} onClick={() => setSidebarOpen(true)} size="small" title="打开侧边栏" />
+              ) : null}
+              <ChatAvatar size={28} title={currentThreadTitle} />
+              <div className="relative flex max-w-full flex-1 items-center gap-2 overflow-hidden">
+                <div className={styles.chatHeaderTitle}>{currentThreadTitle}</div>
               </div>
+            </div>
 
-              <div className="flex gap-1">
-                <IconButton icon={Menu} onClick={() => setLogOpen((current) => !current)} size="small" title="切换日志面板" />
-              </div>
-            </header>
+            <div className="flex gap-1">
+              <IconButton icon={Menu} onClick={() => setLogOpen((current) => !current)} size="small" title="切换日志面板" />
+            </div>
+          </header>
 
-            <div ref={messagesViewportRef} className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
-              <div className="min-h-0 flex-1 p-6">
+          <div
+            ref={messagesViewportRef}
+            className={clsx('relative flex min-h-0 flex-1 flex-col overflow-y-auto', styles.messageViewport)}
+          >
+            <div className="p-6 flex-1">
                 {!meta?.runtimeConfigured && meta?.runtimeConfigError ? (
-                  <div className={clsx(`${maxWithTW} mx-auto mb-4 rounded-xl px-4 py-3 text-sm`, styles.warningBanner)}>{meta.runtimeConfigError}</div>
+                  <div className={clsx(`${maxWithTW} mx-auto mb-4 w-full rounded-xl px-4 py-3 text-sm`, styles.warningBanner)}>
+                    {meta.runtimeConfigError}
+                  </div>
                 ) : null}
 
                 {durableRecoveryNotice ? (
-                  <div className={clsx(`${maxWithTW} mx-auto mb-4 rounded-xl px-4 py-3 text-sm`, styles.infoBanner)}>{durableRecoveryNotice}</div>
+                  <div className={clsx(`${maxWithTW} mx-auto mb-4 w-full rounded-xl px-4 py-3 text-sm`, styles.infoBanner)}>
+                    {durableRecoveryNotice}
+                  </div>
                 ) : null}
 
-                {error ? <div className={clsx(`${maxWithTW} mx-auto mb-4 rounded-xl px-4 py-3 text-sm`, styles.errorBanner)}>{error}</div> : null}
+                {error ? (
+                  <div className={clsx(`${maxWithTW} mx-auto mb-4 w-full rounded-xl px-4 py-3 text-sm`, styles.errorBanner)}>
+                    {error}
+                  </div>
+                ) : null}
 
                 {loadingMessages ? (
-                  <div className={`${maxWithTW} mx-auto flex min-h-full items-center`}>
-                    <div className="flex items-center gap-3 px-4 py-3 text-sm text-slate-500">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Loading thread messages...</span>
+                  <div className={`${maxWithTW} mx-auto w-full`} style={messageListMinHeight}>
+                    <div className="flex min-h-full items-center">
+                      <div className="flex items-center gap-3 px-4 py-3 text-sm text-slate-500">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Loading thread messages...</span>
+                      </div>
                     </div>
                   </div>
                 ) : messages.length === 0 ? (
-                  <WelcomeMessage activeThreadId={activeThreadId} />
+                  <div className="flex min-h-full items-center justify-center">
+                    <WelcomeMessage activeThreadId={activeThreadId} />
+                  </div>
                 ) : (
-                  <div className={`${maxWithTW} mx-auto`}>
+                  <div className={`${maxWithTW} mx-auto w-full`} style={messageListMinHeight}>
                     <div className="flex flex-col gap-3">
                       {messages.map((message) => (
                         <MessageCard key={message.id} message={message} />
@@ -1565,147 +1706,141 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
                     </div>
                   </div>
                 )}
-              </div>
+            </div>
 
-              <div className={clsx('sticky bottom-0 z-10 px-4 pb-4', styles.composerDock)}>
-                <div className={`${composerMaxWithTW} mx-auto relative`}>
-                  <div
-                    className={clsx(
-                      'absolute bottom-[calc(100%+16px)] left-1/2 z-[1] -translate-x-1/2 transition-transform transition-opacity duration-200 ease-out',
-                      !showScrollToBottom && 'pointer-events-none translate-y-2 opacity-0'
-                    )}
+            <div className={clsx('sticky bottom-0 z-10 px-4 pb-4', styles.composerDock)}>
+              <div className={`${composerMaxWithTW} relative mx-auto`}>
+                <div
+                  className={clsx(
+                    'absolute bottom-[calc(100%+16px)] left-1/2 z-[1] -translate-x-1/2 transition-transform transition-opacity duration-200 ease-out',
+                    !showScrollToBottom && 'pointer-events-none translate-y-2 opacity-0'
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={scrollToMessagesBottom}
+                    className={clsx('flex h-[26px] w-[26px] items-center justify-center rounded-full', styles.scrollButton)}
+                    aria-label="Scroll to bottom"
                   >
-                    <button
-                      type="button"
-                      onClick={scrollToMessagesBottom}
-                      className={clsx('flex h-[26px] w-[26px] items-center justify-center rounded-full', styles.scrollButton)}
-                      aria-label="Scroll to bottom"
-                    >
-                      <ChevronDown className="h-4 w-4 text-slate-600" />
-                    </button>
-                  </div>
+                    <ChevronDown className="h-4 w-4 text-slate-600" />
+                  </button>
+                </div>
 
-                    <form
-                      className={styles.composerCard}
-                      onSubmit={(event) => {
-                      event.preventDefault();
-                      if (sendingDisabled) {
-                        return;
-                      }
+                <form
+                  className={styles.composerCard}
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    if (sendingDisabled) {
+                      return;
+                    }
 
-                      void sendMessage();
-                    }}
-                    >
-                      <div className="flex flex-col">
-                        <div className="px-4 py-3">
-                        <textarea
-                          ref={textareaRef}
-                          value={draft}
-                          onChange={(event) => setDraft(event.target.value)}
-                          onKeyDown={(event) => {
-                            if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                    void sendMessage();
+                  }}
+                >
+                  <div className="flex flex-col">
+                    <div className="px-4 py-3">
+                      <textarea
+                        ref={textareaRef}
+                        value={draft}
+                        onChange={(event) => setDraft(event.target.value)}
+                        onKeyDown={(event) => {
+                          if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                            event.preventDefault();
+                            if (!sendingDisabled) {
+                              void sendMessage();
+                            }
+                          }
+                        }}
+                        rows={3}
+                        placeholder={activeThreadId ? 'Send a prompt in this durable thread...' : 'Send the first prompt to create a durable thread...'}
+                        disabled={!meta?.runtimeConfigured || sending || !selectedModelOption}
+                        className={clsx('w-full resize-none overflow-y-auto text-sm leading-relaxed', styles.textarea)}
+                        style={{
+                          minHeight: '90px',
+                          maxHeight: '220px'
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between px-3 py-1.5">
+                      <div className="flex min-w-0 items-center gap-1">
+                        <button type="button" disabled className="flex h-8 w-8 items-center justify-center rounded-full text-slate-300">
+                          <Globe className="h-[18px] w-[18px]" />
+                        </button>
+                        <button type="button" disabled className="flex h-8 w-8 items-center justify-center rounded-full text-slate-300">
+                          <Blocks className="h-[18px] w-[18px]" />
+                        </button>
+                        <button type="button" disabled className="flex h-8 w-8 items-center justify-center rounded-full text-slate-300">
+                          <SlidersHorizontal className="h-[18px] w-[18px]" />
+                        </button>
+                        <label className="flex h-7 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 text-xs text-slate-400">
+                          {selectedModelOption?.provider ? <ProviderMonogram provider={selectedModelOption.provider} /> : null}
+                          <select
+                            value={selectedModelKey}
+                            onChange={(event) => setSelectedModelKey(event.target.value)}
+                            disabled={sending || !meta || meta.modelOptions.length === 0}
+                            className="max-w-[170px] bg-transparent text-xs text-slate-500 outline-none"
+                          >
+                            {meta?.modelOptions.map((option) => (
+                              <option key={option.key} value={option.key}>
+                                {option.provider} · {option.model}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <span className="flex h-7 items-center gap-1 rounded-md bg-slate-100 px-2.5 text-xs text-slate-400">
+                          <Workflow className="h-[14px] w-[14px]" />
+                          Artifacts（空）
+                        </span>
+                        <button type="button" disabled className="flex h-8 w-8 items-center justify-center rounded-full text-slate-300">
+                          <Mic className="h-[18px] w-[18px]" />
+                        </button>
+                        <button type="button" disabled className="flex h-8 w-8 items-center justify-center rounded-full text-slate-300">
+                          <Eraser className="h-[18px] w-[18px]" />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled
+                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-300"
+                        >
+                          <GalleryVerticalEnd className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={!sending && sendingDisabled}
+                          onClick={(event) => {
+                            if (sending) {
                               event.preventDefault();
-                              if (!sendingDisabled) {
-                                void sendMessage();
-                              }
+                              sendAbortControllerRef.current?.abort();
+                              setSending(false);
+                              setLiveStreamRunId(null);
                             }
                           }}
-                          rows={3}
-                          placeholder={activeThreadId ? 'Send a prompt in this durable thread...' : 'Send the first prompt to create a durable thread...'}
-                          disabled={!meta?.runtimeConfigured || sending || !selectedModelOption}
-                          className={clsx('w-full resize-none overflow-y-auto text-sm leading-relaxed', styles.textarea)}
-                          style={{
-                            minHeight: '90px',
-                            maxHeight: '220px'
-                          }}
-                        />
+                          className={clsx(
+                            'flex h-8 w-8 items-center justify-center rounded-lg border transition',
+                            sending
+                              ? 'border-rose-200 text-rose-600'
+                              : draft.trim()
+                                ? 'border-slate-300 text-slate-500'
+                                : 'border-slate-200 text-slate-300',
+                            !sending && sendingDisabled && 'cursor-not-allowed opacity-60'
+                          )}
+                        >
+                          {sending ? <CircleStop className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+                        </button>
                       </div>
-
-                        <div className="flex items-center justify-between px-3 py-1.5">
-                          <div className="flex min-w-0 items-center gap-1">
-                            <button type="button" disabled className="flex h-8 w-8 items-center justify-center rounded-full text-slate-300">
-                              <Globe className="h-[18px] w-[18px]" />
-                            </button>
-                            <button type="button" disabled className="flex h-8 w-8 items-center justify-center rounded-full text-slate-300">
-                              <Blocks className="h-[18px] w-[18px]" />
-                            </button>
-                            <button type="button" disabled className="flex h-8 w-8 items-center justify-center rounded-full text-slate-300">
-                              <SlidersHorizontal className="h-[18px] w-[18px]" />
-                            </button>
-                            <label className="flex h-7 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 text-xs text-slate-400">
-                              {selectedModelOption?.provider ? <ProviderMonogram provider={selectedModelOption.provider} /> : null}
-                              <select
-                                value={selectedModelKey}
-                                onChange={(event) => setSelectedModelKey(event.target.value)}
-                                disabled={sending || !meta || meta.modelOptions.length === 0}
-                                className="max-w-[170px] bg-transparent text-xs text-slate-500 outline-none"
-                              >
-                                {meta?.modelOptions.map((option) => (
-                                  <option key={option.key} value={option.key}>
-                                    {option.provider} · {option.model}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                            <span className="flex h-7 items-center gap-1 rounded-md bg-slate-100 px-2.5 text-xs text-slate-400">
-                              <Workflow className="h-[14px] w-[14px]" />
-                              Artifacts（空）
-                            </span>
-                            <button type="button" disabled className="flex h-8 w-8 items-center justify-center rounded-full text-slate-300">
-                              <Mic className="h-[18px] w-[18px]" />
-                            </button>
-                            <button type="button" disabled className="flex h-8 w-8 items-center justify-center rounded-full text-slate-300">
-                              <Eraser className="h-[18px] w-[18px]" />
-                            </button>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              disabled
-                              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-300"
-                            >
-                              <GalleryVerticalEnd className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="submit"
-                              disabled={!sending && sendingDisabled}
-                              onClick={(event) => {
-                                if (sending) {
-                                  event.preventDefault();
-                                  sendAbortControllerRef.current?.abort();
-                                  setSending(false);
-                                  setLiveStreamRunId(null);
-                                }
-                              }}
-                              className={clsx(
-                                'flex h-8 w-8 items-center justify-center rounded-lg border transition',
-                                sending
-                                  ? 'border-rose-200 text-rose-600'
-                                  : draft.trim()
-                                    ? 'border-slate-300 text-slate-500'
-                                    : 'border-slate-200 text-slate-300',
-                                !sending && sendingDisabled && 'cursor-not-allowed opacity-60'
-                              )}
-                            >
-                              {sending ? <CircleStop className="h-4 w-4" /> : <Send className="h-4 w-4" />}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                  </form>
-                </div>
+                    </div>
+                  </div>
+                </form>
               </div>
             </div>
           </div>
 
-          <aside
-            className={clsx(
-              'hidden min-h-0 shrink-0 xl:flex xl:flex-col',
-              logOpen ? 'w-[360px] border-l border-slate-200' : 'w-0 overflow-hidden border-l-0',
-              styles.logPane
-            )}
-          >
+          {logOpen ? (
+            <aside className={clsx('hidden min-h-0 w-[360px] shrink-0 border-l border-slate-200 xl:flex xl:flex-col', styles.logPane)}>
             <header className="border-b border-slate-200 px-5 py-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -1872,7 +2007,8 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
                 )}
               </div>
             </div>
-          </aside>
+            </aside>
+          ) : null}
         </div>
       </div>
     </main>

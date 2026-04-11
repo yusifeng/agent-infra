@@ -7,9 +7,7 @@ const useStyles = createStyles(({ css, token }) => ({
   shell: css`
     height: 100dvh;
     overflow: hidden;
-    background:
-      radial-gradient(circle at top left, ${token.colorFillSecondary} 0%, transparent 28%),
-      ${token.colorBgLayout};
+    background: ${token.colorBgLayout};
     color: ${token.colorText};
   `,
   scrollbars: css`
