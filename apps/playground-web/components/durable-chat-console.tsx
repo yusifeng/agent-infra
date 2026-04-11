@@ -19,7 +19,7 @@ import type {
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-const SELECTED_RUN_STORAGE_KEY = 'agent-infra.runtime-pi.selected-run-id';
+const SELECTED_RUN_STORAGE_KEY = 'agent-infra.chat-console.selected-run-id';
 
 function normalizeRuntimeMeta(data: Partial<RuntimePiMetaDto>): RuntimePiMetaDto {
   const modelOptions = Array.isArray(data.modelOptions) ? data.modelOptions : [];
@@ -399,11 +399,11 @@ type LiveAssistantDraft = {
   eventType: RunStreamAssistantSnapshotDto['eventType'];
 };
 
-type RuntimePiPlaygroundPageProps = {
+type DurableChatConsoleProps = {
   initialThreadId?: string | null;
 };
 
-export function RuntimePiPlaygroundPage({ initialThreadId = null }: RuntimePiPlaygroundPageProps) {
+export function DurableChatConsole({ initialThreadId = null }: DurableChatConsoleProps) {
   const [threads, setThreads] = useState<ThreadDto[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageDto[]>([]);

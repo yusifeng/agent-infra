@@ -1,5 +1,5 @@
-import { RuntimePiPlaygroundPage } from '@/components/runtime-pi-playground-page';
+import { DurableChatConsole } from '@/components/durable-chat-console';
 
 export default function NewChatPage() {
-  return <RuntimePiPlaygroundPage />;
+  return <DurableChatConsole />;
 }

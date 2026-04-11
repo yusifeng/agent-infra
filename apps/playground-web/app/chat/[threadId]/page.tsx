@@ -1,4 +1,4 @@
-import { RuntimePiPlaygroundPage } from '@/components/runtime-pi-playground-page';
+import { DurableChatConsole } from '@/components/durable-chat-console';
 
 type ChatPageProps = {
   params: Promise<{
@@ -8,5 +8,5 @@ type ChatPageProps = {
 
 export default async function ChatPage(props: ChatPageProps) {
   const params = await props.params;
-  return <RuntimePiPlaygroundPage initialThreadId={params.threadId} />;
+  return <DurableChatConsole initialThreadId={params.threadId} />;
 }
