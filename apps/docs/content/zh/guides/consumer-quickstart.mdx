@@ -83,7 +83,8 @@ import {
   withDbTransaction,
   type DbConfig
 } from '@agent-infra/db';
-import { createDemoTools, createPiRuntime } from '@agent-infra/runtime-pi';
+import { createPiRuntime } from '@agent-infra/runtime-pi/runtime';
+import { createDemoTools } from '@agent-infra/runtime-pi/tools';
 
 function createRepositories(dbConfig: DbConfig, db: any): AgentInfraAppRepositories {
   if (dbConfig.mode === 'sqlite') {
@@ -140,6 +141,12 @@ const app = createAgentInfraApp({
   now: () => new Date()
 } satisfies AgentInfraAppDependencies);
 ```
+
+这里刻意使用 `@agent-infra/runtime-pi/runtime` 与 `@agent-infra/runtime-pi/tools` 子路径。
+
+- root 入口 `@agent-infra/runtime-pi` 只保留类型与配置解析 helper
+- 真正会触发 runtime 执行链的能力，要求 consumer 显式从重入口导入
+- 这样在 Next.js 这类会分析服务端模块图的环境里，更不容易让读路径或首屏路径意外拖入重依赖
 
 如果你想看一个可运行的仓库内参考实现，可以直接看 `apps/playground-web/lib/playground-services.ts`。
 

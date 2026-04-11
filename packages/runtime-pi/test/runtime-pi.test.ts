@@ -16,7 +16,8 @@ import type { AgentTool } from '@mariozechner/pi-agent-core';
 import { fauxAssistantMessage, fauxToolCall, registerFauxProvider, Type } from '@mariozechner/pi-ai';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { createPiRuntime, resolveRuntimePiConfigFromEnv, runAssistantTurnWithPiInternal } from '../src/runtime';
+import { resolveRuntimePiConfigFromEnv } from '../src/config';
+import { createPiRuntime, runAssistantTurnWithPiInternal } from '../src/runtime';
 
 type StoredMessage = Message & { parts: MessagePart[] };
 

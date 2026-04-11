@@ -1,13 +1,11 @@
 import type { RuntimePiMetaDto } from '@agent-infra/contracts';
 
 import { toRuntimeMetaDto } from '@/lib/api-dto';
+import { getPlaygroundDbInfo, getPlaygroundMeta } from '@/lib/playground-meta';
 
 export async function GET() {
-  const { getPlaygroundMeta, getPlaygroundServices } = await import('@/lib/playground-services');
-
   try {
-    const services = await getPlaygroundServices();
-    const runtime = getPlaygroundMeta({}, services.dbInfo);
+    const runtime = getPlaygroundMeta({}, getPlaygroundDbInfo());
 
     const response: RuntimePiMetaDto = toRuntimeMetaDto({
       dbMode: runtime.dbInfo.mode,
@@ -22,10 +20,7 @@ export async function GET() {
 
     return Response.json(response);
   } catch (error) {
-    const runtime = getPlaygroundMeta({}, {
-      mode: 'unavailable',
-      connectionString: 'unavailable'
-    });
+    const runtime = getPlaygroundMeta({}, { mode: 'unavailable', connectionString: 'unavailable' });
 
     const response: RuntimePiMetaDto = toRuntimeMetaDto({
       dbMode: runtime.dbInfo.mode,

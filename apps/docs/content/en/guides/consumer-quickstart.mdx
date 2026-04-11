@@ -83,7 +83,8 @@ import {
   withDbTransaction,
   type DbConfig
 } from '@agent-infra/db';
-import { createDemoTools, createPiRuntime } from '@agent-infra/runtime-pi';
+import { createPiRuntime } from '@agent-infra/runtime-pi/runtime';
+import { createDemoTools } from '@agent-infra/runtime-pi/tools';
 
 function createRepositories(dbConfig: DbConfig, db: any): AgentInfraAppRepositories {
   if (dbConfig.mode === 'sqlite') {
@@ -140,6 +141,12 @@ const app = createAgentInfraApp({
   now: () => new Date()
 } satisfies AgentInfraAppDependencies);
 ```
+
+This guide intentionally uses the `@agent-infra/runtime-pi/runtime` and `@agent-infra/runtime-pi/tools` subpaths.
+
+- the root `@agent-infra/runtime-pi` entrypoint is kept for types and config helpers
+- runtime execution helpers require an explicit heavy import path
+- that keeps Next.js-style server module graphs less likely to pull runtime dependencies into read paths or first-load paths by accident
 
 If you want a working repository example, start from `apps/playground-web/lib/playground-services.ts`.
 

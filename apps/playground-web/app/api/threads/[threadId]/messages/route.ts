@@ -4,11 +4,11 @@ import { toMessageDto } from '@/lib/api-dto';
 import { getRouteErrorMessage, getRouteErrorStatus } from '@/lib/api-route-errors';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ threadId: string }> }) {
-  const { getPlaygroundServices } = await import('@/lib/playground-services');
+  const { getPlaygroundReadServices } = await import('@/lib/playground-read-services');
   const { threadId } = await params;
 
   try {
-    const { app } = await getPlaygroundServices();
+    const { app } = await getPlaygroundReadServices();
     const messages = await app.threads.getMessages({ threadId });
     const response: ThreadMessagesResponseDto = {
       messages: messages.map(toMessageDto)

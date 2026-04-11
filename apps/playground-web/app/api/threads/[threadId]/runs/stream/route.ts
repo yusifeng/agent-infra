@@ -37,14 +37,14 @@ async function writeSseEvent(
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ threadId: string }> }) {
-  const { getPlaygroundServices } = await import('@/lib/playground-services');
+  const { getPlaygroundRuntimeServices } = await import('@/lib/playground-services');
 
   const { threadId } = await params;
   const body = (await req.json().catch(() => ({}))) as RunTextTurnRequestDto;
 
   let started;
   try {
-    const { app } = await getPlaygroundServices();
+    const { app } = await getPlaygroundRuntimeServices();
     started = await app.turns.startText({
       threadId,
       text: typeof body.text === 'string' ? body.text : '',
@@ -68,7 +68,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
   const streamState = { closed: false };
 
   const runId = started.run.id;
-  const services = await getPlaygroundServices();
+  const services = await getPlaygroundRuntimeServices();
   const runtimeInput = {
     threadId,
     runId,

@@ -14,7 +14,8 @@ import {
   SqliteToolInvocationRepository
 } from '@agent-infra/db';
 
-import { createPiRuntime, resolveRuntimePiConfigFromEnv } from './runtime';
+import { resolveRuntimePiConfigFromEnv } from './config';
+import { createPiRuntime } from './runtime';
 import { createDemoTools } from './tools';
 
 type RepoBundle = {

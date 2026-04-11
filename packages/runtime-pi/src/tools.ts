@@ -1,5 +1,5 @@
 import type { AgentTool } from '@mariozechner/pi-agent-core';
-import { Type } from '@mariozechner/pi-ai';
+import { Type } from '@sinclair/typebox';
 
 type DemoToolContext = {
   threadId: string;

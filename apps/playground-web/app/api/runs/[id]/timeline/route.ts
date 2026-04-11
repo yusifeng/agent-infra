@@ -4,11 +4,11 @@ import { toRunDto, toRunEventDto, toToolInvocationDto } from '@/lib/api-dto';
 import { getRouteErrorMessage, getRouteErrorStatus } from '@/lib/api-route-errors';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { getPlaygroundServices } = await import('@/lib/playground-services');
+  const { getPlaygroundReadServices } = await import('@/lib/playground-read-services');
   const { id: runId } = await params;
 
   try {
-    const { app } = await getPlaygroundServices();
+    const { app } = await getPlaygroundReadServices();
     const timeline = await app.runs.getTimeline({ runId });
     const response: RunTimelineResponseDto = {
       run: toRunDto(timeline.run),

@@ -6,10 +6,10 @@ import { getRouteErrorMessage, getRouteErrorStatus } from '@/lib/api-route-error
 const APP_ID = 'playground-runtime-pi';
 
 export async function GET() {
-  const { getPlaygroundServices } = await import('@/lib/playground-services');
+  const { getPlaygroundReadServices } = await import('@/lib/playground-read-services');
 
   try {
-    const { app } = await getPlaygroundServices();
+    const { app } = await getPlaygroundReadServices();
     const threads = await app.threads.list({ appId: APP_ID });
     const response: ThreadsResponseDto = {
       threads: threads.map(toThreadDto)
@@ -27,13 +27,13 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { getPlaygroundServices } = await import('@/lib/playground-services');
+  const { getPlaygroundReadServices } = await import('@/lib/playground-read-services');
 
   const body = (await req.json().catch(() => ({}))) as CreateThreadRequestDto;
   const title = typeof body?.title === 'string' && body.title.trim() ? body.title.trim() : 'New Thread';
 
   try {
-    const { app } = await getPlaygroundServices();
+    const { app } = await getPlaygroundReadServices();
     const thread = await app.threads.create({
       appId: APP_ID,
       title,

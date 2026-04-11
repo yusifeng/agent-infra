@@ -20,13 +20,13 @@ function parseLimit(value: string | null) {
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ threadId: string }> }) {
-  const { getPlaygroundServices } = await import('@/lib/playground-services');
+  const { getPlaygroundReadServices } = await import('@/lib/playground-read-services');
   const { threadId } = await params;
   const url = new URL(req.url);
   const limit = parseLimit(url.searchParams.get('limit'));
 
   try {
-    const { app } = await getPlaygroundServices();
+    const { app } = await getPlaygroundReadServices();
     const runs = await app.runs.listByThread({ threadId, limit });
     const response: ThreadRunsResponseDto = {
       runs: runs.map((run) => toRunDto(run)).filter((run): run is NonNullable<typeof run> => run !== null)
@@ -44,12 +44,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ threadId
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ threadId: string }> }) {
-  const { getPlaygroundServices } = await import('@/lib/playground-services');
+  const { getPlaygroundRuntimeServices } = await import('@/lib/playground-services');
   const { threadId } = await params;
   const body = (await req.json().catch(() => ({}))) as RunTextTurnRequestDto;
 
   try {
-    const { app } = await getPlaygroundServices();
+    const { app } = await getPlaygroundRuntimeServices();
     const result = await app.turns.runText({
       threadId,
       text: typeof body.text === 'string' ? body.text : '',
