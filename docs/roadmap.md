@@ -1,26 +1,49 @@
 # Roadmap
 
-## v0.1 Durable Core
+`v0` is now considered complete.
 
-- durable thread/run/message/message_part/tool_invocation/run_events
+The completed `v0` scope is summarized in [`v0-todo.md`](./v0-todo.md) and the closeout rationale lives in [`v0-closeout.md`](./v0-closeout.md).
+
+The roadmap after `v0` should be read as a set of candidate tracks, not as a promise to build every item in order.
+
+## Completed `v0`
+
+The completed baseline includes:
+
+- durable `thread` / `run` / `message` / `message_part` / `tool_invocation` / `run_event`
 - `packages/app` use-case boundary for thread and turn orchestration
+- `packages/runtime-pi` as the runtime adapter mainline
 - `playground-web` as the first consumer of the platform contracts
-- run-oriented timeline and recent-run inspection
-- assistant text streaming built on top of durable runtime events without replacing durable message truth
+- run-oriented timelines, recent-run inspection, and durable-first reconnect behavior
+- live assistant streaming built on top of durable runtime events without replacing durable message truth
 
-## v0.2 Runtime Adapters & Streaming
+## Candidate Track 1: Observability Hardening
 
-- `runtime-pi` hardening and provider expansion
-- read-side timeline APIs
-- resumable runs
-- improved run state machine and partial failure handling
+- richer runtime failure payloads
+- stronger event semantics and trace inspection
+- better use of `tool_execution_update`
+- clearer debugging and operational trace quality
 
-## v0.3 Artifact & Files
+## Candidate Track 2: Replay And Resume
+
+- replay-oriented APIs or derived views
+- explicit resume-safe runtime behavior
+- stronger snapshot and recovery semantics
+
+## Candidate Track 3: Artifact And File Lifecycle
 
 - complete artifact repositories
-- file attachments and artifact linking to messages/runs
+- file attachments
+- durable linking between artifacts, runs, and messages
 
-## v0.4 Memory Layer
+## Candidate Track 4: Runtime Adapter Expansion
 
-- memory abstraction on top of thread history
-- summarization and retrieval strategies
+- harden `runtime-pi`
+- refine the runtime adapter contract
+- evaluate whether a second adapter adds real value
+
+## Candidate Track 5: Consumer Hardening
+
+- stabilize first-consumer patterns
+- keep `playground-web` a clean reference consumer
+- improve adoption without turning the harness into a product
