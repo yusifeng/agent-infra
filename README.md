@@ -5,7 +5,7 @@ Contract-first durable backend primitives for agent runtimes, plus consumer apps
 ## Structure
 
 - `apps/docs`: deployable official documentation site
-- `apps/playground-web`: first consumer of `agent-infra`, with both browser-local experiments and a durable runtime console
+- `apps/playground-web`: first consumer of `agent-infra`, focused on the durable runtime console
 - `packages/app`: application/use-case boundary for creating threads and running durable turns
 - `packages/core`: domain types + repository interfaces
 - `packages/contracts`: serialized request/response contracts for browser and HTTP consumers
@@ -21,7 +21,6 @@ It uses:
 
 - `/new` for an empty chat that has not created a durable thread yet
 - `/chat/:threadId` for an existing durable thread
-- `/pi-narrow` for the legacy browser-local pi experiment
 
 The public docs site lives in `apps/docs` and is organized as locale-aware docs routes such as `/en/...` and `/zh/...`.
 
@@ -39,8 +38,6 @@ For the docs site:
 pnpm install
 pnpm dev:docs
 ```
-
-The legacy browser-local experiment keeps sessions, settings, and provider keys in browser IndexedDB. It does not write to the durable backend packages.
 
 ## Durable backend packages
 

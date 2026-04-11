@@ -975,11 +975,6 @@ export function RuntimePiPlaygroundPage({ initialThreadId = null }: RuntimePiPla
       <header className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-2">
-            <p>
-              <Link href="/pi-narrow" className="text-sm font-medium text-sky-700 underline decoration-sky-300 underline-offset-4 hover:text-sky-600">
-                Open the legacy browser-local pi experiment
-              </Link>
-            </p>
             <h1 className="text-2xl font-semibold text-slate-900">agent-infra durable chat console</h1>
             <p className="max-w-4xl text-sm leading-6 text-slate-600">
               This console exercises the real server-side stack: <code>@agent-infra/db</code> persists threads, runs, messages, tool invocations, and run events; <code>@agent-infra/runtime-pi</code> drives the assistant turn.
