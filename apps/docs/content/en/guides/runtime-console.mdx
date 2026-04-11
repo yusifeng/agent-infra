@@ -19,6 +19,19 @@ The runtime console should help validate:
 - run event inspection
 - transcript rendering from durable records
 
+## Route shape
+
+The current preferred route shape is:
+
+- `/new`
+  - empty chat state before the first durable thread exists
+- `/chat/:threadId`
+  - durable thread view
+- `/pi-narrow`
+  - legacy browser-local experiment route
+
+This keeps the default app entry aligned with the durable backend model instead of the older experiment-first route naming.
+
 ## Console layout
 
 The current direction is a three-column console:

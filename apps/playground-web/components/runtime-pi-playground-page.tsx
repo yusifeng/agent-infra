@@ -19,7 +19,6 @@ import type {
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-const ACTIVE_THREAD_STORAGE_KEY = 'agent-infra.runtime-pi.active-thread-id';
 const SELECTED_RUN_STORAGE_KEY = 'agent-infra.runtime-pi.selected-run-id';
 
 function normalizeRuntimeMeta(data: Partial<RuntimePiMetaDto>): RuntimePiMetaDto {
@@ -85,14 +84,6 @@ function deriveLatestRunId(messages: MessageDto[]) {
   return null;
 }
 
-function chooseInitialThreadId(threads: ThreadDto[], preferredThreadId: string | null) {
-  if (preferredThreadId && threads.some((thread) => thread.id === preferredThreadId)) {
-    return preferredThreadId;
-  }
-
-  return threads[0]?.id ?? null;
-}
-
 function chooseInitialRunId(messages: MessageDto[], runs: RunDto[], preferredRunId: string | null) {
   if (preferredRunId && runs.some((run) => run.id === preferredRunId)) {
     return preferredRunId;
@@ -101,69 +92,37 @@ function chooseInitialRunId(messages: MessageDto[], runs: RunDto[], preferredRun
   return runs[0]?.id ?? deriveLatestRunId(messages);
 }
 
-function readPersistedSelection() {
+function readPersistedRunId() {
   if (typeof window === 'undefined') {
-    return {
-      threadId: null,
-      runId: null
-    };
+    return null;
   }
-
-  const url = new URL(window.location.href);
-  const threadIdFromUrl = url.searchParams.get('thread');
-  const runIdFromUrl = url.searchParams.get('run');
-  let threadIdFromStorage: string | null = null;
-  let runIdFromStorage: string | null = null;
 
   try {
-    threadIdFromStorage = window.localStorage.getItem(ACTIVE_THREAD_STORAGE_KEY);
-    runIdFromStorage = window.localStorage.getItem(SELECTED_RUN_STORAGE_KEY);
+    return window.localStorage.getItem(SELECTED_RUN_STORAGE_KEY);
   } catch {
-    threadIdFromStorage = null;
-    runIdFromStorage = null;
+    return null;
   }
-
-  return {
-    threadId: threadIdFromUrl ?? threadIdFromStorage,
-    runId: runIdFromUrl ?? runIdFromStorage
-  };
 }
 
-function persistSelection(threadId: string | null, runId: string | null) {
+function persistSelectedRunId(runId: string | null) {
   if (typeof window === 'undefined') {
     return;
   }
 
   try {
-    if (threadId) {
-      window.localStorage.setItem(ACTIVE_THREAD_STORAGE_KEY, threadId);
-    } else {
-      window.localStorage.removeItem(ACTIVE_THREAD_STORAGE_KEY);
-    }
-
     if (runId) {
       window.localStorage.setItem(SELECTED_RUN_STORAGE_KEY, runId);
     } else {
       window.localStorage.removeItem(SELECTED_RUN_STORAGE_KEY);
     }
   } catch {
-    // Storage may be unavailable in privacy-restricted contexts. URL state still works.
+    // Storage may be unavailable in privacy-restricted contexts.
   }
+}
 
-  const url = new URL(window.location.href);
-  if (threadId) {
-    url.searchParams.set('thread', threadId);
-  } else {
-    url.searchParams.delete('thread');
-  }
-
-  if (runId) {
-    url.searchParams.set('run', runId);
-  } else {
-    url.searchParams.delete('run');
-  }
-
-  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+function readThreadIdFromPathname(pathname: string) {
+  const match = pathname.match(/^\/chat\/([^/?#]+)/);
+  return match?.[1] ?? null;
 }
 
 const RECENT_RUNS_LIMIT = 8;
@@ -440,12 +399,15 @@ type LiveAssistantDraft = {
   eventType: RunStreamAssistantSnapshotDto['eventType'];
 };
 
-export function RuntimePiPlaygroundPage() {
+type RuntimePiPlaygroundPageProps = {
+  initialThreadId?: string | null;
+};
+
+export function RuntimePiPlaygroundPage({ initialThreadId = null }: RuntimePiPlaygroundPageProps) {
   const [threads, setThreads] = useState<ThreadDto[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageDto[]>([]);
   const [draft, setDraft] = useState('');
-  const [newThreadTitle, setNewThreadTitle] = useState('');
   const [meta, setMeta] = useState<RuntimePiMetaDto | null>(null);
   const [selectedModelKey, setSelectedModelKey] = useState('');
   const [sending, setSending] = useState(false);
@@ -461,7 +423,7 @@ export function RuntimePiPlaygroundPage() {
   const [liveStreamRunId, setLiveStreamRunId] = useState<string | null>(null);
   const [liveAssistantDraft, setLiveAssistantDraft] = useState<LiveAssistantDraft | null>(null);
   const [durableRecoveryNotice, setDurableRecoveryNotice] = useState<string | null>(null);
-  const selectionPersistenceReadyRef = useRef(false);
+  const runSelectionPersistenceReadyRef = useRef(false);
   const activeThreadIdRef = useRef<string | null>(null);
   const messagesRequestIdRef = useRef(0);
   const messagesAbortControllerRef = useRef<AbortController | null>(null);
@@ -497,12 +459,74 @@ export function RuntimePiPlaygroundPage() {
   }, [activeThreadId]);
 
   useEffect(() => {
-    if (!selectionPersistenceReadyRef.current) {
+    if (!runSelectionPersistenceReadyRef.current) {
       return;
     }
 
-    persistSelection(activeThreadId, selectedRunId);
-  }, [activeThreadId, selectedRunId]);
+    persistSelectedRunId(selectedRunId);
+  }, [selectedRunId]);
+
+  function updateHistoryPath(pathname: string, options?: { replace?: boolean }) {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const method = options?.replace ? 'replaceState' : 'pushState';
+    window.history[method](window.history.state, '', pathname);
+  }
+
+  function resetDraftThreadState() {
+    messagesRequestIdRef.current += 1;
+    messagesAbortControllerRef.current?.abort();
+    timelineRequestIdRef.current += 1;
+    timelineAbortControllerRef.current?.abort();
+    sendRequestIdRef.current += 1;
+    sendAbortControllerRef.current?.abort();
+    setSending(false);
+    setActiveThreadId(null);
+    setDraft('');
+    setMessages([]);
+    setRecentRuns([]);
+    setSelectedRunId(null);
+    setTimeline(null);
+    setTimelineError(null);
+    setTimelineLoading(false);
+    setLiveAssistantDraft(null);
+    setLiveStreamRunId(null);
+    setRecentRunsLoading(false);
+    setRecentRunsError(null);
+    setLoadingMessages(false);
+  }
+
+  async function activateThread(threadId: string, options?: { preferredRunId?: string | null }) {
+    setActiveThreadId(threadId);
+    activeThreadIdRef.current = threadId;
+    const restoredRunId = await loadThreadMessages(threadId, options);
+    if (options?.preferredRunId) {
+      setDurableRecoveryNotice(
+        restoredRunId
+          ? 'Restored the focused run from durable records. Live stream drafts are transient and may not survive refresh.'
+          : null
+      );
+    } else {
+      setDurableRecoveryNotice(null);
+    }
+
+    return restoredRunId;
+  }
+
+  async function navigateToThread(threadId: string, options?: { replace?: boolean; preferredRunId?: string | null }) {
+    updateHistoryPath(`/chat/${threadId}`, options);
+    await activateThread(threadId, options);
+  }
+
+  async function navigateToNewChat(options?: { replace?: boolean }) {
+    updateHistoryPath('/new', options);
+    resetDraftThreadState();
+    setDurableRecoveryNotice(null);
+    setError(null);
+    await refreshThreads();
+  }
 
   async function refreshThreads() {
     const response = await fetch('/api/runtime-pi/threads');
@@ -681,35 +705,28 @@ export function RuntimePiPlaygroundPage() {
     }
   }
 
-  async function createThread() {
-    try {
-      const response = await fetch('/api/runtime-pi/threads', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ title: newThreadTitle.trim() || undefined })
-      });
-      const data = (await response.json()) as CreateThreadResponseDto;
-      if (!response.ok || !data.thread) {
-        throw new Error(data.error ?? `Failed to create thread (${response.status})`);
-      }
-
-      setNewThreadTitle('');
-      await refreshThreads();
-      setSelectedRunId(null);
-      setActiveThreadId(data.thread.id);
-      await loadThreadMessages(data.thread.id);
-      setError(null);
-    } catch (createError) {
-      setError(createError instanceof Error ? createError.message : 'Failed to create thread');
+  async function createThreadRecord() {
+    const response = await fetch('/api/runtime-pi/threads', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    const data = (await response.json()) as CreateThreadResponseDto;
+    if (!response.ok || !data.thread) {
+      throw new Error(data.error ?? `Failed to create thread (${response.status})`);
     }
+
+    const createdThread = data.thread;
+    setThreads((current) => [...current, createdThread].sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()));
+    return createdThread;
   }
 
   async function sendMessage() {
-    if (!activeThreadId || !draft.trim() || sending || !selectedModelOption) {
+    if (!draft.trim() || sending || !selectedModelOption) {
       return;
     }
 
-    const threadId = activeThreadId;
+    let threadId = activeThreadId;
     const text = draft.trim();
     const requestId = sendRequestIdRef.current + 1;
     sendRequestIdRef.current = requestId;
@@ -732,6 +749,14 @@ export function RuntimePiPlaygroundPage() {
     setTimelineError(null);
 
     try {
+      if (!threadId) {
+        const nextThread = await createThreadRecord();
+        threadId = nextThread.id;
+        setActiveThreadId(threadId);
+        activeThreadIdRef.current = threadId;
+        updateHistoryPath(`/chat/${threadId}`, { replace: true });
+      }
+
       const response = await fetch(`/api/runtime-pi/runs/${threadId}/stream`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -868,7 +893,7 @@ export function RuntimePiPlaygroundPage() {
       }
 
       if (!controller.signal.aborted && requestId === sendRequestIdRef.current && (streamSessionStarted || streamedRunId)) {
-        if (activeThreadIdRef.current === threadId) {
+        if (threadId && activeThreadIdRef.current === threadId) {
           await loadThreadMessages(threadId);
         } else {
           await refreshThreads();
@@ -884,44 +909,56 @@ export function RuntimePiPlaygroundPage() {
   useEffect(() => {
     void (async () => {
       try {
-        const persistedSelection = readPersistedSelection();
-        const nextThreads = await refreshThreads();
-        const initialThreadId = chooseInitialThreadId(nextThreads, persistedSelection.threadId);
+        await refreshThreads();
 
-        if (!initialThreadId) {
-          setActiveThreadId(null);
-          setMessages([]);
-          setRecentRuns([]);
-          setSelectedRunId(null);
-          setTimeline(null);
-          setLiveAssistantDraft(null);
-          setDurableRecoveryNotice(null);
-          selectionPersistenceReadyRef.current = true;
-          persistSelection(null, null);
-          return;
-        }
-
-        setActiveThreadId(initialThreadId);
-        const restoredRunId = await loadThreadMessages(initialThreadId, {
-          preferredRunId: persistedSelection.runId
-        });
-        if (persistedSelection.threadId || persistedSelection.runId) {
-          setDurableRecoveryNotice(
-            restoredRunId
-              ? 'Restored thread and run selection from durable records. Live stream drafts are transient and may not survive refresh.'
-              : 'Restored thread selection from durable records. Live stream drafts are transient and may not survive refresh.'
-          );
+        if (initialThreadId) {
+          await activateThread(initialThreadId, {
+            preferredRunId: readPersistedRunId()
+          });
         } else {
+          resetDraftThreadState();
           setDurableRecoveryNotice(null);
         }
-        persistSelection(initialThreadId, restoredRunId ?? null);
       } catch (refreshError) {
         setError(refreshError instanceof Error ? refreshError.message : 'Failed to load threads');
       } finally {
-        selectionPersistenceReadyRef.current = true;
+        runSelectionPersistenceReadyRef.current = true;
       }
     })();
     void refreshMeta();
+  }, [initialThreadId]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const pathname = window.location.pathname;
+      const threadId = readThreadIdFromPathname(window.location.pathname);
+      void (async () => {
+        try {
+          sendAbortControllerRef.current?.abort();
+
+          if (threadId) {
+            await activateThread(threadId, {
+              preferredRunId: readPersistedRunId()
+            });
+            return;
+          }
+
+          if (pathname === '/new') {
+            resetDraftThreadState();
+            setDurableRecoveryNotice(null);
+            setError(null);
+            await refreshThreads();
+          }
+        } catch (navigationError) {
+          setError(navigationError instanceof Error ? navigationError.message : 'Failed to load thread');
+        }
+      })();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
   }, []);
 
   useEffect(
@@ -939,13 +976,13 @@ export function RuntimePiPlaygroundPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-2">
             <p>
-              <Link href="/" className="text-sm font-medium text-sky-700 underline decoration-sky-300 underline-offset-4 hover:text-sky-600">
-                Back to browser-local pi experiment
+              <Link href="/pi-narrow" className="text-sm font-medium text-sky-700 underline decoration-sky-300 underline-offset-4 hover:text-sky-600">
+                Open the legacy browser-local pi experiment
               </Link>
             </p>
-            <h1 className="text-2xl font-semibold text-slate-900">runtime-pi durable playground</h1>
+            <h1 className="text-2xl font-semibold text-slate-900">agent-infra durable chat console</h1>
             <p className="max-w-4xl text-sm leading-6 text-slate-600">
-              This route exercises the real server-side stack: <code>@agent-infra/db</code> persists threads, runs, messages, tool invocations, and run events; <code>@agent-infra/runtime-pi</code> drives the assistant turn.
+              This console exercises the real server-side stack: <code>@agent-infra/db</code> persists threads, runs, messages, tool invocations, and run events; <code>@agent-infra/runtime-pi</code> drives the assistant turn.
             </p>
           </div>
           <div className="flex flex-wrap gap-2 text-xs text-slate-500">
@@ -981,20 +1018,14 @@ export function RuntimePiPlaygroundPage() {
         <aside className="flex min-h-0 flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="space-y-2">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Threads</h2>
-            <input
-              value={newThreadTitle}
-              onChange={(event) => setNewThreadTitle(event.target.value)}
-              placeholder="New thread title (optional)"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-sky-200 focus:ring"
-            />
             <button
               type="button"
               onClick={() => {
-                void createThread();
+                void navigateToNewChat();
               }}
               className="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700"
             >
-              + New thread
+              + New chat
             </button>
           </div>
 
@@ -1004,14 +1035,12 @@ export function RuntimePiPlaygroundPage() {
                 const active = thread.id === activeThreadId;
                 return (
                   <li key={thread.id}>
-	                    <button
-	                      type="button"
-	                      onClick={() => {
-	                        sendAbortControllerRef.current?.abort();
-	                        setSelectedRunId(null);
-	                        setActiveThreadId(thread.id);
-	                        void loadThreadMessages(thread.id);
-	                      }}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        sendAbortControllerRef.current?.abort();
+                        void navigateToThread(thread.id);
+                      }}
                       className={`w-full rounded-md border px-3 py-2 text-left text-sm ${
                         active ? 'border-sky-300 bg-sky-50' : 'border-slate-200 bg-white hover:bg-slate-50'
                       }`}
@@ -1028,7 +1057,7 @@ export function RuntimePiPlaygroundPage() {
 
         <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <header className="flex flex-wrap items-center gap-2 border-b border-slate-200 px-4 py-3 text-sm">
-            <span className="rounded-full bg-slate-100 px-3 py-1">Thread: {activeThread?.title ?? activeThreadId ?? 'none'}</span>
+            <span className="rounded-full bg-slate-100 px-3 py-1">Thread: {activeThread?.title ?? activeThreadId ?? 'new chat'}</span>
             <span className="rounded-full bg-slate-100 px-3 py-1">Model: {selectedModelOption?.model ?? 'none'}</span>
             <span className="rounded-full bg-slate-100 px-3 py-1">Focused run: {selectedRunId ?? 'none'}</span>
             <span className="rounded-full bg-slate-100 px-3 py-1">Stream: {liveStreamRunId ?? 'idle'}</span>
@@ -1040,9 +1069,9 @@ export function RuntimePiPlaygroundPage() {
             {!loadingMessages && messages.length === 0 ? (
               <div className="space-y-4 rounded-2xl border border-dashed border-slate-300 bg-white p-6">
                 <div className="space-y-2">
-                  <h2 className="text-base font-semibold text-slate-900">Start a durable run</h2>
+                  <h2 className="text-base font-semibold text-slate-900">{activeThreadId ? 'Continue this durable chat' : 'Start a new durable chat'}</h2>
                   <p className="text-sm leading-6 text-slate-600">
-                    Create a thread, then send a prompt. The server will persist user messages, run state, tool invocations, tool results, and run events using the real runtime adapter.
+                    The first real prompt creates the durable thread automatically. The server persists user messages, run state, tool invocations, tool results, and run events using the real runtime adapter.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -1112,7 +1141,7 @@ export function RuntimePiPlaygroundPage() {
             className="border-t border-slate-200 bg-white p-4"
             onSubmit={(event) => {
               event.preventDefault();
-              if (!activeThreadId || !draft.trim() || sending || !meta?.runtimeConfigured || !selectedModelOption) {
+              if (!draft.trim() || sending || !meta?.runtimeConfigured || !selectedModelOption) {
                 return;
               }
 
@@ -1143,8 +1172,8 @@ export function RuntimePiPlaygroundPage() {
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 rows={4}
-                placeholder={activeThreadId ? 'Send a prompt to runtime-pi...' : 'Create or select a thread first'}
-                disabled={!activeThreadId || !meta?.runtimeConfigured || sending || !selectedModelOption}
+                placeholder={activeThreadId ? 'Send a prompt in this durable thread...' : 'Send the first prompt to create a durable thread...'}
+                disabled={!meta?.runtimeConfigured || sending || !selectedModelOption}
                 className="w-full resize-none rounded-xl border border-slate-300 px-4 py-3 text-sm leading-6 text-slate-900 outline-none ring-sky-200 placeholder:text-slate-400 focus:ring disabled:cursor-not-allowed disabled:bg-slate-50"
               />
 
@@ -1154,7 +1183,7 @@ export function RuntimePiPlaygroundPage() {
                 </div>
                 <button
                   type="submit"
-                  disabled={!activeThreadId || !draft.trim() || sending || !meta?.runtimeConfigured || !selectedModelOption}
+                  disabled={!draft.trim() || sending || !meta?.runtimeConfigured || !selectedModelOption}
                   className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
                   {sending ? 'Running...' : 'Send'}

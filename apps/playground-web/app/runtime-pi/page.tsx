@@ -1,5 +1,5 @@
-import { RuntimePiPlaygroundPage } from '@/components/runtime-pi-playground-page';
+import { redirect } from 'next/navigation';
 
 export default function RuntimePiPage() {
-  return <RuntimePiPlaygroundPage />;
+  redirect('/new');
 }

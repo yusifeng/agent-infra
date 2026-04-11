@@ -16,8 +16,12 @@ Contract-first durable backend primitives for agent runtimes, plus consumer apps
 
 ## Quick start
 
-The default local app experience is the browser-local pi experiment in `playground-web`.
-The same app also includes `/runtime-pi`, which exercises the durable backend through the official app boundary.
+The default local app experience is the durable chat console in `playground-web`.
+It uses:
+
+- `/new` for an empty chat that has not created a durable thread yet
+- `/chat/:threadId` for an existing durable thread
+- `/pi-narrow` for the legacy browser-local pi experiment
 
 The public docs site lives in `apps/docs` and is organized as locale-aware docs routes such as `/en/...` and `/zh/...`.
 
@@ -36,7 +40,7 @@ pnpm install
 pnpm dev:docs
 ```
 
-The browser-local experiment keeps sessions, settings, and provider keys in browser IndexedDB. It does not write to the durable backend packages.
+The legacy browser-local experiment keeps sessions, settings, and provider keys in browser IndexedDB. It does not write to the durable backend packages.
 
 ## Durable backend packages
 

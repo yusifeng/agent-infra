@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
+import { PiExperimentPage } from '@/components/pi-experiment-page';
 
 export default function PiNarrowPage() {
-  redirect('/');
+  return <PiExperimentPage />;
 }

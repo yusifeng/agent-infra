@@ -1,5 +1,5 @@
-import { PiExperimentPage } from '@/components/pi-experiment-page';
+import { redirect } from 'next/navigation';
 
 export default function HomePage() {
-  return <PiExperimentPage />;
+  redirect('/new');
 }
