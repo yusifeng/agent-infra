@@ -26,20 +26,20 @@ import {
 } from '@agent-infra/db';
 import { createDemoTools, createPiRuntime, listAvailableRuntimePiModelOptionsFromEnv, resolveRuntimePiConfigFromEnv, type RuntimePiInput, type RuntimePiRuntime } from '@agent-infra/runtime-pi';
 
-type RuntimePiDbInfo = {
+type PlaygroundDbInfo = {
   mode: string;
   connectionString: string;
 };
 
-type RuntimePiServices = {
+type PlaygroundServices = {
   dbConfig: DbConfig;
-  dbInfo: RuntimePiDbInfo;
+  dbInfo: PlaygroundDbInfo;
   repos: AgentInfraAppRepositories;
   app: AgentInfraApp;
   durableRuntime: RuntimePiRuntime;
 };
 
-type RuntimePiMeta = {
+type PlaygroundMeta = {
   configured: boolean;
   provider: string;
   model: string;
@@ -48,9 +48,9 @@ type RuntimePiMeta = {
   configError: string | null;
 };
 
-let runtimePiServicesPromise: Promise<RuntimePiServices> | null = null;
+let playgroundServicesPromise: Promise<PlaygroundServices> | null = null;
 
-function createRuntimePiRepositories(dbConfig: DbConfig, db: any): AgentInfraAppRepositories {
+function createRepositories(dbConfig: DbConfig, db: any): AgentInfraAppRepositories {
   if (dbConfig.mode === 'sqlite') {
     return {
       threadRepo: new SqliteThreadRepository(db),
@@ -86,16 +86,16 @@ function mapRuntimePiConfigError(error: unknown) {
   return new RuntimeUnavailableError(message, error);
 }
 
-async function buildRuntimePiServices(): Promise<RuntimePiServices> {
+async function buildPlaygroundServices(): Promise<PlaygroundServices> {
   const dbConfig = createDbConfigFromEnv();
   await dbConfig.initialize();
 
-  const repos = createRuntimePiRepositories(dbConfig, dbConfig.db);
+  const repos = createRepositories(dbConfig, dbConfig.db);
   const durableRuntime = createPiRuntime({
     tools: (context) => createDemoTools(context)
   });
 
-  const runtimePiRuntime: AgentInfraRuntimePort = {
+  const runtimePort: AgentInfraRuntimePort = {
     async prepare(preferred) {
       try {
         return await durableRuntime.prepare(preferred);
@@ -116,14 +116,14 @@ async function buildRuntimePiServices(): Promise<RuntimePiServices> {
     }
   };
 
-  const runtimePiAppDependencies: AgentInfraAppDependencies = {
+  const appDependencies: AgentInfraAppDependencies = {
     repositories: repos,
     transaction: async (operation) =>
       withDbTransaction(dbConfig, async (tx: any) => {
-        const transactionalRepos = createRuntimePiRepositories(dbConfig, tx);
+        const transactionalRepos = createRepositories(dbConfig, tx);
         return operation(transactionalRepos);
       }),
-    runtime: runtimePiRuntime,
+    runtime: runtimePort,
     idGenerator: () => crypto.randomUUID(),
     now: () => new Date()
   };
@@ -135,23 +135,26 @@ async function buildRuntimePiServices(): Promise<RuntimePiServices> {
       connectionString: dbConfig.connectionString
     },
     repos,
-    app: createAgentInfraApp(runtimePiAppDependencies),
+    app: createAgentInfraApp(appDependencies),
     durableRuntime
   };
 }
 
-export async function getRuntimePiServices(): Promise<RuntimePiServices> {
-  if (!runtimePiServicesPromise) {
-    runtimePiServicesPromise = buildRuntimePiServices().catch((error) => {
-      runtimePiServicesPromise = null;
+export async function getPlaygroundServices(): Promise<PlaygroundServices> {
+  if (!playgroundServicesPromise) {
+    playgroundServicesPromise = buildPlaygroundServices().catch((error) => {
+      playgroundServicesPromise = null;
       throw error;
     });
   }
 
-  return runtimePiServicesPromise;
+  return playgroundServicesPromise;
 }
 
-export function getRuntimePiMeta(preferred: Pick<RuntimePiInput, 'provider' | 'model'> = {}, dbInfo?: RuntimePiDbInfo): RuntimePiMeta & { dbInfo: RuntimePiDbInfo } {
+export function getPlaygroundMeta(
+  preferred: Pick<RuntimePiInput, 'provider' | 'model'> = {},
+  dbInfo?: PlaygroundDbInfo
+): PlaygroundMeta & { dbInfo: PlaygroundDbInfo } {
   const modelOptions = listAvailableRuntimePiModelOptionsFromEnv();
   const fallbackDbInfo = dbInfo ?? {
     mode: 'unavailable',

@@ -135,7 +135,7 @@ export function toToolInvocationDto(invocation: ToolInvocation): ToolInvocationD
   };
 }
 
-export function toRuntimePiMetaDto(input: RuntimePiMetaInput): RuntimePiMetaDto {
+export function toRuntimeMetaDto(input: RuntimePiMetaInput): RuntimePiMetaDto {
   return {
     dbMode: input.dbMode,
     dbConnection: input.dbConnection,

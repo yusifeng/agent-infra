@@ -1,14 +1,14 @@
 import type { ThreadMessagesResponseDto } from '@agent-infra/contracts';
 
-import { toMessageDto } from '@/lib/runtime-pi-dto';
-import { getRouteErrorMessage, getRouteErrorStatus } from '@/lib/runtime-pi-route-errors';
+import { toMessageDto } from '@/lib/api-dto';
+import { getRouteErrorMessage, getRouteErrorStatus } from '@/lib/api-route-errors';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ threadId: string }> }) {
-  const { getRuntimePiServices } = await import('@/lib/runtime-pi-repo');
+  const { getPlaygroundServices } = await import('@/lib/playground-services');
   const { threadId } = await params;
 
   try {
-    const { app } = await getRuntimePiServices();
+    const { app } = await getPlaygroundServices();
     const messages = await app.threads.getMessages({ threadId });
     const response: ThreadMessagesResponseDto = {
       messages: messages.map(toMessageDto)

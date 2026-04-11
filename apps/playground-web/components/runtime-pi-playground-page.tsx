@@ -529,7 +529,7 @@ export function RuntimePiPlaygroundPage({ initialThreadId = null }: RuntimePiPla
   }
 
   async function refreshThreads() {
-    const response = await fetch('/api/runtime-pi/threads');
+    const response = await fetch('/api/threads');
     const data = (await readJsonOrEmpty<ThreadsResponseDto>(response)) as ThreadsResponseDto;
     if (!response.ok) {
       throw new Error(data.error ?? `Failed to load threads (${response.status})`);
@@ -561,7 +561,7 @@ export function RuntimePiPlaygroundPage({ initialThreadId = null }: RuntimePiPla
     setTimelineError(null);
 
     try {
-      const response = await fetch(`/api/runtime-pi/runs/${runId}/timeline`, {
+      const response = await fetch(`/api/runs/${runId}/timeline`, {
         signal: controller.signal
       });
       const data = (await response.json()) as RunTimelineResponseDto;
@@ -591,7 +591,7 @@ export function RuntimePiPlaygroundPage({ initialThreadId = null }: RuntimePiPla
 
   async function tryResolvePreferredRun(threadId: string, runId: string, signal: AbortSignal) {
     try {
-      const response = await fetch(`/api/runtime-pi/runs/${runId}/timeline`, {
+      const response = await fetch(`/api/runs/${runId}/timeline`, {
         signal
       });
       const data = (await response.json()) as RunTimelineResponseDto;
@@ -606,7 +606,7 @@ export function RuntimePiPlaygroundPage({ initialThreadId = null }: RuntimePiPla
   }
 
   async function refreshMeta() {
-    const response = await fetch('/api/runtime-pi/meta');
+    const response = await fetch('/api/meta');
     const data = normalizeRuntimeMeta((await readJsonOrEmpty<RuntimePiMetaDto>(response)) as Partial<RuntimePiMetaDto>);
     setMeta(data);
     if (!response.ok) {
@@ -634,10 +634,10 @@ export function RuntimePiPlaygroundPage({ initialThreadId = null }: RuntimePiPla
     setRecentRunsError(null);
     try {
       const [messagesResponse, runsResponse] = await Promise.all([
-        fetch(`/api/runtime-pi/threads/${threadId}/messages`, {
+        fetch(`/api/threads/${threadId}/messages`, {
           signal: controller.signal
         }),
-        fetch(`/api/runtime-pi/threads/${threadId}/runs?limit=${RECENT_RUNS_LIMIT}`, {
+        fetch(`/api/threads/${threadId}/runs?limit=${RECENT_RUNS_LIMIT}`, {
           signal: controller.signal
         })
       ]);
@@ -706,7 +706,7 @@ export function RuntimePiPlaygroundPage({ initialThreadId = null }: RuntimePiPla
   }
 
   async function createThreadRecord() {
-    const response = await fetch('/api/runtime-pi/threads', {
+    const response = await fetch('/api/threads', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({})
@@ -757,7 +757,7 @@ export function RuntimePiPlaygroundPage({ initialThreadId = null }: RuntimePiPla
         updateHistoryPath(`/chat/${threadId}`, { replace: true });
       }
 
-      const response = await fetch(`/api/runtime-pi/runs/${threadId}/stream`, {
+      const response = await fetch(`/api/threads/${threadId}/runs/stream`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -770,11 +770,11 @@ export function RuntimePiPlaygroundPage({ initialThreadId = null }: RuntimePiPla
 
       if (!response.ok) {
         const data = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(data.error ?? `runtime-pi request failed (${response.status})`);
+        throw new Error(data.error ?? `request failed (${response.status})`);
       }
 
       if (!response.body) {
-        throw new Error('runtime-pi stream response body is unavailable');
+        throw new Error('stream response body is unavailable');
       }
 
       streamSessionStarted = true;

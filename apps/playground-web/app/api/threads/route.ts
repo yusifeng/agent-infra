@@ -1,15 +1,15 @@
 import type { CreateThreadRequestDto, CreateThreadResponseDto, ThreadsResponseDto } from '@agent-infra/contracts';
 
-import { toThreadDto } from '@/lib/runtime-pi-dto';
-import { getRouteErrorMessage, getRouteErrorStatus } from '@/lib/runtime-pi-route-errors';
+import { toThreadDto } from '@/lib/api-dto';
+import { getRouteErrorMessage, getRouteErrorStatus } from '@/lib/api-route-errors';
 
 const APP_ID = 'playground-runtime-pi';
 
 export async function GET() {
-  const { getRuntimePiServices } = await import('@/lib/runtime-pi-repo');
+  const { getPlaygroundServices } = await import('@/lib/playground-services');
 
   try {
-    const { app } = await getRuntimePiServices();
+    const { app } = await getPlaygroundServices();
     const threads = await app.threads.list({ appId: APP_ID });
     const response: ThreadsResponseDto = {
       threads: threads.map(toThreadDto)
@@ -27,13 +27,13 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { getRuntimePiServices } = await import('@/lib/runtime-pi-repo');
+  const { getPlaygroundServices } = await import('@/lib/playground-services');
 
   const body = (await req.json().catch(() => ({}))) as CreateThreadRequestDto;
-  const title = typeof body?.title === 'string' && body.title.trim() ? body.title.trim() : 'Runtime PI Thread';
+  const title = typeof body?.title === 'string' && body.title.trim() ? body.title.trim() : 'New Thread';
 
   try {
-    const { app } = await getRuntimePiServices();
+    const { app } = await getPlaygroundServices();
     const thread = await app.threads.create({
       appId: APP_ID,
       title,

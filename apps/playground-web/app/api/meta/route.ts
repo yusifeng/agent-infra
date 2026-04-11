@@ -1,15 +1,15 @@
 import type { RuntimePiMetaDto } from '@agent-infra/contracts';
 
-import { toRuntimePiMetaDto } from '@/lib/runtime-pi-dto';
+import { toRuntimeMetaDto } from '@/lib/api-dto';
 
 export async function GET() {
-  const { getRuntimePiMeta, getRuntimePiServices } = await import('@/lib/runtime-pi-repo');
+  const { getPlaygroundMeta, getPlaygroundServices } = await import('@/lib/playground-services');
 
   try {
-    const services = await getRuntimePiServices();
-    const runtime = getRuntimePiMeta({}, services.dbInfo);
+    const services = await getPlaygroundServices();
+    const runtime = getPlaygroundMeta({}, services.dbInfo);
 
-    const response: RuntimePiMetaDto = toRuntimePiMetaDto({
+    const response: RuntimePiMetaDto = toRuntimeMetaDto({
       dbMode: runtime.dbInfo.mode,
       dbConnection: runtime.dbInfo.connectionString,
       runtimeConfigured: runtime.configured,
@@ -22,12 +22,12 @@ export async function GET() {
 
     return Response.json(response);
   } catch (error) {
-    const runtime = getRuntimePiMeta({}, {
+    const runtime = getPlaygroundMeta({}, {
       mode: 'unavailable',
       connectionString: 'unavailable'
     });
 
-    const response: RuntimePiMetaDto = toRuntimePiMetaDto({
+    const response: RuntimePiMetaDto = toRuntimeMetaDto({
       dbMode: runtime.dbInfo.mode,
       dbConnection: runtime.dbInfo.connectionString,
       runtimeConfigured: false,
@@ -35,7 +35,7 @@ export async function GET() {
       runtimeModel: runtime.model,
       defaultModelKey: runtime.defaultModelKey,
       modelOptions: runtime.modelOptions,
-      runtimeConfigError: error instanceof Error ? error.message : runtime.configError ?? 'Failed to initialize runtime-pi services'
+      runtimeConfigError: error instanceof Error ? error.message : runtime.configError ?? 'Failed to initialize playground services'
     });
 
     return Response.json(response, { status: 503 });

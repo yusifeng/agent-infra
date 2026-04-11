@@ -10,8 +10,8 @@ import type {
   RunTextTurnRequestDto
 } from '@agent-infra/contracts';
 
-import { toMessageDto, toRunDto, toRunEventDto, toToolInvocationDto } from '@/lib/runtime-pi-dto';
-import { getRouteErrorMessage, getRouteErrorStatus } from '@/lib/runtime-pi-route-errors';
+import { toMessageDto, toRunDto, toRunEventDto, toToolInvocationDto } from '@/lib/api-dto';
+import { getRouteErrorMessage, getRouteErrorStatus } from '@/lib/api-route-errors';
 
 function encodeSseEvent(payload: RunStreamEventDto) {
   return `event: ${payload.type}\ndata: ${JSON.stringify(payload)}\n\n`;
@@ -36,15 +36,15 @@ async function writeSseEvent(
   }
 }
 
-export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { getRuntimePiServices } = await import('@/lib/runtime-pi-repo');
+export async function POST(req: Request, { params }: { params: Promise<{ threadId: string }> }) {
+  const { getPlaygroundServices } = await import('@/lib/playground-services');
 
-  const { id: threadId } = await params;
+  const { threadId } = await params;
   const body = (await req.json().catch(() => ({}))) as RunTextTurnRequestDto;
 
   let started;
   try {
-    const { app } = await getRuntimePiServices();
+    const { app } = await getPlaygroundServices();
     started = await app.turns.startText({
       threadId,
       text: typeof body.text === 'string' ? body.text : '',
@@ -54,7 +54,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   } catch (error) {
     return Response.json(
       {
-        error: getRouteErrorMessage(error, 'runtime-pi stream request failed'),
+        error: getRouteErrorMessage(error, 'failed to stream thread turn'),
         run: null,
         messages: []
       },
@@ -68,7 +68,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const streamState = { closed: false };
 
   const runId = started.run.id;
-  const services = await getRuntimePiServices();
+  const services = await getPlaygroundServices();
   const runtimeInput = {
     threadId,
     runId,
@@ -156,7 +156,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         type: 'run.failed',
         runId,
         run: toRunDto(finalRun),
-        error: getRouteErrorMessage(error, 'runtime-pi stream failed')
+        error: getRouteErrorMessage(error, 'thread stream failed')
       };
       await writeSseEvent(writer, encoder, failedEvent, streamState);
     } finally {
