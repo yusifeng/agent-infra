@@ -6,7 +6,7 @@ import { SqliteRunEventRepository, SqliteRunRepository, SqliteThreadRepository }
 import { SQLITE_SCHEMA_STATEMENTS } from '../src/schema-sqlite';
 
 describe('SqliteRunEventRepository', () => {
-  let sqlite: Database.Database;
+  let sqlite: Database.Database | undefined;
   let runEventRepo: SqliteRunEventRepository;
   let runId: string;
 
@@ -50,7 +50,8 @@ describe('SqliteRunEventRepository', () => {
   });
 
   afterEach(() => {
-    sqlite.close();
+    sqlite?.close();
+    sqlite = undefined;
   });
 
   it('returns 1 for nextSeq on an empty run', async () => {

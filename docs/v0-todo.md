@@ -106,11 +106,10 @@ The reconnect boundary is now explicit: durable reads recover thread/run state, 
 - [x] `pnpm typecheck` passes
 - [x] `packages/runtime-pi` tests cover text, tools, and failure paths
 - [x] `playground-web` builds successfully
-- [ ] `packages/db` SQLite test path is green in the local development environment
+- [x] `packages/db` SQLite test path is green in the local development environment
 
 Status:
-The remaining unchecked item is an environment/tooling gap caused by the local `better-sqlite3` ABI mismatch, not by an identified domain-model defect.
-Even so, the desired `v0` state is to have the DB package test path runnable in a normal local setup.
+The test path now self-heals the common `better-sqlite3` ABI mismatch by rebuilding the native module before running `vitest`, which makes the normal local `pnpm --filter @agent-infra/db test` flow reliable again after Node switches.
 
 ## 8. Docs
 
@@ -126,9 +125,7 @@ The most useful remaining `v0` doc gap is a short consumer-facing guide rather t
 
 ## Remaining `v0` Must-Do Items
 
-This is the item that still looks worth doing before calling `v0` complete:
-
-- [ ] make the normal local DB test path reliable again
+There are no remaining `must-do` items at the moment.
 
 ## Explicitly Out Of Scope For `v0`
 
@@ -143,4 +140,4 @@ This is the item that still looks worth doing before calling `v0` complete:
 
 ## Suggested Stop Condition
 
-You can reasonably call `v0` done when the two remaining `must-do` items above are closed, without adding more feature surface.
+You can reasonably call `v0` done now without adding more feature surface.

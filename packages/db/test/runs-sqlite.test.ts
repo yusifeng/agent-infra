@@ -6,7 +6,7 @@ import { SqliteRunRepository, SqliteThreadRepository } from '../src/repositories
 import { SQLITE_SCHEMA_STATEMENTS } from '../src/schema-sqlite';
 
 describe('SqliteRunRepository', () => {
-  let sqlite: Database.Database;
+  let sqlite: Database.Database | undefined;
   let runRepo: SqliteRunRepository;
 
   beforeEach(async () => {
@@ -33,7 +33,8 @@ describe('SqliteRunRepository', () => {
   });
 
   afterEach(() => {
-    sqlite.close();
+    sqlite?.close();
+    sqlite = undefined;
   });
 
   it('lists recent runs for a thread in descending createdAt order and respects limit', async () => {
