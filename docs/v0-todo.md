@@ -118,7 +118,7 @@ Even so, the desired `v0` state is to have the DB package test path runnable in 
 - [x] roadmap document exists
 - [x] runtime observability document exists
 - [x] consumer backlog document exists for non-mainline web ideas
-- [ ] add a short "how to use agent-infra as a consumer" guide that links the app boundary, runtime timeline, and SSE model together
+- [x] add a short "how to use agent-infra as a consumer" guide that links the app boundary, runtime timeline, and SSE model together
 
 Status:
 Core conceptual docs are present.
@@ -126,10 +126,9 @@ The most useful remaining `v0` doc gap is a short consumer-facing guide rather t
 
 ## Remaining `v0` Must-Do Items
 
-These are the items that still look worth doing before calling `v0` complete:
+This is the item that still looks worth doing before calling `v0` complete:
 
 - [ ] make the normal local DB test path reliable again
-- [ ] add one concise consumer quickstart / usage guide
 
 ## Explicitly Out Of Scope For `v0`
 

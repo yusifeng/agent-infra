@@ -1,4 +1,7 @@
 export default {
+  'consumer-quickstart': {
+    title: 'Consumer 快速开始'
+  },
   'db-quickstart': {
     title: 'DB 快速开始'
   },

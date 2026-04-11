@@ -1,0 +1,199 @@
+---
+title: Consumer 快速开始
+description: 说明一个轻量使用方应用如何接入 app boundary、timeline 读取与 SSE 传输。
+---
+
+# Consumer 快速开始
+
+这篇指南说明，一个应用应该怎样以正确方式使用 `agent-infra`。
+
+简化后的原则是：
+
+1. 把 durable truth 放在 packages 中
+2. 让服务端边界调用 `@agent-infra/app`
+3. 把 `@agent-infra/runtime-pi` 当作 runtime adapter，而不是产品 API
+4. 把 timeline 与 SSE 当作读取路径，而不是唯一真相源
+
+## Consumer 应该自己负责什么
+
+一个 consumer app 应该负责：
+
+- HTTP 或 RPC 路由
+- auth 与 tenancy 规则
+- 页面组合与产品层展示
+- 少量纯 UI 状态，例如当前面板选择或输入框草稿
+
+一个 consumer app **不应该**负责：
+
+- 自己重新定义 `thread`、`run`、`message`、`message_part`、`tool_invocation`、`run_event`
+- 在本地再造一套 durable records 类型
+- 把 agent loop orchestration 藏进 React 组件
+
+## 包职责划分
+
+建议的 package 分工是：
+
+- `@agent-infra/core`
+  - 领域类型与 repository interfaces
+- `@agent-infra/db`
+  - SQLite 与 PostgreSQL 的 repository 实现
+- `@agent-infra/runtime-pi`
+  - 负责持久化 run 生命周期真相的 runtime adapter
+- `@agent-infra/app`
+  - 提供给 consumer 使用的窄 use-case boundary
+- `@agent-infra/contracts`
+  - HTTP 与 SSE 使用的可序列化 DTO
+
+关键规则很简单：
+
+consumer 应该调用的是 `@agent-infra/app`。
+
+## 最小服务端 wiring
+
+大多数 consumer 只需要四样东西：
+
+1. 一个 DB config
+2. 一组 repositories
+3. 一个 runtime port
+4. 一个 `createAgentInfraApp(...)` 实例
+
+参考结构如下：
+
+```ts
+import crypto from 'node:crypto';
+
+import {
+  createAgentInfraApp,
+  type AgentInfraAppDependencies,
+  type AgentInfraAppRepositories,
+  type AgentInfraRuntimePort
+} from '@agent-infra/app';
+import {
+  createDbConfigFromEnv,
+  DrizzleMessageRepository,
+  DrizzleRunEventRepository,
+  DrizzleRunRepository,
+  DrizzleThreadRepository,
+  DrizzleToolInvocationRepository,
+  SqliteMessageRepository,
+  SqliteRunEventRepository,
+  SqliteRunRepository,
+  SqliteThreadRepository,
+  SqliteToolInvocationRepository,
+  withDbTransaction,
+  type DbConfig
+} from '@agent-infra/db';
+import { createDemoTools, createPiRuntime } from '@agent-infra/runtime-pi';
+
+function createRepositories(dbConfig: DbConfig, db: any): AgentInfraAppRepositories {
+  if (dbConfig.mode === 'sqlite') {
+    return {
+      threadRepo: new SqliteThreadRepository(db),
+      runRepo: new SqliteRunRepository(db),
+      messageRepo: new SqliteMessageRepository(db),
+      toolRepo: new SqliteToolInvocationRepository(db),
+      runEventRepo: new SqliteRunEventRepository(db)
+    };
+  }
+
+  return {
+    threadRepo: new DrizzleThreadRepository(db),
+    runRepo: new DrizzleRunRepository(db),
+    messageRepo: new DrizzleMessageRepository(db),
+    toolRepo: new DrizzleToolInvocationRepository(db),
+    runEventRepo: new DrizzleRunEventRepository(db)
+  };
+}
+
+const dbConfig = createDbConfigFromEnv();
+await dbConfig.initialize();
+
+const runtime = createPiRuntime({
+  tools: (context) => createDemoTools(context)
+});
+
+const runtimePort: AgentInfraRuntimePort = {
+  async prepare(preferred) {
+    return runtime.prepare(preferred);
+  },
+  async runTextTurn(repositories, input) {
+    await runtime.runTurn(
+      {
+        runRepo: repositories.runRepo,
+        messageRepo: repositories.messageRepo,
+        toolRepo: repositories.toolRepo,
+        runEventRepo: repositories.runEventRepo
+      },
+      input
+    );
+  }
+};
+
+const repositories = createRepositories(dbConfig, dbConfig.db);
+
+const app = createAgentInfraApp({
+  repositories,
+  transaction: async (operation) =>
+    withDbTransaction(dbConfig, async (tx) => operation(createRepositories(dbConfig, tx))),
+  runtime: runtimePort,
+  idGenerator: () => crypto.randomUUID(),
+  now: () => new Date()
+} satisfies AgentInfraAppDependencies);
+```
+
+如果你想看一个可运行的仓库内参考实现，可以直接看 `apps/playground-web/lib/runtime-pi-repo.ts`。
+
+## Consumer 请求流
+
+对于一个普通文本 turn，推荐流程是：
+
+1. `app.threads.create(...)` 或 `app.threads.list(...)`
+2. 用 `app.threads.getMessages(...)` 读取 transcript
+3. 用 `app.turns.startText(...)` 或 `app.turns.runText(...)` 排队并执行一轮 turn
+4. 用 `app.runs.listByThread(...)` 读取最近 runs
+5. 用 `app.runs.getTimeline(...)` 读取 run 日志与 tool traces
+
+这样 consumer API 会保持足够小，也更稳定。
+
+## Transcript、timeline 与 SSE 的关系
+
+这三条读取路径应该分开看：
+
+- transcript
+  - durable conversation projection
+  - 从 `threads.getMessages(...)` 读取
+- timeline
+  - durable run trace
+  - 从 `runs.getTimeline(...)` 读取
+- SSE
+  - 用于在线阶段的 live transport
+  - 适合运行中的 console，不应成为唯一真相
+
+对于 `v0`，这意味着：
+
+- 最终 assistant 内容仍然通过 durable `message_part` 落库收敛
+- `message_update` 可以驱动 UI 中的 live assistant draft
+- refresh 或 reconnect 后应基于 durable reads 重建页面
+
+## 保持边界健康的 UI 规则
+
+如果你基于 `agent-infra` 搭一个 console 或产品 UI，请遵守这些规则：
+
+- 使用 packages 中的类型与 contracts，而不是在 app 内重定义 core records
+- 让 run log 以 run 为中心，让 transcript 以 thread 为中心
+- 不要把浏览器内存当成 durable state model
+- 不要让 SSE 成为理解系统状态的唯一方式
+- 不要把产品特定工作流写进 runtime adapter
+
+## 一个 consumer 先做哪些功能最合适
+
+当前符合 `v0` 的 consumer surface 是：
+
+- 线程列表与线程创建
+- 基于 durable messages 的 transcript 渲染
+- 发送文本 turn
+- recent run 切换
+- 基于 timeline + SSE 的 run log 面板
+- 刷新后自动恢复 thread 与 run 选择
+
+这些已经足够验证平台，不需要把 consumer 进一步做成完整聊天产品。
