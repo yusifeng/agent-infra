@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import type { Message as StoredMessage } from '@agent-infra/core';
 import type { AgentEvent, AgentTool } from '@mariozechner/pi-agent-core';
 import { Agent } from '@mariozechner/pi-agent-core';
-import { getModels, type AssistantMessage, type Message as PiMessage, type Model, type ToolResultMessage } from '@mariozechner/pi-ai';
+import { getModels, type AssistantMessage, type AssistantMessageEvent, type Message as PiMessage, type Model, type ToolResultMessage } from '@mariozechner/pi-ai';
 
 import { buildInitialAgentState, convertToLlm } from './messages';
 import { createDemoTools } from './tools';
@@ -332,6 +332,35 @@ function serializeEventPayload(event: AgentEvent): Record<string, unknown> | nul
   return JSON.parse(JSON.stringify(event)) as Record<string, unknown>;
 }
 
+function extractAssistantText(message: AssistantMessage) {
+  return message.content
+    .filter((block): block is Extract<AssistantMessage['content'][number], { type: 'text' }> => block.type === 'text')
+    .map((block) => block.text)
+    .join('');
+}
+
+function extractAssistantReasoning(message: AssistantMessage) {
+  const reasoning = message.content
+    .filter((block): block is Extract<AssistantMessage['content'][number], { type: 'thinking' }> => block.type === 'thinking')
+    .map((block) => block.thinking)
+    .join('');
+
+  return reasoning || null;
+}
+
+function createAssistantStreamSnapshot(messageId: string, assistantMessageEvent: AssistantMessageEvent) {
+  if (assistantMessageEvent.type === 'done' || assistantMessageEvent.type === 'error') {
+    return null;
+  }
+
+  return {
+    messageId,
+    eventType: assistantMessageEvent.type,
+    partialText: extractAssistantText(assistantMessageEvent.partial),
+    partialReasoning: extractAssistantReasoning(assistantMessageEvent.partial)
+  };
+}
+
 async function appendRunEvent(ctx: RuntimePiContext, state: RuntimePiState, input: RuntimePiInput, event: AgentEvent) {
   return await ctx.runEventRepo.append({
     id: crypto.randomUUID(),
@@ -490,6 +519,16 @@ async function handleAgentEvent(
     state.openAssistantMessageId = message.id;
     const runEvent = await appendRunEvent(ctx, state, input, event);
     return { runEvent };
+  }
+
+  if (event.type === 'message_update' && event.message.role === 'assistant') {
+    const runEvent = await appendRunEvent(ctx, state, input, event);
+    const messageId = state.currentAssistantMessageId;
+    const assistantStream = messageId ? createAssistantStreamSnapshot(messageId, event.assistantMessageEvent) : null;
+    return {
+      runEvent,
+      assistantStream
+    };
   }
 
   if (event.type === 'message_end' && event.message.role === 'assistant') {

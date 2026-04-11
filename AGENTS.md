@@ -13,6 +13,16 @@ This repository is a `pnpm` workspace with one app and several shared packages.
 - `docs`: architecture and roadmap notes.
 - `.codex/skills`: local agent workflow helpers; treat these as tooling, not app code.
 
+## Product Boundary
+
+`apps/playground-web` is the first consumer, experiment harness, and validation surface for `agent-infra`. It is important because some platform capabilities must be exercised and visualized through a UI, but it is **not** the product boundary and must not become the main place where business/runtime complexity accumulates.
+
+- Use `playground-web` to validate package APIs, durable runtime behavior, and observability flows.
+- Prefer pushing reusable behavior into `packages/*` when it represents a real platform capability.
+- Do not introduce page-local abstractions or UX-only state machinery unless it is clearly required to expose or validate a core capability.
+- If a change would lose most of its value when `playground-web` is removed, treat it as lower priority than core/runtime/contracts/db work.
+- Page work should follow the platform, not define it: consumers may help discover the right interfaces, but web-demo needs must not drive the system goal.
+
 ## Build, Test, and Development Commands
 
 Use `pnpm` from the repository root:

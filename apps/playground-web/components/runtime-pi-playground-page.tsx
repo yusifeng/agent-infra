@@ -6,6 +6,7 @@ import type {
   MessagePartDto,
   RunDto,
   RunEventDto,
+  RunStreamAssistantSnapshotDto,
   RunStreamEventDto,
   RunTimelineResponseDto,
   RuntimePiMetaDto,
@@ -169,6 +170,12 @@ function applyRunStreamEvent(current: RunTimelineResponseDto | null, event: RunS
         runEvents: current?.runEvents ?? [],
         toolInvocations: current?.toolInvocations ?? []
       };
+    case 'run.assistant':
+      return current ?? {
+        run: null,
+        runEvents: [],
+        toolInvocations: []
+      };
     default:
       return current ?? {
         run: null,
@@ -328,6 +335,14 @@ function ToolRow({ invocation }: { invocation: ToolInvocationDto }) {
   );
 }
 
+type LiveAssistantDraft = {
+  runId: string;
+  messageId: string;
+  partialText: string;
+  partialReasoning: string | null;
+  eventType: RunStreamAssistantSnapshotDto['eventType'];
+};
+
 export function RuntimePiPlaygroundPage() {
   const [threads, setThreads] = useState<ThreadDto[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
@@ -347,6 +362,7 @@ export function RuntimePiPlaygroundPage() {
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [timelineError, setTimelineError] = useState<string | null>(null);
   const [liveStreamRunId, setLiveStreamRunId] = useState<string | null>(null);
+  const [liveAssistantDraft, setLiveAssistantDraft] = useState<LiveAssistantDraft | null>(null);
   const activeThreadIdRef = useRef<string | null>(null);
   const messagesRequestIdRef = useRef(0);
   const messagesAbortControllerRef = useRef<AbortController | null>(null);
@@ -396,6 +412,7 @@ export function RuntimePiPlaygroundPage() {
     const requestId = timelineRequestIdRef.current;
     timelineAbortControllerRef.current?.abort();
     setSelectedRunId(runId);
+    setLiveAssistantDraft((current) => (current?.runId === runId ? current : null));
 
     if (!runId) {
       timelineAbortControllerRef.current = null;
@@ -495,6 +512,7 @@ export function RuntimePiPlaygroundPage() {
       const nextRuns = (runsData.runs ?? []).slice().sort(compareRunsByCreatedAt);
       setMessages(nextMessages);
       setRecentRuns(nextRuns);
+      setLiveAssistantDraft(null);
       setRecentRunsError(null);
       setRecentRunsLoading(false);
       setError(null);
@@ -507,6 +525,7 @@ export function RuntimePiPlaygroundPage() {
       setRecentRuns([]);
       setRecentRunsLoading(false);
       setRecentRunsError(loadError instanceof Error ? loadError.message : 'Failed to load thread runs');
+      setLiveAssistantDraft(null);
       setSelectedRunId(null);
       setTimeline(null);
       setTimelineError(null);
@@ -560,6 +579,7 @@ export function RuntimePiPlaygroundPage() {
     setSending(true);
     setError(null);
     setLiveStreamRunId(null);
+    setLiveAssistantDraft(null);
     timelineRequestIdRef.current += 1;
     timelineAbortControllerRef.current?.abort();
     setSelectedRunId(null);
@@ -624,6 +644,17 @@ export function RuntimePiPlaygroundPage() {
             continue;
           }
 
+          if (event.type === 'run.assistant') {
+            setLiveAssistantDraft({
+              runId: event.runId,
+              messageId: event.assistant.messageId,
+              partialText: event.assistant.partialText,
+              partialReasoning: event.assistant.partialReasoning,
+              eventType: event.assistant.eventType
+            });
+            continue;
+          }
+
           if (event.type === 'run.state' || event.type === 'run.completed') {
             setRecentRuns((current) => upsertRun(current, event.run));
           }
@@ -641,6 +672,7 @@ export function RuntimePiPlaygroundPage() {
 
           if (event.type === 'run.completed') {
             setError(null);
+            setLiveAssistantDraft((current) => (current?.runId === event.runId ? null : current));
           }
         }
       }
@@ -657,12 +689,24 @@ export function RuntimePiPlaygroundPage() {
             setDraft('');
             setMessages((current) => upsertMessage(current, event.userMessage));
             setRecentRuns((current) => upsertRun(current, event.run));
+          } else if (event.type === 'run.assistant') {
+            setLiveAssistantDraft({
+              runId: event.runId,
+              messageId: event.assistant.messageId,
+              partialText: event.assistant.partialText,
+              partialReasoning: event.assistant.partialReasoning,
+              eventType: event.assistant.eventType
+            });
           } else if (event.type === 'run.failed') {
             setRecentRuns((current) => (event.run ? upsertRun(current, event.run) : current));
             terminalStreamError = event.error;
             setError(event.error);
+            setLiveAssistantDraft((current) => (current?.runId === event.runId ? current : null));
           } else if (event.type === 'run.state' || event.type === 'run.completed') {
             setRecentRuns((current) => upsertRun(current, event.run));
+            if (event.type === 'run.completed') {
+              setLiveAssistantDraft((current) => (current?.runId === event.runId ? null : current));
+            }
           }
         }
       }
@@ -847,6 +891,31 @@ export function RuntimePiPlaygroundPage() {
                 <div className="space-y-3">{message.parts.map((part) => <div key={part.id}>{formatPart(part)}</div>)}</div>
               </article>
             ))}
+
+            {liveAssistantDraft && liveAssistantDraft.runId === liveStreamRunId ? (
+              <article className="max-w-4xl rounded-2xl border border-sky-200 bg-white p-4 shadow-sm">
+                <header className="mb-3 flex items-center justify-between gap-3 text-xs font-medium uppercase tracking-wide text-slate-500">
+                  <div className="flex items-center gap-2">
+                    <span>assistant</span>
+                    <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] text-sky-700">streaming</span>
+                  </div>
+                  <span>{liveAssistantDraft.eventType}</span>
+                </header>
+                <div className="space-y-3">
+                  {liveAssistantDraft.partialReasoning ? (
+                    <details className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                      <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-slate-500">Reasoning</summary>
+                      <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs leading-5 text-slate-600">{liveAssistantDraft.partialReasoning}</pre>
+                    </details>
+                  ) : null}
+                  {liveAssistantDraft.partialText ? (
+                    <p className="whitespace-pre-wrap leading-6 text-slate-900">{liveAssistantDraft.partialText}</p>
+                  ) : (
+                    <p className="text-sm text-slate-500">Assistant is responding...</p>
+                  )}
+                </div>
+              </article>
+            ) : null}
           </div>
 
           <form

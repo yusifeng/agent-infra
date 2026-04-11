@@ -184,6 +184,31 @@ export interface RunStreamToolRowDto {
   toolInvocation: ToolInvocationDto;
 }
 
+export type RunAssistantStreamEventType =
+  | 'start'
+  | 'text_start'
+  | 'text_delta'
+  | 'text_end'
+  | 'thinking_start'
+  | 'thinking_delta'
+  | 'thinking_end'
+  | 'toolcall_start'
+  | 'toolcall_delta'
+  | 'toolcall_end';
+
+export interface RunStreamAssistantSnapshotDto {
+  messageId: string;
+  eventType: RunAssistantStreamEventType;
+  partialText: string;
+  partialReasoning: string | null;
+}
+
+export interface RunStreamAssistantEventDto {
+  type: 'run.assistant';
+  runId: string;
+  assistant: RunStreamAssistantSnapshotDto;
+}
+
 export interface RunStreamCompletedEventDto {
   type: 'run.completed';
   runId: string;
@@ -202,6 +227,7 @@ export type RunStreamEventDto =
   | RunStreamStateEventDto
   | RunStreamEventRowDto
   | RunStreamToolRowDto
+  | RunStreamAssistantEventDto
   | RunStreamCompletedEventDto
   | RunStreamFailedEventDto;
 

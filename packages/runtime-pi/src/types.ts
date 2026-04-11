@@ -1,6 +1,6 @@
 import type { MessageRepository, Run, RunEvent, RunEventRepository, RunRepository, ToolInvocation, ToolInvocationRepository } from '@agent-infra/core';
 import type { AgentTool } from '@mariozechner/pi-agent-core';
-import type { Model } from '@mariozechner/pi-ai';
+import type { AssistantMessageEvent, Model } from '@mariozechner/pi-ai';
 
 export type RuntimePiProvider = 'openai' | 'deepseek';
 
@@ -58,6 +58,14 @@ export interface RuntimePiPersistedUpdate {
   runEvent: RunEvent;
   run?: Run | null;
   toolInvocation?: ToolInvocation | null;
+  assistantStream?: RuntimePiAssistantStreamUpdate | null;
+}
+
+export interface RuntimePiAssistantStreamUpdate {
+  messageId: string;
+  eventType: Exclude<AssistantMessageEvent['type'], 'done' | 'error'>;
+  partialText: string;
+  partialReasoning: string | null;
 }
 
 export interface RuntimePiRunTurnOptions {

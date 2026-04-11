@@ -381,7 +381,7 @@ describe('runAssistantTurnWithPiInternal', () => {
       getApiKey: async () => 'faux-key'
     });
 
-    const updates: Array<{ type: string; hasRun: boolean }> = [];
+    const updates: Array<{ type: string; hasRun: boolean; assistantText: string | null }> = [];
 
     await runtime.runTurn(
       ctx,
@@ -390,17 +390,21 @@ describe('runAssistantTurnWithPiInternal', () => {
         onPersistedUpdate(update) {
           updates.push({
             type: update.runEvent.type,
-            hasRun: Boolean(update.run)
+            hasRun: Boolean(update.run),
+            assistantText: update.assistantStream?.partialText ?? null
           });
         }
       }
     );
 
     expect(updates.map((update) => update.type)).toContain('agent_start');
+    expect(updates.map((update) => update.type)).toContain('message_update');
+    expect(updates.some((update) => update.type === 'message_update' && update.assistantText === 'Stream me.')).toBe(true);
     expect(updates.map((update) => update.type)).toContain('message_end');
     expect(updates.at(-1)).toEqual({
       type: 'agent_end',
-      hasRun: true
+      hasRun: true,
+      assistantText: null
     });
   });
 

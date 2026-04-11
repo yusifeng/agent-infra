@@ -1,4 +1,5 @@
 import type {
+  RunStreamAssistantEventDto,
   RunStreamCompletedEventDto,
   RunStreamEventDto,
   RunStreamEventRowDto,
@@ -109,6 +110,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
                 toolInvocation: toToolInvocationDto(update.toolInvocation)
               };
               await writeSseEvent(writer, encoder, toolRow, streamState);
+            }
+
+            if (update.assistantStream) {
+              const assistantRow: RunStreamAssistantEventDto = {
+                type: 'run.assistant',
+                runId,
+                assistant: update.assistantStream
+              };
+              await writeSseEvent(writer, encoder, assistantRow, streamState);
             }
 
             if (update.run) {
