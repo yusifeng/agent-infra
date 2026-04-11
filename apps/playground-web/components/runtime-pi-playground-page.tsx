@@ -19,6 +19,9 @@ import type {
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+const ACTIVE_THREAD_STORAGE_KEY = 'agent-infra.runtime-pi.active-thread-id';
+const SELECTED_RUN_STORAGE_KEY = 'agent-infra.runtime-pi.selected-run-id';
+
 function normalizeRuntimeMeta(data: Partial<RuntimePiMetaDto>): RuntimePiMetaDto {
   const modelOptions = Array.isArray(data.modelOptions) ? data.modelOptions : [];
 
@@ -82,6 +85,87 @@ function deriveLatestRunId(messages: MessageDto[]) {
   return null;
 }
 
+function chooseInitialThreadId(threads: ThreadDto[], preferredThreadId: string | null) {
+  if (preferredThreadId && threads.some((thread) => thread.id === preferredThreadId)) {
+    return preferredThreadId;
+  }
+
+  return threads[0]?.id ?? null;
+}
+
+function chooseInitialRunId(messages: MessageDto[], runs: RunDto[], preferredRunId: string | null) {
+  if (preferredRunId && runs.some((run) => run.id === preferredRunId)) {
+    return preferredRunId;
+  }
+
+  return runs[0]?.id ?? deriveLatestRunId(messages);
+}
+
+function readPersistedSelection() {
+  if (typeof window === 'undefined') {
+    return {
+      threadId: null,
+      runId: null
+    };
+  }
+
+  const url = new URL(window.location.href);
+  const threadIdFromUrl = url.searchParams.get('thread');
+  const runIdFromUrl = url.searchParams.get('run');
+  let threadIdFromStorage: string | null = null;
+  let runIdFromStorage: string | null = null;
+
+  try {
+    threadIdFromStorage = window.localStorage.getItem(ACTIVE_THREAD_STORAGE_KEY);
+    runIdFromStorage = window.localStorage.getItem(SELECTED_RUN_STORAGE_KEY);
+  } catch {
+    threadIdFromStorage = null;
+    runIdFromStorage = null;
+  }
+
+  return {
+    threadId: threadIdFromUrl ?? threadIdFromStorage,
+    runId: runIdFromUrl ?? runIdFromStorage
+  };
+}
+
+function persistSelection(threadId: string | null, runId: string | null) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    if (threadId) {
+      window.localStorage.setItem(ACTIVE_THREAD_STORAGE_KEY, threadId);
+    } else {
+      window.localStorage.removeItem(ACTIVE_THREAD_STORAGE_KEY);
+    }
+
+    if (runId) {
+      window.localStorage.setItem(SELECTED_RUN_STORAGE_KEY, runId);
+    } else {
+      window.localStorage.removeItem(SELECTED_RUN_STORAGE_KEY);
+    }
+  } catch {
+    // Storage may be unavailable in privacy-restricted contexts. URL state still works.
+  }
+
+  const url = new URL(window.location.href);
+  if (threadId) {
+    url.searchParams.set('thread', threadId);
+  } else {
+    url.searchParams.delete('thread');
+  }
+
+  if (runId) {
+    url.searchParams.set('run', runId);
+  } else {
+    url.searchParams.delete('run');
+  }
+
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+}
+
 const RECENT_RUNS_LIMIT = 8;
 
 function compareRunsByCreatedAt(left: RunDto, right: RunDto) {
@@ -108,6 +192,19 @@ function upsertRun(runs: RunDto[], nextRun: RunDto) {
   const nextRuns = [...runs];
   nextRuns[existingIndex] = nextRun;
   return nextRuns.sort(compareRunsByCreatedAt).slice(0, RECENT_RUNS_LIMIT);
+}
+
+function includeSelectedRun(runs: RunDto[], selectedRun: RunDto | null) {
+  if (!selectedRun) {
+    return runs;
+  }
+
+  const existing = runs.some((run) => run.id === selectedRun.id);
+  if (existing) {
+    return runs;
+  }
+
+  return [...runs, selectedRun].sort(compareRunsByCreatedAt);
 }
 
 function upsertRunEvent(events: RunEventDto[], nextEvent: RunEventDto) {
@@ -363,6 +460,8 @@ export function RuntimePiPlaygroundPage() {
   const [timelineError, setTimelineError] = useState<string | null>(null);
   const [liveStreamRunId, setLiveStreamRunId] = useState<string | null>(null);
   const [liveAssistantDraft, setLiveAssistantDraft] = useState<LiveAssistantDraft | null>(null);
+  const [durableRecoveryNotice, setDurableRecoveryNotice] = useState<string | null>(null);
+  const selectionPersistenceReadyRef = useRef(false);
   const activeThreadIdRef = useRef<string | null>(null);
   const messagesRequestIdRef = useRef(0);
   const messagesAbortControllerRef = useRef<AbortController | null>(null);
@@ -397,6 +496,14 @@ export function RuntimePiPlaygroundPage() {
     activeThreadIdRef.current = activeThreadId;
   }, [activeThreadId]);
 
+  useEffect(() => {
+    if (!selectionPersistenceReadyRef.current) {
+      return;
+    }
+
+    persistSelection(activeThreadId, selectedRunId);
+  }, [activeThreadId, selectedRunId]);
+
   async function refreshThreads() {
     const response = await fetch('/api/runtime-pi/threads');
     const data = (await readJsonOrEmpty<ThreadsResponseDto>(response)) as ThreadsResponseDto;
@@ -405,6 +512,7 @@ export function RuntimePiPlaygroundPage() {
     }
 
     setThreads(data.threads);
+    return data.threads;
   }
 
   async function loadRunTimeline(runId: string | null) {
@@ -457,6 +565,22 @@ export function RuntimePiPlaygroundPage() {
     }
   }
 
+  async function tryResolvePreferredRun(threadId: string, runId: string, signal: AbortSignal) {
+    try {
+      const response = await fetch(`/api/runtime-pi/runs/${runId}/timeline`, {
+        signal
+      });
+      const data = (await response.json()) as RunTimelineResponseDto;
+      if (!response.ok || !data.run || data.run.threadId !== threadId) {
+        return null;
+      }
+
+      return data.run;
+    } catch {
+      return null;
+    }
+  }
+
   async function refreshMeta() {
     const response = await fetch('/api/runtime-pi/meta');
     const data = normalizeRuntimeMeta((await readJsonOrEmpty<RuntimePiMetaDto>(response)) as Partial<RuntimePiMetaDto>);
@@ -475,7 +599,7 @@ export function RuntimePiPlaygroundPage() {
     });
   }
 
-  async function loadThreadMessages(threadId: string) {
+  async function loadThreadMessages(threadId: string, options?: { preferredRunId?: string | null }) {
     messagesRequestIdRef.current += 1;
     const requestId = messagesRequestIdRef.current;
     messagesAbortControllerRef.current?.abort();
@@ -509,14 +633,32 @@ export function RuntimePiPlaygroundPage() {
       }
 
       const nextMessages = messagesData.messages ?? [];
-      const nextRuns = (runsData.runs ?? []).slice().sort(compareRunsByCreatedAt);
+      let nextRuns = (runsData.runs ?? []).slice().sort(compareRunsByCreatedAt);
+      let preferredResolvedRun: RunDto | null = null;
+
+      if (options?.preferredRunId && !nextRuns.some((run) => run.id === options.preferredRunId)) {
+        preferredResolvedRun = await tryResolvePreferredRun(threadId, options.preferredRunId, controller.signal);
+
+        if (controller.signal.aborted || requestId !== messagesRequestIdRef.current) {
+          return;
+        }
+
+        nextRuns = includeSelectedRun(nextRuns, preferredResolvedRun);
+      }
+
+      const nextSelectedRunId = chooseInitialRunId(
+        nextMessages,
+        nextRuns,
+        preferredResolvedRun?.id ?? options?.preferredRunId ?? null
+      );
       setMessages(nextMessages);
       setRecentRuns(nextRuns);
       setLiveAssistantDraft(null);
       setRecentRunsError(null);
       setRecentRunsLoading(false);
       setError(null);
-      await loadRunTimeline(nextRuns[0]?.id ?? deriveLatestRunId(nextMessages));
+      await loadRunTimeline(nextSelectedRunId);
+      return nextSelectedRunId;
     } catch (loadError) {
       if (controller.signal.aborted || requestId !== messagesRequestIdRef.current) {
         return;
@@ -530,6 +672,7 @@ export function RuntimePiPlaygroundPage() {
       setTimeline(null);
       setTimelineError(null);
       setError(loadError instanceof Error ? loadError.message : 'Failed to load thread messages');
+      return null;
     } finally {
       if (requestId === messagesRequestIdRef.current) {
         messagesAbortControllerRef.current = null;
@@ -551,8 +694,9 @@ export function RuntimePiPlaygroundPage() {
       }
 
       setNewThreadTitle('');
-      setActiveThreadId(data.thread.id);
       await refreshThreads();
+      setSelectedRunId(null);
+      setActiveThreadId(data.thread.id);
       await loadThreadMessages(data.thread.id);
       setError(null);
     } catch (createError) {
@@ -740,9 +884,41 @@ export function RuntimePiPlaygroundPage() {
   useEffect(() => {
     void (async () => {
       try {
-        await refreshThreads();
+        const persistedSelection = readPersistedSelection();
+        const nextThreads = await refreshThreads();
+        const initialThreadId = chooseInitialThreadId(nextThreads, persistedSelection.threadId);
+
+        if (!initialThreadId) {
+          setActiveThreadId(null);
+          setMessages([]);
+          setRecentRuns([]);
+          setSelectedRunId(null);
+          setTimeline(null);
+          setLiveAssistantDraft(null);
+          setDurableRecoveryNotice(null);
+          selectionPersistenceReadyRef.current = true;
+          persistSelection(null, null);
+          return;
+        }
+
+        setActiveThreadId(initialThreadId);
+        const restoredRunId = await loadThreadMessages(initialThreadId, {
+          preferredRunId: persistedSelection.runId
+        });
+        if (persistedSelection.threadId || persistedSelection.runId) {
+          setDurableRecoveryNotice(
+            restoredRunId
+              ? 'Restored thread and run selection from durable records. Live stream drafts are transient and may not survive refresh.'
+              : 'Restored thread selection from durable records. Live stream drafts are transient and may not survive refresh.'
+          );
+        } else {
+          setDurableRecoveryNotice(null);
+        }
+        persistSelection(initialThreadId, restoredRunId ?? null);
       } catch (refreshError) {
         setError(refreshError instanceof Error ? refreshError.message : 'Failed to load threads');
+      } finally {
+        selectionPersistenceReadyRef.current = true;
       }
     })();
     void refreshMeta();
@@ -785,6 +961,19 @@ export function RuntimePiPlaygroundPage() {
           </div>
         ) : null}
 
+        {durableRecoveryNotice ? (
+          <div className="flex items-start justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+            <p>{durableRecoveryNotice}</p>
+            <button
+              type="button"
+              onClick={() => setDurableRecoveryNotice(null)}
+              className="shrink-0 text-xs font-medium uppercase tracking-wide text-sky-700 hover:text-sky-900"
+            >
+              Dismiss
+            </button>
+          </div>
+        ) : null}
+
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
       </header>
 
@@ -819,6 +1008,7 @@ export function RuntimePiPlaygroundPage() {
 	                      type="button"
 	                      onClick={() => {
 	                        sendAbortControllerRef.current?.abort();
+	                        setSelectedRunId(null);
 	                        setActiveThreadId(thread.id);
 	                        void loadThreadMessages(thread.id);
 	                      }}

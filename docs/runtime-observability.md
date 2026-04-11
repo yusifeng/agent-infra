@@ -122,6 +122,7 @@ The following observability capabilities are already present and should be treat
 - run-oriented timeline reads through the app boundary
 - SSE transport for live observation of persisted updates
 - recent-run navigation in the console
+- reload-safe consumer restoration of selected thread and run, rebuilt from durable reads
 - failure hardening that still produces durable failed state and `runtime_error` trace entries
 
 This is enough for:
@@ -130,6 +131,40 @@ This is enough for:
 - debugging failed runs
 - viewing historical tool activity
 - checking what happened after disconnect or refresh
+
+## Reconnect Story In `v0`
+
+`v0` reconnect behavior is intentionally durable-first.
+
+This means:
+
+- a consumer may lose live SSE connection at any time
+- a consumer may be refreshed while a run is still executing
+- a consumer may lose any in-memory live assistant draft
+
+The required recovery behavior is:
+
+1. restore the selected thread and run when possible
+2. rebuild the page from durable reads
+   - thread messages
+   - recent runs
+   - run timeline
+   - tool invocations
+3. treat live stream state as disposable
+4. treat final durable messages and run timeline data as authoritative
+
+What `v0` does **not** promise:
+
+- restoring token-by-token live draft text after refresh
+- replaying the exact in-memory stream session
+- continuing a previous SSE transport session
+
+What `v0` does promise:
+
+- a finished run can be reopened from durable records
+- a failed run can be reopened from durable records
+- a selected thread/run can be restored after refresh
+- the console can explain that the recovered view came from durable state, not from preserved stream memory
 
 ## `v0` Observability Target
 
