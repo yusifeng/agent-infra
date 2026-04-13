@@ -203,7 +203,7 @@
     - run timeline
   - 但不能继续反向污染 live transcript controller
 
-- [ ] 把 selected run 的本地持久化从全局 key 改成 thread-scoped
+- [x] 把 selected run 的本地持久化从全局 key 改成 thread-scoped
   - 当前风险：
     - `SELECTED_RUN_STORAGE_KEY` 是全局 key
     - 跨 thread 解析会引入无谓的 preferred run 解析与状态污染

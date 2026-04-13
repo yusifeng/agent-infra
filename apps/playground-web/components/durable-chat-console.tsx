@@ -24,7 +24,7 @@ import { ChatSidebar } from './chat-shell/sidebar';
 import type { LiveAssistantDraft } from './chat-shell/types';
 import { ui } from './chat-shell/ui';
 
-const SELECTED_RUN_STORAGE_KEY = 'agent-infra.chat-console.selected-run-id';
+const SELECTED_RUN_STORAGE_KEY_PREFIX = 'agent-infra.chat-console.selected-run-id';
 const RECENT_RUNS_LIMIT = 8;
 
 function normalizeRuntimeMeta(data: Partial<RuntimePiMetaDto>): RuntimePiMetaDto {
@@ -61,28 +61,42 @@ function chooseInitialRunId(messages: MessageDto[], runs: RunDto[], preferredRun
   return runs[0]?.id ?? deriveLatestRunId(messages);
 }
 
-function readPersistedRunId() {
+function getSelectedRunStorageKey(threadId: string) {
+  return `${SELECTED_RUN_STORAGE_KEY_PREFIX}:${threadId}`;
+}
+
+function readPersistedRunId(threadId: string | null | undefined) {
   if (typeof window === 'undefined') {
     return null;
   }
 
+  if (!threadId) {
+    return null;
+  }
+
   try {
-    return window.localStorage.getItem(SELECTED_RUN_STORAGE_KEY);
+    return window.localStorage.getItem(getSelectedRunStorageKey(threadId));
   } catch {
     return null;
   }
 }
 
-function persistSelectedRunId(runId: string | null) {
+function persistSelectedRunId(threadId: string | null | undefined, runId: string | null) {
   if (typeof window === 'undefined') {
     return;
   }
 
+  if (!threadId) {
+    return;
+  }
+
+  const storageKey = getSelectedRunStorageKey(threadId);
+
   try {
     if (runId) {
-      window.localStorage.setItem(SELECTED_RUN_STORAGE_KEY, runId);
+      window.localStorage.setItem(storageKey, runId);
     } else {
-      window.localStorage.removeItem(SELECTED_RUN_STORAGE_KEY);
+      window.localStorage.removeItem(storageKey);
     }
   } catch {
     // Storage may be unavailable in privacy-restricted contexts.
@@ -309,7 +323,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
       return;
     }
 
-    persistSelectedRunId(selectedRunId);
+    persistSelectedRunId(activeThreadId, selectedRunId);
   }, [selectedRunId]);
 
   useEffect(() => {
@@ -1100,7 +1114,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
 
         if (initialThreadId) {
           await activateThread(initialThreadId, {
-            preferredRunId: readPersistedRunId()
+            preferredRunId: readPersistedRunId(initialThreadId)
           });
         } else {
           resetDraftThreadState();
@@ -1126,7 +1140,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
 
           if (threadId) {
             await activateThread(threadId, {
-              preferredRunId: readPersistedRunId()
+              preferredRunId: readPersistedRunId(threadId)
             });
             return;
           }
