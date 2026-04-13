@@ -26,6 +26,13 @@ export type PlaygroundMeta = {
 };
 
 export function getPlaygroundDbInfo(): PlaygroundDbInfo {
+  if (process.env.TURSO_DATABASE_URL) {
+    return {
+      mode: 'turso',
+      connectionString: process.env.TURSO_DATABASE_URL
+    };
+  }
+
   if (process.env.DATABASE_URL) {
     return {
       mode: 'postgres',

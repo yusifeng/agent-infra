@@ -1,6 +1,6 @@
-export * from './types';
+export * from './types.js';
 export {
   listAvailableRuntimePiModelOptionsFromEnv,
   listRuntimePiModelOptions,
   resolveRuntimePiConfigFromEnv
-} from './config';
+} from './config.js';

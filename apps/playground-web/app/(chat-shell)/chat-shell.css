@@ -87,6 +87,10 @@
   animation: chat-markdown-block-appear 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+.chat-shell-theme .markdown-body--live > * {
+  animation: none;
+}
+
 .chat-shell-theme .markdown-body > :first-child {
   margin-top: 0;
 }

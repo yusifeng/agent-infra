@@ -14,7 +14,7 @@ import type {
   ToolInvocation,
   ToolInvocationRepository
 } from '@agent-infra/core';
-import { artifacts, messageParts, messages, runEvents, runs, threads, toolInvocations } from './schema-sqlite';
+import { artifacts, messageParts, messages, runEvents, runs, threads, toolInvocations } from './schema-sqlite.js';
 
 export class SqliteThreadRepository implements ThreadRepository {
   constructor(private readonly db: any) {}

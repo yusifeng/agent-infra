@@ -14,9 +14,9 @@ import {
   SqliteToolInvocationRepository
 } from '@agent-infra/db';
 
-import { resolveRuntimePiConfigFromEnv } from './config';
-import { createPiRuntime } from './runtime';
-import { createDemoTools } from './tools';
+import { resolveRuntimePiConfigFromEnv } from './config.js';
+import { createPiRuntime } from './runtime.js';
+import { createDemoTools } from './tools.js';
 
 type RepoBundle = {
   threadRepo: DrizzleThreadRepository | SqliteThreadRepository;
@@ -26,13 +26,13 @@ type RepoBundle = {
   runEventRepo: DrizzleRunEventRepository | SqliteRunEventRepository;
 };
 
-function createRepos(): { repos: RepoBundle; dbMode: 'sqlite' | 'postgres'; connectionString: string; initialize: () => Promise<void> } {
+function createRepos(): { repos: RepoBundle; dbMode: 'sqlite' | 'turso' | 'postgres'; connectionString: string; initialize: () => Promise<void> } {
   process.env.SQLITE_PATH ??= './runtime-pi-smoke.db';
 
   const dbConfig = createDbConfigFromEnv();
 
   const repos =
-    dbConfig.mode === 'sqlite'
+    dbConfig.mode === 'sqlite' || dbConfig.mode === 'turso'
       ? {
           threadRepo: new SqliteThreadRepository(dbConfig.db),
           runRepo: new SqliteRunRepository(dbConfig.db),

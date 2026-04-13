@@ -70,6 +70,7 @@ export interface RuntimePiAssistantStreamUpdate {
 
 export interface RuntimePiRunTurnOptions {
   onPersistedUpdate?: (update: RuntimePiPersistedUpdate) => void | Promise<void>;
+  onLiveAssistantUpdate?: (update: RuntimePiAssistantStreamUpdate) => void | Promise<void>;
 }
 
 export interface RuntimePiRuntime {

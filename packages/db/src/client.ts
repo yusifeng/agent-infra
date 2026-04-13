@@ -1,11 +1,13 @@
 import path from 'node:path';
+import { createClient as createLibsqlClient } from '@libsql/client/http';
 import Database from 'better-sqlite3';
 import { drizzle as drizzleSqlite } from 'drizzle-orm/better-sqlite3';
+import { drizzle as drizzleLibsql } from 'drizzle-orm/libsql/http';
 import { drizzle as drizzlePostgres } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
-import { SQLITE_SCHEMA_STATEMENTS } from './schema-sqlite';
+import { SQLITE_SCHEMA_STATEMENTS } from './schema-sqlite.js';
 
-export type DbMode = 'sqlite' | 'postgres';
+export type DbMode = 'sqlite' | 'turso' | 'postgres';
 
 export interface DbConfig {
   mode: DbMode;
@@ -80,7 +82,40 @@ function ensureSqliteSchema(filePath: string) {
   sqlite.close();
 }
 
+async function ensureTursoSchema(connectionString: string, authToken?: string) {
+  const client = createLibsqlClient({
+    url: connectionString,
+    authToken
+  });
+
+  try {
+    for (const statement of SQLITE_SCHEMA_STATEMENTS) {
+      await client.execute(statement);
+    }
+  } finally {
+    client.close();
+  }
+}
+
 export function createDbConfigFromEnv(): DbConfig {
+  const tursoDatabaseUrl = process.env.TURSO_DATABASE_URL;
+  if (tursoDatabaseUrl) {
+    const authToken = process.env.TURSO_AUTH_TOKEN;
+    const client = createLibsqlClient({
+      url: tursoDatabaseUrl,
+      authToken
+    });
+
+    return {
+      mode: 'turso',
+      db: drizzleLibsql(client),
+      connectionString: tursoDatabaseUrl,
+      initialize: async () => {
+        await ensureTursoSchema(tursoDatabaseUrl, authToken);
+      }
+    };
+  }
+
   const databaseUrl = process.env.DATABASE_URL;
   if (databaseUrl) {
     const pool = new Pool({ connectionString: databaseUrl });

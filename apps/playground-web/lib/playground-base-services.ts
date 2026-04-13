@@ -39,7 +39,7 @@ export type PlaygroundAppServices = PlaygroundBaseServices & {
 let playgroundBaseServicesPromise: Promise<PlaygroundBaseServices> | null = null;
 
 function createRepositories(dbConfig: DbConfig, db: any): AgentInfraAppRepositories {
-  if (dbConfig.mode === 'sqlite') {
+  if (dbConfig.mode === 'sqlite' || dbConfig.mode === 'turso') {
     return {
       threadRepo: new SqliteThreadRepository(db),
       runRepo: new SqliteRunRepository(db),

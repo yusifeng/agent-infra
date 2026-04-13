@@ -14,6 +14,7 @@ type MarkdownRendererProps = Omit<HTMLAttributes<HTMLDivElement>, 'dangerouslySe
   text: string;
   cacheKey?: string;
   plainTextClassName?: string;
+  animateBlocks?: boolean;
 };
 
 export function MarkdownRenderer({
@@ -21,6 +22,7 @@ export function MarkdownRenderer({
   cacheKey,
   className,
   plainTextClassName,
+  animateBlocks = true,
   ...rest
 }: MarkdownRendererProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -167,7 +169,7 @@ export function MarkdownRenderer({
   return (
     <div
       ref={rootRef}
-      className={clsx('markdown-body', className)}
+      className={clsx('markdown-body', !animateBlocks && 'markdown-body--live', className)}
       dangerouslySetInnerHTML={{ __html: html }}
       {...rest}
     />

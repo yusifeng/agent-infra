@@ -14,7 +14,7 @@ import type {
   ToolInvocation,
   ToolInvocationRepository
 } from '@agent-infra/core';
-import { artifacts, messageParts, messages, runEvents, runs, threads, toolInvocations } from './schema';
+import { artifacts, messageParts, messages, runEvents, runs, threads, toolInvocations } from './schema.js';
 
 export class DrizzleThreadRepository implements ThreadRepository {
   constructor(private readonly db: any) {}

@@ -72,11 +72,16 @@ function buildMessageCopyText(message: MessageDto) {
     .trim();
 }
 
-export async function copyMessageToClipboard(message: MessageDto) {
-  const text = buildMessageCopyText(message);
-  if (!text || typeof navigator === 'undefined' || !navigator.clipboard) {
+export async function copyTextToClipboard(text: string) {
+  const normalizedText = text.trim();
+  if (!normalizedText || typeof navigator === 'undefined' || !navigator.clipboard) {
     return;
   }
 
-  await navigator.clipboard.writeText(text);
+  await navigator.clipboard.writeText(normalizedText);
+}
+
+export async function copyMessageToClipboard(message: MessageDto) {
+  const text = buildMessageCopyText(message);
+  await copyTextToClipboard(text);
 }

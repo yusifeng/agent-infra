@@ -1,0 +1,620 @@
+以下结论完全基于这次 handoff 的 repomix bundle `repomix-chat-runtime-ux-core.txt` 和文件清单 `repomix-chat-runtime-ux-files.md` 的静态分析，路径都按 repo-relative 引用。 
+
+## 1. Root Cause Model
+
+### 主因
+
+**当前页面的主状态机仍然是“run / durable observability / recovery 优先”，而不是“transcript / chat completion 优先”。**
+
+这不是一句抽象判断，而是代码结构上非常直接地成立：
+
+* `docs/architecture.md` 明说 `agent-infra` 的目标是 durable backend infrastructure，`apps/playground-web` 是 “durable runtime console”，不是完整 chat product。
+* `apps/playground-web/components/chat-shell/message-list.tsx` 的欢迎文案直接写着“保留真实的 durable thread、run、message 与 tool timeline”，说明页面心智模型仍偏控制台。
+* `apps/playground-web/components/durable-chat-console.tsx` 把 `messages`、`selectedRunId`、`recentRuns`、`timeline`、`liveAssistantDraft` 放在同一个 orchestrator 里，并且发送链路直接改动 run selection / timeline。
+* `sendMessage()` 结束时不是“chat 已完成”，而是回到 durable 恢复函数 `loadThreadMessages(...)` 去收口。
+
+这说明中心 chat 区不是独立的一等公民，而是 run-centric durable console 的一个投影。**这是结构性问题，不是局部 patch 问题。** 证据链主要在：
+`docs/architecture.md`、`docs/playground-web-chat-shell-todo.md`、`apps/playground-web/components/chat-shell/message-list.tsx`、`apps/playground-web/components/durable-chat-console.tsx`。
+
+### 次因 1
+
+**聊天 UI 的“完成条件”绑在 stream 关闭和 durable tail 上，而不是绑在 assistant answer 的 transcript finalization 上。**
+
+证据链：
+
+* `durable-chat-console.tsx` 里 `composerLoadingLabel = sending && eventType !== 'text_end' ? 'loading' : null`。也就是说，底部 loading 文案跟 `text_end` 走。
+* 但 `composer-dock.tsx` 里 textarea、model select、主按钮视觉仍然跟 `sending` 绑定；`sending` 为 true 时 textarea 和 model 选择器都 disable，按钮仍显示 stop。
+* `sendMessage()` 里 `setSending(false)` 只发生在整个 reader 循环结束后的 `finally`。
+* 而 SSE route 会一直等 `durableRuntime.runTurn(...)` 完成后才 close writer；`packages/runtime-pi/src/runtime.ts` 里 `runAssistantTurnWithPiInternal()` 又会 `await liveEventChain; await eventChain;`，等所有 live observer / persisted observer 跑完才返回。
+
+所以你们观察到的“assistant 文本看起来结束了，但 input/operator/actions 还晚一拍稳定下来”是真问题，而且是**结构性问题**。
+
+### 次因 2
+
+**`loadThreadMessages()` 被做成了“线程恢复总开关”，然后又被复用成发送收尾 reconcile。**
+
+它现在同时承担：
+
+* transcript hydration
+* recent runs 获取
+* preferred run 解析
+* selected run 推导
+* timeline reload
+* optimistic user 清理
+* liveAssistantDraft 清理
+* error / loading / recentRunsLoading 管理
+
+而且：
+
+* thread 切换时，`activateThread()` 调它。
+* send 收尾时，`sendMessage().finally` 也调它。
+
+这就是你们说的职责过载，而且我同意：**这就是当前复杂度失控的核心原因之一。** 因为“页面恢复逻辑”被拿来做“发送完成逻辑”，两者本来就不该是一个东西。
+
+### 次因 3
+
+**assistant 现在确实是两套渲染模型：live card 和 persisted message card。**
+
+证据链：
+
+* `message-list.tsx` 里有独立的 `MessageCard` 和 `LiveAssistantCard`。
+* persisted assistant 走 `messages.map(...) -> MessageCard`。
+* live assistant 走 `liveAssistantDraft -> LiveAssistantCard`。
+* `LiveAssistantCard` 的 actions 只有 `eventType === 'text_end'` 才出现。
+* runtime 层真正的 durable assistant `message_part` 只在 `packages/runtime-pi/src/runtime.ts` 的 `persistAssistantMessage()`、也就是 `message_end` 时才写入。
+
+这意味着：**聊天主区不是一张 assistant 卡片在从 live 过渡到 persisted，而是两张不同来源的卡片在切换。**
+这正是 operator / actions / card swap / “等持久化刷新后才完整”的重要根源。**结构性问题。**
+
+### 次因 4
+
+**`message_update` 的 durable 策略既昂贵，又没有提供足够高价值。**
+
+证据链：
+
+* `packages/runtime-pi/src/runtime.ts` 里 `handleAgentEvent()` 对每个 assistant `message_update` 都 `appendRunEvent(...)`。
+* 但 `summarizeAgentEventPayload()` 对 `message_update` 持久化的并不是 delta 文本本身，而只是 `assistantMessageEvent.type`、`contentIndex` 和 `deltaLength`。
+* 也就是说，**现在为每次 delta 付了 durable write 成本，但 durable log 里并没有保存可直接重建 transcript 的文本增量。**
+* 同时 `runAssistantTurnWithPiInternal()` 会 `await eventChain`，而 `eventChain` 内又 `await emitPersistedUpdate(...)`；route 的 `onPersistedUpdate` 里还会 `await queueSseEvent(...)`。因此 per-delta durable write 与 transport callback 都在尾延迟链路上。
+
+所以对问题 7 和 8，我的判断是：**当前 `message_update -> durable run_event` 策略对于聊天主链路来说不合理；即使保留，也不应该继续放在 chat completion 的关键路径上。**
+
+---
+
+## 2. Unreasonable Inventory
+
+下面我按严重程度排序，并顺手验证你们列的已知问题。
+
+### 1) 聊天完成的 UI 收口仍然等 durable tail，而不是等 transcript final
+
+* 现象：assistant 文本已经停了，但底部 loading、input/operator、run live 标记、actions 的恢复时机不一致。
+* 结构原因：`loadingLabel` 跟 `text_end` 走；textarea / model / 主按钮跟 `sending` 走；`liveStreamRunId` 又会在 `text_end` 或 `message_end` 时提前清掉；`sending=false` 却要等整个 stream 结束。
+* 是否会继续制造新 patch：**会，而且一定会。**
+* 结论：对应你们的已知问题 1、5，**属结构性问题**。
+
+### 2) `sendMessage()` 收尾复用 `loadThreadMessages(...)`
+
+* 现象：发送结束后还要跑一次重 reconcile。
+* 结构原因：`sendMessage().finally` 调 `loadThreadMessages(threadId, { background: true, preferredRunId, preserveExistingTimeline: true })`；而 `loadThreadMessages` 不是“拉消息”，而是“恢复整个 thread + run inspector 状态”。
+* 是否会继续制造新 patch：**会。** 因为每加一个右侧 durable 状态，就更容易被塞进这个函数。
+* 结论：对应已知问题 2、3、6、8，**属结构性问题**。
+
+### 3) `loadThreadMessages()` 职责过载
+
+* 现象：一个函数同时处理 messages、runs、preferred run、selected run、timeline reload、optimistic/live 清理、error/loading。
+* 结构原因：把“页面初始化恢复”和“发送后 reconcile”混成一个 loader。
+* 是否会继续制造新 patch：**会。** 因为任何“恢复场景”都会自然继续往这里塞逻辑。
+* 结论：对应已知问题 3，**是当前复杂度失控的核心原因之一。**
+
+### 4) live assistant 与 persisted assistant 是两张卡
+
+* 现象：actions、operator、最终卡片样式、是否显示 reasoning，都可能等切卡或 reload。
+* 结构原因：`LiveAssistantCard` 与 `MessageCard` 是两条 UI 路径；runtime 又只在 `message_end` 才持久化最终 assistant parts。
+* 是否会继续制造新 patch：**会。** 以后凡是“assistant 卡片应该长什么样”，都会改两份。
+* 结论：对应已知问题 4，**属结构性问题**。
+
+### 5) durable log 路径正在污染 chat 主链路
+
+* 现象：
+
+  * 右侧 pane 默认是关的，但 thread hydrate / send 收尾仍然加载 recent runs。
+  * 选中 run 时，`loadRunTimeline(runId)` 会执行 `setLiveAssistantDraft((current) => (current?.runId === runId ? current : null))`，也就是**右侧 run 选择会影响中间 chat live assistant**。
+  * `loadThreadMessages(background: true)` 失败时还会 `setError(...)`，把 durable 恢复失败推到 chat 主区 banner。
+* 结构原因：run inspector state 和 transcript state 共用一个 orchestrator。
+* 是否会继续制造新 patch：**会。**
+* 结论：对应已知问题 6、9，**属结构性问题**。
+
+### 6) `message_update` 每次 durable write 的收益/成本比不对
+
+* 现象：assistant 文本结束后还有 durable tail；DB 写入可能很密；timeline 事件数会膨胀。
+* 结构原因：每个 delta 都 append `run_event`，而 payload 只存 `deltaLength` 等摘要，不是高价值 transcript checkpoint。
+* 是否会继续制造新 patch：**会。** 因为前端会不断补“怎么更快收口”，后端会不断补“怎么少写一点”。
+* 结论：对应已知问题 7、8，**属结构性问题**。
+* 静态排序上，我认为尾延迟贡献大致是：
+
+  1. **最高**：`message_update -> appendRunEvent` 的高频 serial durable write，加上被 await 的 transport observer。
+  2. **高**：`message_end` 的 final assistant 持久化、`agent_end` 的 run status 完成。
+  3. **中高**：发送 শেষে `loadThreadMessages()` 重新读 whole thread messages + runs，再可能 `loadRunTimeline()`。
+  4. **中**：recent runs / selected run 补齐 / timeline fetch。
+  5. **较低但存在**：若 thread 刚创建，还会 `refreshThreads()`。
+
+### 7) 页面仍然被当作 runtime 验证台，而不是聊天产品页
+
+* 现象：
+
+  * docs 把它定义成 durable runtime console。
+  * Welcome 文案直接强调 durable thread/run/message/tool timeline。
+  * stream contract 是 `RunStream*`，不是 transcript-first contract。
+  * recent runs / selected run / timeline 在 chat 主 orchestrator 中占核心地位。
+* 结构原因：这不是“playground 叫法”问题，而是架构心智模型问题。
+* 是否会继续制造新 patch：**会。**
+* 结论：对应已知问题 9，**属结构性问题**。
+
+### 8) 还有两个你们没明说、但我认为很不合理的点
+
+* **Stop 不是 server-side stop。** 现在 stop 只 abort 客户端 fetch；SSE route 没有把 request abort 传给 runtime，也没有真正 cancel `runTurn()`。这意味着用户点击“停止生成”，很可能只是本地断流，服务端 durable run 还在继续跑。
+* **“best-effort observer” 实际仍在关键路径上。** `emitLiveAssistantUpdate()` 和 `emitPersistedUpdate()` 都是 await 的；route 的 `queueSseEvent()` 又 await `writer.write()`。慢客户端或背压会拖长 `runTurn()` 的返回时间。
+
+这两点都会继续制造误判和 patch。
+
+### 哪些是补丁式状态拼接，哪些 durable 能力应该保留
+
+**补丁式状态拼接：**
+
+* `sendMessage()` 结束复用 `loadThreadMessages(...)`
+* `loadThreadMessages` 的 `background / skipTimelineReload / preserveExistingTimeline` 这些 mode 开关
+* `liveAssistantDraft` 与 persisted `messages` 双模型
+* `loadRunTimeline()` 通过 selected run 改写 chat live state
+* `applyRunStreamEvent()` 已支持 `run.event` / `run.tool`，但 route 并没有实际发这些 event
+* background durable refresh 失败却上升成 chat 主区 `error`
+
+**真正应该保留的 durable 能力：**
+
+* `run`、`message` / `message_part`、`tool_invocation`、`run_events` 这四层 durable 模型本身
+* `packages/app` 的 `runs.getTimeline()` / `listByThread()` 这些 read boundary
+* page refresh 后从 durable records 恢复 thread / run 的能力
+* 右侧 durable log pane 作为**次级**观察面
+* final assistant 通过 durable `message_part` 落地，而不是只存在 stream memory 里
+
+---
+
+## 3. Option Comparison
+
+### Option A：最小改动止血
+
+做法：
+
+* 保留现有 API / SSE 结构。
+* 新增独立 `chatPhase`，不要再让 `sending` 同时承担 loading、input disable、operator、actions。
+* `sendMessage()` 结束不再调用整套 `loadThreadMessages()`；只做 chat 局部收口，recent runs / timeline 改成后台刷新。
+* 先把 route 里已经定义但没发的 `run.event` / `run.tool` 发出来。
+
+收益：
+
+* 立刻缓解“文本结束但 UI 还在慢半拍”。
+* 右侧 pane 会更像 secondary panel，不再强绑 chat 收口。
+
+代价：
+
+* 仍然保留双 assistant 模型。
+* 仍然会有一定 reconcile。
+
+风险：
+
+* 容易变成“新的一层 patch”。
+
+落地顺序：
+
+* 最适合作为第一步止血。
+
+### Option B：中等重构，收敛聊天主链路
+
+做法：
+
+* 把 `durable-chat-console` 拆成 transcript controller 和 run inspector controller。
+* 把 `loadThreadMessages()` 拆成 `hydrateTranscript()`、`hydrateRecentRuns()`、`hydrateTimeline()`。
+* assistant 改成单卡渲染模型，只是 `source = live | persisted`。
+* stream 结束后不再 whole-thread reload；改为 assistant final commit + background durable sync。
+
+收益：
+
+* 聊天主链路开始真正独立。
+* 大多数 UI 晚一拍问题会一起消失。
+* durable 能力仍保留。
+
+代价：
+
+* 会改到前端主编排和一部分 SSE 映射。
+* 可能需要补一个 targeted persisted-assistant commit。
+
+风险：
+
+* 需要小心迁移，不然 thread recovery 逻辑容易回归。
+
+落地顺序：
+
+* **这是我建议立刻走的主线。**
+
+### Option C：按聊天产品重新分层
+
+做法：
+
+* 明确三层：
+
+  * live UI path
+  * durable projection path
+  * background/debug path
+* transcript-first stream contract 与 run/debug stream contract 分离。
+* 页面恢复只在 page load / reconnect 场景使用 durable read，不再复用到 send finalize。
+* 右侧 pane 变成真正的 observer，而不是 chat orchestrator 的一部分。
+
+收益：
+
+* 这是唯一能从根上把页面从“控制台风格”扳回“聊天产品页”的方案。
+* 后面扩展多 turn UX、retry、branch、inline actions 都更自然。
+
+代价：
+
+* 需要改 contracts / stream route / 前端状态组织。
+* 心智模型变化最大。
+
+风险：
+
+* 一次性改太多容易伤到现有 durable debugging。
+
+落地顺序：
+
+* 作为**目标架构**，但最好通过 B 渐进进入。
+
+---
+
+## 4. Recommended Target Design
+
+我的建议是：**目标架构用 Option C 的分层，但迁移路径走 Option B。**
+
+### 4.1 状态分层
+
+#### A. live UI path
+
+只负责中间 chat 区的即时体验，包含：
+
+* 当前 thread 的 durable transcript 快照
+* 当前 pending turn
+* live assistant partial text / reasoning
+* chatPhase，例如 `idle / thinking / streaming / transcript-final / failed`
+
+这里的核心原则是：
+
+**chat 主区只能由 transcript 状态和 pending turn 状态驱动，不能再被 selected run / timeline / recent runs 反向驱动。**
+
+#### B. durable projection path
+
+只负责“可重开聊天所需的 durable 最小投影”，包含：
+
+* final `messages`
+* final `message_parts`
+* final `run.status`
+* 必要的 run metadata
+
+这里是**聊天产品真正要依赖的 durable truth**。
+
+#### C. background/debug path
+
+只负责右侧 durable log 和观察性，包含：
+
+* `run_events`
+* `tool_invocations`
+* `recentRuns`
+* `selectedRunId`
+* `timeline`
+* “restored from durable records” 这类恢复提示
+
+这个路径可以慢、可以延后、可以只在 pane open 时活跃，但**不能阻塞 chat 收口**。
+
+### 4.2 live assistant 应如何建模
+
+不要再有 `LiveAssistantCard` 和 persisted `MessageCard` 两套模型。
+
+应该是**同一张 assistant transcript item**，有两种 source：
+
+* `source: 'pending'`
+* `source: 'persisted'`
+
+同一个渲染组件根据 source 决定：
+
+* 是否展示 subtle syncing 状态
+* 是否使用临时 ID
+* 是否已 durable committed
+
+但它始终是**同一个 transcript item**，不是两张卡互换。
+
+### 4.3 persisted assistant 应如何落地
+
+后端其实可以继续在 `message_start` 时写一个 `message(status=created)` shell，用于 durable recovery。这个设计本身没有错。
+
+错的是：**chat UI 不该把这个 shell 直接当 persisted message card 渲染。**
+
+正确做法是：
+
+* DB 可以有 shell。
+* chat transcript 只有在 assistant 有可见内容并且到达 transcript-final barrier 后，才把它显示为 final assistant item。
+* 如果 refresh 发生在 run 中间，而 v0 又不保证 live draft 恢复，就显示“该 run 仍在执行，live draft 未恢复”，而不是空 assistant 泡泡。
+
+### 4.4 `text_end`、`run.completed`、timeline refresh 分别控制什么
+
+这里我建议你们**重定义语义**，否则会继续乱。
+
+* **`text_end`**
+
+  * 不要再把它当成“raw model text ended”的内部事件直接拿来驱动 UI。
+  * 应该把 chat 主区绑定到一个**transcript-final signal**。这个 signal 可以继续叫 `text_end`，但语义必须改成：
+    **“assistant final answer 已经可以作为 transcript item 收口”**
+  * 这个时刻应该恢复 chat 主区的 loading / input / operator / actions。
+
+* **`run.completed`**
+
+  * 只控制 run status、usage、recent runs 的 live 标记、右侧 pane 的完成态。
+  * 不再控制 chat 主区恢复。
+
+* **timeline refresh**
+
+  * 只控制右侧 pane。
+  * 它可以在 chat 主区已经恢复后，继续异步刷新。
+  * 最好只在 pane open 或 selected run 可见时做。
+
+### 4.5 input / loading / operator / message actions 应由哪些状态驱动
+
+我建议这样分：
+
+* **loading**
+
+  * 只跟 chatPhase 走。
+  * 有意义的状态是：
+
+    * `thinking`：已发送，但还没有可见 assistant 内容
+    * `streaming`：文本正在增长，通常不再需要额外 loading 文案
+    * `failed`
+  * 不建议在中心 chat 区展示 `finalizing`。如果确实需要，放到右侧 durable log pane，叫“Syncing durable log”。
+
+* **input 可编辑**
+
+  * 跟 chatPhase 走，不跟 `run.completed` 走。
+  * 一旦 transcript-final signal 到达，就应该恢复输入体验。
+
+* **send/operator**
+
+  * stop/send 的切换，应该跟 chatPhase 走。
+  * 不应该继续绑 `sending` 这个“整个 stream session 是否完全结束”的粗状态。
+
+* **message actions**
+
+  * 跟“assistant transcript item 是否 final”走。
+  * 不应该继续等持久化整页 reconcile。
+
+---
+
+## 5. Migration Plan
+
+下面按提交粒度给一个渐进式计划。
+
+### 第一步：把 chat completion 从 `sending` 里拆出来
+
+改文件：
+
+* `apps/playground-web/components/durable-chat-console.tsx`
+* `apps/playground-web/components/chat-shell/composer-dock.tsx`
+* `apps/playground-web/components/chat-shell/message-list.tsx`
+
+消除的不合理点：
+
+* loading / input / operator / actions 全绑在 `sending`
+
+验收变化：
+
+* assistant 文本停止增长后，中心 chat 的 loading、input、operator 不再继续等整个 stream close。
+
+### 第二步：拆掉 `loadThreadMessages()` 的多职责
+
+改文件：
+
+* `apps/playground-web/components/durable-chat-console.tsx`
+
+拆成至少四个函数：
+
+* `hydrateTranscript(threadId)`
+* `hydrateRecentRuns(threadId)`
+* `resolveSelectedRun(threadId, preferredRunId, runs, messages)`
+* `hydrateRunTimeline(runId)`
+
+消除的不合理点：
+
+* thread recovery 和 send finalize 复用同一个 loader
+
+验收变化：
+
+* 切 thread 仍能恢复 durable 视图，但发送收尾不再走 thread loader。
+
+### 第三步：把 send finalize 从“整页式 reload”改成“聊天局部收口 + debug 后台刷新”
+
+改文件：
+
+* `apps/playground-web/components/durable-chat-console.tsx`
+
+做法：
+
+* `sendMessage().finally` 不再 `await loadThreadMessages(...)`
+* 改成：
+
+  * chat transcript 本地收口
+  * `recentRuns` 后台 refresh
+  * `timeline` 只在 pane open 且 selected run 相关时 refresh
+
+消除的不合理点：
+
+* 发送完成依赖整页 reconcile
+
+验收变化：
+
+* assistant 最终显示不再伴随整页消息区的二次波动。
+
+### 第四步：统一 assistant 渲染模型
+
+改文件：
+
+* `apps/playground-web/components/chat-shell/message-list.tsx`
+* `apps/playground-web/components/chat-shell/types.ts`
+* `apps/playground-web/components/durable-chat-console.tsx`
+
+做法：
+
+* 删除 `LiveAssistantCard` / `MessageCard` 的分叉
+* 改成 `AssistantTranscriptItem`，支持 `pending/persisted` 两种 source
+
+消除的不合理点：
+
+* live card / persisted card 两套 UI
+
+验收变化：
+
+* 不再出现 assistant 卡片切换感；actions 绑定到同一张卡。
+
+### 第五步：给 transcript 一个真正的 final commit 事件
+
+改文件：
+
+* `packages/contracts/src/index.ts`
+* `packages/runtime-pi/src/types.ts`
+* `packages/runtime-pi/src/runtime.ts`
+* `apps/playground-web/app/api/threads/[threadId]/runs/stream/route.ts`
+* `apps/playground-web/components/durable-chat-console.tsx`
+
+建议两种实现择一：
+
+* 先发已有 contract 里已经定义但没发出来的 `run.event` / `run.tool`
+* 更进一步，加一个 transcript-first 的 `assistant.persisted` / `message.committed`
+
+消除的不合理点：
+
+* chat 主区只能靠 whole-thread reload 才拿到 persisted assistant
+
+验收变化：
+
+* assistant final answer 不再等待整线程重拉才进入 persisted transcript。
+
+### 第六步：把 run inspector 真正降级为 secondary path
+
+改文件：
+
+* `apps/playground-web/components/durable-chat-console.tsx`
+* `apps/playground-web/components/chat-shell/durable-log-pane.tsx`
+
+做法：
+
+* `selectedRunId`、`timeline`、`recentRuns` 从 transcript controller 脱钩
+* 选 run 不再改写 live assistant
+* pane 关闭时减少主动刷新
+
+消除的不合理点：
+
+* durable log 继续污染 chat 主链路
+
+验收变化：
+
+* 右侧 pane 的加载、切换、失败，不再影响中间 chat 区。
+
+### 第七步：重做 `message_update` durable 策略
+
+改文件：
+
+* `packages/runtime-pi/src/runtime.ts`
+* `packages/runtime-pi/src/types.ts`
+* 必要时补文档到 `docs/runtime-observability.md`
+
+建议：
+
+* 主链路不再每个 delta 同步 durable write
+* 保留 debug 需要时，做 batch / coalesce / sampled checkpoints / async sink
+
+消除的不合理点：
+
+* 高价值不够、但高频入库的 `message_update -> run_event`
+
+验收变化：
+
+* assistant 完成后的 durable tail 明显缩短，timeline 事件量更可控。
+
+### 第八步：修正 stop 语义
+
+改文件：
+
+* `apps/playground-web/components/chat-shell/composer-dock.tsx`
+* `apps/playground-web/components/durable-chat-console.tsx`
+* `apps/playground-web/app/api/threads/[threadId]/runs/stream/route.ts`
+* 如有必要，`packages/runtime-pi/src/types.ts`
+
+两种选择：
+
+* 真正支持 server-side cancel
+* 或在支持前明确改名成“断开流 / stop viewing”，不要再假装是“停止生成”
+
+验收变化：
+
+* 用户点击 stop 后，行为与文案一致。
+
+---
+
+## 6. Assertion Matrix
+
+建议把验收标准收敛成下面这些可观察断言。
+
+* assistant 文本停止增长后，中心 chat 的 loading 应立即消失。
+* assistant transcript final 之后，textarea 应立即恢复可编辑，不再等待 `run.completed`。
+* stop/send operator 的切换不应再绑定整个 stream session 的关闭时刻。
+* message actions 不应再等待一次全量 reconcile 或 persisted card 切换。
+* `sendMessage()` 的收尾不应再复用切 thread 的 hydration 逻辑。
+* thread 切换的 loader 与发送完成的收口逻辑必须是两条不同路径。
+* durable log 的 recent runs / timeline 补齐，不应阻塞 chat 主区域恢复。
+* 右侧 run 选择不应再清掉当前 live assistant。
+* pane 关闭时，不应继续让 recent runs / timeline 的刷新成本进入 chat 主链路。
+* background durable refresh 失败，不应把 chat 主区 banner 打成错误，除非 transcript 自己加载失败。
+* 如果保留 `message_update` durable event，它也不应再位于聊天收口的关键路径上。
+* stop 如果不是 server cancel，就必须显式表现为“断开本地流”，不能继续叫“停止生成”。
+
+---
+
+## 7. Additional Risks / Hidden Problems
+
+### 1) Stop 现在大概率是假 stop
+
+客户端只 abort fetch；route 没把 request abort 传给 runtime，也没有 cancel `runTurn()`。这会制造非常糟糕的心智错位：用户以为停了，其实 durable run 还在继续。
+
+### 2) “best-effort” transport observer 其实仍在关键路径
+
+`emitLiveAssistantUpdate()`、`emitPersistedUpdate()` 都是 await 的，route 又 await `writer.write()`。这意味着慢客户端、SSE 背压、甚至 writer close，都能拖长 `runTurn()` 的完成时间。这个问题你们还没明确指出，但它对“尾延迟”非常关键。
+
+### 3) `message_update` 的 durable payload 价值偏低
+
+现在存的是 `deltaLength` 而不是实际 delta 文本。也就是说，这条路径既不能很好地恢复 transcript，也不能很好地做高保真回放，但却付出了高频 durable write 成本。
+
+### 4) 合同里有 `run.event` / `run.tool`，前端 reducer 也支持，但 stream route 并没有实际发
+
+这说明“live timeline”本来想做，但现在只做了一半。于是右侧 pane 的真正补齐又退回到最终 timeline reload。这个不一致会不断诱发 patch。
+
+### 5) selected run 的持久化是全局 key，不是 thread-scoped
+
+`SELECTED_RUN_STORAGE_KEY` 是全局的。虽然代码有 `tryResolvePreferredRun()` 做 thread 校验，但这仍会造成跨 thread 的额外解析和状态污染风险。
+
+### 6) 中途恢复时可能出现“空 assistant 壳”
+
+runtime 在 `message_start` 就创建 assistant message shell，而 `loadThreadMessages()` 判断是否已有 persisted assistant 只看 “有无 assistant message”，不看是否已有 parts / completed。这样在 run 中途恢复或某些 reload 场景下，live draft 可能被清掉，却只剩一个空 assistant message shell。
+
+### 7) 这轮 UI 重构一开始就限定“不改 API/DTO/SSE 语义”，这会天然把问题逼回前端 patch
+
+`docs/playground-web-chat-shell-todo.md` 明确写了“不改变 durable chat 的后端 API、DTO、SSE 协议和业务语义”。这解释了为什么视觉已经越来越像 chat，但行为仍越来越像 console：**因为真正控制行为的 contract 没动。**
+
+---
+
+一句话总结：
+
+**不是 durable 设计错了，而是 durable console 的状态机被直接拿来当 chat product 的状态机。**
+真正该做的不是继续 patch 收尾，而是把 **chat transcript completion**、**durable projection**、**debug timeline** 三层彻底拆开，让中间 chat 区先像聊天产品，右侧 durable log 再做次级观察面。

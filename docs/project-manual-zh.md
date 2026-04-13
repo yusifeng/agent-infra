@@ -186,7 +186,7 @@ flowchart TB
 
 | 函数 | 作用 |
 |------|------|
-| `createDbConfigFromEnv()` | 若存在 `DATABASE_URL` 则用 Postgres；否则用 `SQLITE_PATH`（默认 `./local.db`）并 `initialize` 时建表。 |
+| `createDbConfigFromEnv()` | 若存在 `TURSO_DATABASE_URL` 则用 Turso/libSQL；否则若存在 `DATABASE_URL` 则用 Postgres；否则用 `SQLITE_PATH`（默认 `./local.db`）并 `initialize` 时建表。 |
 | `withDbTransaction(config, operation)` | 统一事务：SQLite 用队列串行化 + `BEGIN IMMEDIATE`；Postgres 用 Drizzle 事务。 |
 
 **主要仓储类**（Postgres / SQLite 各一套，接口相同）：
@@ -241,7 +241,7 @@ flowchart TB
 - 使用 `Agent`（pi-agent-core）订阅事件，在 `handleAgentEvent` 等逻辑里写入 DB。
 - 失败时会 `hardenFailureState`、更新 run 状态、追加 `runtime_error` 事件。
 
-**环境变量**（常见）：`DEEPSEEK_API_KEY`、`OPENAI_API_KEY`、`OPENAI_MODEL`；与 `db` 配合时还有 `DATABASE_URL` 或 `SQLITE_PATH`。
+**环境变量**（常见）：`DEEPSEEK_API_KEY`、`OPENAI_API_KEY`、`OPENAI_MODEL`；与 `db` 配合时还有 `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN`、`DATABASE_URL` 或 `SQLITE_PATH`。
 
 ---
 

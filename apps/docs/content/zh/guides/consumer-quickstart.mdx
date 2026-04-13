@@ -36,7 +36,7 @@ description: 说明一个轻量使用方应用如何接入 app boundary、timeli
 - `@agent-infra/core`
   - 领域类型与 repository interfaces
 - `@agent-infra/db`
-  - SQLite 与 PostgreSQL 的 repository 实现
+  - SQLite、Turso/libSQL 与 PostgreSQL 的 repository 实现
 - `@agent-infra/runtime-pi`
   - 负责持久化 run 生命周期真相的 runtime adapter
 - `@agent-infra/app`
@@ -87,7 +87,7 @@ import { createPiRuntime } from '@agent-infra/runtime-pi/runtime';
 import { createDemoTools } from '@agent-infra/runtime-pi/tools';
 
 function createRepositories(dbConfig: DbConfig, db: any): AgentInfraAppRepositories {
-  if (dbConfig.mode === 'sqlite') {
+  if (dbConfig.mode === 'sqlite' || dbConfig.mode === 'turso') {
     return {
       threadRepo: new SqliteThreadRepository(db),
       runRepo: new SqliteRunRepository(db),

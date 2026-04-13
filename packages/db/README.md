@@ -1,11 +1,12 @@
 # @agent-infra/db
 
-`@agent-infra/db` supports both SQLite and PostgreSQL for durable `thread`, `run`, `message`, `message_part`, `tool_invocation`, `artifact`, and `run_event` storage.
+`@agent-infra/db` supports SQLite, Turso/libSQL, and PostgreSQL for durable `thread`, `run`, `message`, `message_part`, `tool_invocation`, `artifact`, and `run_event` storage.
 
 ## Modes
 
-- No `DATABASE_URL`: uses SQLite at `./local.db` (configurable by `SQLITE_PATH`) and auto-creates schema.
-- With `DATABASE_URL`: uses PostgreSQL.
+- With `TURSO_DATABASE_URL`: uses Turso/libSQL over HTTP and auto-creates the SQLite-compatible schema. Set `TURSO_AUTH_TOKEN` for remote Turso databases.
+- Otherwise with `DATABASE_URL`: uses PostgreSQL.
+- Otherwise: uses SQLite at `./local.db` (configurable by `SQLITE_PATH`) and auto-creates schema.
 
 ## Local test reliability
 
@@ -34,3 +35,11 @@ For Postgres deployments, generate and apply migrations from `src/schema.ts`:
 pnpm --filter @agent-infra/db db:generate
 pnpm --filter @agent-infra/db db:migrate
 ```
+
+## Turso notes
+
+Turso/libSQL uses the SQLite schema path in this package.
+
+- `createDbConfigFromEnv()` prefers `TURSO_DATABASE_URL` over `DATABASE_URL`.
+- For a remote Turso database, set both `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`.
+- For local development without Turso, prefer the existing SQLite mode via `SQLITE_PATH`.

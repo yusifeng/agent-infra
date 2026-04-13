@@ -1,4 +1,4 @@
-import type { RuntimePiConfig, RuntimePiInput, RuntimePiModelOption, RuntimePiProvider } from './types';
+import type { RuntimePiConfig, RuntimePiInput, RuntimePiModelOption, RuntimePiProvider } from './types.js';
 
 const DEFAULT_DEEPSEEK_MODEL = 'deepseek-chat';
 const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini';

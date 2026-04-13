@@ -2,15 +2,13 @@ import type {
   RunStreamAssistantEventDto,
   RunStreamCompletedEventDto,
   RunStreamEventDto,
-  RunStreamEventRowDto,
   RunStreamFailedEventDto,
   RunStreamReadyEventDto,
   RunStreamStateEventDto,
-  RunStreamToolRowDto,
   RunTextTurnRequestDto
 } from '@agent-infra/contracts';
 
-import { toMessageDto, toRunDto, toRunEventDto, toToolInvocationDto } from '@/lib/api-dto';
+import { toMessageDto, toRunDto } from '@/lib/api-dto';
 import { getRouteErrorMessage, getRouteErrorStatus } from '@/lib/api-route-errors';
 
 function encodeSseEvent(payload: RunStreamEventDto) {
@@ -66,6 +64,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
   const writer = stream.writable.getWriter();
   const encoder = new TextEncoder();
   const streamState = { closed: false };
+  let writeChain = Promise.resolve<unknown>(undefined);
+  let finalRunSnapshot: RunStreamCompletedEventDto['run'] | RunStreamFailedEventDto['run'] = null;
+  let terminalEventSent = false;
+
+  const queueSseEvent = (payload: RunStreamEventDto) => {
+    writeChain = writeChain.then(() => writeSseEvent(writer, encoder, payload, streamState));
+    return writeChain;
+  };
 
   const runId = started.run.id;
   const services = await getPlaygroundRuntimeServices();
@@ -84,7 +90,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
         run: toRunDto(started.run) as NonNullable<RunStreamReadyEventDto['run']>,
         userMessage: toMessageDto(started.userMessage)
       };
-      await writeSseEvent(writer, encoder, readyEvent, streamState);
+      await queueSseEvent(readyEvent);
 
       await services.durableRuntime.runTurn(
         {
@@ -95,72 +101,62 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
         },
         runtimeInput,
         {
-          onPersistedUpdate: async (update) => {
-            const eventRow: RunStreamEventRowDto = {
-              type: 'run.event',
+          onLiveAssistantUpdate: async (assistantStream) => {
+            const assistantRow: RunStreamAssistantEventDto = {
+              type: 'run.assistant',
               runId,
-              event: toRunEventDto(update.runEvent)
+              assistant: assistantStream
             };
-            await writeSseEvent(writer, encoder, eventRow, streamState);
-
-            if (update.toolInvocation) {
-              const toolRow: RunStreamToolRowDto = {
-                type: 'run.tool',
-                runId,
-                toolInvocation: toToolInvocationDto(update.toolInvocation)
-              };
-              await writeSseEvent(writer, encoder, toolRow, streamState);
-            }
-
-            if (update.assistantStream) {
-              const assistantRow: RunStreamAssistantEventDto = {
-                type: 'run.assistant',
-                runId,
-                assistant: update.assistantStream
-              };
-              await writeSseEvent(writer, encoder, assistantRow, streamState);
-            }
-
+            await queueSseEvent(assistantRow);
+          },
+          onPersistedUpdate: async (update) => {
             if (update.run) {
+              finalRunSnapshot = toRunDto(update.run);
               const runState: RunStreamStateEventDto = {
                 type: 'run.state',
                 runId,
                 run: toRunDto(update.run) as NonNullable<RunStreamStateEventDto['run']>
               };
-              await writeSseEvent(writer, encoder, runState, streamState);
+              await queueSseEvent(runState);
+
+              if (!terminalEventSent && (update.run.status === 'completed' || update.run.status === 'failed')) {
+                terminalEventSent = true;
+
+                if (update.run.status === 'failed') {
+                  const failedEvent: RunStreamFailedEventDto = {
+                    type: 'run.failed',
+                    runId,
+                    run: finalRunSnapshot,
+                    error: update.run.error ?? 'runtime execution failed'
+                  };
+                  await queueSseEvent(failedEvent);
+                } else {
+                  const completedEvent: RunStreamCompletedEventDto = {
+                    type: 'run.completed',
+                    runId,
+                    run: finalRunSnapshot as NonNullable<RunStreamCompletedEventDto['run']>
+                  };
+                  await queueSseEvent(completedEvent);
+                }
+              }
             }
           }
         }
       );
-
-      const finalRun = await services.repos.runRepo.findById(runId);
-      if (finalRun?.status === 'failed') {
+    } catch (error) {
+      if (!terminalEventSent) {
         const failedEvent: RunStreamFailedEventDto = {
           type: 'run.failed',
           runId,
-          run: toRunDto(finalRun),
-          error: finalRun.error ?? 'runtime execution failed'
+          run: finalRunSnapshot,
+          error: getRouteErrorMessage(error, 'thread stream failed')
         };
-        await writeSseEvent(writer, encoder, failedEvent, streamState);
-      } else if (finalRun) {
-        const completedEvent: RunStreamCompletedEventDto = {
-          type: 'run.completed',
-          runId,
-          run: toRunDto(finalRun) as NonNullable<RunStreamCompletedEventDto['run']>
-        };
-        await writeSseEvent(writer, encoder, completedEvent, streamState);
+        terminalEventSent = true;
+        await queueSseEvent(failedEvent);
       }
-    } catch (error) {
-      const finalRun = await services.repos.runRepo.findById(runId);
-      const failedEvent: RunStreamFailedEventDto = {
-        type: 'run.failed',
-        runId,
-        run: toRunDto(finalRun),
-        error: getRouteErrorMessage(error, 'thread stream failed')
-      };
-      await writeSseEvent(writer, encoder, failedEvent, streamState);
     } finally {
       try {
+        await writeChain;
         if (!streamState.closed) {
           await writer.close();
         }

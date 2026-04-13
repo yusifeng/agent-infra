@@ -14,9 +14,10 @@
   },
   "dependencies": {
     "@agent-infra/core": "workspace:*",
+    "@libsql/client": "^0.17.2",
+    "better-sqlite3": "^12.8.0",
     "drizzle-orm": "^0.44.0",
-    "pg": "^8.16.0",
-    "better-sqlite3": "^12.8.0"
+    "pg": "^8.16.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

@@ -4,7 +4,7 @@ import type {
   RuntimePiRunTurnOptions,
   RuntimePiRuntime,
   RuntimePiRuntimeOptions
-} from './types';
+} from './types.js';
 
 export type RuntimePiLazyOptionsResolver =
   | RuntimePiRuntimeOptions
@@ -29,7 +29,7 @@ export function createLazyPiRuntime(options?: RuntimePiLazyOptionsResolver): Run
     if (!runtimePromise) {
       runtimePromise = (async () => {
         const [{ createPiRuntime }, resolvedOptions] = await Promise.all([
-          import('./runtime'),
+          import('./runtime.js'),
           resolveOptions(options)
         ]);
 

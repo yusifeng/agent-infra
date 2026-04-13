@@ -5,9 +5,9 @@ import type { AgentEvent, AgentTool } from '@mariozechner/pi-agent-core';
 import { Agent } from '@mariozechner/pi-agent-core';
 import { getModels, type AssistantMessage, type AssistantMessageEvent, type Message as PiMessage, type Model, type ToolResultMessage } from '@mariozechner/pi-ai';
 
-import { resolveRuntimePiConfigFromEnv } from './config';
-import { buildInitialAgentState, convertToLlm } from './messages';
-import { createDemoTools } from './tools';
+import { resolveRuntimePiConfigFromEnv } from './config.js';
+import { buildInitialAgentState, convertToLlm } from './messages.js';
+import { createDemoTools } from './tools.js';
 import type {
   RuntimePiConfig,
   RuntimePiContext,
@@ -18,7 +18,7 @@ import type {
   RuntimePiRuntimeOptions,
   RuntimePiSelection,
   RuntimePiToolProvider
-} from './types';
+} from './types.js';
 
 const DEEPSEEK_BASE_URL = 'https://api.deepseek.com/v1';
 const DEFAULT_SYSTEM_PROMPT = 'You are a helpful assistant.';
@@ -183,8 +183,111 @@ function extractTextContent(content: ToolResultMessage['content']) {
     .trim();
 }
 
+function summarizeUsage(value: unknown) {
+  const usage = asRecordOrNull(value);
+  if (!usage) {
+    return null;
+  }
+
+  return {
+    input: usage.input ?? 0,
+    output: usage.output ?? 0,
+    cacheRead: usage.cacheRead ?? 0,
+    cacheWrite: usage.cacheWrite ?? 0,
+    totalTokens: usage.totalTokens ?? 0
+  };
+}
+
+function getMessageProvider(message: unknown) {
+  return typeof message === 'object' && message !== null && 'provider' in message ? (message as { provider?: unknown }).provider ?? null : null;
+}
+
+function getMessageModel(message: unknown) {
+  return typeof message === 'object' && message !== null && 'model' in message ? (message as { model?: unknown }).model ?? null : null;
+}
+
+function getMessageStopReason(message: unknown) {
+  return typeof message === 'object' && message !== null && 'stopReason' in message
+    ? (message as { stopReason?: unknown }).stopReason ?? null
+    : null;
+}
+
+function getMessageUsage(message: unknown) {
+  return typeof message === 'object' && message !== null && 'usage' in message ? (message as { usage?: unknown }).usage : null;
+}
+
+function summarizeAgentEventPayload(event: AgentEvent): Record<string, unknown> | null {
+  switch (event.type) {
+    case 'message_start':
+      return {
+        type: event.type,
+        role: event.message.role,
+        provider: getMessageProvider(event.message),
+        model: getMessageModel(event.message)
+      };
+    case 'message_update': {
+      const assistantMessageEvent = event.assistantMessageEvent;
+      const summary: Record<string, unknown> = {
+        type: event.type,
+        role: event.message.role,
+        assistantMessageEvent: {
+          type: assistantMessageEvent.type
+        }
+      };
+
+      if ('contentIndex' in assistantMessageEvent && typeof assistantMessageEvent.contentIndex === 'number') {
+        (summary.assistantMessageEvent as Record<string, unknown>).contentIndex = assistantMessageEvent.contentIndex;
+      }
+
+      if ('delta' in assistantMessageEvent && typeof assistantMessageEvent.delta === 'string') {
+        (summary.assistantMessageEvent as Record<string, unknown>).deltaLength = assistantMessageEvent.delta.length;
+      }
+
+      return summary;
+    }
+    case 'message_end':
+      return {
+        type: event.type,
+        role: event.message.role,
+        stopReason: getMessageStopReason(event.message),
+        usage: summarizeUsage(getMessageUsage(event.message))
+      };
+    case 'tool_execution_start':
+      return {
+        type: event.type,
+        toolName: event.toolName,
+        toolCallId: event.toolCallId
+      };
+    case 'tool_execution_end':
+      return {
+        type: event.type,
+        toolName: event.toolName,
+        toolCallId: event.toolCallId,
+        isError: event.isError,
+        outputTextLength: extractTextContent(Array.isArray(event.result?.content) ? event.result.content : []).length
+      };
+    case 'turn_end':
+      return {
+        type: event.type,
+        role: event.message.role,
+        toolResultCount: event.toolResults.length,
+        usage: summarizeUsage(getMessageUsage(event.message))
+      };
+    case 'agent_end':
+      return {
+        type: event.type,
+        messageCount: event.messages.length,
+        roles: event.messages.map((message) => message.role),
+        assistantMessageCount: event.messages.filter((message) => message.role === 'assistant').length,
+        toolResultCount: event.messages.filter((message) => message.role === 'toolResult').length
+      };
+    default:
+      return JSON.parse(JSON.stringify(event)) as Record<string, unknown>;
+  }
+}
+
 function serializeEventPayload(event: AgentEvent): Record<string, unknown> | null {
-  return JSON.parse(JSON.stringify(event)) as Record<string, unknown>;
+  return summarizeAgentEventPayload(event);
 }
 
 function extractAssistantText(message: AssistantMessage) {
@@ -213,6 +316,15 @@ function createAssistantStreamSnapshot(messageId: string, assistantMessageEvent:
     eventType: assistantMessageEvent.type,
     partialText: extractAssistantText(assistantMessageEvent.partial),
     partialReasoning: extractAssistantReasoning(assistantMessageEvent.partial)
+  };
+}
+
+function createAssistantCompletionSnapshot(messageId: string, assistantMessage: AssistantMessage) {
+  return {
+    messageId,
+    eventType: 'text_end' as const,
+    partialText: extractAssistantText(assistantMessage),
+    partialReasoning: extractAssistantReasoning(assistantMessage)
   };
 }
 
@@ -350,6 +462,21 @@ async function emitPersistedUpdate(options: RuntimePiRunTurnOptions | undefined,
   }
 }
 
+async function emitLiveAssistantUpdate(
+  options: RuntimePiRunTurnOptions | undefined,
+  update: RuntimePiPersistedUpdate['assistantStream']
+) {
+  if (!options?.onLiveAssistantUpdate || !update) {
+    return;
+  }
+
+  try {
+    await options.onLiveAssistantUpdate(update);
+  } catch {
+    // Live transport observers are best-effort and must not mutate durable run outcome.
+  }
+}
+
 async function handleAgentEvent(
   ctx: RuntimePiContext,
   state: RuntimePiState,
@@ -364,12 +491,22 @@ async function handleAgentEvent(
   }
 
   if (event.type === 'message_start' && event.message.role === 'assistant') {
-    const message = await createPersistedMessage(ctx, state, input, 'assistant', 'created', {
-      api: model.api,
-      provider: model.provider,
-      model: model.id
+    const messageId = state.currentAssistantMessageId ?? crypto.randomUUID();
+    const message = await ctx.messageRepo.create({
+      id: messageId,
+      threadId: input.threadId,
+      runId: input.runId,
+      role: 'assistant',
+      seq: state.nextMessageSeq++,
+      status: 'created',
+      metadata: {
+        api: model.api,
+        provider: model.provider,
+        model: model.id
+      }
     });
 
+    state.nextPartIndexByMessageId.set(message.id, 0);
     state.currentAssistantMessageId = message.id;
     state.openAssistantMessageId = message.id;
     const runEvent = await appendRunEvent(ctx, state, input, event);
@@ -602,9 +739,35 @@ export async function runAssistantTurnWithPiInternal(
   });
 
   let eventChain = Promise.resolve();
+  let liveEventChain = Promise.resolve();
   let subscriberFailure: unknown = null;
 
   const unsubscribe = agent.subscribe((event) => {
+    if (event.type === 'message_start' && event.message.role === 'assistant' && !state.currentAssistantMessageId) {
+      state.currentAssistantMessageId = crypto.randomUUID();
+      state.openAssistantMessageId = state.currentAssistantMessageId;
+    }
+
+    if (event.type === 'message_update' && event.message.role === 'assistant') {
+      const assistantStream = state.currentAssistantMessageId
+        ? createAssistantStreamSnapshot(state.currentAssistantMessageId, event.assistantMessageEvent)
+        : null;
+
+      liveEventChain = liveEventChain.then(async () => {
+        await emitLiveAssistantUpdate(runOptions, assistantStream);
+      });
+    }
+
+    if (event.type === 'message_end' && event.message.role === 'assistant') {
+      const assistantStream = state.currentAssistantMessageId
+        ? createAssistantCompletionSnapshot(state.currentAssistantMessageId, event.message)
+        : null;
+
+      liveEventChain = liveEventChain.then(async () => {
+        await emitLiveAssistantUpdate(runOptions, assistantStream);
+      });
+    }
+
     eventChain = eventChain.then(async () => {
       if (subscriberFailure) {
         return;
@@ -620,6 +783,7 @@ export async function runAssistantTurnWithPiInternal(
 
   try {
     await agent.continue();
+    await liveEventChain;
     await eventChain;
     if (subscriberFailure) {
       throw subscriberFailure;

@@ -5,7 +5,7 @@ import clsx from 'clsx';
 import { Copy, Loader2, RotateCw, Trash2 } from 'lucide-react';
 import { memo, type ComponentType } from 'react';
 
-import { copyMessageToClipboard } from './helpers';
+import { copyMessageToClipboard, copyTextToClipboard } from './helpers';
 import { MarkdownRenderer } from './markdown-renderer';
 import { AnimatedEmoji } from './shared';
 import type { LiveAssistantDraft } from './types';
@@ -152,6 +152,7 @@ const MessagePartView = memo(function MessagePartView({
 
 const MessageCard = memo(function MessageCard({ message }: { message: MessageDto }) {
   const isUser = message.role === 'user';
+  const isOptimistic = message.metadata?.optimistic === true;
   const userActions = [
     {
       icon: Copy,
@@ -187,24 +188,26 @@ const MessageCard = memo(function MessageCard({ message }: { message: MessageDto
 
   if (isUser) {
     return (
-      <div className={clsx('group relative flex w-full max-w-screen justify-end px-4', ui.messageAppear)}>
+      <div className={clsx('group relative flex w-full max-w-screen justify-end px-4', !isOptimistic && ui.messageAppear)}>
         <div className="max-w-[65%]">
-          <div className={clsx('relative flex flex-col gap-3 rounded-lg px-3 py-2', ui.userBubble)}>
+          <div className={clsx('relative flex flex-col gap-3 rounded-lg px-3 py-2', ui.userBubble, isOptimistic && 'opacity-85')}>
             <div className="space-y-2">
               {message.parts.map((part) => (
                 <MessagePartView key={part.id} cacheKey={`${message.id}:${part.id}`} part={part} variant="user" />
               ))}
             </div>
           </div>
-          <MessageActions
-            align="end"
-            items={userActions}
-            onActionClick={(key) => {
-              if (key === 'copy') {
-                void copyMessageToClipboard(message);
-              }
-            }}
-          />
+          {!isOptimistic ? (
+            <MessageActions
+              align="end"
+              items={userActions}
+              onActionClick={(key) => {
+                if (key === 'copy') {
+                  void copyMessageToClipboard(message);
+                }
+              }}
+            />
+          ) : null}
         </div>
       </div>
     );
@@ -232,14 +235,38 @@ const MessageCard = memo(function MessageCard({ message }: { message: MessageDto
 });
 
 const LiveAssistantCard = memo(function LiveAssistantCard({
-  liveAssistantDraft,
-  isStreaming
+  liveAssistantDraft
 }: {
   liveAssistantDraft: LiveAssistantDraft;
-  isStreaming: boolean;
 }) {
+  const hasVisibleContent = Boolean(liveAssistantDraft.partialText || liveAssistantDraft.partialReasoning);
+  const assistantActions = [
+    {
+      icon: Copy,
+      key: 'copy',
+      label: 'Copy'
+    },
+    {
+      disabled: true,
+      icon: RotateCw,
+      key: 'regenerate',
+      label: 'Regenerate'
+    },
+    {
+      disabled: true,
+      icon: Trash2,
+      key: 'delete',
+      label: 'Delete'
+    }
+  ];
+  const isCompleted = liveAssistantDraft.eventType === 'text_end';
+
+  if (!hasVisibleContent) {
+    return null;
+  }
+
   return (
-    <div className={clsx('group relative w-[90%] max-w-screen px-4', ui.messageAppear)}>
+    <div className="group relative w-[90%] max-w-screen px-4">
       <div className={clsx('relative flex flex-col gap-2 pt-1.5', ui.assistantBubble)}>
         {liveAssistantDraft.partialReasoning ? (
           <details className={clsx('rounded-2xl px-4 py-3', ui.reasoning)}>
@@ -255,23 +282,24 @@ const LiveAssistantCard = memo(function LiveAssistantCard({
         {liveAssistantDraft.partialText ? (
           <MarkdownRenderer
             cacheKey={liveAssistantDraft.runId ? `live:${liveAssistantDraft.runId}` : 'live-assistant'}
+            animateBlocks={false}
             className="text-[15px] leading-[1.9] text-slate-800"
             plainTextClassName="text-[15px] leading-[1.9] text-slate-800"
             text={liveAssistantDraft.partialText}
           />
-        ) : (
-          <div className="flex items-center gap-2 text-sm text-slate-500">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <span>Assistant is responding...</span>
-          </div>
-        )}
-
-        {isStreaming ? (
-          <div className="flex gap-2 text-[11px] text-slate-400">
-            <span>streaming</span>
-          </div>
         ) : null}
       </div>
+      {isCompleted ? (
+        <MessageActions
+          items={assistantActions}
+          onActionClick={(key) => {
+            if (key === 'copy') {
+              const copyValue = [liveAssistantDraft.partialReasoning, liveAssistantDraft.partialText].filter(Boolean).join('\n\n');
+              void copyTextToClipboard(copyValue);
+            }
+          }}
+        />
+      ) : null}
     </div>
   );
 });
@@ -284,7 +312,6 @@ type ChatMessageListProps = {
   activeThreadId: string | null;
   messages: MessageDto[];
   liveAssistantDraft: LiveAssistantDraft | null;
-  liveStreamRunId: string | null;
 };
 
 export const ChatMessageList = memo(function ChatMessageList({
@@ -294,8 +321,7 @@ export const ChatMessageList = memo(function ChatMessageList({
   loadingMessages,
   activeThreadId,
   messages,
-  liveAssistantDraft,
-  liveStreamRunId
+  liveAssistantDraft
 }: ChatMessageListProps) {
   return (
     <div className="flex-1 p-6">
@@ -338,12 +364,7 @@ export const ChatMessageList = memo(function ChatMessageList({
             {messages.map((message) => (
               <MessageCard key={message.id} message={message} />
             ))}
-            {liveAssistantDraft ? (
-              <LiveAssistantCard
-                liveAssistantDraft={liveAssistantDraft}
-                isStreaming={liveAssistantDraft.runId === liveStreamRunId}
-              />
-            ) : null}
+            {liveAssistantDraft ? <LiveAssistantCard liveAssistantDraft={liveAssistantDraft} /> : null}
           </div>
         </div>
       )}

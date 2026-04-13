@@ -36,7 +36,7 @@ The intended package split is:
 - `@agent-infra/core`
   - domain types and repository interfaces
 - `@agent-infra/db`
-  - SQLite and PostgreSQL repository implementations
+  - SQLite, Turso/libSQL, and PostgreSQL repository implementations
 - `@agent-infra/runtime-pi`
   - runtime adapter that persists run lifecycle truth
 - `@agent-infra/app`
@@ -87,7 +87,7 @@ import { createPiRuntime } from '@agent-infra/runtime-pi/runtime';
 import { createDemoTools } from '@agent-infra/runtime-pi/tools';
 
 function createRepositories(dbConfig: DbConfig, db: any): AgentInfraAppRepositories {
-  if (dbConfig.mode === 'sqlite') {
+  if (dbConfig.mode === 'sqlite' || dbConfig.mode === 'turso') {
     return {
       threadRepo: new SqliteThreadRepository(db),
       runRepo: new SqliteRunRepository(db),

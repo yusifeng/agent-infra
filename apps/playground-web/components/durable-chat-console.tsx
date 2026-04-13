@@ -259,6 +259,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageDto[]>([]);
   const [draft, setDraft] = useState('');
+  const [optimisticUserMessage, setOptimisticUserMessage] = useState<MessageDto | null>(null);
   const [meta, setMeta] = useState<RuntimePiMetaDto | null>(null);
   const [selectedModelKey, setSelectedModelKey] = useState('');
   const [sending, setSending] = useState(false);
@@ -301,6 +302,12 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
   const toolInvocations = timeline?.toolInvocations ?? [];
   const currentThreadTitle = activeThread?.title?.trim() || activeThreadId || 'New chat';
   const sendingDisabled = !draft.trim() || sending || !meta?.runtimeConfigured || !selectedModelOption;
+  const composerLoadingLabel =
+    sending && (!liveAssistantDraft || liveAssistantDraft.eventType !== 'text_end') ? 'loading' : null;
+  const displayedMessages = useMemo(
+    () => (optimisticUserMessage ? upsertMessage(messages, optimisticUserMessage) : messages),
+    [messages, optimisticUserMessage]
+  );
 
   async function readJsonOrEmpty<T>(response: Response): Promise<Partial<T>> {
     const text = await response.text();
@@ -421,6 +428,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     setSending(false);
     setActiveThreadId(null);
     setDraft('');
+    setOptimisticUserMessage(null);
     setMessages([]);
     setRecentRuns([]);
     setSelectedRunId(null);
@@ -627,10 +635,24 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
         nextRuns,
         preferredResolvedRun?.id ?? options?.preferredRunId ?? null
       );
+      const hasPersistedAssistantForSelectedRun =
+        nextSelectedRunId !== null &&
+        nextMessages.some((message) => message.runId === nextSelectedRunId && message.role === 'assistant');
 
       setMessages(nextMessages);
       setRecentRuns(nextRuns);
-      setLiveAssistantDraft(null);
+      setOptimisticUserMessage(null);
+      setLiveAssistantDraft((current) => {
+        if (!current) {
+          return null;
+        }
+
+        if (current.runId !== nextSelectedRunId) {
+          return null;
+        }
+
+        return hasPersistedAssistantForSelectedRun ? null : current;
+      });
       setRecentRunsError(null);
       setRecentRunsLoading(false);
       setError(null);
@@ -651,7 +673,6 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
       if (background) {
         setRecentRunsLoading(false);
         setRecentRunsError(loadError instanceof Error ? loadError.message : 'Failed to load thread runs');
-        setLiveAssistantDraft(null);
         setError(loadError instanceof Error ? loadError.message : 'Failed to load thread messages');
         return null;
       }
@@ -660,6 +681,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
       setRecentRunsLoading(false);
       setRecentRunsError(loadError instanceof Error ? loadError.message : 'Failed to load thread runs');
       setLiveAssistantDraft(null);
+      setOptimisticUserMessage(null);
       setSelectedRunId(null);
       setTimeline(null);
       setTimelineError(null);
@@ -707,10 +729,11 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     let streamedRunId: string | null = null;
     let streamSessionStarted = false;
     let terminalStreamError: string | null = null;
+    let readyEventReceived = false;
     setSending(true);
     setError(null);
     setLiveStreamRunId(null);
-    setLiveAssistantDraft(null);
+    setDraft('');
     timelineRequestIdRef.current += 1;
     timelineAbortControllerRef.current?.abort();
     setSelectedRunId(null);
@@ -727,6 +750,36 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
         activeThreadIdRef.current = threadId;
         updateHistoryPath(`/chat/${threadId}`, { replace: true });
       }
+
+      const optimisticMessage: MessageDto = {
+        id: `optimistic-user-${requestId}`,
+        threadId,
+        runId: null,
+        role: 'user',
+        seq: (messages[messages.length - 1]?.seq ?? 0) + 1,
+        status: 'created',
+        metadata: { optimistic: true },
+        createdAt: new Date().toISOString(),
+        parts: [
+          {
+            id: `optimistic-user-part-${requestId}`,
+            messageId: `optimistic-user-${requestId}`,
+            partIndex: 0,
+            type: 'text',
+            textValue: text,
+            jsonValue: null,
+            createdAt: new Date().toISOString()
+          }
+        ]
+      };
+      setOptimisticUserMessage(optimisticMessage);
+      setLiveAssistantDraft({
+        runId: `pending-${requestId}`,
+        messageId: `pending-assistant-${requestId}`,
+        partialText: '',
+        partialReasoning: null,
+        eventType: 'start'
+      });
 
       const response = await fetch(`/api/threads/${threadId}/runs/stream`, {
         method: 'POST',
@@ -778,13 +831,29 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
           setTimeline((current) => applyRunStreamEvent(current, event));
 
           if (event.type === 'run.ready') {
-            setDraft('');
+            readyEventReceived = true;
+            setOptimisticUserMessage(null);
             setMessages((current) => upsertMessage(current, event.userMessage));
             setRecentRuns((current) => upsertRun(current, event.run));
+            setLiveAssistantDraft((current) =>
+              current
+                ? {
+                    ...current,
+                    runId: event.runId
+                  }
+                : current
+            );
             continue;
           }
 
+          if (event.type === 'run.event' && event.event.type === 'message_end') {
+            setLiveStreamRunId(null);
+          }
+
           if (event.type === 'run.assistant') {
+            if (event.assistant.eventType === 'text_end') {
+              setLiveStreamRunId(null);
+            }
             setLiveAssistantDraft({
               runId: event.runId,
               messageId: event.assistant.messageId,
@@ -807,11 +876,14 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
           if (event.type === 'run.failed') {
             terminalStreamError = event.error;
             setError(event.error);
+            setLiveStreamRunId(null);
+            setLiveAssistantDraft((current) => (current?.runId === event.runId ? null : current));
             continue;
           }
 
           if (event.type === 'run.completed') {
             setError(null);
+            setLiveStreamRunId(null);
           }
         }
       }
@@ -826,10 +898,24 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
           setTimeline((current) => applyRunStreamEvent(current, event));
 
           if (event.type === 'run.ready') {
-            setDraft('');
+            readyEventReceived = true;
+            setOptimisticUserMessage(null);
             setMessages((current) => upsertMessage(current, event.userMessage));
             setRecentRuns((current) => upsertRun(current, event.run));
+            setLiveAssistantDraft((current) =>
+              current
+                ? {
+                    ...current,
+                    runId: event.runId
+                  }
+                : current
+            );
+          } else if (event.type === 'run.event' && event.event.type === 'message_end') {
+            setLiveStreamRunId(null);
           } else if (event.type === 'run.assistant') {
+            if (event.assistant.eventType === 'text_end') {
+              setLiveStreamRunId(null);
+            }
             setLiveAssistantDraft({
               runId: event.runId,
               messageId: event.assistant.messageId,
@@ -841,9 +927,13 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
             setRecentRuns((current) => (event.run ? upsertRun(current, event.run) : current));
             terminalStreamError = event.error;
             setError(event.error);
-            setLiveAssistantDraft((current) => (current?.runId === event.runId ? current : null));
+            setLiveStreamRunId(null);
+            setLiveAssistantDraft((current) => (current?.runId === event.runId ? null : current));
           } else if (event.type === 'run.state' || event.type === 'run.completed') {
             setRecentRuns((current) => upsertRun(current, event.run));
+            if (event.type === 'run.completed') {
+              setLiveStreamRunId(null);
+            }
           }
         }
       }
@@ -852,6 +942,11 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
         return;
       }
 
+      if (!readyEventReceived) {
+        setDraft(text);
+        setOptimisticUserMessage(null);
+        setLiveAssistantDraft(null);
+      }
       setError(sendError instanceof Error ? sendError.message : 'Failed to send message');
     } finally {
       if (requestId === sendRequestIdRef.current) {
@@ -863,13 +958,10 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
       if (!controller.signal.aborted && requestId === sendRequestIdRef.current && (streamSessionStarted || streamedRunId)) {
         if (threadId && activeThreadIdRef.current === threadId) {
           const preferredRunId = streamedRunId ?? selectedRunIdRef.current;
-          const shouldSkipTimelineReload =
-            preferredRunId !== null && timelineRef.current?.run?.id === preferredRunId;
-
           await loadThreadMessages(threadId, {
             background: true,
             preferredRunId,
-            skipTimelineReload: shouldSkipTimelineReload
+            preserveExistingTimeline: true
           });
         } else {
           await refreshThreads();
@@ -988,11 +1080,10 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
                 meta={meta}
                 error={error}
                 durableRecoveryNotice={durableRecoveryNotice}
-                loadingMessages={loadingMessages}
-                activeThreadId={activeThreadId}
-                messages={messages}
-                liveAssistantDraft={liveAssistantDraft}
-                liveStreamRunId={liveStreamRunId}
+              loadingMessages={loadingMessages}
+              activeThreadId={activeThreadId}
+              messages={displayedMessages}
+              liveAssistantDraft={liveAssistantDraft}
               />
             </div>
             <ComposerDock
@@ -1004,6 +1095,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
               selectedModelOption={selectedModelOption}
               meta={meta}
               showScrollToBottom={showScrollToBottom}
+              loadingLabel={composerLoadingLabel}
               textareaRef={textareaRef}
               sendAbortControllerRef={sendAbortControllerRef}
               onDraftChange={setDraft}
