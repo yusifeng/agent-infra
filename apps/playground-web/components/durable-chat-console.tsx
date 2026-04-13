@@ -18,6 +18,7 @@ import clsx from 'clsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { ChatHeader } from './chat-shell/chat-header';
+import { assistantMessageHasVisibleContent } from './chat-shell/helpers';
 import { ChatMessageList } from './chat-shell/message-list';
 import { ComposerDock } from './chat-shell/composer-dock';
 import { DurableLogPane } from './chat-shell/durable-log-pane';
@@ -291,6 +292,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
   const timelineAbortControllerRef = useRef<AbortController | null>(null);
   const sendRequestIdRef = useRef(0);
   const sendAbortControllerRef = useRef<AbortController | null>(null);
+  const reconcileRequestIdRef = useRef(0);
   const messagesViewportRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -576,6 +578,77 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     });
   }
 
+  async function hydrateTranscript(threadId: string, signal: AbortSignal) {
+    const response = await fetch(`/api/threads/${threadId}/messages`, {
+      signal
+    });
+    const data = (await response.json()) as ThreadMessagesResponseDto;
+    if (!response.ok) {
+      throw new Error(data.error ?? `Failed to load messages (${response.status})`);
+    }
+
+    return data.messages ?? [];
+  }
+
+  async function hydrateRecentRuns(threadId: string, signal: AbortSignal) {
+    const response = await fetch(`/api/threads/${threadId}/runs?limit=${RECENT_RUNS_LIMIT}`, {
+      signal
+    });
+    const data = (await readJsonOrEmpty<ThreadRunsResponseDto>(response)) as ThreadRunsResponseDto;
+    if (!response.ok) {
+      throw new Error(data.error ?? `Failed to load thread runs (${response.status})`);
+    }
+
+    return (data.runs ?? []).slice().sort(compareRunsByCreatedAt);
+  }
+
+  async function resolveSelectedRun(
+    threadId: string,
+    preferredRunId: string | null | undefined,
+    messages: MessageDto[],
+    runs: RunDto[],
+    signal: AbortSignal
+  ) {
+    let nextRuns = runs;
+    let preferredResolvedRun: RunDto | null = null;
+
+    if (preferredRunId && !nextRuns.some((run) => run.id === preferredRunId)) {
+      preferredResolvedRun = await tryResolvePreferredRun(threadId, preferredRunId, signal);
+      nextRuns = includeSelectedRun(nextRuns, preferredResolvedRun);
+    }
+
+    return {
+      nextRuns,
+      nextSelectedRunId: chooseInitialRunId(messages, nextRuns, preferredResolvedRun?.id ?? preferredRunId ?? null)
+    };
+  }
+
+  function applyHydratedTranscript(messages: MessageDto[], selectedRunId: string | null, runs: RunDto[]) {
+    const hasPersistedAssistantForSelectedRun =
+      selectedRunId !== null && messages.some((message) => message.runId === selectedRunId && assistantMessageHasVisibleContent(message));
+
+    setMessages(messages);
+    setRecentRuns(runs);
+    setSelectedRunId(selectedRunId);
+    setOptimisticUserMessage(null);
+    setLiveAssistantDraft((current) => {
+      if (!current) {
+        return null;
+      }
+
+      if (current.runId !== selectedRunId) {
+        return null;
+      }
+
+      return hasPersistedAssistantForSelectedRun ? null : current;
+    });
+    setRecentRunsError(null);
+    setError(null);
+    if (messages.some(assistantMessageHasVisibleContent)) {
+      setChatPhase('idle');
+    }
+  }
+
   async function loadThreadMessages(
     threadId: string,
     options?: {
@@ -598,81 +671,37 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     setRecentRunsError(null);
 
     try {
-      const [messagesResponse, runsResponse] = await Promise.all([
-        fetch(`/api/threads/${threadId}/messages`, {
-          signal: controller.signal
-        }),
-        fetch(`/api/threads/${threadId}/runs?limit=${RECENT_RUNS_LIMIT}`, {
-          signal: controller.signal
-        })
+      const [nextMessages, nextRuns] = await Promise.all([
+        hydrateTranscript(threadId, controller.signal),
+        hydrateRecentRuns(threadId, controller.signal)
       ]);
-
-      const messagesData = (await messagesResponse.json()) as ThreadMessagesResponseDto;
-      if (!messagesResponse.ok) {
-        throw new Error(messagesData.error ?? `Failed to load messages (${messagesResponse.status})`);
-      }
-
-      const runsData = (await readJsonOrEmpty<ThreadRunsResponseDto>(runsResponse)) as ThreadRunsResponseDto;
-      if (!runsResponse.ok) {
-        throw new Error(runsData.error ?? `Failed to load thread runs (${runsResponse.status})`);
-      }
 
       if (controller.signal.aborted || requestId !== messagesRequestIdRef.current) {
         return;
       }
 
-      const nextMessages = messagesData.messages ?? [];
-      let nextRuns = (runsData.runs ?? []).slice().sort(compareRunsByCreatedAt);
-      let preferredResolvedRun: RunDto | null = null;
-
-      if (options?.preferredRunId && !nextRuns.some((run) => run.id === options.preferredRunId)) {
-        preferredResolvedRun = await tryResolvePreferredRun(threadId, options.preferredRunId, controller.signal);
-
-        if (controller.signal.aborted || requestId !== messagesRequestIdRef.current) {
-          return;
-        }
-
-        nextRuns = includeSelectedRun(nextRuns, preferredResolvedRun);
-      }
-
-      const nextSelectedRunId = chooseInitialRunId(
+      const resolved = await resolveSelectedRun(
+        threadId,
+        options?.preferredRunId,
         nextMessages,
         nextRuns,
-        preferredResolvedRun?.id ?? options?.preferredRunId ?? null
+        controller.signal
       );
-      const hasPersistedAssistantForSelectedRun =
-        nextSelectedRunId !== null &&
-        nextMessages.some((message) => message.runId === nextSelectedRunId && message.role === 'assistant');
 
-      setMessages(nextMessages);
-      setRecentRuns(nextRuns);
-      setOptimisticUserMessage(null);
-      setLiveAssistantDraft((current) => {
-        if (!current) {
-          return null;
-        }
+      if (controller.signal.aborted || requestId !== messagesRequestIdRef.current) {
+        return;
+      }
 
-        if (current.runId !== nextSelectedRunId) {
-          return null;
-        }
-
-        return hasPersistedAssistantForSelectedRun ? null : current;
-      });
-      setRecentRunsError(null);
+      applyHydratedTranscript(nextMessages, resolved.nextSelectedRunId, resolved.nextRuns);
       setRecentRunsLoading(false);
-      setError(null);
-      if (nextMessages.some((message) => message.role === 'assistant')) {
-        setChatPhase('idle');
-      }
       if (options?.skipTimelineReload) {
-        setSelectedRunId(nextSelectedRunId);
-        return nextSelectedRunId;
+        return resolved.nextSelectedRunId;
       }
 
-      await loadRunTimeline(nextSelectedRunId, {
+      await loadRunTimeline(resolved.nextSelectedRunId, {
         preserveExisting: options?.preserveExistingTimeline === true
       });
-      return nextSelectedRunId;
+      return resolved.nextSelectedRunId;
     } catch (loadError) {
       if (controller.signal.aborted || requestId !== messagesRequestIdRef.current) {
         return;
@@ -700,6 +729,149 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
         messagesAbortControllerRef.current = null;
         if (!background) {
           setLoadingMessages(false);
+        }
+      }
+    }
+  }
+
+  async function reconcileCompletedTurn(threadId: string, preferredRunId: string | null, requestId: number) {
+    reconcileRequestIdRef.current += 1;
+    const reconcileRequestId = reconcileRequestIdRef.current;
+    const reconcileController = new AbortController();
+    const isReconcileThreadStale = () => activeThreadIdRef.current !== threadId;
+    const isLatestReconcile = () => reconcileRequestId === reconcileRequestIdRef.current;
+    const isCurrentSend = () => requestId === sendRequestIdRef.current;
+    setRecentRunsLoading(true);
+    setRecentRunsError(null);
+    const requestedRunId = preferredRunId ?? selectedRunIdRef.current;
+    let nextSelectedRunId: string | null = null;
+
+    try {
+      const [messagesResponse, runsResponse] = await Promise.all([
+        fetch(`/api/threads/${threadId}/messages`, { signal: reconcileController.signal }),
+        fetch(`/api/threads/${threadId}/runs?limit=${RECENT_RUNS_LIMIT}`, { signal: reconcileController.signal })
+      ]);
+
+      if (isReconcileThreadStale()) {
+        return;
+      }
+
+      const messagesData = (await readJsonOrEmpty<ThreadMessagesResponseDto>(messagesResponse)) as ThreadMessagesResponseDto;
+      if (isReconcileThreadStale()) {
+        return;
+      }
+      if (!messagesResponse.ok) {
+        throw new Error(messagesData.error ?? `Failed to load thread messages (${messagesResponse.status})`);
+      }
+
+      const runsData = (await readJsonOrEmpty<ThreadRunsResponseDto>(runsResponse)) as ThreadRunsResponseDto;
+      if (isReconcileThreadStale()) {
+        return;
+      }
+      if (!runsResponse.ok) {
+        throw new Error(runsData.error ?? `Failed to load thread runs (${runsResponse.status})`);
+      }
+
+      if (!isLatestReconcile()) {
+        return;
+      }
+
+      const fetchedMessages = messagesData.messages ?? [];
+      setMessages(fetchedMessages);
+      if (isCurrentSend()) {
+        setOptimisticUserMessage(null);
+      }
+
+      let nextRuns = (runsData.runs ?? []).slice().sort(compareRunsByCreatedAt);
+      if (requestedRunId && !nextRuns.some((run) => run.id === requestedRunId)) {
+        const preferredResolvedRun = await tryResolvePreferredRun(threadId, requestedRunId, reconcileController.signal);
+        if (isReconcileThreadStale()) {
+          return;
+        }
+
+        nextRuns = includeSelectedRun(nextRuns, preferredResolvedRun);
+      }
+
+      if (!isLatestReconcile()) {
+        return;
+      }
+
+      nextSelectedRunId = chooseInitialRunId(fetchedMessages, nextRuns, requestedRunId);
+      setRecentRuns(nextRuns);
+      setRecentRunsError(null);
+      if (isCurrentSend()) {
+        setSelectedRunId(nextSelectedRunId);
+      }
+
+      const assistantRunId = requestedRunId ?? nextSelectedRunId;
+      const hasAssistantInFetchedMessages = Boolean(
+        assistantRunId &&
+          fetchedMessages.some((message) => message.runId === assistantRunId && assistantMessageHasVisibleContent(message))
+      );
+
+      if (isCurrentSend()) {
+        setLiveAssistantDraft((current) => {
+          if (!current) {
+            return null;
+          }
+
+          if (current.runId !== nextSelectedRunId) {
+            return null;
+          }
+
+          return hasAssistantInFetchedMessages ? null : current;
+        });
+      }
+
+      if (nextSelectedRunId && isCurrentSend()) {
+        setTimelineLoading(true);
+        setTimelineError(null);
+        try {
+          const timelineResponse = await fetch(`/api/runs/${nextSelectedRunId}/timeline`);
+          const timelineData = (await readJsonOrEmpty<RunTimelineResponseDto>(timelineResponse)) as RunTimelineResponseDto;
+          if (isReconcileThreadStale() || !isLatestReconcile()) {
+            return;
+          }
+          if (!timelineResponse.ok) {
+            throw new Error(timelineData.error ?? `Failed to load run timeline (${timelineResponse.status})`);
+          }
+
+          if (
+            activeThreadIdRef.current === threadId &&
+            requestId === sendRequestIdRef.current &&
+            selectedRunIdRef.current === nextSelectedRunId
+          ) {
+            setTimeline(timelineData);
+            setTimelineError(null);
+          }
+        } catch (timelineRefreshError) {
+          if (
+            activeThreadIdRef.current === threadId &&
+            requestId === sendRequestIdRef.current &&
+            selectedRunIdRef.current === nextSelectedRunId
+          ) {
+            setTimelineError(timelineRefreshError instanceof Error ? timelineRefreshError.message : 'Failed to reconcile run timeline');
+          }
+        }
+      } else if (activeThreadIdRef.current === threadId && isCurrentSend()) {
+        setTimeline(null);
+        setTimelineError(null);
+      }
+    } catch (reconcileError) {
+      if (isReconcileThreadStale() || !isLatestReconcile()) {
+        return;
+      }
+
+      setRecentRunsError(reconcileError instanceof Error ? reconcileError.message : 'Failed to reconcile recent runs');
+      if (nextSelectedRunId && isCurrentSend() && selectedRunIdRef.current === nextSelectedRunId) {
+        setTimelineError(reconcileError instanceof Error ? reconcileError.message : 'Failed to reconcile run timeline');
+      }
+    } finally {
+      reconcileController.abort();
+      if (activeThreadIdRef.current === threadId && reconcileRequestId === reconcileRequestIdRef.current) {
+        setRecentRunsLoading(false);
+        if (nextSelectedRunId && selectedRunIdRef.current === nextSelectedRunId) {
+          setTimelineLoading(false);
         }
       }
     }
@@ -738,6 +910,85 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     let streamSessionStarted = false;
     let terminalStreamError: string | null = null;
     let readyEventReceived = false;
+
+    const applyAssistantSnapshot = (event: Extract<RunStreamEventDto, { type: 'run.assistant' }>) => {
+      if (event.assistant.eventType === 'text_end') {
+        setLiveStreamRunId(null);
+        setSending(false);
+        setChatPhase('transcript-final');
+      } else if (event.assistant.partialText) {
+        setChatPhase('streaming');
+      } else {
+        setChatPhase('thinking');
+      }
+
+      setLiveAssistantDraft({
+        runId: event.runId,
+        messageId: event.assistant.messageId,
+        partialText: event.assistant.partialText,
+        partialReasoning: event.assistant.partialReasoning,
+        eventType: event.assistant.eventType
+      });
+    };
+
+    const processStreamEvent = (event: RunStreamEventDto) => {
+      streamedRunId = event.runId;
+      setLiveStreamRunId(event.runId);
+      setSelectedRunId(event.runId);
+      setTimeline((current) => applyRunStreamEvent(current, event));
+
+      if (event.type === 'run.ready') {
+        readyEventReceived = true;
+        setOptimisticUserMessage(null);
+        setMessages((current) => upsertMessage(current, event.userMessage));
+        setRecentRuns((current) => upsertRun(current, event.run));
+        setLiveAssistantDraft((current) =>
+          current
+            ? {
+                ...current,
+                runId: event.runId
+              }
+            : current
+        );
+        return;
+      }
+
+      if (event.type === 'run.event' && event.event.type === 'message_end') {
+        setLiveStreamRunId(null);
+        return;
+      }
+
+      if (event.type === 'run.assistant') {
+        applyAssistantSnapshot(event);
+        return;
+      }
+
+      if (event.type === 'run.state' || event.type === 'run.completed') {
+        setRecentRuns((current) => upsertRun(current, event.run));
+      }
+
+      if (event.type === 'run.failed' && event.run) {
+        const failedRun = event.run;
+        setRecentRuns((current) => upsertRun(current, failedRun));
+      }
+
+      if (event.type === 'run.failed') {
+        terminalStreamError = event.error;
+        setError(event.error);
+        setLiveStreamRunId(null);
+        setSending(false);
+        setChatPhase('failed');
+        setLiveAssistantDraft((current) => (current?.runId === event.runId ? null : current));
+        return;
+      }
+
+      if (event.type === 'run.completed') {
+        setError(null);
+        setLiveStreamRunId(null);
+        setChatPhase((current) => (current === 'failed' ? current : current === 'transcript-final' ? current : 'idle'));
+      }
+    };
+
     setSending(true);
     setChatPhase('thinking');
     setError(null);
@@ -834,75 +1085,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
             return;
           }
 
-          streamedRunId = event.runId;
-          setLiveStreamRunId(event.runId);
-          setSelectedRunId(event.runId);
-          setTimeline((current) => applyRunStreamEvent(current, event));
-
-          if (event.type === 'run.ready') {
-            readyEventReceived = true;
-            setOptimisticUserMessage(null);
-            setMessages((current) => upsertMessage(current, event.userMessage));
-            setRecentRuns((current) => upsertRun(current, event.run));
-            setLiveAssistantDraft((current) =>
-              current
-                ? {
-                    ...current,
-                    runId: event.runId
-                  }
-                : current
-            );
-            continue;
-          }
-
-          if (event.type === 'run.event' && event.event.type === 'message_end') {
-            setLiveStreamRunId(null);
-          }
-
-          if (event.type === 'run.assistant') {
-            if (event.assistant.eventType === 'text_end') {
-              setLiveStreamRunId(null);
-              setSending(false);
-              setChatPhase('transcript-final');
-            } else if (event.assistant.partialText) {
-              setChatPhase('streaming');
-            } else {
-              setChatPhase('thinking');
-            }
-            setLiveAssistantDraft({
-              runId: event.runId,
-              messageId: event.assistant.messageId,
-              partialText: event.assistant.partialText,
-              partialReasoning: event.assistant.partialReasoning,
-              eventType: event.assistant.eventType
-            });
-            continue;
-          }
-
-          if (event.type === 'run.state' || event.type === 'run.completed') {
-            setRecentRuns((current) => upsertRun(current, event.run));
-          }
-
-          if (event.type === 'run.failed' && event.run) {
-            const failedRun = event.run;
-            setRecentRuns((current) => upsertRun(current, failedRun));
-          }
-
-          if (event.type === 'run.failed') {
-            terminalStreamError = event.error;
-            setError(event.error);
-            setLiveStreamRunId(null);
-            setSending(false);
-            setChatPhase('failed');
-            setLiveAssistantDraft((current) => (current?.runId === event.runId ? null : current));
-            continue;
-          }
-
-          if (event.type === 'run.completed') {
-            setError(null);
-            setLiveStreamRunId(null);
-            setChatPhase((current) => (current === 'failed' ? current : current === 'transcript-final' ? current : 'idle'));
-          }
+          processStreamEvent(event);
         }
       }
 
@@ -910,58 +1093,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
       if (finalChunk) {
         const parsed = parseSseChunk(`${buffer}${finalChunk}\n\n`);
         for (const event of parsed.events) {
-          streamedRunId = event.runId;
-          setLiveStreamRunId(event.runId);
-          setSelectedRunId(event.runId);
-          setTimeline((current) => applyRunStreamEvent(current, event));
-
-          if (event.type === 'run.ready') {
-            readyEventReceived = true;
-            setOptimisticUserMessage(null);
-            setMessages((current) => upsertMessage(current, event.userMessage));
-            setRecentRuns((current) => upsertRun(current, event.run));
-            setLiveAssistantDraft((current) =>
-              current
-                ? {
-                    ...current,
-                    runId: event.runId
-                  }
-                : current
-            );
-          } else if (event.type === 'run.event' && event.event.type === 'message_end') {
-            setLiveStreamRunId(null);
-          } else if (event.type === 'run.assistant') {
-            if (event.assistant.eventType === 'text_end') {
-              setLiveStreamRunId(null);
-              setSending(false);
-              setChatPhase('transcript-final');
-            } else if (event.assistant.partialText) {
-              setChatPhase('streaming');
-            } else {
-              setChatPhase('thinking');
-            }
-            setLiveAssistantDraft({
-              runId: event.runId,
-              messageId: event.assistant.messageId,
-              partialText: event.assistant.partialText,
-              partialReasoning: event.assistant.partialReasoning,
-              eventType: event.assistant.eventType
-            });
-          } else if (event.type === 'run.failed') {
-            setRecentRuns((current) => (event.run ? upsertRun(current, event.run) : current));
-            terminalStreamError = event.error;
-            setError(event.error);
-            setLiveStreamRunId(null);
-            setSending(false);
-            setChatPhase('failed');
-            setLiveAssistantDraft((current) => (current?.runId === event.runId ? null : current));
-          } else if (event.type === 'run.state' || event.type === 'run.completed') {
-            setRecentRuns((current) => upsertRun(current, event.run));
-            if (event.type === 'run.completed') {
-              setLiveStreamRunId(null);
-              setChatPhase((current) => (current === 'failed' ? current : current === 'transcript-final' ? current : 'idle'));
-            }
-          }
+          processStreamEvent(event);
         }
       }
     } catch (sendError) {
@@ -988,13 +1120,11 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
       if (!controller.signal.aborted && requestId === sendRequestIdRef.current && (streamSessionStarted || streamedRunId)) {
         if (threadId && activeThreadIdRef.current === threadId) {
           const preferredRunId = streamedRunId ?? selectedRunIdRef.current;
-          await loadThreadMessages(threadId, {
-            background: true,
-            preferredRunId,
-            preserveExistingTimeline: true
-          });
+          void reconcileCompletedTurn(threadId, preferredRunId, requestId);
         } else {
-          await refreshThreads();
+          void refreshThreads().catch((refreshError) => {
+            setError(refreshError instanceof Error ? refreshError.message : 'Failed to refresh threads');
+          });
         }
 
         if (terminalStreamError) {

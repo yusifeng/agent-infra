@@ -383,24 +383,32 @@ describe('runAssistantTurnWithPiInternal', () => {
     });
 
     const updates: Array<{ type: string; hasRun: boolean; assistantText: string | null }> = [];
+    const liveAssistantTexts: string[] = [];
 
     await runtime.runTurn(
       ctx,
       { threadId: thread.id, runId: run.id },
       {
         onPersistedUpdate(update) {
+          if (!update.runEvent) {
+            return;
+          }
+
           updates.push({
             type: update.runEvent.type,
             hasRun: Boolean(update.run),
             assistantText: update.assistantStream?.partialText ?? null
           });
+        },
+        onLiveAssistantUpdate(update) {
+          liveAssistantTexts.push(update.partialText);
         }
       }
     );
 
     expect(updates.map((update) => update.type)).toContain('agent_start');
-    expect(updates.map((update) => update.type)).toContain('message_update');
-    expect(updates.some((update) => update.type === 'message_update' && update.assistantText === 'Stream me.')).toBe(true);
+    expect(updates.map((update) => update.type)).not.toContain('message_update');
+    expect(liveAssistantTexts).toContain('Stream me.');
     expect(updates.map((update) => update.type)).toContain('message_end');
     expect(updates.at(-1)).toEqual({
       type: 'agent_end',

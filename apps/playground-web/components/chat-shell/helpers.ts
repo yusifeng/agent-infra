@@ -1,6 +1,6 @@
 'use client';
 
-import type { MessageDto, RunDto, ToolInvocationDto } from '@agent-infra/contracts';
+import type { MessageDto, MessagePartDto, RunDto, ToolInvocationDto } from '@agent-infra/contracts';
 
 export function formatDateTime(value?: string | null) {
   if (!value) {
@@ -53,6 +53,30 @@ export function statusBadgeTone(status: RunDto['status'] | ToolInvocationDto['st
     default:
       return 'bg-slate-100 text-slate-600';
   }
+}
+
+export function messagePartHasVisibleContent(part: MessagePartDto) {
+  if (part.type === 'text' || part.type === 'reasoning') {
+    return Boolean(part.textValue?.trim());
+  }
+
+  if (part.type === 'tool-result') {
+    return Boolean(part.textValue?.trim() || part.jsonValue !== null);
+  }
+
+  if (part.type === 'tool-call') {
+    return part.jsonValue !== null;
+  }
+
+  return Boolean(part.textValue?.trim() || part.jsonValue);
+}
+
+export function assistantMessageHasVisibleContent(message: MessageDto) {
+  if (message.role !== 'assistant') {
+    return false;
+  }
+
+  return message.parts.some(messagePartHasVisibleContent);
 }
 
 function buildMessageCopyText(message: MessageDto) {

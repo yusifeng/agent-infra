@@ -30,7 +30,7 @@
     - 上述恢复时机不应再等待 `run.completed`
     - 更不应等待整条 stream close 或后续 durable reconcile
 
-- [ ] 从 `sendMessage().finally` 中移除整页式 thread reconcile 依赖
+- [x] 从 `sendMessage().finally` 中移除整页式 thread reconcile 依赖
   - 现状问题：
     - 当前发送完成后仍会调用 `loadThreadMessages(threadId, ...)`
     - 这会触发 messages / runs / selected run / timeline 的整套恢复逻辑
@@ -38,7 +38,7 @@
     - 发送完成只做 chat 局部收口
     - durable log 的补齐改为后台异步，不再阻塞 chat 主区恢复
 
-- [ ] 设计并实现“聊天局部收口”路径，替代 `loadThreadMessages(...)`
+- [x] 设计并实现“聊天局部收口”路径，替代 `loadThreadMessages(...)`
   - 应至少覆盖：
     - optimistic user 清理
     - live assistant 最终落位
@@ -51,7 +51,7 @@
 
 ## P0: 拆掉 `loadThreadMessages()` 的职责过载
 
-- [ ] 把 `loadThreadMessages()` 拆分成更小的职责函数
+- [x] 把 `loadThreadMessages()` 拆分成更小的职责函数
   - 建议至少拆为：
     - `hydrateTranscript(threadId)`
     - `hydrateRecentRuns(threadId)`
@@ -60,7 +60,7 @@
   - 目标：
     - “切 thread 的恢复逻辑”与“发送完成后的局部收口逻辑”彻底分开
 
-- [ ] 禁止 thread hydrate 逻辑继续承担发送收尾职责
+- [x] 禁止 thread hydrate 逻辑继续承担发送收尾职责
   - 当前风险：
     - 一个 loader 同时处理 transcript、recent runs、preferred run、selected run、timeline、optimistic/live state、error/loading
   - 验收：
@@ -69,7 +69,7 @@
 
 ## P0: 统一 assistant 渲染模型
 
-- [ ] 把 `LiveAssistantCard` 与 persisted `MessageCard` 合并为同一套 assistant transcript item
+- [x] 把 `LiveAssistantCard` 与 persisted `MessageCard` 合并为同一套 assistant transcript item
   - 现状问题：
     - 当前是两张不同来源的卡在切换
     - message actions、最终样式、状态收口容易晚一拍
@@ -77,7 +77,7 @@
     - 同一张 assistant item 支持 `source: pending | persisted`
     - UI 不再依赖“切卡”来进入最终态
 
-- [ ] 明确 assistant transcript item 的 final barrier
+- [x] 明确 assistant transcript item 的 final barrier
   - 当前候选信号：
     - `text_end`
     - `run.completed`
@@ -86,7 +86,7 @@
     - 明确哪个信号表示“聊天主区可以完成收口”
     - 这个信号必须只服务 transcript，不再混入右侧 durable log 语义
 
-- [ ] 验证并修正“空 assistant 壳”风险
+- [x] 验证并修正“空 assistant 壳”风险
   - 风险来源：
     - runtime 在 `message_start` 就会创建 assistant shell
     - 若恢复逻辑只按“是否存在 assistant message”判断，可能清掉 live draft，却只剩空壳
@@ -95,14 +95,14 @@
 
 ## P0: 重做 `message_update` 的 durable 策略
 
-- [ ] 停止把每次 assistant `message_update` 都放在聊天收口的关键路径上
+- [x] 停止把每次 assistant `message_update` 都放在聊天收口的关键路径上
   - 当前问题：
     - `packages/runtime-pi/src/runtime.ts` 对每个 `message_update` 都 `appendRunEvent(...)`
     - 同时 observer 与 SSE 写入又是 `await` 串行的
   - 目标：
     - chat 主链路不再被高频 durable event 拖住
 
-- [ ] 为 `message_update` 重新定义 durable 策略
+- [x] 为 `message_update` 重新定义 durable 策略
   - 可选方向：
     - 完全不做 per-delta durable write
     - batch / coalesce / sampled checkpoint
@@ -111,7 +111,7 @@
     - assistant 文本结束后的 durable tail 明显缩短
     - timeline 事件量更可控
 
-- [ ] 审视 `message_update` payload 的实际价值
+- [x] 审视 `message_update` payload 的实际价值
   - 现状问题：
     - 当前 durable payload 更像摘要（如 `deltaLength`），不能直接恢复 transcript
     - 但却付出了高频写入成本
@@ -121,11 +121,15 @@
 
 ## P0: observer / transport 不能继续卡住 runtime 完成
 
-- [ ] 评估并修正“best-effort observer 实际在关键路径上”的问题
+- [x] 评估并修正“best-effort observer 实际在关键路径上”的问题
   - 当前风险：
     - `emitLiveAssistantUpdate()`、`emitPersistedUpdate()` 都被 `await`
     - route 中 `queueSseEvent()` 也被串行 `await writer.write()`
     - 慢客户端 / 背压会拖长 `runTurn()` 收尾
+  - 本轮收口策略：
+    - stream route 的 observer 回调只负责“同步入队 SSE payload”
+    - `writer.write()` 继续串行，但只留在 route 自己的 `writeChain`
+    - runtime 仍按原顺序触发 observer，但不再直接等待底层 socket flush
   - 目标：
     - chat 完成不再被 transport 背压拖住
 

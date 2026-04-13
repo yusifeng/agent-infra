@@ -450,8 +450,8 @@ async function persistToolResultMessage(
   });
 }
 
-async function emitPersistedUpdate(options: RuntimePiRunTurnOptions | undefined, update: RuntimePiPersistedUpdate) {
-  if (!options?.onPersistedUpdate) {
+async function emitPersistedUpdate(options: RuntimePiRunTurnOptions | undefined, update: RuntimePiPersistedUpdate | null) {
+  if (!options?.onPersistedUpdate || !update) {
     return;
   }
 
@@ -483,7 +483,7 @@ async function handleAgentEvent(
   input: RuntimePiInput,
   model: Model<any>,
   event: AgentEvent
-): Promise<RuntimePiPersistedUpdate> {
+): Promise<RuntimePiPersistedUpdate | null> {
   if (event.type === 'agent_start') {
     const run = await ctx.runRepo.updateStatus(input.runId, 'running', { startedAt: new Date() });
     const runEvent = await appendRunEvent(ctx, state, input, event);
@@ -491,7 +491,7 @@ async function handleAgentEvent(
   }
 
   if (event.type === 'message_start' && event.message.role === 'assistant') {
-    const messageId = state.currentAssistantMessageId ?? crypto.randomUUID();
+    const messageId = state.openAssistantMessageId ?? crypto.randomUUID();
     const message = await ctx.messageRepo.create({
       id: messageId,
       threadId: input.threadId,
@@ -514,13 +514,7 @@ async function handleAgentEvent(
   }
 
   if (event.type === 'message_update' && event.message.role === 'assistant') {
-    const runEvent = await appendRunEvent(ctx, state, input, event);
-    const messageId = state.currentAssistantMessageId;
-    const assistantStream = messageId ? createAssistantStreamSnapshot(messageId, event.assistantMessageEvent) : null;
-    return {
-      runEvent,
-      assistantStream
-    };
+    return null;
   }
 
   if (event.type === 'message_end' && event.message.role === 'assistant') {
@@ -743,7 +737,7 @@ export async function runAssistantTurnWithPiInternal(
   let subscriberFailure: unknown = null;
 
   const unsubscribe = agent.subscribe((event) => {
-    if (event.type === 'message_start' && event.message.role === 'assistant' && !state.currentAssistantMessageId) {
+    if (event.type === 'message_start' && event.message.role === 'assistant' && !state.openAssistantMessageId) {
       state.currentAssistantMessageId = crypto.randomUUID();
       state.openAssistantMessageId = state.currentAssistantMessageId;
     }

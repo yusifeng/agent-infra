@@ -55,7 +55,7 @@ export interface RuntimePiRuntimeOptions {
 }
 
 export interface RuntimePiPersistedUpdate {
-  runEvent: RunEvent;
+  runEvent?: RunEvent | null;
   run?: Run | null;
   toolInvocation?: ToolInvocation | null;
   assistantStream?: RuntimePiAssistantStreamUpdate | null;

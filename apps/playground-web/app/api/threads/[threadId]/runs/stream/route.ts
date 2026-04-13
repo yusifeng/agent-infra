@@ -68,9 +68,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
   let finalRunSnapshot: RunStreamCompletedEventDto['run'] | RunStreamFailedEventDto['run'] = null;
   let terminalEventSent = false;
 
-  const queueSseEvent = (payload: RunStreamEventDto) => {
+  const enqueueSseEvent = (payload: RunStreamEventDto) => {
     writeChain = writeChain.then(() => writeSseEvent(writer, encoder, payload, streamState));
-    return writeChain;
   };
 
   const runId = started.run.id;
@@ -90,7 +89,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
         run: toRunDto(started.run) as NonNullable<RunStreamReadyEventDto['run']>,
         userMessage: toMessageDto(started.userMessage)
       };
-      await queueSseEvent(readyEvent);
+      enqueueSseEvent(readyEvent);
 
       await services.durableRuntime.runTurn(
         {
@@ -101,15 +100,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
         },
         runtimeInput,
         {
-          onLiveAssistantUpdate: async (assistantStream) => {
+          onLiveAssistantUpdate: (assistantStream) => {
             const assistantRow: RunStreamAssistantEventDto = {
               type: 'run.assistant',
               runId,
               assistant: assistantStream
             };
-            await queueSseEvent(assistantRow);
+            enqueueSseEvent(assistantRow);
           },
-          onPersistedUpdate: async (update) => {
+          onPersistedUpdate: (update) => {
             if (update.run) {
               finalRunSnapshot = toRunDto(update.run);
               const runState: RunStreamStateEventDto = {
@@ -117,7 +116,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
                 runId,
                 run: toRunDto(update.run) as NonNullable<RunStreamStateEventDto['run']>
               };
-              await queueSseEvent(runState);
+              enqueueSseEvent(runState);
 
               if (!terminalEventSent && (update.run.status === 'completed' || update.run.status === 'failed')) {
                 terminalEventSent = true;
@@ -129,14 +128,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
                     run: finalRunSnapshot,
                     error: update.run.error ?? 'runtime execution failed'
                   };
-                  await queueSseEvent(failedEvent);
+                  enqueueSseEvent(failedEvent);
                 } else {
                   const completedEvent: RunStreamCompletedEventDto = {
                     type: 'run.completed',
                     runId,
                     run: finalRunSnapshot as NonNullable<RunStreamCompletedEventDto['run']>
                   };
-                  await queueSseEvent(completedEvent);
+                  enqueueSseEvent(completedEvent);
                 }
               }
             }
@@ -152,7 +151,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
           error: getRouteErrorMessage(error, 'thread stream failed')
         };
         terminalEventSent = true;
-        await queueSseEvent(failedEvent);
+        enqueueSseEvent(failedEvent);
       }
     } finally {
       try {
