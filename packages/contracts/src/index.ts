@@ -172,18 +172,6 @@ export interface RunStreamStateEventDto {
   run: RunDto;
 }
 
-export interface RunStreamEventRowDto {
-  type: 'run.event';
-  runId: string;
-  event: RunEventDto;
-}
-
-export interface RunStreamToolRowDto {
-  type: 'run.tool';
-  runId: string;
-  toolInvocation: ToolInvocationDto;
-}
-
 export type RunAssistantStreamEventType =
   | 'start'
   | 'text_start'
@@ -225,8 +213,6 @@ export interface RunStreamFailedEventDto {
 export type RunStreamEventDto =
   | RunStreamReadyEventDto
   | RunStreamStateEventDto
-  | RunStreamEventRowDto
-  | RunStreamToolRowDto
   | RunStreamAssistantEventDto
   | RunStreamCompletedEventDto
   | RunStreamFailedEventDto;

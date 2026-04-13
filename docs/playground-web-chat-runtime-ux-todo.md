@@ -180,7 +180,7 @@
 
 ## P1: 收缩前端 dead path / 不一致 contract
 
-- [ ] 处理 `run.event` / `run.tool` contract 与实际 stream route 行为不一致的问题
+- [x] 处理 `run.event` / `run.tool` contract 与实际 stream route 行为不一致的问题
   - 当前现状：
     - DTO / reducer 仍支持 `run.event`、`run.tool`
     - 但当前 stream route 主链路并不实际发送这些事件
@@ -190,7 +190,7 @@
       - 删除 dead path
       - 或迁移到 debug-only/live log path
 
-- [ ] 收缩 `applyRunStreamEvent()` 与实际事件源之间的错位
+- [x] 收缩 `applyRunStreamEvent()` 与实际事件源之间的错位
   - 目标：
     - 页面层不再保留“理论上支持、实际上从不出现”的 reducer 分支
 

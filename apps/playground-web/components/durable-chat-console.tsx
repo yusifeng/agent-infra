@@ -4,15 +4,13 @@ import type {
   CreateThreadResponseDto,
   MessageDto,
   RunDto,
-  RunEventDto,
   RunStreamEventDto,
   RunTimelineResponseDto,
   RuntimePiMetaDto,
   ThreadMessagesResponseDto,
   ThreadRunsResponseDto,
   ThreadDto,
-  ThreadsResponseDto,
-  ToolInvocationDto
+  ThreadsResponseDto
 } from '@agent-infra/contracts';
 import clsx from 'clsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -135,28 +133,6 @@ function includeSelectedRun(runs: RunDto[], selectedRun: RunDto | null) {
   return [...runs, selectedRun].sort(compareRunsByCreatedAt);
 }
 
-function upsertRunEvent(events: RunEventDto[], nextEvent: RunEventDto) {
-  const existingIndex = events.findIndex((event) => event.id === nextEvent.id);
-  if (existingIndex === -1) {
-    return [...events, nextEvent].sort((left, right) => left.seq - right.seq);
-  }
-
-  const nextEvents = [...events];
-  nextEvents[existingIndex] = nextEvent;
-  return nextEvents.sort((left, right) => left.seq - right.seq);
-}
-
-function upsertToolInvocation(invocations: ToolInvocationDto[], nextInvocation: ToolInvocationDto) {
-  const existingIndex = invocations.findIndex((invocation) => invocation.id === nextInvocation.id);
-  if (existingIndex === -1) {
-    return [...invocations, nextInvocation];
-  }
-
-  const nextInvocations = [...invocations];
-  nextInvocations[existingIndex] = nextInvocation;
-  return nextInvocations;
-}
-
 function applyRunStreamEvent(current: RunTimelineResponseDto | null, event: RunStreamEventDto): RunTimelineResponseDto {
   switch (event.type) {
     case 'run.ready':
@@ -170,18 +146,6 @@ function applyRunStreamEvent(current: RunTimelineResponseDto | null, event: RunS
         run: event.run,
         runEvents: current?.runEvents ?? [],
         toolInvocations: current?.toolInvocations ?? []
-      };
-    case 'run.event':
-      return {
-        run: current?.run ?? null,
-        runEvents: upsertRunEvent(current?.runEvents ?? [], event.event),
-        toolInvocations: current?.toolInvocations ?? []
-      };
-    case 'run.tool':
-      return {
-        run: current?.run ?? null,
-        runEvents: current?.runEvents ?? [],
-        toolInvocations: upsertToolInvocation(current?.toolInvocations ?? [], event.toolInvocation)
       };
     case 'run.completed':
       return {
@@ -950,11 +914,6 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
               }
             : current
         );
-        return;
-      }
-
-      if (event.type === 'run.event' && event.event.type === 'message_end') {
-        setLiveStreamRunId(null);
         return;
       }
 
