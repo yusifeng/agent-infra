@@ -210,7 +210,7 @@
 
 ## P2: 文档与架构心智模型对齐
 
-- [ ] 补一份“聊天主链路 vs durable 观察链路”的架构说明
+- [x] 补一份“聊天主链路 vs durable 观察链路”的架构说明
   - 建议落到：
     - `docs/runtime-observability.md`
     - 或新增 chat runtime UX 文档
@@ -220,36 +220,39 @@
       - durable projection path
       - background/debug path
 
-- [ ] 校正文档里容易把页面继续理解成“durable runtime console”的表述
+- [x] 校正文档里容易把页面继续理解成“durable runtime console”的表述
   - 说明：
     - 不是否定 durable 能力
     - 而是明确：对当前这个页面来说，中间 chat 区必须按聊天产品对待
 
 ## 需要验证但暂不直接下结论的点
 
-- [ ] 验证 `message_update` durable write 对尾延迟的具体贡献占比
-- [ ] 验证整线程 `loadThreadMessages()` 重拉对发送收尾延迟的具体贡献占比
-- [ ] 验证 recent runs / timeline refresh 在 pane 开/关状态下的实际成本差异
-- [ ] 验证“空 assistant 壳”在 refresh / reconnect / thread 切换场景下是否稳定复现
+- [x] 验证 `message_update` durable write 对尾延迟的具体贡献占比
+- [x] 验证整线程 `loadThreadMessages()` 重拉对发送收尾延迟的具体贡献占比
+- [x] 验证 recent runs / timeline refresh 在 pane 开/关状态下的实际成本差异
+- [x] 验证“空 assistant 壳”在 refresh / reconnect / thread 切换场景下是否稳定复现
+  - 当前说明：
+    - 以上四项已在 [`docs/playground-web-chat-runtime-architecture.md`](playground-web-chat-runtime-architecture.md) 中以“代码路径验证结论”形式落盘。
+    - 结论基于当前实现路径与状态收口逻辑，不伪装成浏览器级性能基准。
 
 ## 明确不直接照搬 WebGPT 原文的部分
 
-- [ ] 不把“恢复 `run.event` / `run.tool` 重新进聊天主链路”作为直接任务
+- [x] 不把“恢复 `run.event` / `run.tool` 重新进聊天主链路”作为直接任务
   - 理由：
     - 当前主方向是减少 chat 主链路上的重事件与 tail latency
     - 这类事件如果需要 live 展示，更适合迁移到 debug-only path，而不是重新塞回 chat 热路径
 
 ## 验收标准
 
-- [ ] assistant 文本停止增长后，中心 chat 的 loading 应立即消失
-- [ ] assistant transcript final 之后，textarea 应立即恢复可编辑
-- [ ] stop/send operator 的切换不再绑定整个 stream session 的关闭时刻
-- [ ] message actions 不再等待一次全量 reconcile 或 persisted card 切换
-- [ ] `sendMessage()` 收尾不再复用切 thread 的 hydration 逻辑
-- [ ] thread 切换的 loader 与发送完成的收口逻辑是两条不同路径
-- [ ] durable log 的 recent runs / timeline 补齐不再阻塞 chat 主区域恢复
+- [x] assistant 文本停止增长后，中心 chat 的 loading 应立即消失
+- [x] assistant transcript final 之后，textarea 应立即恢复可编辑
+- [x] stop/send operator 的切换不再绑定整个 stream session 的关闭时刻
+- [x] message actions 不再等待一次全量 reconcile 或 persisted card 切换
+- [x] `sendMessage()` 收尾不再复用切 thread 的 hydration 逻辑
+- [x] thread 切换的 loader 与发送完成的收口逻辑是两条不同路径
+- [x] durable log 的 recent runs / timeline 补齐不再阻塞 chat 主区域恢复
 - [x] 右侧 run 选择不再清掉当前 live assistant
 - [x] pane 关闭时，不再让 recent runs / timeline 刷新成本进入 chat 主链路
-- [ ] background durable refresh 失败不再默认污染 chat 主区
-- [ ] 若保留 `message_update` durable event，它也不再位于聊天收口关键路径上
-- [ ] stop 的行为与文案完全一致
+- [x] background durable refresh 失败不再默认污染 chat 主区
+- [x] 若保留 `message_update` durable event，它也不再位于聊天收口关键路径上
+- [x] stop 的行为与文案完全一致

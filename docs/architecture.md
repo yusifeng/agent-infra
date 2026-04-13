@@ -12,7 +12,7 @@
 - `packages/contracts`: serialized request/response contracts for transport consumers.
 - `packages/db`: Drizzle schema plus SQLite / PostgreSQL repository implementations.
 - `packages/runtime-pi`: pi-agent-core adapter that translates runtime events into durable records.
-- `apps/playground-web`: first consumer of `agent-infra`, with both browser-local experiments and a durable runtime console.
+- `apps/playground-web`: first consumer of `agent-infra`, with browser-local experiments plus a chat-first runtime validation surface that keeps durable inspection as a secondary pane.
 
 ## Consumer boundary
 
@@ -41,7 +41,7 @@ This keeps the model output and tool execution trace extensible.
 
 - thread / run / message / message_part / tool_invocation / run_event persistence
 - app-layer use cases for thread creation, listing, message reads, and text turns
-- browser-local `playground-web` experiment plus durable runtime console
+- browser-local `playground-web` experiment plus a chat-first runtime validation surface with durable inspection
 - initial SSE transport for live run observation, with durable timeline endpoints kept as the source of truth
 - one server-side runtime adapter mainline: `runtime-pi`
 

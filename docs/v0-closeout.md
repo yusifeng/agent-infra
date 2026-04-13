@@ -36,7 +36,7 @@ The current `v0` platform includes:
   - one server-side runtime adapter mainline built around durable persistence
 - `apps/playground-web`
   - first consumer and experiment harness
-  - durable runtime console that validates threads, transcript reads, recent runs, SSE, and run timelines
+  - chat-first runtime validation surface with a secondary durable inspector for threads, transcript reads, recent runs, SSE, and run timelines
 - `apps/docs`
   - deployable docs site for public concepts and guides
 

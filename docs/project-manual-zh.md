@@ -258,7 +258,14 @@ flowchart TB
 **职责**：**第一个消费者**——Next.js 15 应用，演示：
 
 1. **浏览器本地实验**（首页 `PiExperimentPage`）：与 Pi 生态（如 `pi-web-ui`）相关的交互实验。
-2. **可持久化 Runtime Pi 控制台**（`/runtime-pi`）：调用后端 API，走 `createAgentInfraApp` + `runtime-pi` + SQLite/Postgres。
+2. **带 durable 观察面的聊天参考页**（聊天页 / runtime 相关页）：调用后端 API，走 `createAgentInfraApp` + `runtime-pi` + SQLite/Postgres。
+
+需要特别注意：
+
+- 中间 chat 区按“聊天产品主链路”设计。
+- durable 能力仍然保留，但主要放在右侧 log / timeline 观察面里。
+- 不应再把这个页面理解成“durable runtime console 优先、聊天区只是附属展示”。
+- 更细的运行时 UX 边界见 [`docs/playground-web-chat-runtime-architecture.md`](playground-web-chat-runtime-architecture.md)。
 
 **依赖的 workspace 包**：`@agent-infra/app`、`contracts`、`core`、`db`、`runtime-pi`，以及 Pi 相关 npm 包。
 
