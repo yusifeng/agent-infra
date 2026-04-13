@@ -161,7 +161,7 @@
     - `runEvents`
     - `toolInvocations`
 
-- [ ] 禁止右侧 run 选择继续影响中间 chat live state
+- [x] 禁止右侧 run 选择继续影响中间 chat live state
   - 当前风险：
     - `loadRunTimeline(runId)` 会改写 `liveAssistantDraft`
   - 验收：
@@ -248,7 +248,7 @@
 - [ ] `sendMessage()` 收尾不再复用切 thread 的 hydration 逻辑
 - [ ] thread 切换的 loader 与发送完成的收口逻辑是两条不同路径
 - [ ] durable log 的 recent runs / timeline 补齐不再阻塞 chat 主区域恢复
-- [ ] 右侧 run 选择不再清掉当前 live assistant
+- [x] 右侧 run 选择不再清掉当前 live assistant
 - [ ] pane 关闭时，不再让 recent runs / timeline 刷新成本进入 chat 主链路
 - [ ] background durable refresh 失败不再默认污染 chat 主区
 - [ ] 若保留 `message_update` durable event，它也不再位于聊天收口关键路径上

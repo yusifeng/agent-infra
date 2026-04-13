@@ -475,7 +475,6 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     const requestId = timelineRequestIdRef.current;
     timelineAbortControllerRef.current?.abort();
     setSelectedRunId(runId);
-    setLiveAssistantDraft((current) => (current?.runId === runId ? current : null));
 
     if (!runId) {
       timelineAbortControllerRef.current = null;
