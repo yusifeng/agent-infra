@@ -16,8 +16,9 @@ import { composerMaxWithTW, ui } from './ui';
 type ComposerDockProps = {
   activeThreadId: string | null;
   draft: string;
-  sending: boolean;
-  sendingDisabled: boolean;
+  isResponding: boolean;
+  sendDisabled: boolean;
+  inputLocked: boolean;
   selectedModelKey: string;
   selectedModelOption: RuntimePiMetaDto['modelOptions'][number] | null;
   meta: RuntimePiMetaDto | null;
@@ -35,8 +36,9 @@ type ComposerDockProps = {
 export function ComposerDock({
   activeThreadId,
   draft,
-  sending,
-  sendingDisabled,
+  isResponding,
+  sendDisabled,
+  inputLocked,
   selectedModelKey,
   selectedModelOption,
   meta,
@@ -82,7 +84,7 @@ export function ComposerDock({
           className={ui.composerCard}
           onSubmit={(event) => {
             event.preventDefault();
-            if (sendingDisabled) {
+            if (sendDisabled) {
               return;
             }
 
@@ -98,14 +100,14 @@ export function ComposerDock({
                 onKeyDown={(event) => {
                   if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
                     event.preventDefault();
-                    if (!sendingDisabled) {
+                    if (!sendDisabled) {
                       onSend();
                     }
                   }
                 }}
                 rows={3}
                 placeholder={activeThreadId ? 'Send a prompt in this durable thread...' : 'Send the first prompt to create a durable thread...'}
-                disabled={!meta?.runtimeConfigured || sending || !selectedModelOption}
+                disabled={!meta?.runtimeConfigured || inputLocked || !selectedModelOption}
                 className={clsx('w-full resize-none overflow-y-auto text-sm leading-relaxed', ui.textarea)}
                 style={{
                   minHeight: '60px',
@@ -122,7 +124,7 @@ export function ComposerDock({
                     <select
                       value={selectedModelKey}
                       onChange={(event) => onSelectedModelKeyChange(event.target.value)}
-                      disabled={sending || !meta || meta.modelOptions.length === 0}
+                      disabled={inputLocked || !meta || meta.modelOptions.length === 0}
                       className="max-w-[172px] appearance-none bg-transparent pr-4 text-xs text-slate-500 outline-none"
                     >
                       {meta?.modelOptions.map((option) => (
@@ -139,9 +141,9 @@ export function ComposerDock({
               <div className="flex items-center">
                 <button
                   type="submit"
-                  disabled={!sending && sendingDisabled}
+                  disabled={!isResponding && sendDisabled}
                   onClick={(event) => {
-                    if (sending) {
+                    if (isResponding) {
                       event.preventDefault();
                       sendAbortControllerRef.current?.abort();
                       onStop();
@@ -149,12 +151,12 @@ export function ComposerDock({
                   }}
                   className={clsx(
                     ui.composerPrimaryButton,
-                    sending ? 'border-rose-200 text-rose-600' : hasDraftValue ? 'border-slate-300 text-sky-600' : 'text-slate-300',
-                    !sending && sendingDisabled && 'cursor-not-allowed opacity-60'
+                    isResponding ? 'border-rose-200 text-rose-600' : hasDraftValue ? 'border-slate-300 text-sky-600' : 'text-slate-300',
+                    !isResponding && sendDisabled && 'cursor-not-allowed opacity-60'
                   )}
-                  title={sending ? '停止生成' : '发送 (Cmd/Ctrl + Enter)'}
+                  title={isResponding ? '停止生成' : '发送 (Cmd/Ctrl + Enter)'}
                 >
-                  {sending ? <CircleStop className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+                  {isResponding ? <CircleStop className="h-4 w-4" /> : <Send className="h-4 w-4" />}
                 </button>
               </div>
             </div>

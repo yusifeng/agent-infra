@@ -12,7 +12,7 @@
 
 ## P0: 先把聊天主链路从 durable 收尾里拆出来
 
-- [ ] 引入明确的 chat phase 状态机，至少覆盖 `idle / thinking / streaming / transcript-final / failed`
+- [x] 引入明确的 chat phase 状态机，至少覆盖 `idle / thinking / streaming / transcript-final / failed`
   - 现状问题：
     - `loading`、textarea disabled、operator、message actions 目前分别被 `sending`、`text_end`、stream close 等不同状态驱动。
     - assistant 文本已经结束后，输入区和操作区仍可能晚一拍恢复。
@@ -20,7 +20,7 @@
     - 聊天主区只由 transcript completion 相关状态驱动。
     - 不再让 `sending` 这种粗粒度状态同时控制所有 UI。
 
-- [ ] assistant 文本停止增长后，立即释放聊天主链路 UI
+- [x] assistant 文本停止增长后，立即释放聊天主链路 UI
   - 要求：
     - 底部 loading 消失
     - textarea 恢复可编辑

@@ -254,6 +254,8 @@ type DurableChatConsoleProps = {
   initialThreadId?: string | null;
 };
 
+type ChatPhase = 'idle' | 'thinking' | 'streaming' | 'transcript-final' | 'failed';
+
 export function DurableChatConsole({ initialThreadId = null }: DurableChatConsoleProps) {
   const [threads, setThreads] = useState<ThreadDto[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
@@ -263,6 +265,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
   const [meta, setMeta] = useState<RuntimePiMetaDto | null>(null);
   const [selectedModelKey, setSelectedModelKey] = useState('');
   const [sending, setSending] = useState(false);
+  const [chatPhase, setChatPhase] = useState<ChatPhase>('idle');
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
@@ -301,9 +304,10 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
   const runEvents = timeline?.runEvents ?? [];
   const toolInvocations = timeline?.toolInvocations ?? [];
   const currentThreadTitle = activeThread?.title?.trim() || activeThreadId || 'New chat';
-  const sendingDisabled = !draft.trim() || sending || !meta?.runtimeConfigured || !selectedModelOption;
-  const composerLoadingLabel =
-    sending && (!liveAssistantDraft || liveAssistantDraft.eventType !== 'text_end') ? 'loading' : null;
+  const isChatResponding = chatPhase === 'thinking' || chatPhase === 'streaming';
+  const sendDisabled = !draft.trim() || isChatResponding || !meta?.runtimeConfigured || !selectedModelOption;
+  const inputLocked = isChatResponding;
+  const composerLoadingLabel = isChatResponding ? 'loading' : null;
   const displayedMessages = useMemo(
     () => (optimisticUserMessage ? upsertMessage(messages, optimisticUserMessage) : messages),
     [messages, optimisticUserMessage]
@@ -426,6 +430,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     sendRequestIdRef.current += 1;
     sendAbortControllerRef.current?.abort();
     setSending(false);
+    setChatPhase('idle');
     setActiveThreadId(null);
     setDraft('');
     setOptimisticUserMessage(null);
@@ -656,6 +661,9 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
       setRecentRunsError(null);
       setRecentRunsLoading(false);
       setError(null);
+      if (nextMessages.some((message) => message.role === 'assistant')) {
+        setChatPhase('idle');
+      }
       if (options?.skipTimelineReload) {
         setSelectedRunId(nextSelectedRunId);
         return nextSelectedRunId;
@@ -714,7 +722,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
   }
 
   async function sendMessage() {
-    if (!draft.trim() || sending || !selectedModelOption) {
+    if (!draft.trim() || isChatResponding || !selectedModelOption) {
       return;
     }
 
@@ -731,6 +739,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     let terminalStreamError: string | null = null;
     let readyEventReceived = false;
     setSending(true);
+    setChatPhase('thinking');
     setError(null);
     setLiveStreamRunId(null);
     setDraft('');
@@ -853,6 +862,12 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
           if (event.type === 'run.assistant') {
             if (event.assistant.eventType === 'text_end') {
               setLiveStreamRunId(null);
+              setSending(false);
+              setChatPhase('transcript-final');
+            } else if (event.assistant.partialText) {
+              setChatPhase('streaming');
+            } else {
+              setChatPhase('thinking');
             }
             setLiveAssistantDraft({
               runId: event.runId,
@@ -877,6 +892,8 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
             terminalStreamError = event.error;
             setError(event.error);
             setLiveStreamRunId(null);
+            setSending(false);
+            setChatPhase('failed');
             setLiveAssistantDraft((current) => (current?.runId === event.runId ? null : current));
             continue;
           }
@@ -884,6 +901,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
           if (event.type === 'run.completed') {
             setError(null);
             setLiveStreamRunId(null);
+            setChatPhase((current) => (current === 'failed' ? current : current === 'transcript-final' ? current : 'idle'));
           }
         }
       }
@@ -915,6 +933,12 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
           } else if (event.type === 'run.assistant') {
             if (event.assistant.eventType === 'text_end') {
               setLiveStreamRunId(null);
+              setSending(false);
+              setChatPhase('transcript-final');
+            } else if (event.assistant.partialText) {
+              setChatPhase('streaming');
+            } else {
+              setChatPhase('thinking');
             }
             setLiveAssistantDraft({
               runId: event.runId,
@@ -928,11 +952,14 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
             terminalStreamError = event.error;
             setError(event.error);
             setLiveStreamRunId(null);
+            setSending(false);
+            setChatPhase('failed');
             setLiveAssistantDraft((current) => (current?.runId === event.runId ? null : current));
           } else if (event.type === 'run.state' || event.type === 'run.completed') {
             setRecentRuns((current) => upsertRun(current, event.run));
             if (event.type === 'run.completed') {
               setLiveStreamRunId(null);
+              setChatPhase((current) => (current === 'failed' ? current : current === 'transcript-final' ? current : 'idle'));
             }
           }
         }
@@ -947,12 +974,15 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
         setOptimisticUserMessage(null);
         setLiveAssistantDraft(null);
       }
+      setSending(false);
+      setChatPhase('failed');
       setError(sendError instanceof Error ? sendError.message : 'Failed to send message');
     } finally {
       if (requestId === sendRequestIdRef.current) {
         sendAbortControllerRef.current = null;
         setSending(false);
         setLiveStreamRunId(null);
+        setChatPhase((current) => (current === 'failed' ? 'failed' : 'idle'));
       }
 
       if (!controller.signal.aborted && requestId === sendRequestIdRef.current && (streamSessionStarted || streamedRunId)) {
@@ -1080,17 +1110,18 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
                 meta={meta}
                 error={error}
                 durableRecoveryNotice={durableRecoveryNotice}
-              loadingMessages={loadingMessages}
-              activeThreadId={activeThreadId}
-              messages={displayedMessages}
-              liveAssistantDraft={liveAssistantDraft}
+                loadingMessages={loadingMessages}
+                activeThreadId={activeThreadId}
+                messages={displayedMessages}
+                liveAssistantDraft={liveAssistantDraft}
               />
             </div>
             <ComposerDock
               activeThreadId={activeThreadId}
               draft={draft}
-              sending={sending}
-              sendingDisabled={sendingDisabled}
+              isResponding={isChatResponding}
+              sendDisabled={sendDisabled}
+              inputLocked={inputLocked}
               selectedModelKey={selectedModelKey}
               selectedModelOption={selectedModelOption}
               meta={meta}
@@ -1105,6 +1136,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
               }}
               onStop={() => {
                 setSending(false);
+                setChatPhase('idle');
                 setLiveStreamRunId(null);
               }}
               onScrollToBottom={scrollToMessagesBottom}
