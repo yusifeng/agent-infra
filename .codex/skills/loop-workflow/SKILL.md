@@ -57,6 +57,9 @@ Operate from repository root and use `pnpm` workspace commands.
    - `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`
    - Use tool timeout `>= 1200000` ms.
    - Skip only for pure docs-only changes unless explicitly requested.
+   - If review is clean, do not keep accumulating unrelated work in the same local diff.
+   - Default behavior after a clean review is to commit the current loop item immediately.
+   - Only defer the commit if the user explicitly asks to keep batching multiple loop items together.
 
 7. Pre-commit gate
    - Check scope: `git status --short`
@@ -66,6 +69,7 @@ Operate from repository root and use `pnpm` workspace commands.
 8. Commit and PR hygiene
    - Keep one concern per commit.
    - Use imperative subject.
+   - In normal loop execution, a clean review should transition directly into commit, not into another implementation item.
    - When user asks to commit, generate Conventional Commit format:
      - `type(scope): summary`
      - max 72 chars, imperative.
@@ -88,3 +92,4 @@ See `references/command-matrix.md` for command mapping by change type.
 - Relevant checks/tests for touched packages passed.
 - Docs are synchronized with behavior changes.
 - Diff is focused and reviewable.
+- If review was required and came back clean, the loop item is committed before starting the next item unless the user explicitly asks otherwise.
