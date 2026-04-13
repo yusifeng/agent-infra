@@ -1,6 +1,4 @@
-import 'antd/dist/reset.css';
-
-import { AntdRegistry } from '@ant-design/nextjs-registry';
+import './chat-shell.css';
 
 import { ChatThemeProvider } from '@/components/chat-theme-provider';
 
@@ -9,9 +7,5 @@ type ChatShellLayoutProps = {
 };
 
 export default function ChatShellLayout({ children }: ChatShellLayoutProps) {
-  return (
-    <AntdRegistry>
-      <ChatThemeProvider>{children}</ChatThemeProvider>
-    </AntdRegistry>
-  );
+  return <ChatThemeProvider>{children}</ChatThemeProvider>;
 }

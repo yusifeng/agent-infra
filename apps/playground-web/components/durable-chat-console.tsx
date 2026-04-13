@@ -3,10 +3,8 @@
 import type {
   CreateThreadResponseDto,
   MessageDto,
-  MessagePartDto,
   RunDto,
   RunEventDto,
-  RunStreamAssistantSnapshotDto,
   RunStreamEventDto,
   RunTimelineResponseDto,
   RuntimePiMetaDto,
@@ -16,206 +14,19 @@ import type {
   ThreadsResponseDto,
   ToolInvocationDto
 } from '@agent-infra/contracts';
-import { createStyles } from 'antd-style';
 import clsx from 'clsx';
-import {
-  Blocks,
-  CircleStop,
-  ChevronDown,
-  Copy,
-  Eraser,
-  GalleryVerticalEnd,
-  Globe,
-  Library,
-  Loader2,
-  Menu,
-  Mic,
-  MessageSquarePlus,
-  PanelLeftClose,
-  PanelLeftOpen,
-  RotateCw,
-  Search,
-  Send,
-  SlidersHorizontal,
-  Workflow
-} from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+
+import { ChatHeader } from './chat-shell/chat-header';
+import { ChatMessageList } from './chat-shell/message-list';
+import { ComposerDock } from './chat-shell/composer-dock';
+import { DurableLogPane } from './chat-shell/durable-log-pane';
+import { ChatSidebar } from './chat-shell/sidebar';
+import type { LiveAssistantDraft } from './chat-shell/types';
+import { ui } from './chat-shell/ui';
 
 const SELECTED_RUN_STORAGE_KEY = 'agent-infra.chat-console.selected-run-id';
 const RECENT_RUNS_LIMIT = 8;
-const LOBE_AVATAR_URL = 'https://registry.npmmirror.com/@lobehub/fluent-emoji-3d/latest/files/assets/1f92f.webp';
-const WAVING_HAND_EMOJI_URL = 'https://registry.npmmirror.com/@lobehub/fluent-emoji-anim-1/latest/files/assets/1f44b.webp';
-
-const SUGGESTED_PROMPTS = [
-  'Use getCurrentTime and summarize the result in one short paragraph.',
-  'Call getRuntimeInfo, then explain what runtime is being exercised.',
-  'Use echoText to repeat this sentence, then tell me why the tool was useful.'
-];
-
-const maxWithTW = 'max-w-3xl';
-const composerMaxWithTW = 'max-w-[820px]';
-const messageListMinHeight = { minHeight: 'max(0px, calc(-400px + 100dvh))' };
-
-const useStyles = createStyles(({ css, token }) => ({
-  shell: css`
-    height: 100%;
-    overflow: hidden;
-    background: ${token.colorBgLayout};
-  `,
-  secondarySurface: css`
-    border: 1px solid ${token.colorBorderSecondary};
-    background: ${token.colorBgContainer};
-  `,
-  sidebar: css`
-    background: var(--lobe-colorBgContainerSecondary, ${token.colorBgLayout});
-    border-right: 1px solid ${token.colorBorderSecondary};
-  `,
-  threadItem: css`
-    border-radius: ${token.borderRadius}px;
-    color: ${token.colorTextSecondary};
-    transition:
-      background-color ${token.motionDurationMid},
-      color ${token.motionDurationMid},
-      border-color ${token.motionDurationMid};
-
-    &:hover {
-      background: ${token.colorFillSecondary};
-      color: ${token.colorText};
-    }
-  `,
-  threadItemActive: css`
-    background: ${token.colorFillSecondary};
-    color: ${token.colorTextSecondary};
-  `,
-  navItem: css`
-    border-radius: ${token.borderRadius}px;
-    color: ${token.colorTextSecondary};
-    transition:
-      background-color ${token.motionDurationMid},
-      color ${token.motionDurationMid};
-
-    &:hover {
-      background: ${token.colorFillSecondary};
-      color: ${token.colorText};
-    }
-  `,
-  chatHeaderTitle: css`
-    overflow: hidden;
-    font-size: 14px;
-    font-weight: bold;
-    line-height: 1.2;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  `,
-  chatPane: css`
-    background: var(--lobe-colorBgLayout, ${token.colorBgLayout});
-  `,
-  messageViewport: css`
-    background: var(--lobe-colorBgLayout, ${token.colorBgLayout});
-    overscroll-behavior: contain;
-    scroll-padding-block-end: 220px;
-  `,
-  assistantBubble: css`
-    color: ${token.colorText};
-  `,
-  userBubble: css`
-    background: ${token.colorFillTertiary};
-    color: ${token.colorText};
-  `,
-  subtlePanel: css`
-    border: 1px solid ${token.colorBorderSecondary};
-    background: ${token.colorBgElevated};
-  `,
-  reasoning: css`
-    border: 1px solid ${token.colorBorderSecondary};
-    background: ${token.colorFillQuaternary};
-  `,
-  toolCall: css`
-    border: 1px solid rgba(99, 102, 241, 0.22);
-    background: rgba(99, 102, 241, 0.08);
-  `,
-  toolResult: css`
-    border: 1px solid rgba(16, 185, 129, 0.22);
-    background: rgba(16, 185, 129, 0.08);
-  `,
-  codeBlock: css`
-    background: #0f172a;
-    color: #e2e8f0;
-  `,
-  composerDock: css`
-    background: var(--lobe-colorBgLayout, ${token.colorBgLayout});
-    backdrop-filter: blur(8px);
-  `,
-  composerCard: css`
-    border: 1px solid ${token.colorBorderSecondary};
-    background: var(--lobe-colorBgContainer, ${token.colorBgContainer});
-    border-radius: 12px;
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
-  `,
-  textarea: css`
-    color: ${token.colorText};
-    background: transparent;
-    border: none;
-    outline: none;
-    resize: none;
-
-    &::placeholder {
-      color: ${token.colorTextPlaceholder};
-    }
-  `,
-  messageAppear: css`
-    animation: message-enter 180ms ease-out;
-
-    @keyframes message-enter {
-      from {
-        opacity: 0;
-        transform: translateY(6px);
-      }
-
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-  `,
-  scrollButton: css`
-    border: 1px solid ${token.colorBorderSecondary};
-    background: ${token.colorBgContainer};
-  `,
-  logPane: css`
-    background: ${token.colorBgLayout};
-  `,
-  badge: css`
-    border: 1px solid ${token.colorBorderSecondary};
-    background: ${token.colorFillQuaternary};
-    color: ${token.colorTextSecondary};
-  `,
-  welcomeTitle: css`
-    margin-block: 0.2em 0;
-    font-weight: bolder;
-    line-height: 1;
-    color: ${token.colorText};
-  `,
-  welcomeDesc: css`
-    text-align: center;
-    color: ${token.colorTextSecondary};
-  `,
-  warningBanner: css`
-    border: 1px solid rgba(245, 158, 11, 0.35);
-    background: rgba(245, 158, 11, 0.12);
-    color: #92400e;
-  `,
-  infoBanner: css`
-    border: 1px solid rgba(14, 165, 233, 0.28);
-    background: rgba(14, 165, 233, 0.12);
-    color: #075985;
-  `,
-  errorBanner: css`
-    border: 1px solid rgba(244, 63, 94, 0.3);
-    background: rgba(244, 63, 94, 0.1);
-    color: #9f1239;
-  `
-}));
 
 function normalizeRuntimeMeta(data: Partial<RuntimePiMetaDto>): RuntimePiMetaDto {
   const modelOptions = Array.isArray(data.modelOptions) ? data.modelOptions : [];
@@ -230,108 +41,6 @@ function normalizeRuntimeMeta(data: Partial<RuntimePiMetaDto>): RuntimePiMetaDto
     modelOptions,
     runtimeConfigError: data.runtimeConfigError ?? null
   };
-}
-
-type IconButtonProps = {
-  icon: ComponentType<{ className?: string }>;
-  onClick?: () => void;
-  title: string;
-  size?: 'default' | 'small';
-  disabled?: boolean;
-  className?: string;
-};
-
-function IconButton({ icon: Icon, onClick, title, size = 'default', disabled = false, className }: IconButtonProps) {
-  const frameClass = size === 'small' ? 'h-6 w-6 rounded-md' : 'h-8 w-8 rounded-md';
-  const iconClass = size === 'small' ? 'h-[14px] w-[14px]' : 'h-[18px] w-[18px]';
-
-  return (
-    <button
-      type="button"
-      aria-label={title}
-      title={title}
-      disabled={disabled}
-      onClick={onClick}
-      className={clsx(
-        'flex items-center justify-center text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 disabled:pointer-events-none disabled:opacity-50',
-        frameClass,
-        className
-      )}
-    >
-      <Icon className={iconClass} />
-    </button>
-  );
-}
-
-function ChatAvatar({ title, size = 28 }: { title: string; size?: number }) {
-  return (
-    <img
-      alt={title}
-      className="rounded-full object-cover"
-      height={size}
-      loading="lazy"
-      src={LOBE_AVATAR_URL}
-      width={size}
-    />
-  );
-}
-
-function AnimatedEmoji({ emoji, size = 40 }: { emoji: string; size?: number }) {
-  return (
-    <img
-      alt={emoji}
-      className="object-contain"
-      height={size}
-      loading="lazy"
-      src={WAVING_HAND_EMOJI_URL}
-      width={size}
-    />
-  );
-}
-
-function ProviderMonogram({ provider }: { provider: string }) {
-  return (
-    <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-slate-200 text-[10px] font-semibold uppercase text-slate-500">
-      {provider.slice(0, 1)}
-    </span>
-  );
-}
-
-function formatDateTime(value?: string | null) {
-  if (!value) {
-    return '';
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-    month: 'short',
-    day: 'numeric'
-  }).format(new Date(value));
-}
-
-function formatDuration(startedAt?: string | null, finishedAt?: string | null) {
-  if (!startedAt) {
-    return 'Not started';
-  }
-
-  const start = new Date(startedAt).getTime();
-  const end = finishedAt ? new Date(finishedAt).getTime() : Date.now();
-  const durationMs = Math.max(0, end - start);
-
-  if (durationMs < 1000) {
-    return `${durationMs} ms`;
-  }
-
-  const seconds = durationMs / 1000;
-  if (seconds < 60) {
-    return `${seconds.toFixed(seconds < 10 ? 1 : 0)} s`;
-  }
-
-  const roundedSeconds = Math.round(seconds);
-  const minutes = Math.floor(roundedSeconds / 60);
-  const remainingSeconds = roundedSeconds % 60;
-  return `${minutes}m ${remainingSeconds}s`;
 }
 
 function deriveLatestRunId(messages: MessageDto[]) {
@@ -541,365 +250,11 @@ function parseSseChunk(buffer: string) {
   };
 }
 
-function statusBadgeTone(status: RunDto['status'] | ToolInvocationDto['status'] | MessageDto['status'] | 'idle') {
-  switch (status) {
-    case 'running':
-      return 'bg-amber-100 text-amber-800';
-    case 'queued':
-    case 'created':
-      return 'bg-slate-200 text-slate-700';
-    case 'completed':
-      return 'bg-emerald-100 text-emerald-800';
-    case 'failed':
-      return 'bg-rose-100 text-rose-800';
-    default:
-      return 'bg-slate-100 text-slate-600';
-  }
-}
-
-type LiveAssistantDraft = {
-  runId: string;
-  messageId: string;
-  partialText: string;
-  partialReasoning: string | null;
-  eventType: RunStreamAssistantSnapshotDto['eventType'];
-};
-
-function ThreadTitle({ thread }: { thread: ThreadDto }) {
-  const title = thread.title?.trim() || 'Untitled thread';
-  return (
-    <div className="flex min-w-0 flex-1 items-center gap-2">
-      <span className="overflow-hidden text-ellipsis whitespace-nowrap text-sm leading-[1.2]">
-        {title}
-      </span>
-    </div>
-  );
-}
-
-function WelcomeMessage({
-  activeThreadId,
-}: {
-  activeThreadId: string | null;
-}) {
-  const { styles } = useStyles();
-  const greeting = (() => {
-    const hour = new Date().getHours();
-    if (hour < 6) return '夜深了';
-    if (hour < 12) return '早上好';
-    if (hour < 18) return '下午好';
-    return '晚上好';
-  })();
-
-  return (
-    <div className="flex w-full items-center justify-center p-4">
-      <div className="flex w-full max-w-[800px] flex-col items-center gap-4">
-        <div className="flex items-center gap-2">
-          <AnimatedEmoji emoji="👋" size={40} />
-          <h1 className={clsx('my-1 text-[32px]', styles.welcomeTitle)}>
-            {activeThreadId ? '继续这个 durable chat' : greeting}
-          </h1>
-        </div>
-        <div className={clsx('max-w-[720px] text-sm leading-7', styles.welcomeDesc)}>
-          {activeThreadId
-            ? '这里保留真实的 durable thread、run、message 与 tool timeline，只把左侧 threads 和中间聊天区域的视觉对齐到参考实现。'
-            : '我是您的 durable chat 助手，请问现在能帮您做什么？'}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ToolRow({ invocation }: { invocation: ToolInvocationDto }) {
-  const { styles } = useStyles();
-
-  return (
-    <article className={clsx('rounded-2xl p-4', styles.subtlePanel)}>
-      <header className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-slate-900">{invocation.toolName}</p>
-          <p className="truncate text-xs text-slate-500">{invocation.toolCallId}</p>
-        </div>
-        <span className={clsx('rounded-full px-2 py-1 text-[11px] font-medium uppercase tracking-wide', statusBadgeTone(invocation.status))}>
-          {invocation.status}
-        </span>
-      </header>
-
-      <div className="mt-3 space-y-3">
-        <div>
-          <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-500">Input</p>
-          <pre className={clsx('overflow-auto rounded-2xl p-3 text-xs', styles.codeBlock)}>
-            {JSON.stringify(invocation.input ?? null, null, 2)}
-          </pre>
-        </div>
-
-        <div>
-          <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-500">Output</p>
-          <pre className={clsx('overflow-auto rounded-2xl p-3 text-xs', styles.codeBlock)}>
-            {JSON.stringify(invocation.output ?? null, null, 2)}
-          </pre>
-        </div>
-
-        {invocation.error ? (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{invocation.error}</div>
-        ) : null}
-      </div>
-    </article>
-  );
-}
-
-function EventRow({ event }: { event: RunEventDto }) {
-  const { styles } = useStyles();
-
-  return (
-    <article className={clsx('rounded-2xl p-4', styles.subtlePanel)}>
-      <header className="flex items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2">
-          <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-slate-700">#{event.seq}</span>
-          <span className="font-medium uppercase tracking-wide text-slate-600">{event.type}</span>
-        </div>
-        <span className="text-slate-500">{formatDateTime(event.createdAt)}</span>
-      </header>
-
-      {event.payload ? (
-        <details className="mt-3">
-          <summary className="cursor-pointer text-xs font-medium text-sky-700">Raw payload</summary>
-          <pre className={clsx('mt-2 overflow-auto rounded-2xl p-3 text-xs', styles.codeBlock)}>
-            {JSON.stringify(event.payload, null, 2)}
-          </pre>
-        </details>
-      ) : null}
-    </article>
-  );
-}
-
-function buildMessageCopyText(message: MessageDto) {
-  return message.parts
-    .flatMap((part) => {
-      if (part.type === 'text' || part.type === 'reasoning') {
-        return part.textValue ? [part.textValue] : [];
-      }
-
-      if (part.type === 'tool-result') {
-        return part.textValue ? [part.textValue] : [];
-      }
-
-      return [];
-    })
-    .join('\n\n')
-    .trim();
-}
-
-async function copyMessageToClipboard(message: MessageDto) {
-  const text = buildMessageCopyText(message);
-  if (!text || typeof navigator === 'undefined' || !navigator.clipboard) {
-    return;
-  }
-
-  await navigator.clipboard.writeText(text);
-}
-
-function MessageActions({
-  items,
-  align = 'start',
-  onActionClick
-}: {
-  items: Array<{
-    disabled?: boolean;
-    icon: ComponentType<{ className?: string }>;
-    key: string;
-    label: string;
-  }>;
-  align?: 'start' | 'end';
-  onActionClick: (key: string) => void;
-}) {
-  return (
-    <div
-      className={clsx(
-        'mt-1 flex w-full translate-y-1 opacity-0 transition duration-150 ease-out pointer-events-none group-hover:translate-y-0 group-hover:opacity-100 group-hover:pointer-events-auto',
-        align === 'end' ? 'justify-end' : 'justify-start'
-      )}
-      data-message-actions="true"
-    >
-      <div className="flex items-center gap-1">
-        {items.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            disabled={item.disabled}
-            title={item.label}
-            aria-label={item.label}
-            onClick={() => {
-              if (!item.disabled) {
-                onActionClick(item.key);
-              }
-            }}
-            className={clsx(
-              'flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40'
-            )}
-          >
-            <item.icon className="h-[15px] w-[15px]" />
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function MessagePartView({ part, role = 'assistant' }: { part: MessagePartDto; role?: MessageDto['role'] }) {
-  const { styles } = useStyles();
-
-  if (part.type === 'text') {
-    return (
-      <div
-        className={clsx(
-          'whitespace-pre-wrap text-sm text-slate-800',
-          role === 'user' ? 'leading-relaxed' : 'leading-relaxed'
-        )}
-      >
-        {part.textValue ?? ''}
-      </div>
-    );
-  }
-
-  if (part.type === 'reasoning') {
-    return (
-      <details className={clsx('rounded-2xl px-4 py-3', styles.reasoning)}>
-        <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Reasoning</summary>
-        <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs leading-6 text-slate-600">{part.textValue ?? ''}</pre>
-      </details>
-    );
-  }
-
-  if (part.type === 'tool-call') {
-    const json = part.jsonValue ?? {};
-    return (
-      <div className={clsx('space-y-2 rounded-2xl px-4 py-3', styles.toolCall)}>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-700">Tool Call · {String(json.toolName ?? 'unknown')}</p>
-        <pre className={clsx('overflow-auto rounded-2xl p-3 text-xs', styles.codeBlock)}>
-          {JSON.stringify({ toolCallId: json.toolCallId ?? 'n/a', input: json.input ?? null }, null, 2)}
-        </pre>
-      </div>
-    );
-  }
-
-  if (part.type === 'tool-result') {
-    const json = part.jsonValue ?? {};
-    return (
-      <div className={clsx('space-y-2 rounded-2xl px-4 py-3', styles.toolResult)}>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
-          Tool Result · {String(json.toolName ?? 'unknown')}
-        </p>
-        {part.textValue ? <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{part.textValue}</p> : null}
-        <pre className={clsx('overflow-auto rounded-2xl p-3 text-xs', styles.codeBlock)}>{JSON.stringify(json, null, 2)}</pre>
-      </div>
-    );
-  }
-
-  return <pre className={clsx('overflow-auto rounded-2xl p-3 text-xs', styles.codeBlock)}>{JSON.stringify(part, null, 2)}</pre>;
-}
-
-function MessageCard({ message }: { message: MessageDto }) {
-  const { styles } = useStyles();
-  const isUser = message.role === 'user';
-  const userActions = [
-    {
-      icon: Copy,
-      key: 'copy',
-      label: 'Copy'
-    }
-  ];
-  const assistantActions = [
-    {
-      icon: Copy,
-      key: 'copy',
-      label: 'Copy'
-    },
-    {
-      disabled: true,
-      icon: RotateCw,
-      key: 'regenerate',
-      label: 'Regenerate'
-    }
-  ];
-
-  if (isUser) {
-    return (
-      <div className={clsx('group relative flex w-full max-w-screen justify-end px-4', styles.messageAppear)}>
-        <div className="max-w-[65%]">
-          <div className={clsx('relative flex flex-col gap-3 rounded-lg px-3 py-2', styles.userBubble)}>
-            <div className="space-y-2">{message.parts.map((part) => <MessagePartView key={part.id} part={part} role="user" />)}</div>
-          </div>
-          <MessageActions
-            align="end"
-            items={userActions}
-            onActionClick={(key) => {
-              if (key === 'copy') {
-                void copyMessageToClipboard(message);
-              }
-            }}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className={clsx('group relative w-[90%] max-w-screen px-4', styles.messageAppear)}>
-      <div className={clsx('relative flex flex-col gap-2 pt-1.5', styles.assistantBubble)}>
-        <div className="space-y-2">{message.parts.map((part) => <MessagePartView key={part.id} part={part} role="assistant" />)}</div>
-      </div>
-      <MessageActions
-        items={assistantActions}
-        onActionClick={(key) => {
-          if (key === 'copy') {
-            void copyMessageToClipboard(message);
-          }
-        }}
-      />
-    </div>
-  );
-}
-
-function LiveAssistantCard({ liveAssistantDraft }: { liveAssistantDraft: LiveAssistantDraft }) {
-  const { styles } = useStyles();
-
-  return (
-    <div className={clsx('group relative w-[90%] max-w-screen px-4', styles.messageAppear)}>
-      <div className={clsx('relative flex flex-col gap-2 pt-1.5', styles.assistantBubble)}>
-        {liveAssistantDraft.partialReasoning ? (
-          <details className={clsx('rounded-2xl px-4 py-3', styles.reasoning)}>
-            <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Reasoning
-            </summary>
-            <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs leading-6 text-slate-600">
-              {liveAssistantDraft.partialReasoning}
-            </pre>
-          </details>
-        ) : null}
-
-        {liveAssistantDraft.partialText ? (
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{liveAssistantDraft.partialText}</p>
-        ) : (
-          <div className="flex items-center gap-2 text-sm text-slate-500">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <span>Assistant is responding...</span>
-          </div>
-        )}
-
-        <div className="flex gap-2 text-[11px] text-slate-400">
-          <span>streaming</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 type DurableChatConsoleProps = {
   initialThreadId?: string | null;
 };
 
 export function DurableChatConsole({ initialThreadId = null }: DurableChatConsoleProps) {
-  const { styles, cx } = useStyles();
   const [threads, setThreads] = useState<ThreadDto[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageDto[]>([]);
@@ -1549,467 +904,95 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
   );
 
   return (
-    <main className={clsx('flex h-full min-h-0 overflow-hidden', styles.shell)}>
-      {sidebarOpen ? <div className="fixed inset-0 z-20 bg-slate-950/30 backdrop-blur-sm lg:hidden" onClick={() => setSidebarOpen(false)} /> : null}
-
-      <div className={clsx('relative shrink-0 overflow-hidden transition-[width] duration-300 ease-out', sidebarOpen ? 'w-[276px]' : 'w-0')}>
-        <aside
-          className={clsx(
-            'absolute inset-y-0 left-0 z-30 flex w-[276px] flex-col overflow-hidden transition-transform duration-300 ease-out',
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          )}
-        >
-          <div className={clsx('h-full min-w-0 overflow-y-auto', styles.sidebar)}>
-            <div className="flex shrink-0 items-center justify-between px-4 pt-2">
-              <h1 className="mb-2 text-3xl font-bold tracking-tight text-slate-900">Forma</h1>
-              <IconButton icon={PanelLeftClose} onClick={() => setSidebarOpen(false)} title="关闭侧边栏" />
-            </div>
-
-            <aside className="sticky z-20 px-2 pb-5" style={{ top: 0 }}>
-              <button
-                type="button"
-                className={clsx('flex h-9 w-full items-center gap-2 bg-transparent px-[10px] py-[6px] text-sm', styles.navItem)}
-                onClick={() => {
-                  sendAbortControllerRef.current?.abort();
-                  if (window.innerWidth < 1024) {
-                    setSidebarOpen(false);
-                  }
-                  void navigateToNewChat();
-                }}
-              >
-                <MessageSquarePlus size={18} />
-                <span>新聊天</span>
-              </button>
-              <button
-                type="button"
-                disabled
-                className={clsx('mt-1 flex h-9 w-full items-center gap-2 bg-transparent px-[10px] py-[6px] text-sm', styles.navItem)}
-              >
-                <Search size={18} />
-                <span>搜索聊天</span>
-              </button>
-              <button
-                type="button"
-                disabled
-                className={clsx('mt-1 flex h-9 w-full items-center gap-2 bg-transparent px-[10px] py-[6px] text-sm', styles.navItem)}
-              >
-                <Library size={18} />
-                <span>库</span>
-              </button>
-            </aside>
-
-            <div className="mb-1 flex items-center px-5 py-1 text-xs text-slate-400">
-              <span>聊天</span>
-              <ChevronDown className="ml-1 h-4 w-4" />
-            </div>
-
-            <div className="min-h-0 px-3 pb-2">
-              <div className="flex flex-col">
-                {threads.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-5 text-sm text-slate-500">
-                    Threads will appear here once you start a durable chat.
-                  </div>
-                ) : (
-                  threads.map((thread) => {
-                    const active = thread.id === activeThreadId;
-                    return (
-                      <button
-                        key={thread.id}
-                        type="button"
-                        onClick={() => {
-                          sendAbortControllerRef.current?.abort();
-                          if (window.innerWidth < 1024) {
-                            setSidebarOpen(false);
-                          }
-                          void navigateToThread(thread.id);
-                        }}
-                        className={cx(
-                          'relative flex h-[38px] w-full items-center justify-between bg-transparent px-[10px] py-[6px] text-left',
-                          styles.threadItem,
-                          active ? styles.threadItemActive : ''
-                        )}
-                      >
-                        <ThreadTitle thread={thread} />
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          </div>
-        </aside>
-      </div>
+    <main className={clsx('flex h-full min-h-0 overflow-hidden', ui.shell)}>
+      <ChatSidebar
+        sidebarOpen={sidebarOpen}
+        threads={threads}
+        activeThreadId={activeThreadId}
+        onClose={() => setSidebarOpen(false)}
+        onNewChat={() => {
+          sendAbortControllerRef.current?.abort();
+          if (window.innerWidth < 1024) {
+            setSidebarOpen(false);
+          }
+          void navigateToNewChat();
+        }}
+        onOpenThread={(threadId) => {
+          sendAbortControllerRef.current?.abort();
+          if (window.innerWidth < 1024) {
+            setSidebarOpen(false);
+          }
+          void navigateToThread(threadId);
+        }}
+      />
 
       <div className="flex flex-1 min-h-0 min-w-0 relative overflow-hidden">
-        <div className={clsx('flex flex-1 min-h-0 min-w-0 relative flex-col overflow-hidden', styles.chatPane)}>
-          <header className="flex h-10 items-center justify-between border-b border-slate-200 px-2">
-            <div className="flex min-w-0 items-center gap-3">
-              {!sidebarOpen ? (
-                <IconButton icon={PanelLeftOpen} onClick={() => setSidebarOpen(true)} size="small" title="打开侧边栏" />
-              ) : null}
-              <ChatAvatar size={28} title={currentThreadTitle} />
-              <div className="relative flex max-w-full flex-1 items-center gap-2 overflow-hidden">
-                <div className={styles.chatHeaderTitle}>{currentThreadTitle}</div>
-              </div>
-            </div>
-
-            <div className="flex gap-1">
-              <IconButton icon={Menu} onClick={() => setLogOpen((current) => !current)} size="small" title="切换日志面板" />
-            </div>
-          </header>
+        <div className={clsx('flex flex-1 min-h-0 min-w-0 relative flex-col overflow-hidden', ui.chatPane)}>
+          <ChatHeader
+            currentThreadTitle={currentThreadTitle}
+            sidebarOpen={sidebarOpen}
+            onOpenSidebar={() => setSidebarOpen(true)}
+            onToggleLog={() => setLogOpen((current) => !current)}
+          />
 
           <div
             ref={messagesViewportRef}
-            className={clsx('relative flex min-h-0 flex-1 flex-col overflow-y-auto', styles.messageViewport)}
+            className={clsx('relative flex min-h-0 flex-1 flex-col overflow-y-auto', ui.messageViewport)}
           >
-            <div className="p-6 flex-1">
-                {!meta?.runtimeConfigured && meta?.runtimeConfigError ? (
-                  <div className={clsx(`${maxWithTW} mx-auto mb-4 w-full rounded-xl px-4 py-3 text-sm`, styles.warningBanner)}>
-                    {meta.runtimeConfigError}
-                  </div>
-                ) : null}
+            <ChatMessageList
+              meta={meta}
+              error={error}
+              durableRecoveryNotice={durableRecoveryNotice}
+              loadingMessages={loadingMessages}
+              activeThreadId={activeThreadId}
+              messages={messages}
+              liveAssistantDraft={liveAssistantDraft}
+              liveStreamRunId={liveStreamRunId}
+            />
 
-                {durableRecoveryNotice ? (
-                  <div className={clsx(`${maxWithTW} mx-auto mb-4 w-full rounded-xl px-4 py-3 text-sm`, styles.infoBanner)}>
-                    {durableRecoveryNotice}
-                  </div>
-                ) : null}
-
-                {error ? (
-                  <div className={clsx(`${maxWithTW} mx-auto mb-4 w-full rounded-xl px-4 py-3 text-sm`, styles.errorBanner)}>
-                    {error}
-                  </div>
-                ) : null}
-
-                {loadingMessages ? (
-                  <div className={`${maxWithTW} mx-auto w-full`} style={messageListMinHeight}>
-                    <div className="flex min-h-full items-center">
-                      <div className="flex items-center gap-3 px-4 py-3 text-sm text-slate-500">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Loading thread messages...</span>
-                      </div>
-                    </div>
-                  </div>
-                ) : messages.length === 0 ? (
-                  <div className="flex min-h-full items-center justify-center">
-                    <WelcomeMessage activeThreadId={activeThreadId} />
-                  </div>
-                ) : (
-                  <div className={`${maxWithTW} mx-auto w-full`} style={messageListMinHeight}>
-                    <div className="flex flex-col gap-3">
-                      {messages.map((message) => (
-                        <MessageCard key={message.id} message={message} />
-                      ))}
-                      {liveAssistantDraft && liveAssistantDraft.runId === liveStreamRunId ? (
-                        <LiveAssistantCard liveAssistantDraft={liveAssistantDraft} />
-                      ) : null}
-                    </div>
-                  </div>
-                )}
-            </div>
-
-            <div className={clsx('sticky bottom-0 z-10 px-4 pb-4', styles.composerDock)}>
-              <div className={`${composerMaxWithTW} relative mx-auto`}>
-                <div
-                  className={clsx(
-                    'absolute bottom-[calc(100%+16px)] left-1/2 z-[1] -translate-x-1/2 transition-transform transition-opacity duration-200 ease-out',
-                    !showScrollToBottom && 'pointer-events-none translate-y-2 opacity-0'
-                  )}
-                >
-                  <button
-                    type="button"
-                    onClick={scrollToMessagesBottom}
-                    className={clsx('flex h-[26px] w-[26px] items-center justify-center rounded-full', styles.scrollButton)}
-                    aria-label="Scroll to bottom"
-                  >
-                    <ChevronDown className="h-4 w-4 text-slate-600" />
-                  </button>
-                </div>
-
-                <form
-                  className={styles.composerCard}
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    if (sendingDisabled) {
-                      return;
-                    }
-
-                    void sendMessage();
-                  }}
-                >
-                  <div className="flex flex-col">
-                    <div className="px-4 py-3">
-                      <textarea
-                        ref={textareaRef}
-                        value={draft}
-                        onChange={(event) => setDraft(event.target.value)}
-                        onKeyDown={(event) => {
-                          if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-                            event.preventDefault();
-                            if (!sendingDisabled) {
-                              void sendMessage();
-                            }
-                          }
-                        }}
-                        rows={3}
-                        placeholder={activeThreadId ? 'Send a prompt in this durable thread...' : 'Send the first prompt to create a durable thread...'}
-                        disabled={!meta?.runtimeConfigured || sending || !selectedModelOption}
-                        className={clsx('w-full resize-none overflow-y-auto text-sm leading-relaxed', styles.textarea)}
-                        style={{
-                          minHeight: '90px',
-                          maxHeight: '220px'
-                        }}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between px-3 py-1.5">
-                      <div className="flex min-w-0 items-center gap-1">
-                        <button type="button" disabled className="flex h-8 w-8 items-center justify-center rounded-full text-slate-300">
-                          <Globe className="h-[18px] w-[18px]" />
-                        </button>
-                        <button type="button" disabled className="flex h-8 w-8 items-center justify-center rounded-full text-slate-300">
-                          <Blocks className="h-[18px] w-[18px]" />
-                        </button>
-                        <button type="button" disabled className="flex h-8 w-8 items-center justify-center rounded-full text-slate-300">
-                          <SlidersHorizontal className="h-[18px] w-[18px]" />
-                        </button>
-                        <label className="flex h-7 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 text-xs text-slate-400">
-                          {selectedModelOption?.provider ? <ProviderMonogram provider={selectedModelOption.provider} /> : null}
-                          <select
-                            value={selectedModelKey}
-                            onChange={(event) => setSelectedModelKey(event.target.value)}
-                            disabled={sending || !meta || meta.modelOptions.length === 0}
-                            className="max-w-[170px] bg-transparent text-xs text-slate-500 outline-none"
-                          >
-                            {meta?.modelOptions.map((option) => (
-                              <option key={option.key} value={option.key}>
-                                {option.provider} · {option.model}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <span className="flex h-7 items-center gap-1 rounded-md bg-slate-100 px-2.5 text-xs text-slate-400">
-                          <Workflow className="h-[14px] w-[14px]" />
-                          Artifacts（空）
-                        </span>
-                        <button type="button" disabled className="flex h-8 w-8 items-center justify-center rounded-full text-slate-300">
-                          <Mic className="h-[18px] w-[18px]" />
-                        </button>
-                        <button type="button" disabled className="flex h-8 w-8 items-center justify-center rounded-full text-slate-300">
-                          <Eraser className="h-[18px] w-[18px]" />
-                        </button>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          disabled
-                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-300"
-                        >
-                          <GalleryVerticalEnd className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="submit"
-                          disabled={!sending && sendingDisabled}
-                          onClick={(event) => {
-                            if (sending) {
-                              event.preventDefault();
-                              sendAbortControllerRef.current?.abort();
-                              setSending(false);
-                              setLiveStreamRunId(null);
-                            }
-                          }}
-                          className={clsx(
-                            'flex h-8 w-8 items-center justify-center rounded-lg border transition',
-                            sending
-                              ? 'border-rose-200 text-rose-600'
-                              : draft.trim()
-                                ? 'border-slate-300 text-slate-500'
-                                : 'border-slate-200 text-slate-300',
-                            !sending && sendingDisabled && 'cursor-not-allowed opacity-60'
-                          )}
-                        >
-                          {sending ? <CircleStop className="h-4 w-4" /> : <Send className="h-4 w-4" />}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </form>
-              </div>
-            </div>
+            <ComposerDock
+              activeThreadId={activeThreadId}
+              draft={draft}
+              sending={sending}
+              sendingDisabled={sendingDisabled}
+              selectedModelKey={selectedModelKey}
+              selectedModelOption={selectedModelOption}
+              meta={meta}
+              showScrollToBottom={showScrollToBottom}
+              textareaRef={textareaRef}
+              sendAbortControllerRef={sendAbortControllerRef}
+              onDraftChange={setDraft}
+              onSelectedModelKeyChange={setSelectedModelKey}
+              onSend={() => {
+                void sendMessage();
+              }}
+              onStop={() => {
+                setSending(false);
+                setLiveStreamRunId(null);
+              }}
+              onScrollToBottom={scrollToMessagesBottom}
+            />
           </div>
-
-          {logOpen ? (
-            <aside className={clsx('hidden min-h-0 w-[360px] shrink-0 border-l border-slate-200 xl:flex xl:flex-col', styles.logPane)}>
-            <header className="border-b border-slate-200 px-5 py-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">Durable log</p>
-                  <p className="mt-1 text-xs text-slate-500">Runs, tools, and timeline events stay visible here.</p>
-                </div>
-                <Workflow className="h-4 w-4 text-slate-400" />
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                <span className={clsx('rounded-full px-3 py-1 text-xs', styles.badge)}>DB: {meta?.dbMode ?? 'loading'}</span>
-                <span className={clsx('rounded-full px-3 py-1 text-xs', styles.badge)}>Provider: {meta?.runtimeProvider ?? 'loading'}</span>
-                <span className={clsx('rounded-full px-3 py-1 text-xs', styles.badge)}>Model: {meta?.runtimeModel ?? 'loading'}</span>
-              </div>
-            </header>
-
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-              <div className="space-y-4">
-                <section className={clsx('rounded-2xl p-4', styles.secondarySurface)}>
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Recent runs</p>
-                      <p className="mt-1 text-sm text-slate-600">Switch the log between durable runs for this thread.</p>
-                    </div>
-                    <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">{recentRuns.length}</span>
-                  </div>
-
-                  {recentRunsLoading ? <p className="mt-3 text-sm text-slate-500">Loading recent runs...</p> : null}
-                  {recentRunsError ? <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{recentRunsError}</div> : null}
-
-                  {!recentRunsLoading && !recentRunsError && activeThreadId && recentRuns.length === 0 ? (
-                    <div className="mt-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-sm text-slate-500">
-                      No runs yet for this thread.
-                    </div>
-                  ) : null}
-
-                  {!recentRunsLoading && recentRuns.length > 0 ? (
-                    <div className="mt-3 max-h-60 space-y-2 overflow-y-auto pr-1">
-                      {recentRuns.map((run) => {
-                        const selected = run.id === selectedRunId;
-                        const live = run.id === liveStreamRunId;
-
-                        return (
-                          <button
-                            key={run.id}
-                            type="button"
-                            onClick={() => {
-                              void loadRunTimeline(run.id);
-                            }}
-                            className={clsx(
-                              'w-full rounded-2xl border px-3 py-3 text-left text-sm transition',
-                              selected ? 'border-sky-300 bg-sky-50 shadow-sm' : 'border-slate-200 bg-white hover:bg-slate-50'
-                            )}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="truncate font-medium text-slate-900">{run.model ?? 'unknown model'}</p>
-                                <p className="truncate text-xs text-slate-500">
-                                  {run.provider ?? 'unknown provider'} · {formatDateTime(run.createdAt)}
-                                </p>
-                              </div>
-                              <div className="flex flex-col items-end gap-1">
-                                <span className={clsx('rounded-full px-2 py-1 text-[10px] font-medium uppercase tracking-wide', statusBadgeTone(run.status))}>
-                                  {run.status}
-                                </span>
-                                {live ? <span className="text-[10px] font-medium uppercase tracking-wide text-sky-600">live</span> : null}
-                              </div>
-                            </div>
-                            <p className="mt-2 truncate text-xs text-slate-500">{run.id}</p>
-                            {run.error ? <p className="mt-2 break-words text-xs text-rose-700">{run.error}</p> : null}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-                </section>
-
-                <section className={clsx('rounded-2xl p-4', styles.secondarySurface)}>
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Current run</p>
-                      <p className="mt-1 break-all text-sm font-semibold text-slate-900">{selectedRunId ?? 'No run selected'}</p>
-                    </div>
-                    <span className={clsx('rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide', statusBadgeTone(selectedRun?.status ?? 'idle'))}>
-                      {selectedRun?.status ?? 'idle'}
-                    </span>
-                  </div>
-
-                  <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Provider</dt>
-                      <dd className="mt-1 text-slate-900">{selectedRun?.provider ?? 'n/a'}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Model</dt>
-                      <dd className="mt-1 text-slate-900">{selectedRun?.model ?? 'n/a'}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Started</dt>
-                      <dd className="mt-1 text-slate-900">{selectedRun?.startedAt ? formatDateTime(selectedRun.startedAt) : 'n/a'}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Finished</dt>
-                      <dd className="mt-1 text-slate-900">{selectedRun?.finishedAt ? formatDateTime(selectedRun.finishedAt) : 'n/a'}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Duration</dt>
-                      <dd className="mt-1 text-slate-900">{selectedRun ? formatDuration(selectedRun.startedAt, selectedRun.finishedAt) : 'n/a'}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Counts</dt>
-                      <dd className="mt-1 text-slate-900">{runEvents.length} events · {toolInvocations.length} tools</dd>
-                    </div>
-                  </dl>
-
-                  {selectedRun?.error ? (
-                    <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{selectedRun.error}</div>
-                  ) : null}
-                </section>
-
-                {timelineLoading ? <p className="text-sm text-slate-500">Loading run timeline...</p> : null}
-                {timelineError ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{timelineError}</div> : null}
-
-                {!timelineLoading && !timelineError && !selectedRunId ? (
-                  <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-4 text-sm text-slate-600">
-                    Select a thread or start a run to inspect durable logs.
-                  </div>
-                ) : null}
-
-                {(toolInvocations.length > 0 || selectedRunId) && (
-                  <section className="space-y-3">
-                    <header className="flex items-center justify-between">
-                      <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Tools</h3>
-                      <span className="text-xs text-slate-400">{toolInvocations.length}</span>
-                    </header>
-                    <div className="space-y-3">
-                      {toolInvocations.length === 0 ? (
-                        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-3 text-sm text-slate-500">
-                          No tool activity for this run.
-                        </div>
-                      ) : (
-                        toolInvocations.map((invocation) => <ToolRow key={invocation.id} invocation={invocation} />)
-                      )}
-                    </div>
-                  </section>
-                )}
-
-                {(runEvents.length > 0 || selectedRunId) && (
-                  <section className="space-y-3">
-                    <header className="flex items-center justify-between">
-                      <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Events</h3>
-                      <span className="text-xs text-slate-400">{runEvents.length}</span>
-                    </header>
-                    <div className="space-y-3">
-                      {runEvents.length === 0 ? (
-                        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-3 text-sm text-slate-500">
-                          No run events for this run.
-                        </div>
-                      ) : (
-                        runEvents.map((event) => <EventRow key={event.id} event={event} />)
-                      )}
-                    </div>
-                  </section>
-                )}
-              </div>
-            </div>
-            </aside>
-          ) : null}
         </div>
+
+        <DurableLogPane
+          logOpen={logOpen}
+          meta={meta}
+          recentRuns={recentRuns}
+          recentRunsLoading={recentRunsLoading}
+          recentRunsError={recentRunsError}
+          activeThreadId={activeThreadId}
+          selectedRunId={selectedRunId}
+          selectedRun={selectedRun}
+          runEvents={runEvents}
+          toolInvocations={toolInvocations}
+          liveStreamRunId={liveStreamRunId}
+          timelineLoading={timelineLoading}
+          timelineError={timelineError}
+          onSelectRun={(runId) => {
+            void loadRunTimeline(runId);
+          }}
+        />
       </div>
     </main>
   );

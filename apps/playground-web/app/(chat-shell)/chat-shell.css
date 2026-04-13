@@ -1,0 +1,64 @@
+.chat-shell-theme {
+  --chat-bg: #fbfbfb;
+  --chat-surface: #ffffff;
+  --chat-surface-muted: #f8fafc;
+  --chat-sidebar-bg: #f8fafc;
+  --chat-border: rgba(15, 23, 42, 0.08);
+  --chat-border-strong: rgba(15, 23, 42, 0.12);
+  --chat-text: #0f172a;
+  --chat-text-secondary: #64748b;
+  --chat-text-tertiary: #94a3b8;
+  --chat-placeholder: #94a3b8;
+  --chat-hover: #f1f5f9;
+  --chat-user-bubble: #f3f4f6;
+  --chat-badge-bg: #f8fafc;
+  --chat-code-bg: #0f172a;
+  --chat-code-text: #e2e8f0;
+  --chat-shadow-card: 0 8px 24px rgba(15, 23, 42, 0.04);
+
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--chat-bg);
+  color: var(--chat-text);
+}
+
+.chat-shell-theme > * {
+  height: 100%;
+}
+
+.chat-shell-scrollbars {
+  scrollbar-color: rgba(148, 163, 184, 0.48) transparent;
+  scrollbar-width: thin;
+}
+
+.chat-shell-scrollbars ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.chat-shell-scrollbars ::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.48);
+  background-clip: content-box;
+}
+
+.chat-shell-scrollbars ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@keyframes chat-message-appear {
+  from {
+    transform: translate3d(0, 8px, 0);
+    opacity: 0;
+  }
+
+  to {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+}
+
+.chat-message-appear {
+  animation: chat-message-appear 180ms ease-out;
+}
