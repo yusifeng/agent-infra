@@ -153,7 +153,7 @@
 
 ## P1: 把右侧 durable log 降级为真正的 secondary path
 
-- [ ] 把 transcript controller 与 run inspector controller 拆开
+- [x] 把 transcript controller 与 run inspector controller 拆开
   - 右侧 durable log 相关状态至少应从 chat 主链路剥离：
     - `recentRuns`
     - `selectedRunId`
@@ -167,13 +167,13 @@
   - 验收：
     - 切换右侧 run 不再清掉当前 live assistant
 
-- [ ] pane 关闭时减少或停止不必要的 durable log 主动刷新
+- [x] pane 关闭时减少或停止不必要的 durable log 主动刷新
   - 当前怀疑：
     - pane 关闭后 recent runs / timeline 的成本仍可能进入 chat 主链路
   - 目标：
     - 右侧 pane 关闭时，聊天主区尽量只维护 chat 所需最小状态
 
-- [ ] background durable refresh 失败不再默认抬升为 chat 主区错误
+- [x] background durable refresh 失败不再默认抬升为 chat 主区错误
   - 目标：
     - transcript 自己加载失败才影响主区 banner
     - 右侧 pane 的恢复失败只在右侧 pane 自己显示
@@ -196,7 +196,7 @@
 
 ## P1: 收紧恢复与持久化边界
 
-- [ ] 让“页面恢复能力”与“聊天运行态”彻底解耦
+- [x] 让“页面恢复能力”与“聊天运行态”彻底解耦
   - durable 恢复仍要保留：
     - thread messages
     - recent runs
@@ -249,7 +249,7 @@
 - [ ] thread 切换的 loader 与发送完成的收口逻辑是两条不同路径
 - [ ] durable log 的 recent runs / timeline 补齐不再阻塞 chat 主区域恢复
 - [x] 右侧 run 选择不再清掉当前 live assistant
-- [ ] pane 关闭时，不再让 recent runs / timeline 刷新成本进入 chat 主链路
+- [x] pane 关闭时，不再让 recent runs / timeline 刷新成本进入 chat 主链路
 - [ ] background durable refresh 失败不再默认污染 chat 主区
 - [ ] 若保留 `message_update` durable event，它也不再位于聊天收口关键路径上
 - [ ] stop 的行为与文案完全一致

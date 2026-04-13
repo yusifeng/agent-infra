@@ -262,10 +262,13 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const runSelectionPersistenceReadyRef = useRef(false);
   const activeThreadIdRef = useRef<string | null>(null);
+  const logOpenRef = useRef(false);
   const selectedRunIdRef = useRef<string | null>(null);
   const timelineRef = useRef<RunTimelineResponseDto | null>(null);
   const messagesRequestIdRef = useRef(0);
   const messagesAbortControllerRef = useRef<AbortController | null>(null);
+  const logInspectorRequestIdRef = useRef(0);
+  const logInspectorAbortControllerRef = useRef<AbortController | null>(null);
   const timelineRequestIdRef = useRef(0);
   const timelineAbortControllerRef = useRef<AbortController | null>(null);
   const sendRequestIdRef = useRef(0);
@@ -311,6 +314,10 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
   }, [activeThreadId]);
 
   useEffect(() => {
+    logOpenRef.current = logOpen;
+  }, [logOpen]);
+
+  useEffect(() => {
     selectedRunIdRef.current = selectedRunId;
   }, [selectedRunId]);
 
@@ -320,6 +327,10 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
 
   useEffect(() => {
     if (!runSelectionPersistenceReadyRef.current) {
+      return;
+    }
+
+    if (!logOpenRef.current && selectedRunId === null) {
       return;
     }
 
@@ -405,6 +416,8 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
   function resetDraftThreadState() {
     messagesRequestIdRef.current += 1;
     messagesAbortControllerRef.current?.abort();
+    logInspectorRequestIdRef.current += 1;
+    logInspectorAbortControllerRef.current?.abort();
     timelineRequestIdRef.current += 1;
     timelineAbortControllerRef.current?.abort();
     sendRequestIdRef.current += 1;
@@ -426,6 +439,22 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     setRecentRunsError(null);
     setLoadingMessages(false);
     shouldAutoScrollRef.current = true;
+  }
+
+  function resetLogInspectorState(options?: { clearSelectedRun?: boolean }) {
+    logInspectorRequestIdRef.current += 1;
+    logInspectorAbortControllerRef.current?.abort();
+    timelineRequestIdRef.current += 1;
+    timelineAbortControllerRef.current?.abort();
+    setRecentRuns([]);
+    if (options?.clearSelectedRun !== false) {
+      setSelectedRunId(null);
+    }
+    setTimeline(null);
+    setTimelineError(null);
+    setTimelineLoading(false);
+    setRecentRunsLoading(false);
+    setRecentRunsError(null);
   }
 
   async function activateThread(threadId: string, options?: { preferredRunId?: string | null }) {
@@ -468,6 +497,64 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
 
     setThreads(data.threads);
     return data.threads;
+  }
+
+  async function loadLogInspector(
+    threadId: string,
+    messagesSnapshot: MessageDto[],
+    options?: { preferredRunId?: string | null; preserveExistingTimeline?: boolean }
+  ) {
+    logInspectorRequestIdRef.current += 1;
+    const requestId = logInspectorRequestIdRef.current;
+    logInspectorAbortControllerRef.current?.abort();
+    const controller = new AbortController();
+    logInspectorAbortControllerRef.current = controller;
+    setRecentRunsLoading(true);
+    setRecentRunsError(null);
+
+    try {
+      const nextRuns = await hydrateRecentRuns(threadId, controller.signal);
+      if (controller.signal.aborted || requestId !== logInspectorRequestIdRef.current || activeThreadIdRef.current !== threadId) {
+        return null;
+      }
+
+      const resolved = await resolveSelectedRun(
+        threadId,
+        options?.preferredRunId,
+        messagesSnapshot,
+        nextRuns,
+        controller.signal
+      );
+
+      if (controller.signal.aborted || requestId !== logInspectorRequestIdRef.current || activeThreadIdRef.current !== threadId) {
+        return null;
+      }
+
+      setRecentRuns(resolved.nextRuns);
+      setSelectedRunId(resolved.nextSelectedRunId);
+      setRecentRunsError(null);
+
+      await loadRunTimeline(resolved.nextSelectedRunId, {
+        preserveExisting: options?.preserveExistingTimeline === true
+      });
+      return resolved.nextSelectedRunId;
+    } catch (loadError) {
+      if (controller.signal.aborted || requestId !== logInspectorRequestIdRef.current || activeThreadIdRef.current !== threadId) {
+        return null;
+      }
+
+      setRecentRuns([]);
+      setRecentRunsError(loadError instanceof Error ? loadError.message : 'Failed to load thread runs');
+      setTimeline(null);
+      setTimelineError(null);
+      setTimelineLoading(false);
+      return null;
+    } finally {
+      if (requestId === logInspectorRequestIdRef.current) {
+        logInspectorAbortControllerRef.current = null;
+        setRecentRunsLoading(false);
+      }
+    }
   }
 
   async function loadRunTimeline(runId: string | null, options?: { preserveExisting?: boolean }) {
@@ -644,61 +731,42 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     if (!background) {
       setLoadingMessages(true);
     }
-    setRecentRunsLoading(true);
-    setRecentRunsError(null);
+    if (!logOpenRef.current) {
+      resetLogInspectorState();
+    } else {
+      setRecentRunsLoading(true);
+      setRecentRunsError(null);
+    }
 
     try {
-      const [nextMessages, nextRuns] = await Promise.all([
-        hydrateTranscript(threadId, controller.signal),
-        hydrateRecentRuns(threadId, controller.signal)
-      ]);
+      const nextMessages = await hydrateTranscript(threadId, controller.signal);
 
       if (controller.signal.aborted || requestId !== messagesRequestIdRef.current) {
         return;
       }
 
-      const resolved = await resolveSelectedRun(
-        threadId,
-        options?.preferredRunId,
-        nextMessages,
-        nextRuns,
-        controller.signal
-      );
-
-      if (controller.signal.aborted || requestId !== messagesRequestIdRef.current) {
-        return;
+      if (!logOpenRef.current) {
+        applyHydratedTranscript(nextMessages, null, []);
+        return null;
       }
 
-      applyHydratedTranscript(nextMessages, resolved.nextSelectedRunId, resolved.nextRuns);
-      setRecentRunsLoading(false);
+      applyHydratedTranscript(nextMessages, null, []);
       if (options?.skipTimelineReload) {
-        return resolved.nextSelectedRunId;
+        return null;
       }
 
-      await loadRunTimeline(resolved.nextSelectedRunId, {
-        preserveExisting: options?.preserveExistingTimeline === true
+      return await loadLogInspector(threadId, nextMessages, {
+        preferredRunId: options?.preferredRunId,
+        preserveExistingTimeline: options?.preserveExistingTimeline === true
       });
-      return resolved.nextSelectedRunId;
     } catch (loadError) {
       if (controller.signal.aborted || requestId !== messagesRequestIdRef.current) {
         return;
       }
 
-      if (background) {
-        setRecentRunsLoading(false);
-        setRecentRunsError(loadError instanceof Error ? loadError.message : 'Failed to load thread runs');
-        setError(loadError instanceof Error ? loadError.message : 'Failed to load thread messages');
-        return null;
-      }
-
-      setRecentRuns([]);
-      setRecentRunsLoading(false);
-      setRecentRunsError(loadError instanceof Error ? loadError.message : 'Failed to load thread runs');
+      resetLogInspectorState();
       setLiveAssistantDraft(null);
       setOptimisticUserMessage(null);
-      setSelectedRunId(null);
-      setTimeline(null);
-      setTimelineError(null);
       setError(loadError instanceof Error ? loadError.message : 'Failed to load thread messages');
       return null;
     } finally {
@@ -718,16 +786,16 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     const isReconcileThreadStale = () => activeThreadIdRef.current !== threadId;
     const isLatestReconcile = () => reconcileRequestId === reconcileRequestIdRef.current;
     const isCurrentSend = () => requestId === sendRequestIdRef.current;
-    setRecentRunsLoading(true);
-    setRecentRunsError(null);
-    const requestedRunId = preferredRunId ?? selectedRunIdRef.current;
+    const inspectorEnabled = logOpenRef.current;
+    if (inspectorEnabled) {
+      setRecentRunsLoading(true);
+      setRecentRunsError(null);
+    }
+    const requestedRunId = preferredRunId ?? (inspectorEnabled ? selectedRunIdRef.current : null);
     let nextSelectedRunId: string | null = null;
 
     try {
-      const [messagesResponse, runsResponse] = await Promise.all([
-        fetch(`/api/threads/${threadId}/messages`, { signal: reconcileController.signal }),
-        fetch(`/api/threads/${threadId}/runs?limit=${RECENT_RUNS_LIMIT}`, { signal: reconcileController.signal })
-      ]);
+      const messagesResponse = await fetch(`/api/threads/${threadId}/messages`, { signal: reconcileController.signal });
 
       if (isReconcileThreadStale()) {
         return;
@@ -741,14 +809,6 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
         throw new Error(messagesData.error ?? `Failed to load thread messages (${messagesResponse.status})`);
       }
 
-      const runsData = (await readJsonOrEmpty<ThreadRunsResponseDto>(runsResponse)) as ThreadRunsResponseDto;
-      if (isReconcileThreadStale()) {
-        return;
-      }
-      if (!runsResponse.ok) {
-        throw new Error(runsData.error ?? `Failed to load thread runs (${runsResponse.status})`);
-      }
-
       if (!isLatestReconcile()) {
         return;
       }
@@ -759,25 +819,36 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
         setOptimisticUserMessage(null);
       }
 
-      let nextRuns = (runsData.runs ?? []).slice().sort(compareRunsByCreatedAt);
-      if (requestedRunId && !nextRuns.some((run) => run.id === requestedRunId)) {
-        const preferredResolvedRun = await tryResolvePreferredRun(threadId, requestedRunId, reconcileController.signal);
+      if (inspectorEnabled) {
+        const runsResponse = await fetch(`/api/threads/${threadId}/runs?limit=${RECENT_RUNS_LIMIT}`, { signal: reconcileController.signal });
+        const runsData = (await readJsonOrEmpty<ThreadRunsResponseDto>(runsResponse)) as ThreadRunsResponseDto;
         if (isReconcileThreadStale()) {
           return;
         }
+        if (!runsResponse.ok) {
+          throw new Error(runsData.error ?? `Failed to load thread runs (${runsResponse.status})`);
+        }
 
-        nextRuns = includeSelectedRun(nextRuns, preferredResolvedRun);
-      }
+        let nextRuns = (runsData.runs ?? []).slice().sort(compareRunsByCreatedAt);
+        if (requestedRunId && !nextRuns.some((run) => run.id === requestedRunId)) {
+          const preferredResolvedRun = await tryResolvePreferredRun(threadId, requestedRunId, reconcileController.signal);
+          if (isReconcileThreadStale()) {
+            return;
+          }
 
-      if (!isLatestReconcile()) {
-        return;
-      }
+          nextRuns = includeSelectedRun(nextRuns, preferredResolvedRun);
+        }
 
-      nextSelectedRunId = chooseInitialRunId(fetchedMessages, nextRuns, requestedRunId);
-      setRecentRuns(nextRuns);
-      setRecentRunsError(null);
-      if (isCurrentSend()) {
-        setSelectedRunId(nextSelectedRunId);
+        if (!isLatestReconcile()) {
+          return;
+        }
+
+        nextSelectedRunId = chooseInitialRunId(fetchedMessages, nextRuns, requestedRunId);
+        setRecentRuns(nextRuns);
+        setRecentRunsError(null);
+        if (isCurrentSend()) {
+          setSelectedRunId(nextSelectedRunId);
+        }
       }
 
       const assistantRunId = requestedRunId ?? nextSelectedRunId;
@@ -792,7 +863,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
             return null;
           }
 
-          if (current.runId !== nextSelectedRunId) {
+          if (assistantRunId && current.runId !== assistantRunId) {
             return null;
           }
 
@@ -800,7 +871,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
         });
       }
 
-      if (nextSelectedRunId && isCurrentSend()) {
+      if (inspectorEnabled && nextSelectedRunId && isCurrentSend()) {
         setTimelineLoading(true);
         setTimelineError(null);
         try {
@@ -830,7 +901,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
             setTimelineError(timelineRefreshError instanceof Error ? timelineRefreshError.message : 'Failed to reconcile run timeline');
           }
         }
-      } else if (activeThreadIdRef.current === threadId && isCurrentSend()) {
+      } else if (inspectorEnabled && activeThreadIdRef.current === threadId && isCurrentSend()) {
         setTimeline(null);
         setTimelineError(null);
       }
@@ -839,13 +910,15 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
         return;
       }
 
-      setRecentRunsError(reconcileError instanceof Error ? reconcileError.message : 'Failed to reconcile recent runs');
-      if (nextSelectedRunId && isCurrentSend() && selectedRunIdRef.current === nextSelectedRunId) {
-        setTimelineError(reconcileError instanceof Error ? reconcileError.message : 'Failed to reconcile run timeline');
+      if (inspectorEnabled) {
+        setRecentRunsError(reconcileError instanceof Error ? reconcileError.message : 'Failed to reconcile recent runs');
+        if (nextSelectedRunId && isCurrentSend() && selectedRunIdRef.current === nextSelectedRunId) {
+          setTimelineError(reconcileError instanceof Error ? reconcileError.message : 'Failed to reconcile run timeline');
+        }
       }
     } finally {
       reconcileController.abort();
-      if (activeThreadIdRef.current === threadId && reconcileRequestId === reconcileRequestIdRef.current) {
+      if (inspectorEnabled && activeThreadIdRef.current === threadId && reconcileRequestId === reconcileRequestIdRef.current) {
         setRecentRunsLoading(false);
         if (nextSelectedRunId && selectedRunIdRef.current === nextSelectedRunId) {
           setTimelineLoading(false);
@@ -1130,6 +1203,22 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
   }, [initialThreadId]);
 
   useEffect(() => {
+    if (!logOpen) {
+      resetLogInspectorState();
+      return;
+    }
+
+    if (!activeThreadId) {
+      return;
+    }
+
+    void loadLogInspector(activeThreadId, messages, {
+      preferredRunId: readPersistedRunId(activeThreadId) ?? selectedRunIdRef.current,
+      preserveExistingTimeline: true
+    });
+  }, [logOpen]);
+
+  useEffect(() => {
     const handlePopState = () => {
       const pathname = window.location.pathname;
       const threadId = readThreadIdFromPathname(window.location.pathname);
@@ -1166,6 +1255,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     () => () => {
       sendAbortControllerRef.current?.abort();
       messagesAbortControllerRef.current?.abort();
+      logInspectorAbortControllerRef.current?.abort();
       timelineAbortControllerRef.current?.abort();
     },
     []
