@@ -135,18 +135,21 @@
 
 ## P0: stop 语义必须和真实行为一致
 
-- [ ] 明确当前 stop 是“真正取消服务端生成”还是“只断开本地流”
+- [x] 明确当前 stop 是“真正取消服务端生成”还是“只断开本地流”
   - 当前怀疑：
     - 客户端只 abort fetch
     - runtime / route 未必真正 cancel `runTurn()`
   - 验收：
     - 文案、按钮语义、后端行为三者一致
 
-- [ ] 如果暂时做不到 server-side cancel，就修改 UI 文案与行为定义
+- [x] 如果暂时做不到 server-side cancel，就修改 UI 文案与行为定义
   - 例如显式区分：
     - `Stop generating`
     - `Stop viewing stream`
   - 不允许继续“看起来像 stop，实际上只是断流”
+  - 当前结论：
+    - 现有实现只能停止当前页面继续接收流，不会真正取消服务端 `runTurn()`
+    - 本轮先把 composer 按钮语义收敛到“停止接收响应”
 
 ## P1: 把右侧 durable log 降级为真正的 secondary path
 

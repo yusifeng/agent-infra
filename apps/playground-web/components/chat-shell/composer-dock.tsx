@@ -154,7 +154,8 @@ export function ComposerDock({
                     isResponding ? 'border-rose-200 text-rose-600' : hasDraftValue ? 'border-slate-300 text-sky-600' : 'text-slate-300',
                     !isResponding && sendDisabled && 'cursor-not-allowed opacity-60'
                   )}
-                  title={isResponding ? '停止生成' : '发送 (Cmd/Ctrl + Enter)'}
+                  title={isResponding ? '停止接收响应' : '发送 (Cmd/Ctrl + Enter)'}
+                  aria-label={isResponding ? '停止接收响应' : '发送消息'}
                 >
                   {isResponding ? <CircleStop className="h-4 w-4" /> : <Send className="h-4 w-4" />}
                 </button>
