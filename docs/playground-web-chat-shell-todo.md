@@ -41,6 +41,14 @@
 - [x] 复核已有 thread 页面在 user bubble 尺寸、assistant 段落间距上的偏差
 - [x] 复核大宽度屏幕下 sidebar / chat / log 三列切换时的最终视觉一致性
 
+## Phase 4: Markdown
+
+- [x] 引入本地 `markdownService`，替换 assistant 纯文本段落分割渲染
+- [x] 新增本地 `MarkdownRenderer` 与 worker，避免重新引入外部 chat UI 栈
+- [x] 补齐基础 markdown 样式、代码块复制按钮和安全清洗
+- [x] 接入本地 `shiki`，补齐 markdown 代码块高亮
+- [x] 收紧 assistant markdown 的段落间距和 block 动画
+
 ## Acceptance
 
 - `durable-chat-console.tsx` 不再承载整页 UI 细节。

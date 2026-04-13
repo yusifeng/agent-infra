@@ -279,6 +279,8 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const runSelectionPersistenceReadyRef = useRef(false);
   const activeThreadIdRef = useRef<string | null>(null);
+  const selectedRunIdRef = useRef<string | null>(null);
+  const timelineRef = useRef<RunTimelineResponseDto | null>(null);
   const messagesRequestIdRef = useRef(0);
   const messagesAbortControllerRef = useRef<AbortController | null>(null);
   const timelineRequestIdRef = useRef(0);
@@ -316,6 +318,14 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
   useEffect(() => {
     activeThreadIdRef.current = activeThreadId;
   }, [activeThreadId]);
+
+  useEffect(() => {
+    selectedRunIdRef.current = selectedRunId;
+  }, [selectedRunId]);
+
+  useEffect(() => {
+    timelineRef.current = timeline;
+  }, [timeline]);
 
   useEffect(() => {
     if (!runSelectionPersistenceReadyRef.current) {
@@ -467,7 +477,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     return data.threads;
   }
 
-  async function loadRunTimeline(runId: string | null) {
+  async function loadRunTimeline(runId: string | null, options?: { preserveExisting?: boolean }) {
     timelineRequestIdRef.current += 1;
     const requestId = timelineRequestIdRef.current;
     timelineAbortControllerRef.current?.abort();
@@ -484,7 +494,9 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
 
     const controller = new AbortController();
     timelineAbortControllerRef.current = controller;
-    setTimeline(null);
+    if (!options?.preserveExisting || selectedRunIdRef.current !== runId) {
+      setTimeline(null);
+    }
     setTimelineLoading(true);
     setTimelineError(null);
 
@@ -551,13 +563,24 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     });
   }
 
-  async function loadThreadMessages(threadId: string, options?: { preferredRunId?: string | null }) {
+  async function loadThreadMessages(
+    threadId: string,
+    options?: {
+      preferredRunId?: string | null;
+      background?: boolean;
+      skipTimelineReload?: boolean;
+      preserveExistingTimeline?: boolean;
+    }
+  ) {
+    const background = options?.background === true;
     messagesRequestIdRef.current += 1;
     const requestId = messagesRequestIdRef.current;
     messagesAbortControllerRef.current?.abort();
     const controller = new AbortController();
     messagesAbortControllerRef.current = controller;
-    setLoadingMessages(true);
+    if (!background) {
+      setLoadingMessages(true);
+    }
     setRecentRunsLoading(true);
     setRecentRunsError(null);
 
@@ -611,11 +634,26 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
       setRecentRunsError(null);
       setRecentRunsLoading(false);
       setError(null);
-      await loadRunTimeline(nextSelectedRunId);
+      if (options?.skipTimelineReload) {
+        setSelectedRunId(nextSelectedRunId);
+        return nextSelectedRunId;
+      }
+
+      await loadRunTimeline(nextSelectedRunId, {
+        preserveExisting: options?.preserveExistingTimeline === true
+      });
       return nextSelectedRunId;
     } catch (loadError) {
       if (controller.signal.aborted || requestId !== messagesRequestIdRef.current) {
         return;
+      }
+
+      if (background) {
+        setRecentRunsLoading(false);
+        setRecentRunsError(loadError instanceof Error ? loadError.message : 'Failed to load thread runs');
+        setLiveAssistantDraft(null);
+        setError(loadError instanceof Error ? loadError.message : 'Failed to load thread messages');
+        return null;
       }
 
       setRecentRuns([]);
@@ -630,7 +668,9 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     } finally {
       if (requestId === messagesRequestIdRef.current) {
         messagesAbortControllerRef.current = null;
-        setLoadingMessages(false);
+        if (!background) {
+          setLoadingMessages(false);
+        }
       }
     }
   }
@@ -772,7 +812,6 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
 
           if (event.type === 'run.completed') {
             setError(null);
-            setLiveAssistantDraft((current) => (current?.runId === event.runId ? null : current));
           }
         }
       }
@@ -805,9 +844,6 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
             setLiveAssistantDraft((current) => (current?.runId === event.runId ? current : null));
           } else if (event.type === 'run.state' || event.type === 'run.completed') {
             setRecentRuns((current) => upsertRun(current, event.run));
-            if (event.type === 'run.completed') {
-              setLiveAssistantDraft((current) => (current?.runId === event.runId ? null : current));
-            }
           }
         }
       }
@@ -826,7 +862,15 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
 
       if (!controller.signal.aborted && requestId === sendRequestIdRef.current && (streamSessionStarted || streamedRunId)) {
         if (threadId && activeThreadIdRef.current === threadId) {
-          await loadThreadMessages(threadId);
+          const preferredRunId = streamedRunId ?? selectedRunIdRef.current;
+          const shouldSkipTimelineReload =
+            preferredRunId !== null && timelineRef.current?.run?.id === preferredRunId;
+
+          await loadThreadMessages(threadId, {
+            background: true,
+            preferredRunId,
+            skipTimelineReload: shouldSkipTimelineReload
+          });
         } else {
           await refreshThreads();
         }
@@ -935,21 +979,22 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
             onToggleLog={() => setLogOpen((current) => !current)}
           />
 
-          <div
-            ref={messagesViewportRef}
-            className={clsx('relative flex min-h-0 flex-1 flex-col overflow-y-auto', ui.messageViewport)}
-          >
-            <ChatMessageList
-              meta={meta}
-              error={error}
-              durableRecoveryNotice={durableRecoveryNotice}
-              loadingMessages={loadingMessages}
-              activeThreadId={activeThreadId}
-              messages={messages}
-              liveAssistantDraft={liveAssistantDraft}
-              liveStreamRunId={liveStreamRunId}
-            />
-
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div
+              ref={messagesViewportRef}
+              className={clsx('relative flex min-h-0 flex-1 flex-col overflow-y-auto', ui.messageViewport)}
+            >
+              <ChatMessageList
+                meta={meta}
+                error={error}
+                durableRecoveryNotice={durableRecoveryNotice}
+                loadingMessages={loadingMessages}
+                activeThreadId={activeThreadId}
+                messages={messages}
+                liveAssistantDraft={liveAssistantDraft}
+                liveStreamRunId={liveStreamRunId}
+              />
+            </div>
             <ComposerDock
               activeThreadId={activeThreadId}
               draft={draft}

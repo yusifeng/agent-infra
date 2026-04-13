@@ -3,14 +3,15 @@
 import type { MessageDto, MessagePartDto, RuntimePiMetaDto } from '@agent-infra/contracts';
 import clsx from 'clsx';
 import { Copy, Loader2, RotateCw, Trash2 } from 'lucide-react';
-import type { ComponentType } from 'react';
+import { memo, type ComponentType } from 'react';
 
 import { copyMessageToClipboard } from './helpers';
+import { MarkdownRenderer } from './markdown-renderer';
 import { AnimatedEmoji } from './shared';
 import type { LiveAssistantDraft } from './types';
 import { maxWithTW, messageListMinHeight, ui } from './ui';
 
-function WelcomeMessage({ activeThreadId }: { activeThreadId: string | null }) {
+const WelcomeMessage = memo(function WelcomeMessage({ activeThreadId }: { activeThreadId: string | null }) {
   const greeting = (() => {
     const hour = new Date().getHours();
     if (hour < 6) return '夜深了';
@@ -36,9 +37,9 @@ function WelcomeMessage({ activeThreadId }: { activeThreadId: string | null }) {
       </div>
     </div>
   );
-}
+});
 
-function MessageActions({
+const MessageActions = memo(function MessageActions({
   items,
   align = 'start',
   onActionClick
@@ -81,19 +82,34 @@ function MessageActions({
       </div>
     </div>
   );
-}
+});
 
-function MessagePartView({ part, variant = 'assistant' }: { part: MessagePartDto; variant?: 'assistant' | 'user' }) {
+const MessagePartView = memo(function MessagePartView({
+  part,
+  variant = 'assistant',
+  cacheKey
+}: {
+  part: MessagePartDto;
+  variant?: 'assistant' | 'user';
+  cacheKey?: string;
+}) {
   if (part.type === 'text') {
+    const textValue = part.textValue ?? '';
     return (
-      <div
-        className={clsx(
-          'whitespace-pre-wrap text-slate-800',
-          variant === 'user' ? 'text-sm leading-relaxed' : 'text-[15px] leading-8'
-        )}
-      >
-        {part.textValue ?? ''}
-      </div>
+      variant === 'user'
+        ? (
+          <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-800">
+            {textValue}
+          </div>
+        )
+        : (
+          <MarkdownRenderer
+            cacheKey={cacheKey}
+            className="text-[15px] leading-[1.9] text-slate-800"
+            plainTextClassName="text-[15px] leading-[1.9] text-slate-800"
+            text={textValue}
+          />
+        )
     );
   }
 
@@ -132,9 +148,9 @@ function MessagePartView({ part, variant = 'assistant' }: { part: MessagePartDto
   }
 
   return <pre className={clsx('overflow-auto rounded-2xl p-3 text-xs', ui.codeBlock)}>{JSON.stringify(part, null, 2)}</pre>;
-}
+});
 
-function MessageCard({ message }: { message: MessageDto }) {
+const MessageCard = memo(function MessageCard({ message }: { message: MessageDto }) {
   const isUser = message.role === 'user';
   const userActions = [
     {
@@ -174,7 +190,11 @@ function MessageCard({ message }: { message: MessageDto }) {
       <div className={clsx('group relative flex w-full max-w-screen justify-end px-4', ui.messageAppear)}>
         <div className="max-w-[65%]">
           <div className={clsx('relative flex flex-col gap-3 rounded-lg px-3 py-2', ui.userBubble)}>
-            <div className="space-y-2">{message.parts.map((part) => <MessagePartView key={part.id} part={part} variant="user" />)}</div>
+            <div className="space-y-2">
+              {message.parts.map((part) => (
+                <MessagePartView key={part.id} cacheKey={`${message.id}:${part.id}`} part={part} variant="user" />
+              ))}
+            </div>
           </div>
           <MessageActions
             align="end"
@@ -193,7 +213,11 @@ function MessageCard({ message }: { message: MessageDto }) {
   return (
     <div className={clsx('group relative w-[90%] max-w-screen px-4', ui.messageAppear)}>
       <div className={clsx('relative flex flex-col gap-2 pt-1.5', ui.assistantBubble)}>
-        <div className="space-y-2">{message.parts.map((part) => <MessagePartView key={part.id} part={part} />)}</div>
+        <div className="space-y-2">
+          {message.parts.map((part) => (
+            <MessagePartView key={part.id} cacheKey={`${message.id}:${part.id}`} part={part} />
+          ))}
+        </div>
       </div>
       <MessageActions
         items={assistantActions}
@@ -205,9 +229,15 @@ function MessageCard({ message }: { message: MessageDto }) {
       />
     </div>
   );
-}
+});
 
-function LiveAssistantCard({ liveAssistantDraft }: { liveAssistantDraft: LiveAssistantDraft }) {
+const LiveAssistantCard = memo(function LiveAssistantCard({
+  liveAssistantDraft,
+  isStreaming
+}: {
+  liveAssistantDraft: LiveAssistantDraft;
+  isStreaming: boolean;
+}) {
   return (
     <div className={clsx('group relative w-[90%] max-w-screen px-4', ui.messageAppear)}>
       <div className={clsx('relative flex flex-col gap-2 pt-1.5', ui.assistantBubble)}>
@@ -223,7 +253,12 @@ function LiveAssistantCard({ liveAssistantDraft }: { liveAssistantDraft: LiveAss
         ) : null}
 
         {liveAssistantDraft.partialText ? (
-          <div className="whitespace-pre-wrap text-[15px] leading-8 text-slate-800">{liveAssistantDraft.partialText}</div>
+          <MarkdownRenderer
+            cacheKey={liveAssistantDraft.runId ? `live:${liveAssistantDraft.runId}` : 'live-assistant'}
+            className="text-[15px] leading-[1.9] text-slate-800"
+            plainTextClassName="text-[15px] leading-[1.9] text-slate-800"
+            text={liveAssistantDraft.partialText}
+          />
         ) : (
           <div className="flex items-center gap-2 text-sm text-slate-500">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -231,13 +266,15 @@ function LiveAssistantCard({ liveAssistantDraft }: { liveAssistantDraft: LiveAss
           </div>
         )}
 
-        <div className="flex gap-2 text-[11px] text-slate-400">
-          <span>streaming</span>
-        </div>
+        {isStreaming ? (
+          <div className="flex gap-2 text-[11px] text-slate-400">
+            <span>streaming</span>
+          </div>
+        ) : null}
       </div>
     </div>
   );
-}
+});
 
 type ChatMessageListProps = {
   meta: RuntimePiMetaDto | null;
@@ -250,7 +287,7 @@ type ChatMessageListProps = {
   liveStreamRunId: string | null;
 };
 
-export function ChatMessageList({
+export const ChatMessageList = memo(function ChatMessageList({
   meta,
   error,
   durableRecoveryNotice,
@@ -301,12 +338,15 @@ export function ChatMessageList({
             {messages.map((message) => (
               <MessageCard key={message.id} message={message} />
             ))}
-            {liveAssistantDraft && liveAssistantDraft.runId === liveStreamRunId ? (
-              <LiveAssistantCard liveAssistantDraft={liveAssistantDraft} />
+            {liveAssistantDraft ? (
+              <LiveAssistantCard
+                liveAssistantDraft={liveAssistantDraft}
+                isStreaming={liveAssistantDraft.runId === liveStreamRunId}
+              />
             ) : null}
           </div>
         </div>
       )}
     </div>
   );
-}
+});

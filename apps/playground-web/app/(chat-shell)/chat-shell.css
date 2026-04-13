@@ -62,3 +62,189 @@
 .chat-message-appear {
   animation: chat-message-appear 180ms ease-out;
 }
+
+@keyframes chat-markdown-block-appear {
+  from {
+    transform: translate3d(0, 6px, 0);
+    opacity: 0;
+  }
+
+  to {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+}
+
+.chat-shell-theme .markdown-body {
+  color: var(--chat-text);
+  font-size: 15px;
+  line-height: 1.82;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.chat-shell-theme .markdown-body > * {
+  animation: chat-markdown-block-appear 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.chat-shell-theme .markdown-body > :first-child {
+  margin-top: 0;
+}
+
+.chat-shell-theme .markdown-body > :last-child {
+  margin-bottom: 0;
+}
+
+.chat-shell-theme .markdown-body p,
+.chat-shell-theme .markdown-body ul,
+.chat-shell-theme .markdown-body ol,
+.chat-shell-theme .markdown-body blockquote,
+.chat-shell-theme .markdown-body pre,
+.chat-shell-theme .markdown-body table,
+.chat-shell-theme .markdown-body hr {
+  margin: 0 0 0.95em;
+}
+
+.chat-shell-theme .markdown-body h1,
+.chat-shell-theme .markdown-body h2,
+.chat-shell-theme .markdown-body h3,
+.chat-shell-theme .markdown-body h4 {
+  margin: 0 0 0.7em;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+}
+
+.chat-shell-theme .markdown-body h1 {
+  font-size: 1.4em;
+}
+
+.chat-shell-theme .markdown-body h2 {
+  font-size: 1.2em;
+}
+
+.chat-shell-theme .markdown-body h3,
+.chat-shell-theme .markdown-body h4 {
+  font-size: 1.05em;
+}
+
+.chat-shell-theme .markdown-body ul,
+.chat-shell-theme .markdown-body ol {
+  padding-left: 1.4em;
+}
+
+.chat-shell-theme .markdown-body li {
+  margin: 0;
+}
+
+.chat-shell-theme .markdown-body li + li {
+  margin-top: 0.22em;
+}
+
+.chat-shell-theme .markdown-body blockquote {
+  border-left: 3px solid var(--chat-border-strong);
+  padding-left: 0.9rem;
+  color: var(--chat-text-secondary);
+}
+
+.chat-shell-theme .markdown-body a {
+  color: #2563eb;
+  text-decoration: underline;
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.18em;
+}
+
+.chat-shell-theme .markdown-body strong {
+  font-weight: 700;
+}
+
+.chat-shell-theme .markdown-body code:not(pre code) {
+  border: 1px solid var(--chat-border);
+  border-radius: 0.5rem;
+  background: var(--chat-hover);
+  padding: 0.15rem 0.42rem;
+  font-size: 0.9em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+}
+
+.chat-shell-theme .markdown-body pre {
+  overflow-x: auto;
+  border-radius: 1rem;
+  background: var(--chat-code-bg);
+  padding: 0.9rem 1rem;
+  color: var(--chat-code-text);
+  font-size: 12px;
+  line-height: 1.65;
+  margin: 0;
+}
+
+.chat-shell-theme .markdown-body pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+}
+
+.chat-shell-theme .markdown-body .shiki {
+  overflow-x: auto;
+  border-radius: 1rem;
+  padding: 0.9rem 1rem;
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.12);
+  margin: 0;
+}
+
+.chat-shell-theme .markdown-body .shiki code {
+  display: block;
+  min-width: max-content;
+  line-height: 1.65;
+}
+
+.chat-shell-theme .markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+  border: 1px solid var(--chat-border);
+  border-radius: 0.9rem;
+  font-size: 14px;
+}
+
+.chat-shell-theme .markdown-body th,
+.chat-shell-theme .markdown-body td {
+  border-bottom: 1px solid var(--chat-border);
+  padding: 0.7rem 0.85rem;
+  text-align: left;
+}
+
+.chat-shell-theme .markdown-body th {
+  background: var(--chat-surface-muted);
+  font-weight: 600;
+}
+
+.chat-shell-theme .markdown-body [data-component='markdown-code'] {
+  position: relative;
+  margin: 0 0 1rem;
+}
+
+.chat-shell-theme .markdown-body [data-copy-code] {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 0.6rem;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0.28rem 0.55rem;
+  color: rgba(226, 232, 240, 0.92);
+  font-size: 11px;
+  line-height: 1;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.chat-shell-theme .markdown-body [data-copy-code]:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.chat-shell-theme .markdown-body [data-copy-code][data-copied='true'] {
+  background: rgba(148, 163, 184, 0.16);
+  color: rgba(255, 255, 255, 0.96);
+}

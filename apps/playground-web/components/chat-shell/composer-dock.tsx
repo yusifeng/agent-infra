@@ -3,16 +3,9 @@
 import type { RuntimePiMetaDto } from '@agent-infra/contracts';
 import clsx from 'clsx';
 import {
-  Blocks,
   ChevronDown,
   CircleStop,
-  Eraser,
-  GalleryVerticalEnd,
-  Globe,
-  Mic,
   Send,
-  SlidersHorizontal,
-  Workflow
 } from 'lucide-react';
 import type { MutableRefObject, RefObject } from 'react';
 
@@ -112,16 +105,7 @@ export function ComposerDock({
             </div>
 
             <div className="flex items-center justify-between px-3 py-1.5">
-              <div className="flex min-w-0 items-center gap-1">
-                <button type="button" disabled className={clsx('h-9 w-9', ui.actionIcon)}>
-                  <Globe className="h-[18px] w-[18px]" />
-                </button>
-                <button type="button" disabled className={clsx('h-9 w-9', ui.actionIcon)}>
-                  <Blocks className="h-[18px] w-[18px]" />
-                </button>
-                <button type="button" disabled className={clsx('h-9 w-9', ui.actionIcon)}>
-                  <SlidersHorizontal className="h-[18px] w-[18px]" />
-                </button>
+              <div className="flex min-w-0 items-center">
                 <label className={ui.composerModelChip}>
                   {selectedModelOption?.provider ? <ProviderMonogram provider={selectedModelOption.provider} /> : null}
                   <div className="relative min-w-0">
@@ -140,23 +124,9 @@ export function ComposerDock({
                     <ChevronDown className="pointer-events-none absolute right-0 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                   </div>
                 </label>
-                <button type="button" disabled className={clsx('h-9 w-9', ui.actionIcon)}>
-                  <Mic className="h-[18px] w-[18px]" />
-                </button>
-                <button type="button" disabled className={clsx('h-9 w-9', ui.actionIcon)}>
-                  <Eraser className="h-[18px] w-[18px]" />
-                </button>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled
-                  className={ui.composerSecondaryButton}
-                  title={activeThreadId ? '保存当前对话（暂未接入）' : '创建话题（暂未接入）'}
-                >
-                  <GalleryVerticalEnd className="h-4 w-4" />
-                </button>
+              <div className="flex items-center">
                 <button
                   type="submit"
                   disabled={!sending && sendingDisabled}
