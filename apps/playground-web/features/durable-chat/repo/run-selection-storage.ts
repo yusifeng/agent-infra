@@ -1,3 +1,5 @@
+import { normalizeStoredRunId } from '../schema/storage';
+
 const SELECTED_RUN_STORAGE_KEY_PREFIX = 'agent-infra.chat-console.selected-run-id';
 
 export function getSelectedRunStorageKey(threadId: string) {
@@ -10,7 +12,7 @@ export function readPersistedRunId(threadId: string | null | undefined) {
   }
 
   try {
-    return window.localStorage.getItem(getSelectedRunStorageKey(threadId));
+    return normalizeStoredRunId(window.localStorage.getItem(getSelectedRunStorageKey(threadId)));
   } catch {
     return null;
   }
@@ -24,8 +26,9 @@ export function persistSelectedRunId(threadId: string | null | undefined, runId:
   const storageKey = getSelectedRunStorageKey(threadId);
 
   try {
-    if (runId) {
-      window.localStorage.setItem(storageKey, runId);
+    const normalizedRunId = normalizeStoredRunId(runId);
+    if (normalizedRunId) {
+      window.localStorage.setItem(storageKey, normalizedRunId);
     } else {
       window.localStorage.removeItem(storageKey);
     }

@@ -68,6 +68,12 @@ Pages, layouts, and route handlers should stay thin.
 The current place where this guidance matters most is the durable chat surface.
 That feature already has enough streaming, recovery, and inspector complexity to justify feature-local `types / schema / repo / service / runtime / ui` separation.
 
+In the current app shape:
+
+- `components/chat-shell/*` may continue to exist as the presentational UI layer.
+- feature-local `schema / repo / service / runtime / types` should absorb the non-trivial durable chat logic.
+- prefer local reducer state plus pure `service` helpers before considering any external state-management library.
+
 ## Verification
 
 For changes in this app, prefer the narrowest useful verification loop:

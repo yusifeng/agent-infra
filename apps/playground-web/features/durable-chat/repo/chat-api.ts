@@ -8,52 +8,69 @@ import type {
   ThreadsResponseDto
 } from '@agent-infra/contracts';
 
-type ApiJsonResult<T> = {
+import {
+  normalizeCreateThreadResponse,
+  normalizeRunTimelineResponse,
+  normalizeRuntimeMetaResponse,
+  normalizeThreadMessagesResponse,
+  normalizeThreadRunsResponse,
+  normalizeThreadsResponse,
+  readApiError,
+  readJsonRecordOrEmpty
+} from '../schema/api';
+
+export type ApiResult<T> = {
+  ok: boolean;
+  status: number;
+  error: string | null;
   data: T;
-  response: Response;
 };
 
-async function readJsonOrEmpty<T>(response: Response): Promise<Partial<T>> {
-  const text = await response.text();
-  if (!text) {
-    return {};
-  }
+export type RunStreamOpenResult = {
+  ok: boolean;
+  status: number;
+  error: string | null;
+  body: ReadableStream<Uint8Array> | null;
+};
 
-  try {
-    return JSON.parse(text) as Partial<T>;
-  } catch {
-    return {};
-  }
-}
-
-async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<ApiJsonResult<T>> {
+async function fetchJson<T>(
+  input: RequestInfo | URL,
+  normalize: (value: unknown) => T,
+  init?: RequestInit
+): Promise<ApiResult<T>> {
   const response = await fetch(input, init);
-  const data = (await readJsonOrEmpty<T>(response)) as T;
-  return { data, response };
+  const raw = await readJsonRecordOrEmpty(response);
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    error: readApiError(raw),
+    data: normalize(raw)
+  };
 }
 
 export async function fetchThreadsResponse() {
-  return fetchJson<ThreadsResponseDto>('/api/threads');
+  return fetchJson<ThreadsResponseDto>('/api/threads', normalizeThreadsResponse);
 }
 
 export async function fetchRuntimeMetaResponse() {
-  return fetchJson<RuntimePiMetaDto>('/api/meta');
+  return fetchJson<Partial<RuntimePiMetaDto>>('/api/meta', normalizeRuntimeMetaResponse);
 }
 
 export async function fetchRunTimelineResponse(runId: string, signal?: AbortSignal) {
-  return fetchJson<RunTimelineResponseDto>(`/api/runs/${runId}/timeline`, { signal });
+  return fetchJson<RunTimelineResponseDto>(`/api/runs/${runId}/timeline`, normalizeRunTimelineResponse, { signal });
 }
 
 export async function fetchThreadMessagesResponse(threadId: string, signal?: AbortSignal) {
-  return fetchJson<ThreadMessagesResponseDto>(`/api/threads/${threadId}/messages`, { signal });
+  return fetchJson<ThreadMessagesResponseDto>(`/api/threads/${threadId}/messages`, normalizeThreadMessagesResponse, { signal });
 }
 
 export async function fetchThreadRunsResponse(threadId: string, limit: number, signal?: AbortSignal) {
-  return fetchJson<ThreadRunsResponseDto>(`/api/threads/${threadId}/runs?limit=${limit}`, { signal });
+  return fetchJson<ThreadRunsResponseDto>(`/api/threads/${threadId}/runs?limit=${limit}`, normalizeThreadRunsResponse, { signal });
 }
 
 export async function createThreadResponse(body: Record<string, unknown> = {}) {
-  return fetchJson<CreateThreadResponseDto>('/api/threads', {
+  return fetchJson<CreateThreadResponseDto>('/api/threads', normalizeCreateThreadResponse, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body)
@@ -64,11 +81,28 @@ export async function openThreadRunStream(
   threadId: string,
   body: RunTextTurnRequestDto,
   signal: AbortSignal
-) {
-  return fetch(`/api/threads/${threadId}/runs/stream`, {
+): Promise<RunStreamOpenResult> {
+  const response = await fetch(`/api/threads/${threadId}/runs/stream`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
     signal
   });
+
+  if (response.ok) {
+    return {
+      ok: true,
+      status: response.status,
+      error: null,
+      body: response.body
+    };
+  }
+
+  const raw = await readJsonRecordOrEmpty(response);
+  return {
+    ok: false,
+    status: response.status,
+    error: readApiError(raw),
+    body: null
+  };
 }

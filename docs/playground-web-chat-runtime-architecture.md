@@ -172,3 +172,16 @@
 - 主方向是减少 chat 主链路上的高频事件和尾延迟
 - 如果未来需要 live 展示更多 debug 事件，应优先走右侧 inspector / debug-only path
 - 不应重新把重事件流塞回中心聊天热路径
+
+## 当前实现约束
+
+当前 durable chat feature 在 `apps/playground-web` 内部按以下边界落地：
+
+- `schema` 负责 API JSON、SSE payload、storage 值的最小正常化
+- `repo` 负责 fetch / stream / storage 访问，并向 runtime 返回已正常化数据
+- `service` 负责纯逻辑，例如消息合并、run 选择、chat phase 决策
+- `runtime` 负责 router/history、副作用编排、abort controller、viewport 行为
+- `components/chat-shell/*` 继续作为渲染层，不直接解析未知输入，也不直接持有复杂 fetch/stream 状态机
+
+当前默认不引入外部状态管理库。
+优先通过 feature-local reducer、pure service 提取和 controller 拆分来控制状态复杂度。

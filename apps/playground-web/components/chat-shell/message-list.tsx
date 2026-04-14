@@ -8,8 +8,8 @@ import { memo, type ComponentType } from 'react';
 import { copyMessageToClipboard, copyTextToClipboard, messagePartHasVisibleContent } from './helpers';
 import { MarkdownRenderer } from './markdown-renderer';
 import { AnimatedEmoji } from './shared';
-import type { LiveAssistantDraft } from './types';
 import { maxWithTW, messageListMinHeight, ui } from './ui';
+import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
 
 const WelcomeMessage = memo(function WelcomeMessage({ activeThreadId }: { activeThreadId: string | null }) {
   const greeting = (() => {

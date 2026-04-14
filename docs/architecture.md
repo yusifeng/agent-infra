@@ -96,6 +96,8 @@ In practice, this means:
 
 For `apps/playground-web`, this rule is most relevant to the durable chat surface.
 That surface already has enough runtime and boundary complexity to justify feature-local `types / schema / repo / service / runtime / ui` separation inside the app.
+In the current `playground-web` implementation, `components/chat-shell/*` may remain as the presentational UI layer while feature-local `schema / repo / service / runtime / types` hold the application logic.
+Do not introduce an external state-management library for this feature unless reducer-plus-service extraction has already failed to keep the runtime understandable.
 
 ## Why `thread` instead of `session`
 

@@ -9,10 +9,9 @@ import type {
   ThreadDto
 } from '@agent-infra/contracts';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 import { assistantMessageHasVisibleContent } from '@/components/chat-shell/helpers';
-import type { LiveAssistantDraft } from '@/components/chat-shell/types';
 import {
   createThreadResponse,
   fetchRunTimelineResponse,
@@ -23,50 +22,90 @@ import {
   openThreadRunStream
 } from '@/features/durable-chat/repo/chat-api';
 import { persistSelectedRunId, readPersistedRunId } from '@/features/durable-chat/repo/run-selection-storage';
+import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
+import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
 import {
   applyRunStateToTimeline,
+  buildOptimisticUserMessage,
   buildAssistantMessageFromSnapshot,
   chooseInitialRunId,
   compareRunsByCreatedAt,
+  getChatPhaseForAssistantSnapshot,
   includeSelectedRun,
   isPrimaryChatAssistantEventType,
   normalizeRuntimeMeta,
   parseSseChunk,
   RECENT_RUNS_LIMIT,
+  resolvePostReconcileChatPhase,
+  resolveSettledChatPhase,
   upsertMessage,
   upsertRun
 } from '@/features/durable-chat/service/chat-runtime';
+import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
 import type { ChatPhase, DurableChatRuntimeOptions } from '@/features/durable-chat/types/runtime';
 
 const PENDING_NEW_THREAD_LOADING_ID = '__pending-new-thread__';
 
 export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRuntimeOptions) {
   const router = useRouter();
-  const [threads, setThreads] = useState<ThreadDto[]>([]);
-  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<MessageDto[]>([]);
-  const [draft, setDraft] = useState('');
-  const [optimisticUserMessage, setOptimisticUserMessage] = useState<MessageDto | null>(null);
-  const [meta, setMeta] = useState<RuntimePiMetaDto | null>(null);
-  const [selectedModelKey, setSelectedModelKey] = useState('');
-  const [chatPhase, setChatPhase] = useState<ChatPhase>('idle');
-  const [persistingTurn, setPersistingTurn] = useState(false);
-  const [loadingThreadId, setLoadingThreadId] = useState<string | null>(null);
-  const [loadingMessages, setLoadingMessages] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
-  const [recentRuns, setRecentRuns] = useState<RunDto[]>([]);
-  const [recentRunsLoading, setRecentRunsLoading] = useState(false);
-  const [recentRunsError, setRecentRunsError] = useState<string | null>(null);
-  const [timeline, setTimeline] = useState<RunTimelineResponseDto | null>(null);
-  const [timelineLoading, setTimelineLoading] = useState(false);
-  const [timelineError, setTimelineError] = useState<string | null>(null);
-  const [liveStreamRunId, setLiveStreamRunId] = useState<string | null>(null);
-  const [liveAssistantDraft, setLiveAssistantDraft] = useState<LiveAssistantDraft | null>(null);
-  const [durableRecoveryNotice, setDurableRecoveryNotice] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(() => (typeof window === 'undefined' ? true : window.innerWidth >= 1024));
-  const [logOpen, setLogOpen] = useState(false);
-  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const {
+    state: {
+      threads,
+      activeThreadId,
+      messages,
+      draft,
+      optimisticUserMessage,
+      meta,
+      selectedModelKey,
+      chatPhase,
+      persistingTurn,
+      loadingThreadId,
+      loadingMessages,
+      error,
+      liveStreamRunId,
+      liveAssistantDraft,
+      durableRecoveryNotice,
+      sidebarOpen,
+      showScrollToBottom
+    },
+    setThreads,
+    setActiveThreadId,
+    setMessages,
+    setDraft,
+    setOptimisticUserMessage,
+    setMeta,
+    setSelectedModelKey,
+    setChatPhase,
+    setPersistingTurn,
+    setLoadingThreadId,
+    setLoadingMessages,
+    setError,
+    setLiveStreamRunId,
+    setLiveAssistantDraft,
+    setDurableRecoveryNotice,
+    setSidebarOpen,
+    setShowScrollToBottom
+  } = useChatSessionController();
+  const {
+    state: {
+      logOpen,
+      selectedRunId,
+      recentRuns,
+      recentRunsLoading,
+      recentRunsError,
+      timeline,
+      timelineLoading,
+      timelineError
+    },
+    setLogOpen,
+    setSelectedRunId,
+    setRecentRuns,
+    setRecentRunsLoading,
+    setRecentRunsError,
+    setTimeline,
+    setTimelineLoading,
+    setTimelineError
+  } = useRunInspectorController();
   const runSelectionPersistenceReadyRef = useRef(false);
   const activeThreadIdRef = useRef<string | null>(null);
   const logOpenRef = useRef(false);
@@ -300,13 +339,13 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }
 
   async function refreshThreads() {
-    const { data, response } = await fetchThreadsResponse();
-    if (!response.ok) {
-      throw new Error(data.error ?? `Failed to load threads (${response.status})`);
+    const result = await fetchThreadsResponse();
+    if (!result.ok) {
+      throw new Error(result.error ?? `Failed to load threads (${result.status})`);
     }
 
-    setThreads(data.threads);
-    return data.threads;
+    setThreads(result.data.threads);
+    return result.data.threads;
   }
 
   async function loadLogInspector(
@@ -393,16 +432,16 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     setTimelineError(null);
 
     try {
-      const { data, response } = await fetchRunTimelineResponse(runId, controller.signal);
-      if (!response.ok) {
-        throw new Error(data.error ?? `Failed to load run timeline (${response.status})`);
+      const result = await fetchRunTimelineResponse(runId, controller.signal);
+      if (!result.ok) {
+        throw new Error(result.error ?? `Failed to load run timeline (${result.status})`);
       }
 
       if (requestId !== timelineRequestIdRef.current) {
         return;
       }
 
-      setTimeline(data);
+      setTimeline(result.data);
     } catch (loadError) {
       if (controller.signal.aborted || requestId !== timelineRequestIdRef.current) {
         return;
@@ -420,23 +459,23 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
 
   async function tryResolvePreferredRun(threadId: string, runId: string, signal: AbortSignal) {
     try {
-      const { data, response } = await fetchRunTimelineResponse(runId, signal);
-      if (!response.ok || !data.run || data.run.threadId !== threadId) {
+      const result = await fetchRunTimelineResponse(runId, signal);
+      if (!result.ok || !result.data.run || result.data.run.threadId !== threadId) {
         return null;
       }
 
-      return data.run;
+      return result.data.run;
     } catch {
       return null;
     }
   }
 
   async function refreshMeta() {
-    const { data, response } = await fetchRuntimeMetaResponse();
-    const normalized = normalizeRuntimeMeta(data);
+    const result = await fetchRuntimeMetaResponse();
+    const normalized = normalizeRuntimeMeta(result.data);
     setMeta(normalized);
-    if (!response.ok) {
-      setError(normalized.runtimeConfigError ?? `Failed to load runtime metadata (${response.status})`);
+    if (!result.ok) {
+      setError(normalized.runtimeConfigError ?? `Failed to load runtime metadata (${result.status})`);
       return;
     }
 
@@ -450,21 +489,21 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }
 
   async function hydrateTranscript(threadId: string, signal: AbortSignal) {
-    const { data, response } = await fetchThreadMessagesResponse(threadId, signal);
-    if (!response.ok) {
-      throw new Error(data.error ?? `Failed to load messages (${response.status})`);
+    const result = await fetchThreadMessagesResponse(threadId, signal);
+    if (!result.ok) {
+      throw new Error(result.error ?? `Failed to load messages (${result.status})`);
     }
 
-    return data.messages ?? [];
+    return result.data.messages ?? [];
   }
 
   async function hydrateRecentRuns(threadId: string, signal: AbortSignal) {
-    const { data, response } = await fetchThreadRunsResponse(threadId, RECENT_RUNS_LIMIT, signal);
-    if (!response.ok) {
-      throw new Error(data.error ?? `Failed to load thread runs (${response.status})`);
+    const result = await fetchThreadRunsResponse(threadId, RECENT_RUNS_LIMIT, signal);
+    if (!result.ok) {
+      throw new Error(result.error ?? `Failed to load thread runs (${result.status})`);
     }
 
-    return (data.runs ?? []).slice().sort(compareRunsByCreatedAt);
+    return result.data.runs.slice().sort(compareRunsByCreatedAt);
   }
 
   async function resolveSelectedRun(
@@ -603,19 +642,19 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
 
     try {
       if (options?.recoverTranscript) {
-        const { data: messagesData, response: messagesResponse } = await fetchThreadMessagesResponse(threadId, reconcileController.signal);
+        const messagesResult = await fetchThreadMessagesResponse(threadId, reconcileController.signal);
 
         if (isReconcileThreadStale()) {
           return;
         }
-        if (!messagesResponse.ok) {
-          throw new Error(messagesData.error ?? `Failed to recover thread messages (${messagesResponse.status})`);
+        if (!messagesResult.ok) {
+          throw new Error(messagesResult.error ?? `Failed to recover thread messages (${messagesResult.status})`);
         }
         if (!isLatestReconcile()) {
           return;
         }
 
-        reconciledMessages = messagesData.messages ?? [];
+        reconciledMessages = messagesResult.data.messages ?? [];
         setMessages(reconciledMessages);
         if (isCurrentSend()) {
           setOptimisticUserMessage(null);
@@ -624,15 +663,15 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       }
 
       if (inspectorEnabled) {
-        const { data: runsData, response: runsResponse } = await fetchThreadRunsResponse(threadId, RECENT_RUNS_LIMIT, reconcileController.signal);
+        const runsResult = await fetchThreadRunsResponse(threadId, RECENT_RUNS_LIMIT, reconcileController.signal);
         if (isReconcileThreadStale()) {
           return;
         }
-        if (!runsResponse.ok) {
-          throw new Error(runsData.error ?? `Failed to load thread runs (${runsResponse.status})`);
+        if (!runsResult.ok) {
+          throw new Error(runsResult.error ?? `Failed to load thread runs (${runsResult.status})`);
         }
 
-        let nextRuns = (runsData.runs ?? []).slice().sort(compareRunsByCreatedAt);
+        let nextRuns = runsResult.data.runs.slice().sort(compareRunsByCreatedAt);
         if (requestedRunId && !nextRuns.some((run) => run.id === requestedRunId)) {
           const preferredResolvedRun = await tryResolvePreferredRun(threadId, requestedRunId, reconcileController.signal);
           if (isReconcileThreadStale()) {
@@ -658,12 +697,12 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         setTimelineLoading(true);
         setTimelineError(null);
         try {
-          const { data: timelineData, response: timelineResponse } = await fetchRunTimelineResponse(nextSelectedRunId);
+          const timelineResult = await fetchRunTimelineResponse(nextSelectedRunId);
           if (isReconcileThreadStale() || !isLatestReconcile()) {
             return;
           }
-          if (!timelineResponse.ok) {
-            throw new Error(timelineData.error ?? `Failed to load run timeline (${timelineResponse.status})`);
+          if (!timelineResult.ok) {
+            throw new Error(timelineResult.error ?? `Failed to load run timeline (${timelineResult.status})`);
           }
 
           if (
@@ -671,7 +710,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
             requestId === sendRequestIdRef.current &&
             selectedRunIdRef.current === nextSelectedRunId
           ) {
-            setTimeline(timelineData);
+            setTimeline(timelineResult.data);
             setTimelineError(null);
           }
         } catch (timelineRefreshError) {
@@ -702,7 +741,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       reconcileController.abort();
       if (requestId === sendRequestIdRef.current) {
         setPersistingTurn(false);
-        setChatPhase((current) => (current === 'failed' ? 'failed' : 'idle'));
+        setChatPhase(resolvePostReconcileChatPhase);
         setLoadingThreadId(null);
       }
       if (inspectorEnabled && activeThreadIdRef.current === threadId && reconcileRequestId === reconcileRequestIdRef.current) {
@@ -715,12 +754,12 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }
 
   async function createThreadRecord() {
-    const { data, response } = await createThreadResponse();
-    if (!response.ok || !data.thread) {
-      throw new Error(data.error ?? `Failed to create thread (${response.status})`);
+    const result = await createThreadResponse();
+    if (!result.ok || !result.data.thread) {
+      throw new Error(result.error ?? `Failed to create thread (${result.status})`);
     }
 
-    const createdThread = data.thread;
+    const createdThread = result.data.thread;
     setThreads((current) => [...current, createdThread].sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()));
     return createdThread;
   }
@@ -762,7 +801,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
 
       if (event.assistant.eventType === 'text_end') {
         setLiveStreamRunId(null);
-        setChatPhase('transcript-final');
+        setChatPhase(getChatPhaseForAssistantSnapshot(event.assistant));
         if (threadId && !requiresTranscriptRecovery) {
           setMessages((current) =>
             upsertMessage(current, buildAssistantMessageFromSnapshot(current, threadId as string, event.runId, event.assistant))
@@ -775,7 +814,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       }
 
       if (event.assistant.partialText) {
-        setChatPhase('streaming');
+        setChatPhase(getChatPhaseForAssistantSnapshot(event.assistant));
         setLiveAssistantDraft({
           runId: event.runId,
           messageId: event.assistant.messageId,
@@ -786,7 +825,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         return;
       }
 
-      setChatPhase('thinking');
+      setChatPhase(getChatPhaseForAssistantSnapshot(event.assistant));
       setLiveAssistantDraft({
         runId: event.runId,
         messageId: event.assistant.messageId,
@@ -854,7 +893,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       if (event.type === 'run.completed') {
         setError(null);
         setLiveStreamRunId(null);
-        setChatPhase((current) => (current === 'failed' ? current : current === 'transcript-final' ? current : 'idle'));
+        setChatPhase(resolveSettledChatPhase);
       }
     };
 
@@ -880,28 +919,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         replaceCurrentPath(`/chat/${threadId}`);
       }
 
-      const optimisticMessage: MessageDto = {
-        id: `optimistic-user-${requestId}`,
-        threadId,
-        runId: null,
-        role: 'user',
-        seq: (messages[messages.length - 1]?.seq ?? 0) + 1,
-        status: 'created',
-        metadata: { optimistic: true },
-        createdAt: new Date().toISOString(),
-        parts: [
-          {
-            id: `optimistic-user-part-${requestId}`,
-            messageId: `optimistic-user-${requestId}`,
-            partIndex: 0,
-            type: 'text',
-            textValue: text,
-            jsonValue: null,
-            createdAt: new Date().toISOString()
-          }
-        ]
-      };
-      setOptimisticUserMessage(optimisticMessage);
+      setOptimisticUserMessage(buildOptimisticUserMessage(threadId, requestId, text, messages));
       setLiveAssistantDraft({
         runId: `pending-${requestId}`,
         messageId: `pending-assistant-${requestId}`,
@@ -910,7 +928,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         eventType: 'start'
       });
 
-      const response = await openThreadRunStream(
+      const streamResult = await openThreadRunStream(
         threadId,
         {
           text,
@@ -920,17 +938,16 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         controller.signal
       );
 
-      if (!response.ok) {
-        const { error } = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(error ?? `request failed (${response.status})`);
+      if (!streamResult.ok) {
+        throw new Error(streamResult.error ?? `request failed (${streamResult.status})`);
       }
 
-      if (!response.body) {
+      if (!streamResult.body) {
         throw new Error('stream response body is unavailable');
       }
 
       streamSessionStarted = true;
-      const reader = response.body.getReader();
+      const reader = streamResult.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
 
@@ -984,7 +1001,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       if (requestId === sendRequestIdRef.current) {
         sendAbortControllerRef.current = null;
         setLiveStreamRunId(null);
-        setChatPhase((current) => (current === 'failed' ? 'failed' : current === 'transcript-final' ? 'transcript-final' : 'idle'));
+        setChatPhase(resolveSettledChatPhase);
       }
 
       if (!controller.signal.aborted && requestId === sendRequestIdRef.current && (streamSessionStarted || streamedRunId)) {

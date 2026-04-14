@@ -1,9 +1,1 @@
-import type { RunStreamAssistantSnapshotDto } from '@agent-infra/contracts';
-
-export type LiveAssistantDraft = {
-  runId: string;
-  messageId: string;
-  partialText: string;
-  partialReasoning: string | null;
-  eventType: RunStreamAssistantSnapshotDto['eventType'];
-};
+export type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';

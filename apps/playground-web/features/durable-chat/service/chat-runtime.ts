@@ -7,6 +7,9 @@ import type {
   RuntimePiMetaDto
 } from '@agent-infra/contracts';
 
+import { normalizeRunStreamEvent } from '../schema/run-stream';
+import type { ChatPhase } from '../types/runtime';
+
 export const RECENT_RUNS_LIMIT = 8;
 
 export function normalizeRuntimeMeta(data: Partial<RuntimePiMetaDto>): RuntimePiMetaDto {
@@ -102,6 +105,30 @@ export function buildAssistantMessageFromSnapshot(
   };
 }
 
+export function buildOptimisticUserMessage(threadId: string, requestId: number, text: string, currentMessages: MessageDto[]): MessageDto {
+  return {
+    id: `optimistic-user-${requestId}`,
+    threadId,
+    runId: null,
+    role: 'user',
+    seq: (currentMessages[currentMessages.length - 1]?.seq ?? 0) + 1,
+    status: 'created',
+    metadata: { optimistic: true },
+    createdAt: new Date().toISOString(),
+    parts: [
+      {
+        id: `optimistic-user-part-${requestId}`,
+        messageId: `optimistic-user-${requestId}`,
+        partIndex: 0,
+        type: 'text',
+        textValue: text,
+        jsonValue: null,
+        createdAt: new Date().toISOString()
+      }
+    ]
+  };
+}
+
 export function upsertRun(runs: RunDto[], nextRun: RunDto) {
   const existingIndex = runs.findIndex((run) => run.id === nextRun.id);
   if (existingIndex === -1) {
@@ -128,6 +155,26 @@ export function includeSelectedRun(runs: RunDto[], selectedRun: RunDto | null) {
 
 export function isPrimaryChatAssistantEventType(eventType: RunStreamAssistantSnapshotDto['eventType']) {
   return eventType === 'start' || eventType === 'text_delta' || eventType === 'text_end';
+}
+
+export function getChatPhaseForAssistantSnapshot(assistant: RunStreamAssistantSnapshotDto): ChatPhase {
+  if (assistant.eventType === 'text_end') {
+    return 'transcript-final';
+  }
+
+  if (assistant.partialText) {
+    return 'streaming';
+  }
+
+  return 'thinking';
+}
+
+export function resolveSettledChatPhase(current: ChatPhase): ChatPhase {
+  return current === 'failed' ? 'failed' : current === 'transcript-final' ? 'transcript-final' : 'idle';
+}
+
+export function resolvePostReconcileChatPhase(current: ChatPhase): ChatPhase {
+  return current === 'failed' ? 'failed' : 'idle';
 }
 
 export function applyRunStateToTimeline(
@@ -194,8 +241,8 @@ export function parseSseChunk(buffer: string) {
     }
 
     try {
-      const parsed = JSON.parse(data) as RunStreamEventDto;
-      if (parsed.type === eventName) {
+      const parsed = normalizeRunStreamEvent(JSON.parse(data));
+      if (parsed?.type === eventName) {
         events.push(parsed);
       }
     } catch {
