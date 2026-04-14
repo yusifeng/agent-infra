@@ -67,6 +67,7 @@
 
 - 主聊天 loading 只跟 `chatPhase === 'thinking' | 'streaming'` 绑定。
 - `text_end` 到来后，chat phase 进入 `transcript-final`。
+- durable 尾态补齐已下沉到独立的 `persistingTurn`，不再回流驱动主聊天 loading。
 - 在 `transcript-final` 下：
   - composer loading 消失
   - textarea 恢复可编辑

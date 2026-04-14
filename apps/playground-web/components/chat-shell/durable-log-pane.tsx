@@ -84,6 +84,7 @@ type DurableLogPaneProps = {
   runEvents: RunEventDto[];
   toolInvocations: ToolInvocationDto[];
   liveStreamRunId: string | null;
+  persistingTurn: boolean;
   timelineLoading: boolean;
   timelineError: string | null;
   onSelectRun: (runId: string) => void;
@@ -101,6 +102,7 @@ export function DurableLogPane({
   runEvents,
   toolInvocations,
   liveStreamRunId,
+  persistingTurn,
   timelineLoading,
   timelineError,
   onSelectRun
@@ -124,6 +126,7 @@ export function DurableLogPane({
           <span className={clsx('rounded-full px-3 py-1 text-xs', ui.badge)}>DB: {meta?.dbMode ?? 'loading'}</span>
           <span className={clsx('rounded-full px-3 py-1 text-xs', ui.badge)}>Provider: {meta?.runtimeProvider ?? 'loading'}</span>
           <span className={clsx('rounded-full px-3 py-1 text-xs', ui.badge)}>Model: {meta?.runtimeModel ?? 'loading'}</span>
+          {persistingTurn ? <span className={clsx('rounded-full px-3 py-1 text-xs', ui.badge)}>Syncing durable state…</span> : null}
         </div>
       </header>
 

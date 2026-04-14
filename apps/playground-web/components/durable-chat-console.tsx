@@ -243,8 +243,8 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
   const [optimisticUserMessage, setOptimisticUserMessage] = useState<MessageDto | null>(null);
   const [meta, setMeta] = useState<RuntimePiMetaDto | null>(null);
   const [selectedModelKey, setSelectedModelKey] = useState('');
-  const [sending, setSending] = useState(false);
   const [chatPhase, setChatPhase] = useState<ChatPhase>('idle');
+  const [persistingTurn, setPersistingTurn] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
@@ -287,10 +287,12 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
   const runEvents = timeline?.runEvents ?? [];
   const toolInvocations = timeline?.toolInvocations ?? [];
   const currentThreadTitle = activeThread?.title?.trim() || activeThreadId || 'New chat';
-  const isChatResponding = chatPhase === 'thinking' || chatPhase === 'streaming';
+  const isSending = chatPhase === 'thinking';
+  const isStreamingText = chatPhase === 'streaming';
+  const isChatResponding = isSending || isStreamingText;
   const sendDisabled = !draft.trim() || isChatResponding || !meta?.runtimeConfigured || !selectedModelOption;
   const inputLocked = isChatResponding;
-  const composerLoadingLabel = isChatResponding ? 'loading' : null;
+  const composerLoadingLabel = isSending ? 'waiting for response' : isStreamingText ? 'streaming response' : null;
   const displayedMessages = useMemo(
     () => (optimisticUserMessage ? upsertMessage(messages, optimisticUserMessage) : messages),
     [messages, optimisticUserMessage]
@@ -422,8 +424,8 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     timelineAbortControllerRef.current?.abort();
     sendRequestIdRef.current += 1;
     sendAbortControllerRef.current?.abort();
-    setSending(false);
     setChatPhase('idle');
+    setPersistingTurn(false);
     setActiveThreadId(null);
     setDraft('');
     setOptimisticUserMessage(null);
@@ -455,6 +457,13 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     setTimelineLoading(false);
     setRecentRunsLoading(false);
     setRecentRunsError(null);
+  }
+
+  function stopViewingLiveResponse() {
+    sendAbortControllerRef.current?.abort();
+    setChatPhase('idle');
+    setLiveStreamRunId(null);
+    setPersistingTurn(false);
   }
 
   async function activateThread(threadId: string, options?: { preferredRunId?: string | null }) {
@@ -918,6 +927,9 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
       }
     } finally {
       reconcileController.abort();
+      if (requestId === sendRequestIdRef.current && activeThreadIdRef.current === threadId) {
+        setPersistingTurn(false);
+      }
       if (inspectorEnabled && activeThreadIdRef.current === threadId && reconcileRequestId === reconcileRequestIdRef.current) {
         setRecentRunsLoading(false);
         if (nextSelectedRunId && selectedRunIdRef.current === nextSelectedRunId) {
@@ -964,7 +976,6 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     const applyAssistantSnapshot = (event: Extract<RunStreamEventDto, { type: 'run.assistant' }>) => {
       if (event.assistant.eventType === 'text_end') {
         setLiveStreamRunId(null);
-        setSending(false);
         setChatPhase('transcript-final');
       } else if (event.assistant.partialText) {
         setChatPhase('streaming');
@@ -1021,7 +1032,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
         terminalStreamError = event.error;
         setError(event.error);
         setLiveStreamRunId(null);
-        setSending(false);
+        setPersistingTurn(false);
         setChatPhase('failed');
         setLiveAssistantDraft((current) => (current?.runId === event.runId ? null : current));
         return;
@@ -1034,8 +1045,8 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
       }
     };
 
-    setSending(true);
     setChatPhase('thinking');
+    setPersistingTurn(false);
     setError(null);
     setLiveStreamRunId(null);
     setDraft('');
@@ -1151,20 +1162,20 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
         setOptimisticUserMessage(null);
         setLiveAssistantDraft(null);
       }
-      setSending(false);
       setChatPhase('failed');
+      setPersistingTurn(false);
       setError(sendError instanceof Error ? sendError.message : 'Failed to send message');
     } finally {
       if (requestId === sendRequestIdRef.current) {
         sendAbortControllerRef.current = null;
-        setSending(false);
         setLiveStreamRunId(null);
-        setChatPhase((current) => (current === 'failed' ? 'failed' : 'idle'));
+        setChatPhase((current) => (current === 'failed' ? 'failed' : current === 'transcript-final' ? 'transcript-final' : 'idle'));
       }
 
       if (!controller.signal.aborted && requestId === sendRequestIdRef.current && (streamSessionStarted || streamedRunId)) {
         if (threadId && activeThreadIdRef.current === threadId) {
           const preferredRunId = streamedRunId ?? selectedRunIdRef.current;
+          setPersistingTurn(true);
           void reconcileCompletedTurn(threadId, preferredRunId, requestId);
         } else {
           void refreshThreads().catch((refreshError) => {
@@ -1224,7 +1235,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
       const threadId = readThreadIdFromPathname(window.location.pathname);
       void (async () => {
         try {
-          sendAbortControllerRef.current?.abort();
+          stopViewingLiveResponse();
 
           if (threadId) {
             await activateThread(threadId, {
@@ -1247,6 +1258,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
 
     window.addEventListener('popstate', handlePopState);
     return () => {
+      stopViewingLiveResponse();
       window.removeEventListener('popstate', handlePopState);
     };
   }, []);
@@ -1269,14 +1281,14 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
         activeThreadId={activeThreadId}
         onClose={() => setSidebarOpen(false)}
         onNewChat={() => {
-          sendAbortControllerRef.current?.abort();
+          stopViewingLiveResponse();
           if (window.innerWidth < 1024) {
             setSidebarOpen(false);
           }
           void navigateToNewChat();
         }}
         onOpenThread={(threadId) => {
-          sendAbortControllerRef.current?.abort();
+          stopViewingLiveResponse();
           if (window.innerWidth < 1024) {
             setSidebarOpen(false);
           }
@@ -1326,11 +1338,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
               onSend={() => {
                 void sendMessage();
               }}
-              onStop={() => {
-                setSending(false);
-                setChatPhase('idle');
-                setLiveStreamRunId(null);
-              }}
+              onStop={stopViewingLiveResponse}
               onScrollToBottom={scrollToMessagesBottom}
             />
           </div>
@@ -1348,6 +1356,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
           runEvents={runEvents}
           toolInvocations={toolInvocations}
           liveStreamRunId={liveStreamRunId}
+          persistingTurn={persistingTurn}
           timelineLoading={timelineLoading}
           timelineError={timelineError}
           onSelectRun={(runId) => {
