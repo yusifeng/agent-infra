@@ -20,6 +20,7 @@ import {
   fetchThreadsResponse
 } from '@/features/durable-chat/repo/chat-api';
 import { persistSelectedRunId, readPersistedRunId } from '@/features/durable-chat/repo/run-selection-storage';
+import { applyHydratedTranscriptState, runActivateThread, runLoadThreadMessages } from '@/features/durable-chat/runtime/load-thread-flow';
 import { runSendMessageFlow } from '@/features/durable-chat/runtime/send-message-flow';
 import { runReconcileCompletedTurn } from '@/features/durable-chat/runtime/reconcile-completed-turn';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
@@ -287,21 +288,21 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }
 
   async function activateThread(threadId: string, options?: { preferredRunId?: string | null }) {
-    setActiveThreadId(threadId);
-    activeThreadIdRef.current = threadId;
-    shouldAutoScrollRef.current = true;
-    const restoredRunId = await loadThreadMessages(threadId, options);
-    if (options?.preferredRunId) {
-      setDurableRecoveryNotice(
-        restoredRunId
-          ? 'Restored the focused run from durable records. Live stream drafts are transient and may not survive refresh.'
-          : null
-      );
-    } else {
-      setDurableRecoveryNotice(null);
-    }
-
-    return restoredRunId;
+    return runActivateThread({
+      threadId,
+      options,
+      refs: {
+        activeThreadIdRef,
+        shouldAutoScrollRef
+      },
+      actions: {
+        setActiveThreadId,
+        setDurableRecoveryNotice
+      },
+      operations: {
+        loadThreadMessages
+      }
+    });
   }
 
   function navigateToThread(threadId: string, options?: { replace?: boolean }) {
@@ -518,32 +519,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     };
   }
 
-  function applyHydratedTranscript(messages: MessageDto[], selectedRunId: string | null, runs: RunDto[]) {
-    const hasPersistedAssistantForSelectedRun =
-      selectedRunId !== null && messages.some((message) => message.runId === selectedRunId && assistantMessageHasVisibleContent(message));
-
-    setMessages(messages);
-    setRecentRuns(runs);
-    setSelectedRunId(selectedRunId);
-    setOptimisticUserMessage(null);
-    setLiveAssistantDraft((current) => {
-      if (!current) {
-        return null;
-      }
-
-      if (current.runId !== selectedRunId) {
-        return null;
-      }
-
-      return hasPersistedAssistantForSelectedRun ? null : current;
-    });
-    setRecentRunsError(null);
-    setError(null);
-    if (messages.some(assistantMessageHasVisibleContent)) {
-      setChatPhase('idle');
-    }
-  }
-
   async function loadThreadMessages(
     threadId: string,
     options?: {
@@ -553,61 +528,45 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       preserveExistingTimeline?: boolean;
     }
   ) {
-    const background = options?.background === true;
-    messagesRequestIdRef.current += 1;
-    const requestId = messagesRequestIdRef.current;
-    messagesAbortControllerRef.current?.abort();
-    const controller = new AbortController();
-    messagesAbortControllerRef.current = controller;
-    if (!background) {
-      setLoadingMessages(true);
-    }
-    if (!logOpenRef.current) {
-      resetLogInspectorState();
-    } else {
-      setRecentRunsLoading(true);
-      setRecentRunsError(null);
-    }
-
-    try {
-      const nextMessages = await hydrateTranscript(threadId, controller.signal);
-
-      if (controller.signal.aborted || requestId !== messagesRequestIdRef.current) {
-        return;
+    return runLoadThreadMessages({
+      threadId,
+      options,
+      refs: {
+        activeThreadIdRef,
+        logOpenRef,
+        messagesAbortControllerRef,
+        messagesRequestIdRef
+      },
+      actions: {
+        setError,
+        setLiveAssistantDraft,
+        setLoadingMessages,
+        setOptimisticUserMessage,
+        setRecentRunsError,
+        setRecentRunsLoading
+      },
+      operations: {
+        applyHydratedTranscript: ({ messages, selectedRunId, runs }) =>
+          applyHydratedTranscriptState({
+            messages,
+            selectedRunId,
+            runs,
+            actions: {
+              setChatPhase,
+              setError,
+              setLiveAssistantDraft,
+              setMessages,
+              setOptimisticUserMessage,
+              setRecentRuns,
+              setRecentRunsError,
+              setSelectedRunId
+            }
+          }),
+        hydrateTranscript,
+        loadLogInspector,
+        resetLogInspectorState
       }
-
-      if (!logOpenRef.current) {
-        applyHydratedTranscript(nextMessages, null, []);
-        return null;
-      }
-
-      applyHydratedTranscript(nextMessages, null, []);
-      if (options?.skipTimelineReload) {
-        return null;
-      }
-
-      return await loadLogInspector(threadId, nextMessages, {
-        preferredRunId: options?.preferredRunId,
-        preserveExistingTimeline: options?.preserveExistingTimeline === true
-      });
-    } catch (loadError) {
-      if (controller.signal.aborted || requestId !== messagesRequestIdRef.current) {
-        return;
-      }
-
-      resetLogInspectorState();
-      setLiveAssistantDraft(null);
-      setOptimisticUserMessage(null);
-      setError(loadError instanceof Error ? loadError.message : 'Failed to load thread messages');
-      return null;
-    } finally {
-      if (requestId === messagesRequestIdRef.current) {
-        messagesAbortControllerRef.current = null;
-        if (!background) {
-          setLoadingMessages(false);
-        }
-      }
-    }
+    });
   }
 
   async function reconcileCompletedTurn(
