@@ -5,7 +5,6 @@ import clsx from 'clsx';
 import {
   ChevronDown,
   CircleStop,
-  Loader2,
   Send,
 } from 'lucide-react';
 import type { MutableRefObject, RefObject } from 'react';
@@ -23,7 +22,6 @@ type ComposerDockProps = {
   selectedModelOption: RuntimePiMetaDto['modelOptions'][number] | null;
   meta: RuntimePiMetaDto | null;
   showScrollToBottom: boolean;
-  loadingLabel: string | null;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   sendAbortControllerRef: MutableRefObject<AbortController | null>;
   onDraftChange: (value: string) => void;
@@ -43,7 +41,6 @@ export function ComposerDock({
   selectedModelOption,
   meta,
   showScrollToBottom,
-  loadingLabel,
   textareaRef,
   sendAbortControllerRef,
   onDraftChange,
@@ -72,13 +69,6 @@ export function ComposerDock({
             <ChevronDown className="h-4 w-4 text-slate-600" />
           </button>
         </div>
-
-        {loadingLabel ? (
-          <div className="mb-3 flex items-center gap-2 px-1 text-[11px] text-slate-400">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            <span>{loadingLabel}</span>
-          </div>
-        ) : null}
 
         <form
           className={ui.composerCard}

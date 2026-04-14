@@ -307,6 +307,17 @@ const LiveAssistantCard = memo(function LiveAssistantCard({
   return <AssistantTranscriptCard liveAssistantDraft={liveAssistantDraft} type="live" />;
 });
 
+const ThinkingIndicator = memo(function ThinkingIndicator() {
+  return (
+    <div className={clsx('w-[90%] max-w-screen px-4', ui.messageAppear)}>
+      <div className="flex items-center gap-2.5 py-1.5">
+        <span className="h-2 w-2 rounded-full bg-[color:var(--chat-text-tertiary)]" aria-hidden="true" />
+        <span className="chat-shimmer-text text-sm font-medium tracking-[0.01em]">Thinking...</span>
+      </div>
+    </div>
+  );
+});
+
 type ChatMessageListProps = {
   meta: RuntimePiMetaDto | null;
   error: string | null;
@@ -315,6 +326,7 @@ type ChatMessageListProps = {
   activeThreadId: string | null;
   messages: MessageDto[];
   liveAssistantDraft: LiveAssistantDraft | null;
+  isThinking: boolean;
 };
 
 export const ChatMessageList = memo(function ChatMessageList({
@@ -324,7 +336,8 @@ export const ChatMessageList = memo(function ChatMessageList({
   loadingMessages,
   activeThreadId,
   messages,
-  liveAssistantDraft
+  liveAssistantDraft,
+  isThinking
 }: ChatMessageListProps) {
   return (
     <div className="flex-1 p-6">
@@ -357,8 +370,9 @@ export const ChatMessageList = memo(function ChatMessageList({
         </div>
       ) : messages.length === 0 ? (
         <div className={`${maxWithTW} mx-auto w-full`} style={messageListMinHeight}>
-          <div className="flex min-h-full items-center justify-center">
+          <div className="flex min-h-full flex-col items-center justify-center gap-3">
             <WelcomeMessage activeThreadId={activeThreadId} />
+            {isThinking ? <ThinkingIndicator /> : null}
           </div>
         </div>
       ) : (
@@ -368,6 +382,7 @@ export const ChatMessageList = memo(function ChatMessageList({
               <MessageCard key={message.id} message={message} />
             ))}
             {liveAssistantDraft ? <LiveAssistantCard liveAssistantDraft={liveAssistantDraft} /> : null}
+            {isThinking ? <ThinkingIndicator /> : null}
           </div>
         </div>
       )}

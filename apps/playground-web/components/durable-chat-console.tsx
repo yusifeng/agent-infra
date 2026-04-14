@@ -277,6 +277,7 @@ type DurableChatConsoleProps = {
 };
 
 type ChatPhase = 'idle' | 'thinking' | 'streaming' | 'transcript-final' | 'failed';
+const PENDING_NEW_THREAD_LOADING_ID = '__pending-new-thread__';
 
 export function DurableChatConsole({ initialThreadId = null }: DurableChatConsoleProps) {
   const [threads, setThreads] = useState<ThreadDto[]>([]);
@@ -288,6 +289,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
   const [selectedModelKey, setSelectedModelKey] = useState('');
   const [chatPhase, setChatPhase] = useState<ChatPhase>('idle');
   const [persistingTurn, setPersistingTurn] = useState(false);
+  const [loadingThreadId, setLoadingThreadId] = useState<string | null>(null);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
@@ -332,10 +334,13 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
   const currentThreadTitle = activeThread?.title?.trim() || activeThreadId || 'New chat';
   const isSending = chatPhase === 'thinking';
   const isStreamingText = chatPhase === 'streaming';
+  const isFinalizingTranscript = chatPhase === 'transcript-final';
   const isChatResponding = isSending || isStreamingText;
+  const isLoadingForActiveThread =
+    loadingThreadId !== null && (loadingThreadId === activeThreadId || (loadingThreadId === PENDING_NEW_THREAD_LOADING_ID && activeThreadId === null));
+  const showResponseLoading = (isChatResponding || isFinalizingTranscript || persistingTurn) && isLoadingForActiveThread;
   const sendDisabled = !draft.trim() || isChatResponding || !meta?.runtimeConfigured || !selectedModelOption;
   const inputLocked = isChatResponding;
-  const composerLoadingLabel = isSending ? 'waiting for response' : isStreamingText ? 'streaming response' : null;
   const displayedMessages = useMemo(
     () => (optimisticUserMessage ? upsertMessage(messages, optimisticUserMessage) : messages),
     [messages, optimisticUserMessage]
@@ -469,6 +474,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     sendAbortControllerRef.current?.abort();
     setChatPhase('idle');
     setPersistingTurn(false);
+    setLoadingThreadId(null);
     setActiveThreadId(null);
     setDraft('');
     setOptimisticUserMessage(null);
@@ -507,6 +513,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     setChatPhase('idle');
     setLiveStreamRunId(null);
     setPersistingTurn(false);
+    setLoadingThreadId(null);
   }
 
   async function activateThread(threadId: string, options?: { preferredRunId?: string | null }) {
@@ -961,8 +968,10 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
       }
     } finally {
       reconcileController.abort();
-      if (requestId === sendRequestIdRef.current && activeThreadIdRef.current === threadId) {
+      if (requestId === sendRequestIdRef.current) {
         setPersistingTurn(false);
+        setChatPhase((current) => (current === 'failed' ? 'failed' : 'idle'));
+        setLoadingThreadId(null);
       }
       if (inspectorEnabled && activeThreadIdRef.current === threadId && reconcileRequestId === reconcileRequestIdRef.current) {
         setRecentRunsLoading(false);
@@ -1123,6 +1132,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
 
     setChatPhase('thinking');
     setPersistingTurn(false);
+    setLoadingThreadId(threadId ?? PENDING_NEW_THREAD_LOADING_ID);
     setError(null);
     setLiveStreamRunId(null);
     setDraft('');
@@ -1138,6 +1148,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
         threadId = nextThread.id;
         setActiveThreadId(threadId);
         activeThreadIdRef.current = threadId;
+        setLoadingThreadId(threadId);
         updateHistoryPath(`/chat/${threadId}`, { replace: true });
       }
 
@@ -1240,6 +1251,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
       }
       setChatPhase('failed');
       setPersistingTurn(false);
+      setLoadingThreadId(null);
       setError(sendError instanceof Error ? sendError.message : 'Failed to send message');
     } finally {
       if (requestId === sendRequestIdRef.current) {
@@ -1396,6 +1408,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
                 activeThreadId={activeThreadId}
                 messages={displayedMessages}
                 liveAssistantDraft={liveAssistantDraft}
+                isThinking={showResponseLoading}
               />
             </div>
             <ComposerDock
@@ -1408,7 +1421,6 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
               selectedModelOption={selectedModelOption}
               meta={meta}
               showScrollToBottom={showScrollToBottom}
-              loadingLabel={composerLoadingLabel}
               textareaRef={textareaRef}
               sendAbortControllerRef={sendAbortControllerRef}
               onDraftChange={setDraft}

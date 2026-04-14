@@ -63,6 +63,33 @@
   animation: chat-message-appear 180ms ease-out;
 }
 
+@keyframes chat-shimmer {
+  0% {
+    background-position: -600px 0;
+  }
+
+  100% {
+    background-position: 600px 0;
+  }
+}
+
+.chat-shimmer-text {
+  display: inline-block;
+  background: linear-gradient(
+    90deg,
+    var(--chat-text-tertiary) 0%,
+    var(--chat-text-tertiary) 35%,
+    var(--chat-text) 50%,
+    var(--chat-text-tertiary) 65%,
+    var(--chat-text-tertiary) 100%
+  );
+  background-size: 600px 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: chat-shimmer 2s linear infinite;
+}
+
 @keyframes chat-markdown-block-appear {
   from {
     transform: translate3d(0, 6px, 0);
