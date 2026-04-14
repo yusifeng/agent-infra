@@ -192,7 +192,7 @@ function includeSelectedRun(runs: RunDto[], selectedRun: RunDto | null) {
   return [...runs, selectedRun].sort(compareRunsByCreatedAt);
 }
 
-function applyRunStreamEvent(current: RunTimelineResponseDto | null, event: RunStreamEventDto): RunTimelineResponseDto {
+function applyRunStateToTimeline(current: RunTimelineResponseDto | null, event: Exclude<RunStreamEventDto, { type: 'run.assistant' }>): RunTimelineResponseDto {
   switch (event.type) {
     case 'run.ready':
       return {
@@ -217,12 +217,6 @@ function applyRunStreamEvent(current: RunTimelineResponseDto | null, event: RunS
         run: event.run,
         runEvents: current?.runEvents ?? [],
         toolInvocations: current?.toolInvocations ?? []
-      };
-    case 'run.assistant':
-      return current ?? {
-        run: null,
-        runEvents: [],
-        toolInvocations: []
       };
     default:
       return current ?? {
@@ -615,9 +609,11 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     timelineRequestIdRef.current += 1;
     const requestId = timelineRequestIdRef.current;
     timelineAbortControllerRef.current?.abort();
+    const previousSelectedRunId = selectedRunIdRef.current;
     setSelectedRunId(runId);
 
     if (!runId) {
+      selectedRunIdRef.current = runId;
       timelineAbortControllerRef.current = null;
       setTimeline(null);
       setTimelineError(null);
@@ -627,9 +623,10 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
 
     const controller = new AbortController();
     timelineAbortControllerRef.current = controller;
-    if (!options?.preserveExisting || selectedRunIdRef.current !== runId) {
+    if (!options?.preserveExisting || previousSelectedRunId !== runId) {
       setTimeline(null);
     }
+    selectedRunIdRef.current = runId;
     setTimelineLoading(true);
     setTimelineError(null);
 
@@ -1050,8 +1047,16 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     const processStreamEvent = (event: RunStreamEventDto) => {
       streamedRunId = event.runId;
       setLiveStreamRunId(event.runId);
-      setSelectedRunId(event.runId);
-      setTimeline((current) => applyRunStreamEvent(current, event));
+
+      if (event.type === 'run.ready' && logOpenRef.current && selectedRunIdRef.current === null) {
+        selectedRunIdRef.current = event.runId;
+        setSelectedRunId(event.runId);
+        setTimeline(applyRunStateToTimeline(null, event));
+      }
+
+      if (event.type !== 'run.assistant' && logOpenRef.current && selectedRunIdRef.current === event.runId) {
+        setTimeline((current) => applyRunStateToTimeline(current, event));
+      }
 
       if (event.type === 'run.ready') {
         readyEventReceived = true;
@@ -1108,8 +1113,6 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     setDraft('');
     timelineRequestIdRef.current += 1;
     timelineAbortControllerRef.current?.abort();
-    setSelectedRunId(null);
-    setTimeline(null);
     setTimelineLoading(false);
     setTimelineError(null);
     shouldAutoScrollRef.current = true;

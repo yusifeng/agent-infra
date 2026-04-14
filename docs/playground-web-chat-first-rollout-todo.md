@@ -50,8 +50,8 @@
   - text delta
   - text end
   - failed
-- [ ] 右侧 inspector 继续消费 run / tool / timeline 事件
-- [ ] 页面层 reducer 不再混用“聊天完成态”和“durable 完成态”
+- [x] 右侧 inspector 继续消费 run / tool / timeline 事件
+- [x] 页面层 reducer 不再混用“聊天完成态”和“durable 完成态”
 
 ## Phase 4: 持久化热路径继续收缩
 

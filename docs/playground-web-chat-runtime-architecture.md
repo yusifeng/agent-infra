@@ -97,6 +97,7 @@
 
 - recent runs 与 timeline 才按需 lazy hydrate
 - 右侧 run 切换只影响右侧 inspector，不再清掉 live assistant draft
+- live `run.assistant` 事件不再默认改写 `selectedRunId` / `timeline`；只有 inspector 已锁定该 run 时，才做最小 run state 同步
 
 ## 代码路径验证结论
 
