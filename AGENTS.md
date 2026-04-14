@@ -23,6 +23,17 @@ This repository is a `pnpm` workspace with one app and several shared packages.
 - If a change would lose most of its value when `playground-web` is removed, treat it as lower priority than core/runtime/contracts/db work.
 - Page work should follow the platform, not define it: consumers may help discover the right interfaces, but web-demo needs must not drive the system goal.
 
+## Engineering Working Style
+
+Bias toward cautious, minimal, verifiable changes, especially for non-trivial tasks.
+
+- Surface assumptions, ambiguity, and tradeoffs before coding; do not silently choose between multiple plausible interpretations.
+- Prefer the simplest implementation that fully solves the request. Do not add speculative abstractions, configurability, or handling for scenarios that are not part of the task.
+- Keep edits surgical: touch only lines that directly serve the request, match the surrounding style, and avoid unrelated refactors or cleanup.
+- Remove only the imports, variables, functions, or comments made obsolete by your own changes. Mention unrelated dead code separately instead of deleting it opportunistically.
+- Turn requests into explicit success criteria whenever possible, then verify them. For bug fixes, prefer reproducing the issue with a test first; for behavior changes, run the narrowest command that proves the change works.
+- For multi-step work, keep a short plan with concrete verification points so progress and correctness stay easy to evaluate.
+
 ## Build, Test, and Development Commands
 
 Use `pnpm` from the repository root:

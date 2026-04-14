@@ -20,13 +20,13 @@ function parseLimit(value: string | null) {
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ threadId: string }> }) {
-  const { getPlaygroundReadServices } = await import('@/lib/playground-read-services');
+  const { getPlaygroundAppServices } = await import('@/lib/playground-app-services');
   const { threadId } = await params;
   const url = new URL(req.url);
   const limit = parseLimit(url.searchParams.get('limit'));
 
   try {
-    const { app } = await getPlaygroundReadServices();
+    const { app } = await getPlaygroundAppServices();
     const runs = await app.runs.listByThread({ threadId, limit });
     const response: ThreadRunsResponseDto = {
       runs: runs.map((run) => toRunDto(run)).filter((run): run is NonNullable<typeof run> => run !== null)

@@ -2,7 +2,7 @@
 
 import type { ThreadDto } from '@agent-infra/contracts';
 import clsx from 'clsx';
-import { ChevronDown, Library, MessageSquarePlus, PanelLeftClose, Search, X } from 'lucide-react';
+import { ChevronDown, MessageSquarePlus, PanelLeftClose } from 'lucide-react';
 import { useState } from 'react';
 
 import { IconButton } from './shared';
@@ -71,22 +71,6 @@ export function ChatSidebar({
                 <MessageSquarePlus size={18} />
                 <span>新聊天</span>
               </button>
-              <button
-                type="button"
-                disabled
-                className={clsx('mt-1 flex h-9 w-full items-center gap-2 bg-transparent px-[10px] py-[6px] text-sm', ui.navItem)}
-              >
-                <Search size={18} />
-                <span>搜索聊天</span>
-              </button>
-              <button
-                type="button"
-                disabled
-                className={clsx('mt-1 flex h-9 w-full items-center gap-2 bg-transparent px-[10px] py-[6px] text-sm', ui.navItem)}
-              >
-                <Library size={18} />
-                <span>库</span>
-              </button>
             </aside>
 
             <button
@@ -119,11 +103,6 @@ export function ChatSidebar({
                         )}
                       >
                         <ThreadTitle thread={thread} />
-                        <div className={ui.threadAction} onClick={(event) => event.stopPropagation()}>
-                          <span className="flex h-5 w-5 items-center justify-center rounded-md text-slate-400">
-                            <X className="h-3.5 w-3.5" />
-                          </span>
-                        </div>
                       </button>
                     );
                   })

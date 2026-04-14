@@ -1,8 +1,8 @@
 'use client';
 
 import DOMPurify, { type Config as DOMPurifyConfig } from 'dompurify';
-import { Marked, type Tokens } from 'marked';
 import type { MarkdownShikiRuntime } from './markdown-shiki-runtime';
+import { CODE_BLOCK_PATTERN, escapeHtml, highlightCodeBlocks, parseMarkdown } from './markdown-core';
 
 export type MarkdownCacheEntry = {
   hash: string;
@@ -45,21 +45,7 @@ type SharedMarkdownWorkerClient = {
 
 const CACHE_LIMIT = 200;
 const markdownCache = new Map<string, MarkdownCacheEntry>();
-const CODE_BLOCK_PATTERN = '<pre><code(?:\\s+class="language-([^"]*)")?>([\\s\\S]*?)<\\/code><\\/pre>';
 const HAS_CODE_BLOCK_REGEX = new RegExp(CODE_BLOCK_PATTERN);
-
-const markedParser = new Marked({
-  gfm: true,
-  breaks: true
-});
-
-markedParser.use({
-  renderer: {
-    html(token: Tokens.HTML | Tokens.Tag) {
-      return escapeHtml(token.text);
-    }
-  }
-});
 
 const sanitizeConfig: DOMPurifyConfig = {
   USE_PROFILES: { html: true, mathMl: true },
@@ -99,33 +85,6 @@ function checksum(text: string): string {
   return (hash >>> 0).toString(36);
 }
 
-function escapeHtml(input: string): string {
-  return input
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function decodeHtmlEntities(input: string): string {
-  return input
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, '\'');
-}
-
-function parseMarkdown(text: string): string {
-  const parsed = markedParser.parse(text);
-  return typeof parsed === 'string' ? parsed : '';
-}
-
-function wrapCodeBlock(codeHtml: string): string {
-  return `<div data-component="markdown-code">${codeHtml}<button type="button" data-copy-code aria-label="Copy code" title="Copy code">Copy</button></div>`;
-}
-
 async function getShikiRuntime(): Promise<MarkdownShikiRuntime> {
   if (!shikiRuntimePromise) {
     shikiRuntimePromise = import('./markdown-shiki-runtime')
@@ -137,50 +96,6 @@ async function getShikiRuntime(): Promise<MarkdownShikiRuntime> {
   }
 
   return shikiRuntimePromise;
-}
-
-async function highlightCodeBlocks(html: string): Promise<string> {
-  const codeBlockRegex = new RegExp(CODE_BLOCK_PATTERN, 'g');
-  const matches = [...html.matchAll(codeBlockRegex)];
-
-  if (matches.length === 0) {
-    return html;
-  }
-
-  let runtime: MarkdownShikiRuntime;
-  try {
-    runtime = await getShikiRuntime();
-  } catch {
-    return html.replace(new RegExp(CODE_BLOCK_PATTERN, 'g'), (full) => wrapCodeBlock(full));
-  }
-
-  let result = '';
-  let cursor = 0;
-
-  for (const match of matches) {
-    const full = match[0];
-    const language = runtime.normalizeLanguage(match[1]);
-    const escapedCode = match[2] ?? '';
-    const index = match.index ?? 0;
-
-    result += html.slice(cursor, index);
-
-    const code = decodeHtmlEntities(escapedCode);
-    let highlighted = '';
-
-    try {
-      await runtime.ensureLanguageLoaded(language);
-      highlighted = runtime.highlighter.codeToHtml(code, { lang: language, theme: 'github-light' });
-    } catch {
-      highlighted = `<pre><code>${escapedCode}</code></pre>`;
-    }
-
-    result += wrapCodeBlock(highlighted);
-    cursor = index + full.length;
-  }
-
-  result += html.slice(cursor);
-  return result;
 }
 
 export function sanitizeMarkdownHtml(html: string): string {
@@ -419,6 +334,6 @@ export async function renderHighlightedMarkdown(args: {
     if (args.signal?.aborted) {
       throw new Error('worker_aborted');
     }
-    return sanitizeMarkdownHtml(await highlightCodeBlocks(args.rawHtml));
+    return sanitizeMarkdownHtml(await highlightCodeBlocks(args.rawHtml, getShikiRuntime));
   }
 }
