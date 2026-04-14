@@ -2,7 +2,7 @@
 
 `v0` is now considered complete.
 
-The completed `v0` scope is summarized in [`v0-todo.md`](./v0-todo.md) and the closeout rationale lives in [`v0-closeout.md`](./v0-closeout.md).
+The completed `v0` scope and closeout rationale live in [`v0-closeout.md`](./v0-closeout.md).
 
 The roadmap after `v0` should be read as a set of candidate tracks, not as a promise to build every item in order.
 

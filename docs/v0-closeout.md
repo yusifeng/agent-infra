@@ -40,6 +40,38 @@ The current `v0` platform includes:
 - `apps/docs`
   - deployable docs site for public concepts and guides
 
+## `v0` Completion Summary
+
+The practical completion line for `v0` can be summarized as:
+
+- Durable core:
+  - `thread`, `run`, `message`, `message_part`, `tool_invocation`, and `run_event` persistence
+  - SQLite and PostgreSQL support
+- Application boundary:
+  - thread creation, listing, and message reads through `packages/app`
+  - text turn queue/start and recent-run / timeline reads through `packages/app`
+- Runtime mainline:
+  - one server-side runtime adapter in `packages/runtime-pi`
+  - durable run state transitions, assistant final messages, tool records, and failure writes
+- Contracts and streaming:
+  - HTTP contracts for threads, messages, runs, and timelines
+  - SSE transport for live run observation
+  - live assistant streaming without redefining durable message truth
+- Run-oriented observability:
+  - durable run timeline endpoint
+  - recent-run inspection
+  - tool activity inspection
+  - raw `run_events` inspection
+  - failure-state inspection
+- First-consumer validation:
+  - `playground-web` acts as a consumer, not the system boundary
+  - transcript, recent-run switching, and durable-first reconnect behavior are exercised end-to-end
+- Verification and docs:
+  - `pnpm typecheck` passes
+  - `packages/runtime-pi` tests cover text, tools, and failure paths
+  - `playground-web` builds successfully
+  - architecture, roadmap, observability, and consumer-backlog docs exist
+
 ## What `v0` Explicitly Did Not Do
 
 These were intentionally left out of `v0`:

@@ -24,6 +24,79 @@ The intended flow is:
 - `packages/contracts` owns serialized HTTP/browser shapes.
 - `playground-web` calls the app layer and renders the resulting contracts.
 
+## Application Feature Layering
+
+Application-specific feature complexity in `apps/*` should be kept inside explicit feature boundaries instead of accumulating in pages, route handlers, or one large client component.
+
+This rule applies to consumer or application code in `apps/*`.
+It does **not** require `packages/*` to adopt the same directory structure, because the package split already expresses the main platform boundaries.
+
+Use feature layering when an app feature has both:
+
+- non-trivial runtime or side-effect orchestration
+- both boundary access and UI rendering concerns
+
+Simple static pages, thin route files, and purely presentational components do not need the full structure.
+
+### Minimal layers
+
+The default feature layering for `apps/*` is:
+
+1. `types`
+2. `schema`
+3. `repo`
+4. `service`
+5. `runtime`
+6. `ui`
+
+`config` is optional.
+Do not create an empty `config` layer unless the feature has real application-level policy knobs, thresholds, or strategy constants to hold there.
+
+### Layer roles
+
+- `types`: application-local feature types and view models
+- `schema`: parsing and validation for unknown or external shapes
+- `repo`: boundary access such as HTTP, SSE, storage, and other external reads/writes
+- `service`: pure business or state-transition logic
+- `runtime`: orchestration, side effects, and state-machine coordination
+- `ui`: rendering and interaction binding
+
+### Dependency direction
+
+Dependencies should point downward only:
+
+- `types` -> `types`
+- `schema` -> `types`, `schema`
+- `repo` -> `types`, `schema`, `repo`
+- `service` -> `types`, `schema`, `repo`, `service`
+- `runtime` -> `types`, `schema`, `repo`, `service`, `runtime`
+- `ui` -> `types`, `schema`, `repo`, `service`, `runtime`, `ui`
+
+This is a code-organization rule for application features, not a requirement to create framework-enforced import checks immediately.
+
+### Boundary rules
+
+- `ui` should not directly parse unknown JSON, SSE payloads, URL payloads, or storage payloads.
+- `ui` should not directly own complex fetch, stream, or persistence orchestration.
+- `runtime` should coordinate effects and state transitions, but should reuse `service` for pure merge and decision logic.
+- `repo` should own boundary access, but should not absorb application decision rules that belong in `service`.
+- Lasting application complexity should move into `schema / repo / service / runtime`, not back into page components.
+
+### Composition roots
+
+Pages, layouts, and route handlers should stay thin and act as composition roots or framework entry points.
+
+In practice, this means:
+
+- pages bind route params and render a feature entry component
+- route handlers bind HTTP semantics and call into lower layers
+- feature runtimes assemble the concrete repo/service behavior needed by the UI
+
+### Current target
+
+For `apps/playground-web`, this rule is most relevant to the durable chat surface.
+That surface already has enough runtime and boundary complexity to justify feature-local `types / schema / repo / service / runtime / ui` separation inside the app.
+
 ## Why `thread` instead of `session`
 
 `thread` maps better to a durable conversation timeline that can contain many runs and messages over time.
@@ -52,3 +125,21 @@ This keeps the model output and tool execution trace extensible.
 - expand streaming and resume-safe run state transitions beyond the initial SSE transport
 - complete artifact lifecycle and file storage integrations
 - add memory interfaces above conversation history
+
+## Docs Hygiene
+
+`docs/` should prefer durable reference material over completed execution checklists.
+
+Keep long-lived documents such as:
+
+- architecture and boundary definitions
+- roadmap and closeout documents
+- observability or contract references
+- active backlogs that still shape prioritization
+- manuals and onboarding material
+
+Treat task checklists and rollout TODOs as temporary working docs:
+
+- create them when they help execute a bounded change
+- merge lasting conclusions into architecture, closeout, or reference docs
+- delete them once the work is complete and their content has been absorbed elsewhere
