@@ -2,8 +2,6 @@
 
 import type {
   MessageDto,
-  RunDto,
-  RunTimelineResponseDto,
   RuntimePiMetaDto,
   ThreadDto
 } from '@agent-infra/contracts';
@@ -11,30 +9,28 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef } from 'react';
 
 import { assistantMessageHasVisibleContent } from '@/components/chat-shell/helpers';
-import {
-  createThreadResponse,
-  fetchRunTimelineResponse,
-  fetchRuntimeMetaResponse,
-  fetchThreadMessagesResponse,
-  fetchThreadRunsResponse,
-  fetchThreadsResponse
-} from '@/features/durable-chat/repo/chat-api';
+import { fetchThreadMessagesResponse } from '@/features/durable-chat/repo/chat-api';
 import { persistSelectedRunId, readPersistedRunId } from '@/features/durable-chat/repo/run-selection-storage';
+import {
+  runCreateThreadRecord,
+  runInitializeRuntime,
+  runRefreshMeta,
+  runRefreshThreads,
+  runResetDraftThreadState,
+  runStopViewingLiveResponse
+} from '@/features/durable-chat/runtime/chat-session-flow';
 import { applyHydratedTranscriptState, runActivateThread, runLoadThreadMessages } from '@/features/durable-chat/runtime/load-thread-flow';
+import {
+  runLoadLogInspectorFlow,
+  runLoadRunTimeline,
+  runResetLogInspectorState
+} from '@/features/durable-chat/runtime/load-log-inspector-flow';
 import { runSendMessageFlow } from '@/features/durable-chat/runtime/send-message-flow';
 import { runReconcileCompletedTurn } from '@/features/durable-chat/runtime/reconcile-completed-turn';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
-import {
-  chooseInitialRunId,
-  compareRunsByCreatedAt,
-  includeSelectedRun,
-  normalizeRuntimeMeta,
-  RECENT_RUNS_LIMIT,
-  upsertMessage
-} from '@/features/durable-chat/service/chat-runtime';
-import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
-import type { ChatPhase, DurableChatRuntimeOptions } from '@/features/durable-chat/types/runtime';
+import { upsertMessage } from '@/features/durable-chat/service/chat-runtime';
+import type { DurableChatRuntimeOptions } from '@/features/durable-chat/types/runtime';
 
 const PENDING_NEW_THREAD_LOADING_ID = '__pending-new-thread__';
 
@@ -102,7 +98,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const activeThreadIdRef = useRef<string | null>(null);
   const logOpenRef = useRef(false);
   const selectedRunIdRef = useRef<string | null>(null);
-  const timelineRef = useRef<RunTimelineResponseDto | null>(null);
   const messagesRequestIdRef = useRef(0);
   const messagesAbortControllerRef = useRef<AbortController | null>(null);
   const logInspectorRequestIdRef = useRef(0);
@@ -150,10 +145,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   useEffect(() => {
     selectedRunIdRef.current = selectedRunId;
   }, [selectedRunId]);
-
-  useEffect(() => {
-    timelineRef.current = timeline;
-  }, [timeline]);
 
   useEffect(() => {
     if (!runSelectionPersistenceReadyRef.current) {
@@ -235,56 +226,73 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }
 
   function resetDraftThreadState() {
-    messagesRequestIdRef.current += 1;
-    messagesAbortControllerRef.current?.abort();
-    logInspectorRequestIdRef.current += 1;
-    logInspectorAbortControllerRef.current?.abort();
-    timelineRequestIdRef.current += 1;
-    timelineAbortControllerRef.current?.abort();
-    sendRequestIdRef.current += 1;
-    sendAbortControllerRef.current?.abort();
-    setChatPhase('idle');
-    setPersistingTurn(false);
-    setLoadingThreadId(null);
-    setActiveThreadId(null);
-    setDraft('');
-    setOptimisticUserMessage(null);
-    setMessages([]);
-    setRecentRuns([]);
-    setSelectedRunId(null);
-    setTimeline(null);
-    setTimelineError(null);
-    setTimelineLoading(false);
-    setLiveAssistantDraft(null);
-    setLiveStreamRunId(null);
-    setRecentRunsLoading(false);
-    setRecentRunsError(null);
-    setLoadingMessages(false);
-    shouldAutoScrollRef.current = true;
+    runResetDraftThreadState({
+      refs: {
+        logInspectorAbortControllerRef,
+        logInspectorRequestIdRef,
+        messagesAbortControllerRef,
+        messagesRequestIdRef,
+        sendAbortControllerRef,
+        sendRequestIdRef,
+        shouldAutoScrollRef,
+        timelineAbortControllerRef,
+        timelineRequestIdRef
+      },
+      actions: {
+        setActiveThreadId,
+        setChatPhase,
+        setDraft,
+        setLiveAssistantDraft,
+        setLiveStreamRunId,
+        setLoadingMessages,
+        setLoadingThreadId,
+        setMessages,
+        setOptimisticUserMessage,
+        setPersistingTurn,
+        setRecentRuns,
+        setRecentRunsError,
+        setRecentRunsLoading,
+        setSelectedRunId,
+        setTimeline,
+        setTimelineError,
+        setTimelineLoading
+      }
+    });
   }
 
   function resetLogInspectorState(options?: { clearSelectedRun?: boolean }) {
-    logInspectorRequestIdRef.current += 1;
-    logInspectorAbortControllerRef.current?.abort();
-    timelineRequestIdRef.current += 1;
-    timelineAbortControllerRef.current?.abort();
-    setRecentRuns([]);
-    if (options?.clearSelectedRun !== false) {
-      setSelectedRunId(null);
-    }
-    setTimeline(null);
-    setTimelineError(null);
-    setTimelineLoading(false);
-    setRecentRunsLoading(false);
-    setRecentRunsError(null);
+    runResetLogInspectorState({
+      options,
+      refs: {
+        logInspectorAbortControllerRef,
+        logInspectorRequestIdRef,
+        timelineAbortControllerRef,
+        timelineRequestIdRef
+      },
+      actions: {
+        setRecentRuns,
+        setRecentRunsError,
+        setRecentRunsLoading,
+        setSelectedRunId,
+        setTimeline,
+        setTimelineError,
+        setTimelineLoading
+      }
+    });
   }
 
   function stopViewingLiveResponse() {
-    sendAbortControllerRef.current?.abort();
-    setChatPhase('idle');
-    setLiveStreamRunId(null);
-    setPersistingTurn(false);
-    setLoadingThreadId(null);
+    runStopViewingLiveResponse({
+      refs: {
+        sendAbortControllerRef
+      },
+      actions: {
+        setChatPhase,
+        setLiveStreamRunId,
+        setLoadingThreadId,
+        setPersistingTurn
+      }
+    });
   }
 
   async function activateThread(threadId: string, options?: { preferredRunId?: string | null }) {
@@ -331,13 +339,11 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }
 
   async function refreshThreads() {
-    const result = await fetchThreadsResponse();
-    if (!result.ok) {
-      throw new Error(result.error ?? `Failed to load threads (${result.status})`);
-    }
-
-    setThreads(result.data.threads);
-    return result.data.threads;
+    return runRefreshThreads({
+      actions: {
+        setThreads
+      }
+    });
   }
 
   async function loadLogInspector(
@@ -345,138 +351,55 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     messagesSnapshot: MessageDto[],
     options?: { preferredRunId?: string | null; preserveExistingTimeline?: boolean }
   ) {
-    logInspectorRequestIdRef.current += 1;
-    const requestId = logInspectorRequestIdRef.current;
-    logInspectorAbortControllerRef.current?.abort();
-    const controller = new AbortController();
-    logInspectorAbortControllerRef.current = controller;
-    setRecentRunsLoading(true);
-    setRecentRunsError(null);
-
-    try {
-      const nextRuns = await hydrateRecentRuns(threadId, controller.signal);
-      if (controller.signal.aborted || requestId !== logInspectorRequestIdRef.current || activeThreadIdRef.current !== threadId) {
-        return null;
+    return runLoadLogInspectorFlow({
+      threadId,
+      messagesSnapshot,
+      options,
+      refs: {
+        activeThreadIdRef,
+        logInspectorAbortControllerRef,
+        logInspectorRequestIdRef
+      },
+      actions: {
+        setRecentRuns,
+        setRecentRunsError,
+        setRecentRunsLoading,
+        setSelectedRunId,
+        setTimeline,
+        setTimelineError,
+        setTimelineLoading
+      },
+      operations: {
+        loadRunTimeline
       }
-
-      const resolved = await resolveSelectedRun(
-        threadId,
-        options?.preferredRunId,
-        messagesSnapshot,
-        nextRuns,
-        controller.signal
-      );
-
-      if (controller.signal.aborted || requestId !== logInspectorRequestIdRef.current || activeThreadIdRef.current !== threadId) {
-        return null;
-      }
-
-      setRecentRuns(resolved.nextRuns);
-      setSelectedRunId(resolved.nextSelectedRunId);
-      setRecentRunsError(null);
-
-      await loadRunTimeline(resolved.nextSelectedRunId, {
-        preserveExisting: options?.preserveExistingTimeline === true
-      });
-      return resolved.nextSelectedRunId;
-    } catch (loadError) {
-      if (controller.signal.aborted || requestId !== logInspectorRequestIdRef.current || activeThreadIdRef.current !== threadId) {
-        return null;
-      }
-
-      setRecentRuns([]);
-      setRecentRunsError(loadError instanceof Error ? loadError.message : 'Failed to load thread runs');
-      setTimeline(null);
-      setTimelineError(null);
-      setTimelineLoading(false);
-      return null;
-    } finally {
-      if (requestId === logInspectorRequestIdRef.current) {
-        logInspectorAbortControllerRef.current = null;
-        setRecentRunsLoading(false);
-      }
-    }
+    });
   }
 
   async function loadRunTimeline(runId: string | null, options?: { preserveExisting?: boolean }) {
-    timelineRequestIdRef.current += 1;
-    const requestId = timelineRequestIdRef.current;
-    timelineAbortControllerRef.current?.abort();
-    const previousSelectedRunId = selectedRunIdRef.current;
-    setSelectedRunId(runId);
-
-    if (!runId) {
-      selectedRunIdRef.current = runId;
-      timelineAbortControllerRef.current = null;
-      setTimeline(null);
-      setTimelineError(null);
-      setTimelineLoading(false);
-      return;
-    }
-
-    const controller = new AbortController();
-    timelineAbortControllerRef.current = controller;
-    if (!options?.preserveExisting || previousSelectedRunId !== runId) {
-      setTimeline(null);
-    }
-    selectedRunIdRef.current = runId;
-    setTimelineLoading(true);
-    setTimelineError(null);
-
-    try {
-      const result = await fetchRunTimelineResponse(runId, controller.signal);
-      if (!result.ok) {
-        throw new Error(result.error ?? `Failed to load run timeline (${result.status})`);
+    return runLoadRunTimeline({
+      runId,
+      options,
+      refs: {
+        selectedRunIdRef,
+        timelineAbortControllerRef,
+        timelineRequestIdRef
+      },
+      actions: {
+        setSelectedRunId,
+        setTimeline,
+        setTimelineError,
+        setTimelineLoading
       }
-
-      if (requestId !== timelineRequestIdRef.current) {
-        return;
-      }
-
-      setTimeline(result.data);
-    } catch (loadError) {
-      if (controller.signal.aborted || requestId !== timelineRequestIdRef.current) {
-        return;
-      }
-
-      setTimeline(null);
-      setTimelineError(loadError instanceof Error ? loadError.message : 'Failed to load run timeline');
-    } finally {
-      if (requestId === timelineRequestIdRef.current) {
-        timelineAbortControllerRef.current = null;
-        setTimelineLoading(false);
-      }
-    }
-  }
-
-  async function tryResolvePreferredRun(threadId: string, runId: string, signal: AbortSignal) {
-    try {
-      const result = await fetchRunTimelineResponse(runId, signal);
-      if (!result.ok || !result.data.run || result.data.run.threadId !== threadId) {
-        return null;
-      }
-
-      return result.data.run;
-    } catch {
-      return null;
-    }
+    });
   }
 
   async function refreshMeta() {
-    const result = await fetchRuntimeMetaResponse();
-    const normalized = normalizeRuntimeMeta(result.data);
-    setMeta(normalized);
-    if (!result.ok) {
-      setError(normalized.runtimeConfigError ?? `Failed to load runtime metadata (${result.status})`);
-      return;
-    }
-
-    setSelectedModelKey((current) => {
-      if (current && normalized.modelOptions.some((option) => option.key === current)) {
-        return current;
+    return runRefreshMeta({
+      actions: {
+        setError,
+        setMeta,
+        setSelectedModelKey
       }
-
-      return normalized.defaultModelKey ?? normalized.modelOptions[0]?.key ?? '';
     });
   }
 
@@ -487,36 +410,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     }
 
     return result.data.messages ?? [];
-  }
-
-  async function hydrateRecentRuns(threadId: string, signal: AbortSignal) {
-    const result = await fetchThreadRunsResponse(threadId, RECENT_RUNS_LIMIT, signal);
-    if (!result.ok) {
-      throw new Error(result.error ?? `Failed to load thread runs (${result.status})`);
-    }
-
-    return result.data.runs.slice().sort(compareRunsByCreatedAt);
-  }
-
-  async function resolveSelectedRun(
-    threadId: string,
-    preferredRunId: string | null | undefined,
-    messages: MessageDto[],
-    runs: RunDto[],
-    signal: AbortSignal
-  ) {
-    let nextRuns = runs;
-    let preferredResolvedRun: RunDto | null = null;
-
-    if (preferredRunId && !nextRuns.some((run) => run.id === preferredRunId)) {
-      preferredResolvedRun = await tryResolvePreferredRun(threadId, preferredRunId, signal);
-      nextRuns = includeSelectedRun(nextRuns, preferredResolvedRun);
-    }
-
-    return {
-      nextRuns,
-      nextSelectedRunId: chooseInitialRunId(messages, nextRuns, preferredResolvedRun?.id ?? preferredRunId ?? null)
-    };
   }
 
   async function loadThreadMessages(
@@ -609,14 +502,11 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }
 
   async function createThreadRecord() {
-    const result = await createThreadResponse();
-    if (!result.ok || !result.data.thread) {
-      throw new Error(result.error ?? `Failed to create thread (${result.status})`);
-    }
-
-    const createdThread = result.data.thread;
-    setThreads((current) => [...current, createdThread].sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()));
-    return createdThread;
+    return runCreateThreadRecord({
+      actions: {
+        setThreads
+      }
+    });
   }
 
   async function sendMessage() {
@@ -682,25 +572,22 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }
 
   useEffect(() => {
-    void (async () => {
-      try {
-        await refreshThreads();
-
-        if (initialThreadId) {
-          await activateThread(initialThreadId, {
-            preferredRunId: readPersistedRunId(initialThreadId)
-          });
-        } else {
-          resetDraftThreadState();
-          setDurableRecoveryNotice(null);
-          setError(null);
-        }
-      } catch (refreshError) {
-        setError(refreshError instanceof Error ? refreshError.message : 'Failed to load threads');
-      } finally {
-        runSelectionPersistenceReadyRef.current = true;
+    void runInitializeRuntime({
+      initialThreadId,
+      refs: {
+        runSelectionPersistenceReadyRef
+      },
+      actions: {
+        setDurableRecoveryNotice,
+        setError
+      },
+      operations: {
+        activateThread,
+        getPreferredRunId: readPersistedRunId,
+        refreshThreads,
+        resetDraftThreadState
       }
-    })();
+    });
 
     void refreshMeta();
   }, [initialThreadId]);
