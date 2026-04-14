@@ -32,13 +32,13 @@
 
 ## Phase 2: 去掉发送收尾的整线程 reconcile
 
-- [ ] 移除发送完成后对整线程 `/messages` 的默认全量回读依赖
-- [ ] live assistant draft 作为会话内主真相，避免结束时整块 transcript 抖动
+- [x] 移除发送完成后对整线程 `/messages` 的默认全量回读依赖
+- [x] live assistant draft 作为会话内主真相，避免结束时整块 transcript 抖动
 - [ ] 如需 reconcile，只允许窄校正：
   - 当前 run
   - 当前 assistant message
   - recent runs 的静默刷新
-- [ ] 把全量 `loadThreadMessages()` 退化为：
+- [x] 把全量 `loadThreadMessages()` 退化为：
   - 线程切换恢复
   - 浏览器刷新恢复
   - reconnect / fallback recovery

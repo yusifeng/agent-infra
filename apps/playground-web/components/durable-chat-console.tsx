@@ -3,6 +3,7 @@
 import type {
   CreateThreadResponseDto,
   MessageDto,
+  RunStreamAssistantSnapshotDto,
   RunDto,
   RunStreamEventDto,
   RunTimelineResponseDto,
@@ -121,6 +122,50 @@ function upsertMessage(messages: MessageDto[], nextMessage: MessageDto) {
   const nextMessages = [...messages];
   nextMessages[existingIndex] = nextMessage;
   return nextMessages;
+}
+
+function buildAssistantMessageFromSnapshot(
+  currentMessages: MessageDto[],
+  threadId: string,
+  runId: string,
+  assistant: RunStreamAssistantSnapshotDto
+): MessageDto {
+  const textParts = [
+    assistant.partialReasoning
+      ? {
+          id: `${assistant.messageId}:reasoning`,
+          messageId: assistant.messageId,
+          partIndex: 0,
+          type: 'reasoning' as const,
+          textValue: assistant.partialReasoning,
+          jsonValue: null,
+          createdAt: new Date().toISOString()
+        }
+      : null,
+    assistant.partialText
+      ? {
+          id: `${assistant.messageId}:text`,
+          messageId: assistant.messageId,
+          partIndex: assistant.partialReasoning ? 1 : 0,
+          type: 'text' as const,
+          textValue: assistant.partialText,
+          jsonValue: null,
+          createdAt: new Date().toISOString()
+        }
+      : null
+  ].filter((part): part is NonNullable<typeof part> => part !== null);
+
+  return {
+    id: assistant.messageId,
+    threadId,
+    runId,
+    role: 'assistant',
+    seq: (currentMessages[currentMessages.length - 1]?.seq ?? 0) + 1,
+    status: 'completed',
+    metadata: null,
+    createdAt: new Date().toISOString(),
+    parts: textParts
+  };
 }
 
 function upsertRun(runs: RunDto[], nextRun: RunDto) {
@@ -788,7 +833,12 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     }
   }
 
-  async function reconcileCompletedTurn(threadId: string, preferredRunId: string | null, requestId: number) {
+  async function reconcileCompletedTurn(
+    threadId: string,
+    preferredRunId: string | null,
+    requestId: number,
+    options?: { recoverTranscript?: boolean }
+  ) {
     reconcileRequestIdRef.current += 1;
     const reconcileRequestId = reconcileRequestIdRef.current;
     const reconcileController = new AbortController();
@@ -802,30 +852,33 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     }
     const requestedRunId = preferredRunId ?? (inspectorEnabled ? selectedRunIdRef.current : null);
     let nextSelectedRunId: string | null = null;
+    let reconciledMessages = messages;
 
     try {
-      const messagesResponse = await fetch(`/api/threads/${threadId}/messages`, { signal: reconcileController.signal });
+      if (options?.recoverTranscript) {
+        const messagesResponse = await fetch(`/api/threads/${threadId}/messages`, { signal: reconcileController.signal });
 
-      if (isReconcileThreadStale()) {
-        return;
-      }
+        if (isReconcileThreadStale()) {
+          return;
+        }
 
-      const messagesData = (await readJsonOrEmpty<ThreadMessagesResponseDto>(messagesResponse)) as ThreadMessagesResponseDto;
-      if (isReconcileThreadStale()) {
-        return;
-      }
-      if (!messagesResponse.ok) {
-        throw new Error(messagesData.error ?? `Failed to load thread messages (${messagesResponse.status})`);
-      }
+        const messagesData = (await readJsonOrEmpty<ThreadMessagesResponseDto>(messagesResponse)) as ThreadMessagesResponseDto;
+        if (isReconcileThreadStale()) {
+          return;
+        }
+        if (!messagesResponse.ok) {
+          throw new Error(messagesData.error ?? `Failed to recover thread messages (${messagesResponse.status})`);
+        }
+        if (!isLatestReconcile()) {
+          return;
+        }
 
-      if (!isLatestReconcile()) {
-        return;
-      }
-
-      const fetchedMessages = messagesData.messages ?? [];
-      setMessages(fetchedMessages);
-      if (isCurrentSend()) {
-        setOptimisticUserMessage(null);
+        reconciledMessages = messagesData.messages ?? [];
+        setMessages(reconciledMessages);
+        if (isCurrentSend()) {
+          setOptimisticUserMessage(null);
+          setLiveAssistantDraft(null);
+        }
       }
 
       if (inspectorEnabled) {
@@ -852,32 +905,12 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
           return;
         }
 
-        nextSelectedRunId = chooseInitialRunId(fetchedMessages, nextRuns, requestedRunId);
+        nextSelectedRunId = chooseInitialRunId(reconciledMessages, nextRuns, requestedRunId);
         setRecentRuns(nextRuns);
         setRecentRunsError(null);
         if (isCurrentSend()) {
           setSelectedRunId(nextSelectedRunId);
         }
-      }
-
-      const assistantRunId = requestedRunId ?? nextSelectedRunId;
-      const hasAssistantInFetchedMessages = Boolean(
-        assistantRunId &&
-          fetchedMessages.some((message) => message.runId === assistantRunId && assistantMessageHasVisibleContent(message))
-      );
-
-      if (isCurrentSend()) {
-        setLiveAssistantDraft((current) => {
-          if (!current) {
-            return null;
-          }
-
-          if (assistantRunId && current.runId !== assistantRunId) {
-            return null;
-          }
-
-          return hasAssistantInFetchedMessages ? null : current;
-        });
       }
 
       if (inspectorEnabled && nextSelectedRunId && isCurrentSend()) {
@@ -972,13 +1005,35 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     let streamSessionStarted = false;
     let terminalStreamError: string | null = null;
     let readyEventReceived = false;
+    let requiresTranscriptRecovery = false;
 
     const applyAssistantSnapshot = (event: Extract<RunStreamEventDto, { type: 'run.assistant' }>) => {
+      if (event.assistant.eventType.startsWith('toolcall')) {
+        requiresTranscriptRecovery = true;
+      }
+
       if (event.assistant.eventType === 'text_end') {
         setLiveStreamRunId(null);
         setChatPhase('transcript-final');
+        if (threadId && !requiresTranscriptRecovery) {
+          setMessages((current) =>
+            upsertMessage(current, buildAssistantMessageFromSnapshot(current, threadId as string, event.runId, event.assistant))
+          );
+        }
+        if (!requiresTranscriptRecovery) {
+          setLiveAssistantDraft(null);
+        }
+        return;
       } else if (event.assistant.partialText) {
         setChatPhase('streaming');
+        setLiveAssistantDraft({
+          runId: event.runId,
+          messageId: event.assistant.messageId,
+          partialText: event.assistant.partialText,
+          partialReasoning: event.assistant.partialReasoning,
+          eventType: event.assistant.eventType
+        });
+        return;
       } else {
         setChatPhase('thinking');
       }
@@ -1029,6 +1084,7 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
       }
 
       if (event.type === 'run.failed') {
+        requiresTranscriptRecovery = true;
         terminalStreamError = event.error;
         setError(event.error);
         setLiveStreamRunId(null);
@@ -1161,6 +1217,8 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
         setDraft(text);
         setOptimisticUserMessage(null);
         setLiveAssistantDraft(null);
+      } else {
+        requiresTranscriptRecovery = true;
       }
       setChatPhase('failed');
       setPersistingTurn(false);
@@ -1176,12 +1234,14 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
         if (threadId && activeThreadIdRef.current === threadId) {
           const preferredRunId = streamedRunId ?? selectedRunIdRef.current;
           setPersistingTurn(true);
-          void reconcileCompletedTurn(threadId, preferredRunId, requestId);
-        } else {
-          void refreshThreads().catch((refreshError) => {
-            setError(refreshError instanceof Error ? refreshError.message : 'Failed to refresh threads');
+          void reconcileCompletedTurn(threadId, preferredRunId, requestId, {
+            recoverTranscript: requiresTranscriptRecovery
           });
         }
+
+        void refreshThreads().catch((refreshError) => {
+          setError(refreshError instanceof Error ? refreshError.message : 'Failed to refresh threads');
+        });
 
         if (terminalStreamError) {
           setError(terminalStreamError);

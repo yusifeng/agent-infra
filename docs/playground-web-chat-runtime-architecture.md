@@ -81,8 +81,8 @@
 当前路径是：
 
 1. stream 中按 `run.assistant` 更新 live draft
-2. `text_end` 释放主聊天 UI
-3. `sendMessage().finally` 只触发局部 reconcile
+2. `text_end` 直接把 live assistant 物化成当前会话内的最终 transcript message，并释放主聊天 UI
+3. `sendMessage().finally` 不再回读整线程 `/messages`，只触发局部 reconcile
 4. durable transcript / recent runs / timeline 的补齐在后台处理
 
 ### log inspector 已从主聊天路径下沉
