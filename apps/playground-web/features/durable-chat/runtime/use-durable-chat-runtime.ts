@@ -21,6 +21,7 @@ import {
 } from '@/features/durable-chat/repo/chat-api';
 import { persistSelectedRunId, readPersistedRunId } from '@/features/durable-chat/repo/run-selection-storage';
 import { runSendMessageFlow } from '@/features/durable-chat/runtime/send-message-flow';
+import { runReconcileCompletedTurn } from '@/features/durable-chat/runtime/reconcile-completed-turn';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
 import {
@@ -29,7 +30,6 @@ import {
   includeSelectedRun,
   normalizeRuntimeMeta,
   RECENT_RUNS_LIMIT,
-  resolvePostReconcileChatPhase,
   upsertMessage
 } from '@/features/durable-chat/service/chat-runtime';
 import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
@@ -616,132 +616,37 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     requestId: number,
     options?: { recoverTranscript?: boolean }
   ) {
-    reconcileRequestIdRef.current += 1;
-    const reconcileRequestId = reconcileRequestIdRef.current;
-    const reconcileController = new AbortController();
-    const isReconcileThreadStale = () => activeThreadIdRef.current !== threadId;
-    const isLatestReconcile = () => reconcileRequestId === reconcileRequestIdRef.current;
-    const isCurrentSend = () => requestId === sendRequestIdRef.current;
-    const inspectorEnabled = logOpenRef.current;
-    if (inspectorEnabled) {
-      setRecentRunsLoading(true);
-      setRecentRunsError(null);
-    }
-    const requestedRunId = preferredRunId ?? (inspectorEnabled ? selectedRunIdRef.current : null);
-    let nextSelectedRunId: string | null = null;
-    let reconciledMessages = messages;
-
-    try {
-      if (options?.recoverTranscript) {
-        const messagesResult = await fetchThreadMessagesResponse(threadId, reconcileController.signal);
-
-        if (isReconcileThreadStale()) {
-          return;
-        }
-        if (!messagesResult.ok) {
-          throw new Error(messagesResult.error ?? `Failed to recover thread messages (${messagesResult.status})`);
-        }
-        if (!isLatestReconcile()) {
-          return;
-        }
-
-        reconciledMessages = messagesResult.data.messages ?? [];
-        setMessages(reconciledMessages);
-        if (isCurrentSend()) {
-          setOptimisticUserMessage(null);
-          setLiveAssistantDraft(null);
-        }
+    await runReconcileCompletedTurn({
+      threadId,
+      preferredRunId,
+      requestId,
+      options,
+      state: {
+        messages
+      },
+      refs: {
+        activeThreadIdRef,
+        logOpenRef,
+        reconcileRequestIdRef,
+        selectedRunIdRef,
+        sendRequestIdRef
+      },
+      actions: {
+        setChatPhase,
+        setLiveAssistantDraft,
+        setLoadingThreadId,
+        setMessages,
+        setOptimisticUserMessage,
+        setPersistingTurn,
+        setRecentRuns,
+        setRecentRunsError,
+        setRecentRunsLoading,
+        setSelectedRunId,
+        setTimeline,
+        setTimelineError,
+        setTimelineLoading
       }
-
-      if (inspectorEnabled) {
-        const runsResult = await fetchThreadRunsResponse(threadId, RECENT_RUNS_LIMIT, reconcileController.signal);
-        if (isReconcileThreadStale()) {
-          return;
-        }
-        if (!runsResult.ok) {
-          throw new Error(runsResult.error ?? `Failed to load thread runs (${runsResult.status})`);
-        }
-
-        let nextRuns = runsResult.data.runs.slice().sort(compareRunsByCreatedAt);
-        if (requestedRunId && !nextRuns.some((run) => run.id === requestedRunId)) {
-          const preferredResolvedRun = await tryResolvePreferredRun(threadId, requestedRunId, reconcileController.signal);
-          if (isReconcileThreadStale()) {
-            return;
-          }
-
-          nextRuns = includeSelectedRun(nextRuns, preferredResolvedRun);
-        }
-
-        if (!isLatestReconcile()) {
-          return;
-        }
-
-        nextSelectedRunId = chooseInitialRunId(reconciledMessages, nextRuns, requestedRunId);
-        setRecentRuns(nextRuns);
-        setRecentRunsError(null);
-        if (isCurrentSend()) {
-          setSelectedRunId(nextSelectedRunId);
-        }
-      }
-
-      if (inspectorEnabled && nextSelectedRunId && isCurrentSend()) {
-        setTimelineLoading(true);
-        setTimelineError(null);
-        try {
-          const timelineResult = await fetchRunTimelineResponse(nextSelectedRunId);
-          if (isReconcileThreadStale() || !isLatestReconcile()) {
-            return;
-          }
-          if (!timelineResult.ok) {
-            throw new Error(timelineResult.error ?? `Failed to load run timeline (${timelineResult.status})`);
-          }
-
-          if (
-            activeThreadIdRef.current === threadId &&
-            requestId === sendRequestIdRef.current &&
-            selectedRunIdRef.current === nextSelectedRunId
-          ) {
-            setTimeline(timelineResult.data);
-            setTimelineError(null);
-          }
-        } catch (timelineRefreshError) {
-          if (
-            activeThreadIdRef.current === threadId &&
-            requestId === sendRequestIdRef.current &&
-            selectedRunIdRef.current === nextSelectedRunId
-          ) {
-            setTimelineError(timelineRefreshError instanceof Error ? timelineRefreshError.message : 'Failed to reconcile run timeline');
-          }
-        }
-      } else if (inspectorEnabled && activeThreadIdRef.current === threadId && isCurrentSend()) {
-        setTimeline(null);
-        setTimelineError(null);
-      }
-    } catch (reconcileError) {
-      if (isReconcileThreadStale() || !isLatestReconcile()) {
-        return;
-      }
-
-      if (inspectorEnabled) {
-        setRecentRunsError(reconcileError instanceof Error ? reconcileError.message : 'Failed to reconcile recent runs');
-        if (nextSelectedRunId && isCurrentSend() && selectedRunIdRef.current === nextSelectedRunId) {
-          setTimelineError(reconcileError instanceof Error ? reconcileError.message : 'Failed to reconcile run timeline');
-        }
-      }
-    } finally {
-      reconcileController.abort();
-      if (requestId === sendRequestIdRef.current) {
-        setPersistingTurn(false);
-        setChatPhase(resolvePostReconcileChatPhase);
-        setLoadingThreadId(null);
-      }
-      if (inspectorEnabled && activeThreadIdRef.current === threadId && reconcileRequestId === reconcileRequestIdRef.current) {
-        setRecentRunsLoading(false);
-        if (nextSelectedRunId && selectedRunIdRef.current === nextSelectedRunId) {
-          setTimelineLoading(false);
-        }
-      }
-    }
+    });
   }
 
   async function createThreadRecord() {
