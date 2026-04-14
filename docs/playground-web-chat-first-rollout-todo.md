@@ -26,7 +26,7 @@
   - 恢复 textarea 可编辑
   - 让 assistant message actions 可见
 - [x] `isPersisting` 只服务 durable 补齐与 inspector，不再影响主聊天区
-- [ ] 明确 stop 的主聊天语义：
+- [x] 明确 stop 的主聊天语义：
   - 只停止当前页面继续接收流
   - 不伪装成服务端真正 cancel
 
@@ -34,7 +34,7 @@
 
 - [x] 移除发送完成后对整线程 `/messages` 的默认全量回读依赖
 - [x] live assistant draft 作为会话内主真相，避免结束时整块 transcript 抖动
-- [ ] 如需 reconcile，只允许窄校正：
+- [x] 如需 reconcile，只允许窄校正：
   - 当前 run
   - 当前 assistant message
   - recent runs 的静默刷新
@@ -45,7 +45,7 @@
 
 ## Phase 3: 主聊天事件与 durable 事件分层
 
-- [ ] 为聊天 UI 明确主事件集合：
+- [x] 为聊天 UI 明确主事件集合：
   - assistant start
   - text delta
   - text end
@@ -55,15 +55,15 @@
 
 ## Phase 4: 持久化热路径继续收缩
 
-- [ ] 继续审视是否还有高频 durable 写入留在热路径
-- [ ] assistant 文本落库尽量走最终态写入，而不是 per-delta durable write
-- [ ] run / tool / event 保持结构化持久化，但不阻塞主聊天完成态
+- [x] 继续审视是否还有高频 durable 写入留在热路径
+- [x] assistant 文本落库尽量走最终态写入，而不是 per-delta durable write
+- [x] run / tool / event 保持结构化持久化，但不阻塞主聊天完成态
 
 ## 验收标准
 
-- [ ] assistant 文本停止增长后，底部 loading 立即消失
-- [ ] assistant 文本停止增长后，operator 立即可见
-- [ ] assistant 文本停止增长后，输入框立即恢复可编辑
-- [ ] 发送结束后不再默认触发整线程 transcript 全量替换
-- [ ] 右侧 durable log 的慢刷新不再影响主聊天区完成态
-- [ ] thread 切换、刷新恢复、右侧 inspector 仍可正常工作
+- [x] assistant 文本停止增长后，底部 loading 立即消失
+- [x] assistant 文本停止增长后，operator 立即可见
+- [x] assistant 文本停止增长后，输入框立即恢复可编辑
+- [x] 发送结束后不再默认触发整线程 transcript 全量替换
+- [x] 右侧 durable log 的慢刷新不再影响主聊天区完成态
+- [x] thread 切换、刷新恢复、右侧 inspector 仍可正常工作

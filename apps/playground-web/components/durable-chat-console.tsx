@@ -192,6 +192,10 @@ function includeSelectedRun(runs: RunDto[], selectedRun: RunDto | null) {
   return [...runs, selectedRun].sort(compareRunsByCreatedAt);
 }
 
+function isPrimaryChatAssistantEventType(eventType: RunStreamAssistantSnapshotDto['eventType']) {
+  return eventType === 'start' || eventType === 'text_delta' || eventType === 'text_end';
+}
+
 function applyRunStateToTimeline(current: RunTimelineResponseDto | null, event: Exclude<RunStreamEventDto, { type: 'run.assistant' }>): RunTimelineResponseDto {
   switch (event.type) {
     case 'run.ready':
@@ -1007,6 +1011,17 @@ export function DurableChatConsole({ initialThreadId = null }: DurableChatConsol
     const applyAssistantSnapshot = (event: Extract<RunStreamEventDto, { type: 'run.assistant' }>) => {
       if (event.assistant.eventType.startsWith('toolcall')) {
         requiresTranscriptRecovery = true;
+      }
+
+      if (!isPrimaryChatAssistantEventType(event.assistant.eventType)) {
+        setLiveAssistantDraft({
+          runId: event.runId,
+          messageId: event.assistant.messageId,
+          partialText: event.assistant.partialText,
+          partialReasoning: event.assistant.partialReasoning,
+          eventType: event.assistant.eventType
+        });
+        return;
       }
 
       if (event.assistant.eventType === 'text_end') {

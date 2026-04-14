@@ -68,11 +68,17 @@
 - 主聊天 loading 只跟 `chatPhase === 'thinking' | 'streaming'` 绑定。
 - `text_end` 到来后，chat phase 进入 `transcript-final`。
 - durable 尾态补齐已下沉到独立的 `persistingTurn`，不再回流驱动主聊天 loading。
+- 主聊天 UI 只把以下事件当作 chat-first 主事件集合：
+  - assistant `start`
+  - assistant `text_delta`
+  - assistant `text_end`
+  - run `failed`
 - 在 `transcript-final` 下：
   - composer loading 消失
   - textarea 恢复可编辑
   - stop/send operator 回到非运行态
   - live assistant item 的 actions 可见
+  - stop 的 UI 语义明确为“停止当前页面继续接收响应”，不是 server-side cancel
 
 ### send 收尾与 thread hydration 已拆开
 
@@ -117,6 +123,7 @@
 
 - 高分片 assistant delta 不再把 durable write 放在聊天收尾关键路径上
 - 这条成本从“每个 delta 一次”收缩成“assistant 完成态/运行态的少量 durable 更新”
+- assistant 文本内容只在 `message_end` 时落最终 message part，不再按 delta 持久化文本
 
 ### 2. 整线程 `loadThreadMessages()` 重拉已不再位于发送收尾热路径
 
