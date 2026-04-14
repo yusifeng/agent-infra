@@ -3,7 +3,6 @@
 import type {
   MessageDto,
   RunDto,
-  RunStreamEventDto,
   RunTimelineResponseDto,
   RuntimePiMetaDto,
   ThreadDto
@@ -18,28 +17,20 @@ import {
   fetchRuntimeMetaResponse,
   fetchThreadMessagesResponse,
   fetchThreadRunsResponse,
-  fetchThreadsResponse,
-  openThreadRunStream
+  fetchThreadsResponse
 } from '@/features/durable-chat/repo/chat-api';
 import { persistSelectedRunId, readPersistedRunId } from '@/features/durable-chat/repo/run-selection-storage';
+import { runSendMessageFlow } from '@/features/durable-chat/runtime/send-message-flow';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
 import {
-  applyRunStateToTimeline,
-  buildOptimisticUserMessage,
-  buildAssistantMessageFromSnapshot,
   chooseInitialRunId,
   compareRunsByCreatedAt,
-  getChatPhaseForAssistantSnapshot,
   includeSelectedRun,
-  isPrimaryChatAssistantEventType,
   normalizeRuntimeMeta,
-  parseSseChunk,
   RECENT_RUNS_LIMIT,
   resolvePostReconcileChatPhase,
-  resolveSettledChatPhase,
-  upsertMessage,
-  upsertRun
+  upsertMessage
 } from '@/features/durable-chat/service/chat-runtime';
 import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
 import type { ChatPhase, DurableChatRuntimeOptions } from '@/features/durable-chat/types/runtime';
@@ -765,264 +756,49 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }
 
   async function sendMessage() {
-    if (!draft.trim() || isChatResponding || !selectedModelOption) {
-      return;
-    }
-
-    let threadId = activeThreadId;
-    const text = draft.trim();
-    const requestId = sendRequestIdRef.current + 1;
-    sendRequestIdRef.current = requestId;
-    sendAbortControllerRef.current?.abort();
-    const controller = new AbortController();
-    sendAbortControllerRef.current = controller;
-
-    let streamedRunId: string | null = null;
-    let streamSessionStarted = false;
-    let terminalStreamError: string | null = null;
-    let readyEventReceived = false;
-    let requiresTranscriptRecovery = false;
-
-    const applyAssistantSnapshot = (event: Extract<RunStreamEventDto, { type: 'run.assistant' }>) => {
-      if (event.assistant.eventType.startsWith('toolcall')) {
-        requiresTranscriptRecovery = true;
+    await runSendMessageFlow({
+      state: {
+        activeThreadId,
+        draft,
+        isChatResponding,
+        messages,
+        selectedModelOption
+      },
+      refs: {
+        activeThreadIdRef,
+        logOpenRef,
+        selectedRunIdRef,
+        sendAbortControllerRef,
+        sendRequestIdRef,
+        shouldAutoScrollRef,
+        timelineAbortControllerRef,
+        timelineRequestIdRef
+      },
+      actions: {
+        setActiveThreadId,
+        setChatPhase,
+        setDraft,
+        setError,
+        setLiveAssistantDraft,
+        setLiveStreamRunId,
+        setLoadingThreadId,
+        setMessages,
+        setOptimisticUserMessage,
+        setPersistingTurn,
+        setRecentRuns,
+        setSelectedRunId,
+        setTimeline,
+        setTimelineError,
+        setTimelineLoading
+      },
+      operations: {
+        createThreadRecord,
+        pendingNewThreadLoadingId: PENDING_NEW_THREAD_LOADING_ID,
+        reconcileCompletedTurn,
+        refreshThreads,
+        replaceCurrentPath
       }
-
-      if (!isPrimaryChatAssistantEventType(event.assistant.eventType)) {
-        setLiveAssistantDraft({
-          runId: event.runId,
-          messageId: event.assistant.messageId,
-          partialText: event.assistant.partialText,
-          partialReasoning: event.assistant.partialReasoning,
-          eventType: event.assistant.eventType
-        });
-        return;
-      }
-
-      if (event.assistant.eventType === 'text_end') {
-        setLiveStreamRunId(null);
-        setChatPhase(getChatPhaseForAssistantSnapshot(event.assistant));
-        if (threadId && !requiresTranscriptRecovery) {
-          setMessages((current) =>
-            upsertMessage(current, buildAssistantMessageFromSnapshot(current, threadId as string, event.runId, event.assistant))
-          );
-        }
-        if (!requiresTranscriptRecovery) {
-          setLiveAssistantDraft(null);
-        }
-        return;
-      }
-
-      if (event.assistant.partialText) {
-        setChatPhase(getChatPhaseForAssistantSnapshot(event.assistant));
-        setLiveAssistantDraft({
-          runId: event.runId,
-          messageId: event.assistant.messageId,
-          partialText: event.assistant.partialText,
-          partialReasoning: event.assistant.partialReasoning,
-          eventType: event.assistant.eventType
-        });
-        return;
-      }
-
-      setChatPhase(getChatPhaseForAssistantSnapshot(event.assistant));
-      setLiveAssistantDraft({
-        runId: event.runId,
-        messageId: event.assistant.messageId,
-        partialText: event.assistant.partialText,
-        partialReasoning: event.assistant.partialReasoning,
-        eventType: event.assistant.eventType
-      });
-    };
-
-    const processStreamEvent = (event: RunStreamEventDto) => {
-      streamedRunId = event.runId;
-      setLiveStreamRunId(event.runId);
-
-      if (event.type === 'run.ready' && logOpenRef.current && selectedRunIdRef.current === null) {
-        selectedRunIdRef.current = event.runId;
-        setSelectedRunId(event.runId);
-        setTimeline(applyRunStateToTimeline(null, event));
-      }
-
-      if (event.type !== 'run.assistant' && logOpenRef.current && selectedRunIdRef.current === event.runId) {
-        setTimeline((current) => applyRunStateToTimeline(current, event));
-      }
-
-      if (event.type === 'run.ready') {
-        readyEventReceived = true;
-        setOptimisticUserMessage(null);
-        setMessages((current) => upsertMessage(current, event.userMessage));
-        setRecentRuns((current) => upsertRun(current, event.run));
-        setLiveAssistantDraft((current) =>
-          current
-            ? {
-                ...current,
-                runId: event.runId
-              }
-            : current
-        );
-        return;
-      }
-
-      if (event.type === 'run.assistant') {
-        applyAssistantSnapshot(event);
-        return;
-      }
-
-      if (event.type === 'run.state' || event.type === 'run.completed') {
-        setRecentRuns((current) => upsertRun(current, event.run));
-      }
-
-      if (event.type === 'run.failed' && event.run) {
-        const failedRun = event.run;
-        setRecentRuns((current) => upsertRun(current, failedRun));
-      }
-
-      if (event.type === 'run.failed') {
-        requiresTranscriptRecovery = true;
-        terminalStreamError = event.error;
-        setError(event.error);
-        setLiveStreamRunId(null);
-        setPersistingTurn(false);
-        setChatPhase('failed');
-        setLiveAssistantDraft((current) => (current?.runId === event.runId ? null : current));
-        return;
-      }
-
-      if (event.type === 'run.completed') {
-        setError(null);
-        setLiveStreamRunId(null);
-        setChatPhase(resolveSettledChatPhase);
-      }
-    };
-
-    setChatPhase('thinking');
-    setPersistingTurn(false);
-    setLoadingThreadId(threadId ?? PENDING_NEW_THREAD_LOADING_ID);
-    setError(null);
-    setLiveStreamRunId(null);
-    setDraft('');
-    timelineRequestIdRef.current += 1;
-    timelineAbortControllerRef.current?.abort();
-    setTimelineLoading(false);
-    setTimelineError(null);
-    shouldAutoScrollRef.current = true;
-
-    try {
-      if (!threadId) {
-        const nextThread = await createThreadRecord();
-        threadId = nextThread.id;
-        setActiveThreadId(threadId);
-        activeThreadIdRef.current = threadId;
-        setLoadingThreadId(threadId);
-        replaceCurrentPath(`/chat/${threadId}`);
-      }
-
-      setOptimisticUserMessage(buildOptimisticUserMessage(threadId, requestId, text, messages));
-      setLiveAssistantDraft({
-        runId: `pending-${requestId}`,
-        messageId: `pending-assistant-${requestId}`,
-        partialText: '',
-        partialReasoning: null,
-        eventType: 'start'
-      });
-
-      const streamResult = await openThreadRunStream(
-        threadId,
-        {
-          text,
-          provider: selectedModelOption.provider,
-          model: selectedModelOption.model
-        },
-        controller.signal
-      );
-
-      if (!streamResult.ok) {
-        throw new Error(streamResult.error ?? `request failed (${streamResult.status})`);
-      }
-
-      if (!streamResult.body) {
-        throw new Error('stream response body is unavailable');
-      }
-
-      streamSessionStarted = true;
-      const reader = streamResult.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          break;
-        }
-
-        if (controller.signal.aborted || requestId !== sendRequestIdRef.current) {
-          return;
-        }
-
-        buffer += decoder.decode(value, { stream: true });
-        const parsed = parseSseChunk(buffer);
-        buffer = parsed.remainder;
-
-        for (const event of parsed.events) {
-          if (controller.signal.aborted || requestId !== sendRequestIdRef.current) {
-            return;
-          }
-
-          processStreamEvent(event);
-        }
-      }
-
-      const finalChunk = decoder.decode();
-      if (finalChunk) {
-        const parsed = parseSseChunk(`${buffer}${finalChunk}\n\n`);
-        for (const event of parsed.events) {
-          processStreamEvent(event);
-        }
-      }
-    } catch (sendError) {
-      if (controller.signal.aborted || requestId !== sendRequestIdRef.current) {
-        return;
-      }
-
-      if (!readyEventReceived) {
-        setDraft(text);
-        setOptimisticUserMessage(null);
-        setLiveAssistantDraft(null);
-      } else {
-        requiresTranscriptRecovery = true;
-      }
-      setChatPhase('failed');
-      setPersistingTurn(false);
-      setLoadingThreadId(null);
-      setError(sendError instanceof Error ? sendError.message : 'Failed to send message');
-    } finally {
-      if (requestId === sendRequestIdRef.current) {
-        sendAbortControllerRef.current = null;
-        setLiveStreamRunId(null);
-        setChatPhase(resolveSettledChatPhase);
-      }
-
-      if (!controller.signal.aborted && requestId === sendRequestIdRef.current && (streamSessionStarted || streamedRunId)) {
-        if (threadId && activeThreadIdRef.current === threadId) {
-          const preferredRunId = streamedRunId ?? selectedRunIdRef.current;
-          setPersistingTurn(true);
-          void reconcileCompletedTurn(threadId, preferredRunId, requestId, {
-            recoverTranscript: requiresTranscriptRecovery
-          });
-        }
-
-        void refreshThreads().catch((refreshError) => {
-          setError(refreshError instanceof Error ? refreshError.message : 'Failed to refresh threads');
-        });
-
-        if (terminalStreamError) {
-          setError(terminalStreamError);
-        }
-      }
-
-    }
+    });
   }
 
   function startNewChat() {
