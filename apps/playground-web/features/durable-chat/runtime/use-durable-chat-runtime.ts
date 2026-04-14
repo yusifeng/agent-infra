@@ -94,6 +94,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     setTimelineLoading,
     setTimelineError
   } = useRunInspectorController();
+  const runtimeBootstrappedRef = useRef(false);
+  const routeChangeRequestIdRef = useRef(0);
   const runSelectionPersistenceReadyRef = useRef(false);
   const activeThreadIdRef = useRef<string | null>(null);
   const logOpenRef = useRef(false);
@@ -572,24 +574,45 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }
 
   useEffect(() => {
-    void runInitializeRuntime({
-      initialThreadId,
-      refs: {
-        runSelectionPersistenceReadyRef
-      },
-      actions: {
-        setDurableRecoveryNotice,
-        setError
-      },
-      operations: {
-        activateThread,
-        getPreferredRunId: readPersistedRunId,
-        refreshThreads,
-        resetDraftThreadState
-      }
-    });
-
     void refreshMeta();
+  }, []);
+
+  useEffect(() => {
+    const requestId = routeChangeRequestIdRef.current + 1;
+    routeChangeRequestIdRef.current = requestId;
+
+    if (!runtimeBootstrappedRef.current) {
+      runtimeBootstrappedRef.current = true;
+      void runInitializeRuntime({
+        initialThreadId,
+        refs: {
+          runSelectionPersistenceReadyRef
+        },
+        actions: {
+          setDurableRecoveryNotice,
+          setError
+        },
+        operations: {
+          activateThread,
+          getPreferredRunId: readPersistedRunId,
+          isCurrentRequest: () => routeChangeRequestIdRef.current === requestId,
+          refreshThreads,
+          resetDraftThreadState
+        }
+      });
+      return;
+    }
+
+    if (initialThreadId) {
+      void activateThread(initialThreadId, {
+        preferredRunId: readPersistedRunId(initialThreadId)
+      });
+      return;
+    }
+
+    resetDraftThreadState();
+    setDurableRecoveryNotice(null);
+    setError(null);
   }, [initialThreadId]);
 
   useEffect(() => {

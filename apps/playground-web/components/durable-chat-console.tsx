@@ -1,6 +1,8 @@
 'use client';
 
 import clsx from 'clsx';
+import { usePathname } from 'next/navigation';
+import { useMemo } from 'react';
 
 import { ChatHeader } from './chat-shell/chat-header';
 import { ChatMessageList } from './chat-shell/message-list';
@@ -10,11 +12,26 @@ import { ChatSidebar } from './chat-shell/sidebar';
 import { ui } from './chat-shell/ui';
 import { useDurableChatRuntime } from '@/features/durable-chat/runtime/use-durable-chat-runtime';
 
-type DurableChatConsoleProps = {
-  initialThreadId?: string | null;
-};
+function readThreadIdFromPathname(pathname: string | null) {
+  if (!pathname) {
+    return null;
+  }
 
-export function DurableChatConsole({ initialThreadId = null }: DurableChatConsoleProps) {
+  const match = pathname.match(/^\/chat\/([^/]+)$/);
+  if (!match?.[1]) {
+    return null;
+  }
+
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+}
+
+export function DurableChatConsole() {
+  const pathname = usePathname();
+  const initialThreadId = useMemo(() => readThreadIdFromPathname(pathname), [pathname]);
   const runtime = useDurableChatRuntime({ initialThreadId });
 
   return (

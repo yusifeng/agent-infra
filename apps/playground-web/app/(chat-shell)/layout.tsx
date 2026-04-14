@@ -1,5 +1,6 @@
 import './chat-shell.css';
 
+import { DurableChatConsole } from '@/components/durable-chat-console';
 import { ChatThemeProvider } from '@/components/chat-theme-provider';
 
 type ChatShellLayoutProps = {
@@ -7,5 +8,10 @@ type ChatShellLayoutProps = {
 };
 
 export default function ChatShellLayout({ children }: ChatShellLayoutProps) {
-  return <ChatThemeProvider>{children}</ChatThemeProvider>;
+  return (
+    <ChatThemeProvider>
+      <DurableChatConsole />
+      {children}
+    </ChatThemeProvider>
+  );
 }

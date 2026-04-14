@@ -88,6 +88,7 @@ type InitializeRuntimeArgs = {
   operations: {
     activateThread: (threadId: string, options?: { preferredRunId?: string | null }) => Promise<string | null | undefined>;
     getPreferredRunId: (threadId: string) => string | null;
+    isCurrentRequest: () => boolean;
     refreshThreads: () => Promise<ThreadDto[]>;
     resetDraftThreadState: () => void;
   };
@@ -174,6 +175,9 @@ export async function runRefreshMeta({ actions }: RefreshMetaArgs) {
 export async function runInitializeRuntime({ initialThreadId, refs, actions, operations }: InitializeRuntimeArgs) {
   try {
     await operations.refreshThreads();
+    if (!operations.isCurrentRequest()) {
+      return;
+    }
 
     if (initialThreadId) {
       await operations.activateThread(initialThreadId, {
@@ -185,7 +189,9 @@ export async function runInitializeRuntime({ initialThreadId, refs, actions, ope
       actions.setError(null);
     }
   } catch (refreshError) {
-    actions.setError(refreshError instanceof Error ? refreshError.message : 'Failed to load threads');
+    if (operations.isCurrentRequest()) {
+      actions.setError(refreshError instanceof Error ? refreshError.message : 'Failed to load threads');
+    }
   } finally {
     refs.runSelectionPersistenceReadyRef.current = true;
   }
