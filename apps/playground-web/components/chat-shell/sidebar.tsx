@@ -84,11 +84,7 @@ export function ChatSidebar({
 
             <div className="min-h-0 px-3 pb-2">
               <div className="flex flex-col">
-                {!threadsExpanded ? null : threads.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-5 text-sm text-slate-500">
-                    Threads will appear here once you start a durable chat.
-                  </div>
-                ) : (
+                {!threadsExpanded || threads.length === 0 ? null : (
                   threads.map((thread) => {
                     const active = thread.id === activeThreadId;
                     return (
