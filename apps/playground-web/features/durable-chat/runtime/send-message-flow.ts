@@ -78,6 +78,7 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
   let threadId = state.activeThreadId;
   const text = state.draft.trim();
   const requestId = refs.sendRequestIdRef.current + 1;
+  const optimisticThreadId = threadId ?? `pending-thread-${requestId}`;
   refs.sendRequestIdRef.current = requestId;
   refs.sendAbortControllerRef.current?.abort();
   const controller = new AbortController();
@@ -202,6 +203,14 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
   actions.setTimelineLoading(false);
   actions.setTimelineError(null);
   refs.shouldAutoScrollRef.current = true;
+  actions.setOptimisticUserMessage(buildOptimisticUserMessage(optimisticThreadId, requestId, text, state.messages));
+  actions.setLiveAssistantDraft({
+    runId: `pending-${requestId}`,
+    messageId: `pending-assistant-${requestId}`,
+    partialText: '',
+    partialReasoning: null,
+    eventType: 'start'
+  });
 
   try {
     if (!threadId) {
@@ -212,15 +221,6 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
       actions.setLoadingThreadId(threadId);
       operations.replaceCurrentPath(`/chat/${threadId}`);
     }
-
-    actions.setOptimisticUserMessage(buildOptimisticUserMessage(threadId, requestId, text, state.messages));
-    actions.setLiveAssistantDraft({
-      runId: `pending-${requestId}`,
-      messageId: `pending-assistant-${requestId}`,
-      partialText: '',
-      partialReasoning: null,
-      eventType: 'start'
-    });
 
     const streamResult = await openThreadRunStream(
       threadId,
