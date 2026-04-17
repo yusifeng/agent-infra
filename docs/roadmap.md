@@ -46,4 +46,6 @@ The completed baseline includes:
 
 - stabilize first-consumer patterns
 - keep `playground-web` a clean reference consumer
+- continue hardening `durable-chat-server` and `durable-chat-client` as the reusable adoption surface
+- keep transport codec/runtime helpers out of `packages/contracts` unless a second consumer or transport proves the need
 - improve adoption without turning the harness into a product

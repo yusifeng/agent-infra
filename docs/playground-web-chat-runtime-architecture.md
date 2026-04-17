@@ -190,6 +190,13 @@
 - send / load / reconcile / session runtime flow
 - optional inspector flow / state / persistence helper
 
+这轮提炼没有要求修改 `packages/contracts`。
+当前结论是：
+
+- `contracts` 继续只承载稳定的序列化 DTO 边界
+- SSE parsing、JSON normalizer、storage normalizer 等 transport codec 保留在 `durable-chat-client` / `durable-chat-server`
+- 在出现第二个 consumer 或第二种 transport 之前，不为了“更统一”提前扩大 `contracts` 职责
+
 `playground-web` 当前主要保留：
 
 - React hook 封装
