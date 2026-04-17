@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+@import "./features/durable-chat/components/chat-shell.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -52,8 +53,11 @@ body {
   min-width: 320px;
 }
 
+html,
+body,
 #root {
   min-height: 100vh;
+  height: 100%;
 }
 
 @theme inline {

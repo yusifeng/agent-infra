@@ -22,3 +22,6 @@ The app currently provides:
 - Tailwind CSS v4
 - shadcn/ui initialization
 - a local `/api -> http://localhost:4000` proxy target
+- `/new` and `/chat/:threadId` client routes
+- app-local durable chat runtime wired to `@agent-infra/durable-chat-client`
+- sidebar + transcript + sticky composer aligned to `playground-next-web`

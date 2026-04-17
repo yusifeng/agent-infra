@@ -1,0 +1,26 @@
+import type { MessageDto, RuntimePiMetaDto, ThreadDto } from '@agent-infra/contracts';
+
+import type { LiveAssistantDraft } from './live-assistant-draft';
+import type { ChatPhase } from './runtime';
+
+export type { RunInspectorState } from '@agent-infra/durable-chat-client';
+
+export type ChatSessionState = {
+  threads: ThreadDto[];
+  activeThreadId: string | null;
+  messages: MessageDto[];
+  draft: string;
+  optimisticUserMessage: MessageDto | null;
+  meta: RuntimePiMetaDto | null;
+  selectedModelKey: string;
+  chatPhase: ChatPhase;
+  persistingTurn: boolean;
+  loadingThreadId: string | null;
+  loadingMessages: boolean;
+  error: string | null;
+  liveStreamRunId: string | null;
+  liveAssistantDraft: LiveAssistantDraft | null;
+  durableRecoveryNotice: string | null;
+  sidebarOpen: boolean;
+  showScrollToBottom: boolean;
+};

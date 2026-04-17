@@ -155,6 +155,12 @@ importers:
 
   apps/playground-vite-web:
     dependencies:
+      '@agent-infra/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@agent-infra/durable-chat-client':
+        specifier: workspace:*
+        version: link:../../packages/durable-chat-client
       '@fontsource-variable/geist':
         specifier: ^5.2.8
         version: 5.2.8
@@ -164,9 +170,15 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      dompurify:
+        specifier: ^3.3.3
+        version: 3.3.3
       lucide-react:
         specifier: 0.548.0
         version: 0.548.0(react@19.1.0)
+      marked:
+        specifier: ^18.0.0
+        version: 18.0.0
       radix-ui:
         specifier: ^1.4.3
         version: 1.4.3(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -176,9 +188,15 @@ importers:
       react-dom:
         specifier: 19.1.0
         version: 19.1.0(react@19.1.0)
+      react-router-dom:
+        specifier: ^7.9.4
+        version: 7.14.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       shadcn:
         specifier: ^4.3.0
         version: 4.3.0(@types/node@24.12.2)(typescript@5.9.3)
+      shiki:
+        specifier: ^4.0.2
+        version: 4.0.2
       tailwind-merge:
         specifier: ^3.5.0
         version: 3.5.0
@@ -5892,6 +5910,23 @@ packages:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^19.0.0-rc
     peerDependenciesMeta:
       '@types/react':
+        optional: true
+
+  react-router-dom@7.14.1:
+    resolution: {integrity: sha512-ZkrQuwwhGibjQLqH1eCdyiZyLWglPxzxdl5tgwgKEyCSGC76vmAjleGocRe3J/MLfzMUIKwaFJWpFVJhK3d2xA==}
+    engines: {node: '>=20.0.0'}
+    peerDependencies:
+      react: '>=18'
+      react-dom: '>=18'
+
+  react-router@7.14.1:
+    resolution: {integrity: sha512-5BCvFskyAAVumqhEKh/iPhLOIkfxcEUz8WqFIARCkMg8hZZzDYX9CtwxXA0e+qT8zAxmMC0x3Ckb9iMONwc5jg==}
+    engines: {node: '>=20.0.0'}
+    peerDependencies:
+      react: '>=18'
+      react-dom: '>=18'
+    peerDependenciesMeta:
+      react-dom:
         optional: true
 
   react-style-singleton@2.2.3:
@@ -13306,6 +13341,20 @@ snapshots:
       use-sidecar: 1.1.3(@types/react@19.2.14)(react@19.1.0)
     optionalDependencies:
       '@types/react': 19.2.14
+
+  react-router-dom@7.14.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0):
+    dependencies:
+      react: 19.1.0
+      react-dom: 19.1.0(react@19.1.0)
+      react-router: 7.14.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+
+  react-router@7.14.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0):
+    dependencies:
+      cookie: 1.1.1
+      react: 19.1.0
+      set-cookie-parser: 2.7.2
+    optionalDependencies:
+      react-dom: 19.1.0(react@19.1.0)
 
   react-style-singleton@2.2.3(@types/react@19.2.14)(react@19.1.0):
     dependencies:
