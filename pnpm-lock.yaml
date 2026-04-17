@@ -167,6 +167,12 @@ importers:
       '@agent-infra/app':
         specifier: workspace:*
         version: link:../app
+      '@agent-infra/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@agent-infra/core':
+        specifier: workspace:*
+        version: link:../core
       '@agent-infra/db':
         specifier: workspace:*
         version: link:../db

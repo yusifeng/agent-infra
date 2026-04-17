@@ -1,7 +1,6 @@
 import type { ThreadMessagesResponseDto } from '@agent-infra/contracts';
 
-import { toMessageDto } from '@/lib/api-dto';
-import { getRouteErrorMessage, getRouteErrorStatus } from '@/lib/api-route-errors';
+import { getRouteErrorMessage, getRouteErrorStatus, toMessageDto } from '@agent-infra/durable-chat-server';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ threadId: string }> }) {
   const { getPlaygroundAppServices } = await import('@/lib/playground-app-services');

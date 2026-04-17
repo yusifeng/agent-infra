@@ -1,7 +1,6 @@
 import type { CreateThreadRequestDto, CreateThreadResponseDto, ThreadsResponseDto } from '@agent-infra/contracts';
 
-import { toThreadDto } from '@/lib/api-dto';
-import { getRouteErrorMessage, getRouteErrorStatus } from '@/lib/api-route-errors';
+import { getRouteErrorMessage, getRouteErrorStatus, toThreadDto } from '@agent-infra/durable-chat-server';
 
 const APP_ID = 'playground-runtime-pi';
 

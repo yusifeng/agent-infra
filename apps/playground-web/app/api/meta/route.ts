@@ -1,6 +1,6 @@
 import type { RuntimePiMetaDto } from '@agent-infra/contracts';
 
-import { toRuntimeMetaDto } from '@/lib/api-dto';
+import { toRuntimeMetaDto } from '@agent-infra/durable-chat-server';
 import { getPlaygroundDbInfo, getPlaygroundMeta } from '@/lib/playground-meta';
 
 export async function GET() {

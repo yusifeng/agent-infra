@@ -11,7 +11,7 @@ import type {
   ToolInvocationSummaryDto
 } from '@agent-infra/contracts';
 
-type RuntimePiMetaInput = {
+export type RuntimeMetaDtoInput = {
   dbMode: string;
   dbConnection: string;
   runtimeConfigured: boolean;
@@ -135,7 +135,7 @@ export function toToolInvocationDto(invocation: ToolInvocation): ToolInvocationD
   };
 }
 
-export function toRuntimeMetaDto(input: RuntimePiMetaInput): RuntimePiMetaDto {
+export function toRuntimeMetaDto(input: RuntimeMetaDtoInput): RuntimePiMetaDto {
   return {
     dbMode: input.dbMode,
     dbConnection: input.dbConnection,

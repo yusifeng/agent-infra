@@ -1,7 +1,6 @@
 import type { RunTextTurnRequestDto, RunTextTurnResponseDto, ThreadRunsResponseDto } from '@agent-infra/contracts';
 
-import { toMessageDto, toRunDto } from '@/lib/api-dto';
-import { getRouteErrorMessage, getRouteErrorStatus } from '@/lib/api-route-errors';
+import { getRouteErrorMessage, getRouteErrorStatus, toMessageDto, toRunDto } from '@agent-infra/durable-chat-server';
 
 const DEFAULT_LIMIT = 8;
 const MAX_LIMIT = 20;

@@ -1,7 +1,6 @@
 import type { RunTimelineResponseDto } from '@agent-infra/contracts';
 
-import { toRunDto, toRunEventDto, toToolInvocationDto } from '@/lib/api-dto';
-import { getRouteErrorMessage, getRouteErrorStatus } from '@/lib/api-route-errors';
+import { getRouteErrorMessage, getRouteErrorStatus, toRunDto, toRunEventDto, toToolInvocationDto } from '@agent-infra/durable-chat-server';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { getPlaygroundAppServices } = await import('@/lib/playground-app-services');

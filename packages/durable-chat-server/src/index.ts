@@ -29,6 +29,9 @@ export type DurableChatAppServices = DurableChatBaseServices & {
   app: AgentInfraApp;
 };
 
+export * from './api-dto.js';
+export * from './route-errors.js';
+
 export async function createDurableChatBaseServices(dbConfig: DbConfig): Promise<DurableChatBaseServices> {
   await dbConfig.initialize();
   const repos = createAgentInfraRepositories(dbConfig.mode, dbConfig.db);
