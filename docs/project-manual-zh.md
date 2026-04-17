@@ -10,7 +10,7 @@
 
 - **持久化**：对话不是只在内存里飘一下，而是落到数据库里（线程、消息、运行记录、工具调用、运行事件等）。
 - **分层**：领域类型与仓储接口在 `core`；应用层编排（建线程、发一轮文本等）在 `app`；具体数据库实现在 `db`；某一种具体 LLM 运行时（Pi）的适配在 `runtime-pi`；HTTP/浏览器可序列化的形状在 `contracts`。
-- **第一个消费者**：`apps/playground-web` 用来演示和调试，**业务编排规则不应写死在 playground 里**，而应放在 `app` 等库层。
+- **第一个消费者**：`apps/playground-next-web` 用来演示和调试，**业务编排规则不应写死在 playground 里**，而应放在 `app` 等库层。
 
 ---
 
@@ -25,7 +25,7 @@
 
 | 命令 | 作用 |
 |------|------|
-| `pnpm dev` | 启动 `playground-web` 本地开发 |
+| `pnpm dev` | 启动 `playground-next-web` 本地开发 |
 | `pnpm build` | 构建所有 workspace 包 |
 | `pnpm typecheck` | 按依赖顺序构建部分包后，全仓库 TypeScript 检查 |
 | `pnpm test` | 运行各包中声明了 `test` 脚本的测试 |
@@ -37,7 +37,7 @@
 ```mermaid
 flowchart TB
   subgraph consumers [消费者]
-    PW[apps/playground-web]
+    PW[apps/playground-next-web]
   end
   subgraph app_layer [应用边界]
     APP[packages/app]
@@ -253,7 +253,7 @@ flowchart TB
 
 ## 5. `apps` 应用说明
 
-### 5.1 `playground-web`（`apps/playground-web`）
+### 5.1 `playground-next-web`（`apps/playground-next-web`）
 
 **职责**：**第一个消费者**——Next.js 15 应用，演示：
 
@@ -265,11 +265,11 @@ flowchart TB
 - 中间 chat 区按“聊天产品主链路”设计。
 - durable 能力仍然保留，但主要放在右侧 log / timeline 观察面里。
 - 不应再把这个页面理解成“durable runtime console 优先、聊天区只是附属展示”。
-- 更细的运行时 UX 边界见 [`docs/playground-web-chat-runtime-architecture.md`](playground-web-chat-runtime-architecture.md)。
+- 更细的运行时 UX 边界见 [`docs/playground-next-web-chat-runtime-architecture.md`](playground-next-web-chat-runtime-architecture.md)。
 
 **依赖的 workspace 包**：`@agent-infra/app`、`contracts`、`core`、`db`、`runtime-pi`，以及 Pi 相关 npm 包。
 
-**服务端胶水**：[`lib/runtime-pi-repo.ts`](../apps/playground-web/lib/runtime-pi-repo.ts) 是**关键集成点**：
+**服务端胶水**：[`lib/runtime-pi-repo.ts`](../apps/playground-next-web/lib/runtime-pi-repo.ts) 是**关键集成点**：
 
 - `createDbConfigFromEnv()` → `dbReady`
 - 按 `dbMode` 选择 `Sqlite*` 或 `Drizzle*` 仓储
@@ -287,7 +287,7 @@ flowchart TB
 | `GET /api/runtime-pi/runs/[runId]/timeline` | Run 时间线 |
 | `GET /api/runtime-pi/meta` | 运行时与 DB 元信息 |
 
-**DTO 映射**：[`lib/runtime-pi-dto.ts`](../apps/playground-web/lib/runtime-pi-dto.ts) 中的 `toThreadDto`、`toMessageDto`、`toRunDto` 等，把 `core` 的 `Date` 领域对象转为 `contracts` 的 ISO 字符串。
+**DTO 映射**：[`lib/runtime-pi-dto.ts`](../apps/playground-next-web/lib/runtime-pi-dto.ts) 中的 `toThreadDto`、`toMessageDto`、`toRunDto` 等，把 `core` 的 `Date` 领域对象转为 `contracts` 的 ISO 字符串。
 
 **常量**：线程归属的 `APP_ID` 在路由里写为 `'playground-runtime-pi'`（与「演示应用」绑定）。
 
@@ -316,7 +316,7 @@ flowchart TB
 1. **[`docs/architecture.md`](architecture.md)**（5 分钟）  
 2. **`packages/core/src/types.ts`** + **`repositories.ts`**（领域与接口）  
 3. **`packages/app/src/app.ts`**（`createAgentInfraApp` 与 `runText` 全流程）  
-4. **`apps/playground-web/lib/runtime-pi-repo.ts`**（如何把 db + runtime-pi 接到 app）  
+4. **`apps/playground-next-web/lib/runtime-pi-repo.ts`**（如何把 db + runtime-pi 接到 app）  
 5. **`packages/runtime-pi/src/runtime.ts`** 中 `createPiRuntime` 与 `runAssistantTurnWithPiInternal`（可选，较深）  
 6. 任选一个 **`app/api/runtime-pi/.../route.ts`** 看 HTTP 如何调用 `runtimePiApp`
 

@@ -4,7 +4,7 @@
 
 This repository is a `pnpm` workspace with one app and several shared packages.
 
-- `apps/playground-web`: Next.js 15 browser-local experiment harness.
+- `apps/playground-next-web`: Next.js 15 browser-local experiment harness.
 - `packages/core`: durable runtime domain types and repository interfaces.
 - `packages/contracts`: shared contract exports built on `core`.
 - `packages/db`: Drizzle-based SQLite/PostgreSQL repositories and schema.
@@ -15,12 +15,12 @@ This repository is a `pnpm` workspace with one app and several shared packages.
 
 ## Product Boundary
 
-`apps/playground-web` is the first consumer, experiment harness, and validation surface for `agent-infra`. It is important because some platform capabilities must be exercised and visualized through a UI, but it is **not** the product boundary and must not become the main place where business/runtime complexity accumulates.
+`apps/playground-next-web` is the first consumer, experiment harness, and validation surface for `agent-infra`. It is important because some platform capabilities must be exercised and visualized through a UI, but it is **not** the product boundary and must not become the main place where business/runtime complexity accumulates.
 
-- Use `playground-web` to validate package APIs, durable runtime behavior, and observability flows.
+- Use `playground-next-web` to validate package APIs, durable runtime behavior, and observability flows.
 - Prefer pushing reusable behavior into `packages/*` when it represents a real platform capability.
 - Do not introduce page-local abstractions or UX-only state machinery unless it is clearly required to expose or validate a core capability.
-- If a change would lose most of its value when `playground-web` is removed, treat it as lower priority than core/runtime/contracts/db work.
+- If a change would lose most of its value when `playground-next-web` is removed, treat it as lower priority than core/runtime/contracts/db work.
 - Page work should follow the platform, not define it: consumers may help discover the right interfaces, but web-demo needs must not drive the system goal.
 
 ## Engineering Working Style
@@ -38,7 +38,7 @@ Bias toward cautious, minimal, verifiable changes, especially for non-trivial ta
 
 Use `pnpm` from the repository root:
 
-- `pnpm dev`: starts `apps/playground-web` in local development.
+- `pnpm dev`: starts `apps/playground-next-web` in local development.
 - `pnpm build`: builds every workspace package.
 - `pnpm typecheck`: builds dependency packages, then runs strict TypeScript checks across the workspace.
 - `pnpm test`: runs package tests where a `test` script exists.
@@ -70,12 +70,12 @@ Recent history favors short, imperative commit subjects, for example `Add Pi Nar
 
 - Start commit messages with a verb and keep the first line concise.
 - In PRs, describe the affected workspace package(s), note schema or env changes, and link related issues.
-- Include screenshots only for `apps/playground-web` UI changes.
+- Include screenshots only for `apps/playground-next-web` UI changes.
 - When behavior, routes, or user-facing workflows change, update the relevant docs/README/architecture notes in the same work loop.
 
 ## Security & Configuration Tips
 
-- Copy `apps/playground-web/.env.example` to `.env.local` for local app setup.
+- Copy `apps/playground-next-web/.env.example` to `.env.local` for local app setup.
 - Do not commit API keys or local database files.
 - `runtime-pi` smoke runs may use `DEEPSEEK_API_KEY`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `SQLITE_PATH`, or `DATABASE_URL`.
 

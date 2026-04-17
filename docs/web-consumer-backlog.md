@@ -1,20 +1,20 @@
 # Web Consumer Backlog
 
-This file records future-facing web and console ideas for `apps/playground-web`.
+This file records future-facing web and console ideas for `apps/playground-next-web`.
 
 It exists to prevent two common mistakes:
 
 - losing useful UI validation ideas just because they are not core work right now
 - letting web-demo polish override the main platform roadmap
 
-`playground-web` is the first consumer and validation surface, not the product boundary. Items in this file are optional unless they help expose, validate, or pressure-test a real platform capability in `packages/*`.
+`playground-next-web` is the first consumer and validation surface, not the product boundary. Items in this file are optional unless they help expose, validate, or pressure-test a real platform capability in `packages/*`.
 
 ## How To Use This File
 
 - Treat this as a parking lot for consumer-side ideas.
 - Do not pull items from here into the mainline by default.
 - Promote an item only when it clearly validates or strengthens core/runtime/contracts/db behavior.
-- If an item would have little value without `playground-web`, keep it lower priority.
+- If an item would have little value without `playground-next-web`, keep it lower priority.
 
 ## Candidate Items
 

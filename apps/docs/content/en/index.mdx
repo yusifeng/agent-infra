@@ -48,7 +48,9 @@ Use `agent-infra` when you want:
 ```text
 apps/
   docs/             deployable official docs site
-  playground-web/   first consumer and experiment harness
+  playground-next-web/   Next.js reference consumer
+  playground-vite-web/   Vite browser consumer scaffold
+  playground-fastify-server/   Fastify server scaffold
 packages/
   app/              use-case boundary
   contracts/        transport contracts
@@ -66,6 +68,8 @@ docs/
 The recommended deployment shape is:
 
 - `apps/docs` for public documentation
-- `apps/playground-web` for the console and experiments
+- `apps/playground-next-web` for the console and experiments
+- `apps/playground-vite-web` for non-Next browser validation
+- `apps/playground-fastify-server` for non-Next server validation
 
 This keeps stable public documentation separate from a faster-moving harness.

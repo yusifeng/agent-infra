@@ -44,10 +44,26 @@ Provides:
 - provider/model selection
 - durable persistence mapping for runtime events
 
-## `apps/playground-web`
+## `apps/playground-next-web`
 
 Acts as:
 
 - the first consumer of the platform
 - an experiment harness
 - a runtime console, not the domain boundary
+
+## `apps/playground-vite-web`
+
+Acts as:
+
+- a Vite-based browser consumer scaffold
+- the place to validate `@agent-infra/durable-chat-client` outside Next.js
+- a future home for side-by-side UX parity checks against the Next consumer
+
+## `apps/playground-fastify-server`
+
+Acts as:
+
+- a Fastify-based server scaffold
+- the place to validate `@agent-infra/durable-chat-server` outside Next.js
+- a future host for route wiring parity checks against the Next server surface

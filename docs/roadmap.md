@@ -13,7 +13,7 @@ The completed baseline includes:
 - durable `thread` / `run` / `message` / `message_part` / `tool_invocation` / `run_event`
 - `packages/app` use-case boundary for thread and turn orchestration
 - `packages/runtime-pi` as the runtime adapter mainline
-- `playground-web` as the first consumer of the platform contracts
+- `playground-next-web` as the first consumer of the platform contracts
 - run-oriented timelines, recent-run inspection, and durable-first reconnect behavior
 - live assistant streaming built on top of durable runtime events without replacing durable message truth
 
@@ -45,7 +45,7 @@ The completed baseline includes:
 ## Candidate Track 5: Consumer Hardening
 
 - stabilize first-consumer patterns
-- keep `playground-web` a clean reference consumer
+- keep `playground-next-web` a clean reference consumer
 - continue hardening `durable-chat-server` and `durable-chat-client` as the reusable adoption surface
 - keep transport codec/runtime helpers out of `packages/contracts` unless a second consumer or transport proves the need
 - improve adoption without turning the harness into a product

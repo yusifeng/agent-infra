@@ -14,11 +14,13 @@
 - `packages/db`: Drizzle schema plus SQLite / PostgreSQL repository implementations.
 - `packages/durable-chat-server`: reusable server bootstrap plus route transport helpers for chat consumers.
 - `packages/runtime-pi`: pi-agent-core adapter that translates runtime events into durable records.
-- `apps/playground-web`: first consumer of `agent-infra`, with browser-local experiments plus a chat-first runtime validation surface that keeps durable inspection as a secondary pane.
+- `apps/playground-next-web`: first consumer of `agent-infra`, with browser-local experiments plus a chat-first runtime validation surface that keeps durable inspection as a secondary pane.
+- `apps/playground-vite-web`: Vite-based browser consumer scaffold for validating the same client-side contracts outside Next.js.
+- `apps/playground-fastify-server`: Fastify-based server host scaffold for validating platform routes outside Next.js.
 
 ## Consumer boundary
 
-`playground-web` is intentionally treated as the first consumer of `agent-infra`, not the place where orchestration rules live.
+`playground-next-web` is intentionally treated as the first consumer of `agent-infra`, not the place where orchestration rules live.
 The intended flow is:
 
 - `packages/app` owns thread and turn use cases.
@@ -26,7 +28,7 @@ The intended flow is:
 - `packages/contracts` owns serialized HTTP/browser shapes, but not transport-specific codec/runtime helpers.
 - `packages/durable-chat-client` owns reusable browser-side chat transport, normalization, headless service/runtime helpers, and optional inspector recovery primitives.
 - `packages/durable-chat-server` owns reusable consumer bootstrap and route-side DTO/error helpers.
-- `playground-web` calls the app layer and renders the resulting contracts.
+- `playground-next-web` calls the app layer and renders the resulting contracts.
 
 ## Application Feature Layering
 
@@ -98,9 +100,9 @@ In practice, this means:
 
 ### Current target
 
-For `apps/playground-web`, this rule is most relevant to the durable chat surface.
+For `apps/playground-next-web`, this rule is most relevant to the durable chat surface.
 That surface already has enough runtime and boundary complexity to justify feature-local `types / schema / repo / service / runtime / ui` separation inside the app.
-In the current `playground-web` implementation, `components/chat-shell/*` may remain as the presentational UI layer while feature-local `schema / repo / service / runtime / types` hold the application logic.
+In the current `playground-next-web` implementation, `components/chat-shell/*` may remain as the presentational UI layer while feature-local `schema / repo / service / runtime / types` hold the application logic.
 Do not introduce an external state-management library for this feature unless reducer-plus-service extraction has already failed to keep the runtime understandable.
 
 ## Why `thread` instead of `session`
@@ -120,7 +122,7 @@ This keeps the model output and tool execution trace extensible.
 
 - thread / run / message / message_part / tool_invocation / run_event persistence
 - app-layer use cases for thread creation, listing, message reads, and text turns
-- browser-local `playground-web` experiment plus a chat-first runtime validation surface with durable inspection
+- browser-local `playground-next-web` experiment plus a chat-first runtime validation surface with durable inspection
 - initial SSE transport for live run observation, with durable timeline endpoints kept as the source of truth
 - one server-side runtime adapter mainline: `runtime-pi`
 

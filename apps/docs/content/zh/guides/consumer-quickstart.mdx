@@ -148,7 +148,7 @@ const app = createAgentInfraApp({
 - 真正会触发 runtime 执行链的能力，要求 consumer 显式从重入口导入
 - 这样在 Next.js 这类会分析服务端模块图的环境里，更不容易让读路径或首屏路径意外拖入重依赖
 
-如果你想看一个可运行的仓库内参考实现，可以直接看 `apps/playground-web/lib/playground-services.ts`。
+如果你想看一个可运行的仓库内参考实现，可以直接看 `apps/playground-next-web/lib/playground-services.ts`。
 
 ## Consumer 请求流
 

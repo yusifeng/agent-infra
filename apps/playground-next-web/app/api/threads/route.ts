@@ -37,7 +37,7 @@ export async function POST(req: Request) {
       appId: APP_ID,
       title,
       metadata: {
-        source: 'playground-web',
+        source: 'playground-next-web',
         runtime: 'pi'
       }
     });

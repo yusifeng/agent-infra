@@ -5,7 +5,10 @@
   "packageManager": "pnpm@10.11.0",
   "scripts": {
     "build": "pnpm -r build",
-    "dev": "pnpm --filter playground-web dev",
+    "dev": "pnpm --filter playground-next-web dev",
+    "dev:next-web": "pnpm --filter playground-next-web dev",
+    "dev:vite-web": "pnpm --filter playground-vite-web dev",
+    "dev:fastify-server": "pnpm --filter playground-fastify-server dev",
     "dev:docs": "pnpm --filter docs-web dev",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm --filter @agent-infra/core build && pnpm --filter @agent-infra/contracts build && pnpm --filter @agent-infra/durable-chat-client build && pnpm --filter @agent-infra/db build && pnpm --filter @agent-infra/app build && pnpm --filter @agent-infra/durable-chat-server build && pnpm --filter @agent-infra/runtime-pi build && pnpm -r typecheck",

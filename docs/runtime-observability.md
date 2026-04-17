@@ -10,7 +10,7 @@ The goal is to make one run:
 - inspectable while it is executing
 - durable enough to recover from UI disconnects
 
-This document is about platform capability, not just UI behavior. `apps/playground-web` may render these capabilities, but the design target lives in `packages/core`, `packages/contracts`, `packages/db`, `packages/app`, and `packages/runtime-pi`.
+This document is about platform capability, not just UI behavior. `apps/playground-next-web` may render these capabilities, but the design target lives in `packages/core`, `packages/contracts`, `packages/db`, `packages/app`, and `packages/runtime-pi`.
 
 ## Observability Model
 

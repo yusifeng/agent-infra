@@ -1,6 +1,6 @@
 # Playground Web Chat Runtime Architecture
 
-本文只讨论 `apps/playground-web` 里的聊天页运行时 UX 边界，不讨论整个平台的持久化领域建模。
+本文只讨论 `apps/playground-next-web` 里的聊天页运行时 UX 边界，不讨论整个平台的持久化领域建模。
 
 目标很明确：
 
@@ -53,7 +53,7 @@
 
 ## 当前页面边界
 
-`playground-web` 聊天页现在应理解成：
+`playground-next-web` 聊天页现在应理解成：
 
 - 一个产品态 chat shell
 - 一个 durable runtime 的 reference consumer
@@ -175,7 +175,7 @@
 
 ## 当前实现约束
 
-当前 durable chat feature 在 `apps/playground-web` 内部按以下边界落地：
+当前 durable chat feature 在 `apps/playground-next-web` 内部按以下边界落地：
 
 - `schema` 负责 API JSON、SSE payload、storage 值的最小正常化
 - `repo` 负责 fetch / stream / storage 访问，并向 runtime 返回已正常化数据
@@ -197,7 +197,7 @@
 - SSE parsing、JSON normalizer、storage normalizer 等 transport codec 保留在 `durable-chat-client` / `durable-chat-server`
 - 在出现第二个 consumer 或第二种 transport 之前，不为了“更统一”提前扩大 `contracts` 职责
 
-`playground-web` 当前主要保留：
+`playground-next-web` 当前主要保留：
 
 - React hook 封装
 - Next router 与 DOM / viewport 注入

@@ -1,15 +1,15 @@
 # Playground Web Guidelines
 
-This file adds `apps/playground-web`-specific guidance on top of the repository-level [`AGENTS.md`](/Users/david/Documents/github/agent-infra/AGENTS.md).
+This file adds `apps/playground-next-web`-specific guidance on top of the repository-level [`AGENTS.md`](/Users/david/Documents/github/agent-infra/AGENTS.md).
 
 ## Role In The Repository
 
-`playground-web` is the first consumer and validation surface for `agent-infra`.
+`playground-next-web` is the first consumer and validation surface for `agent-infra`.
 It is important, but it is not the product boundary and it must not become the main home for durable runtime or business complexity.
 
 - Use this app to exercise package APIs, runtime behavior, streaming UX, and observability flows.
 - Prefer moving reusable behavior into `packages/*` when it reflects a real platform capability.
-- If a change would lose most of its value when `playground-web` is removed, treat it as lower priority than package-layer work.
+- If a change would lose most of its value when `playground-next-web` is removed, treat it as lower priority than package-layer work.
 
 ## Application Feature Layering
 
@@ -78,7 +78,7 @@ In the current app shape:
 
 For changes in this app, prefer the narrowest useful verification loop:
 
-- `pnpm --filter playground-web typecheck`
-- `pnpm --filter playground-web build`
+- `pnpm --filter playground-next-web typecheck`
+- `pnpm --filter playground-next-web build`
 
 If behavior, UX state transitions, route semantics, or feature boundaries change, update the relevant docs in the same work loop.

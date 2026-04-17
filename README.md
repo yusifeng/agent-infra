@@ -5,7 +5,9 @@ Contract-first durable backend primitives for agent runtimes, plus consumer apps
 ## Structure
 
 - `apps/docs`: deployable official documentation site
-- `apps/playground-web`: first consumer of `agent-infra`, focused on the durable runtime console
+- `apps/playground-next-web`: Next.js-based durable runtime console reference consumer
+- `apps/playground-vite-web`: Vite-based browser consumer scaffold for non-Next validation
+- `apps/playground-fastify-server`: Fastify-based server host scaffold for non-Next validation
 - `packages/app`: application/use-case boundary for creating threads and running durable turns
 - `packages/core`: domain types + repository interfaces
 - `packages/contracts`: serialized request/response contracts for browser and HTTP consumers
@@ -16,7 +18,7 @@ Contract-first durable backend primitives for agent runtimes, plus consumer apps
 
 ## Quick start
 
-The default local app experience is the durable chat console in `playground-web`.
+The default local app experience is the durable chat console in `playground-next-web`.
 It uses:
 
 - `/new` for an empty chat that has not created a durable thread yet
@@ -24,11 +26,11 @@ It uses:
 
 The public docs site lives in `apps/docs` and is organized as locale-aware docs routes such as `/en/...` and `/zh/...`.
 
-Environment file should be placed under `apps/playground-web` (Next.js app scope).
+Environment file should be placed under `apps/playground-next-web` (Next.js app scope).
 
 ```bash
 pnpm install
-cp apps/playground-web/.env.example apps/playground-web/.env.local
+cp apps/playground-next-web/.env.example apps/playground-next-web/.env.local
 pnpm dev
 ```
 
@@ -61,7 +63,7 @@ pnpm dev:docs
 
 - `apps/docs` contains the deployable official documentation site.
 - `docs/` keeps internal notes, roadmap material, and architecture working docs.
-- `apps/playground-web` remains the first consumer and experiment harness, not the documentation source of truth.
+- `apps/playground-next-web` remains the first consumer and experiment harness, not the documentation source of truth.
 
 ### PostgreSQL migration flow
 
