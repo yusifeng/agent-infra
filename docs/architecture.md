@@ -10,7 +10,9 @@
 - `packages/app`: narrow application boundary that orchestrates durable thread and turn flows.
 - `packages/core`: domain types and repository interfaces only.
 - `packages/contracts`: serialized request/response contracts for transport consumers.
+- `packages/durable-chat-client`: browser-side headless durable chat transport, schema, and state helpers.
 - `packages/db`: Drizzle schema plus SQLite / PostgreSQL repository implementations.
+- `packages/durable-chat-server`: reusable server bootstrap plus route transport helpers for chat consumers.
 - `packages/runtime-pi`: pi-agent-core adapter that translates runtime events into durable records.
 - `apps/playground-web`: first consumer of `agent-infra`, with browser-local experiments plus a chat-first runtime validation surface that keeps durable inspection as a secondary pane.
 
@@ -22,6 +24,8 @@ The intended flow is:
 - `packages/app` owns thread and turn use cases.
 - `packages/runtime-pi` owns runtime execution and event persistence.
 - `packages/contracts` owns serialized HTTP/browser shapes.
+- `packages/durable-chat-client` owns reusable browser-side chat transport, normalization, and headless state helpers.
+- `packages/durable-chat-server` owns reusable consumer bootstrap and route-side DTO/error helpers.
 - `playground-web` calls the app layer and renders the resulting contracts.
 
 ## Application Feature Layering

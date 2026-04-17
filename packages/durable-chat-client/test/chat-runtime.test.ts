@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   applyRunStateToTimeline,
-  buildOptimisticUserMessage,
   buildAssistantMessageFromSnapshot,
+  buildOptimisticUserMessage,
   chooseInitialRunId,
   getChatPhaseForAssistantSnapshot,
   normalizeRuntimeMeta,
@@ -12,7 +12,7 @@ import {
   resolvePostReconcileChatPhase,
   resolveSettledChatPhase,
   upsertMessage
-} from './chat-runtime';
+} from '../src/service/chat-runtime';
 
 function createRun(id: string, createdAt: string): RunDto {
   return {
@@ -44,19 +44,19 @@ function createMessage(id: string, seq: number, runId: string | null): MessageDt
   };
 }
 
-describe('chat-runtime service', () => {
+describe('durable-chat-client service', () => {
   it('normalizeRuntimeMeta fills defaults from model options', () => {
-  const meta = normalizeRuntimeMeta({
-    modelOptions: [
-      {
-        key: 'openai:gpt-4o-mini',
-        provider: 'openai',
-        model: 'gpt-4o-mini',
-        label: 'OpenAI',
-        description: 'default'
-      }
-    ]
-  });
+    const meta = normalizeRuntimeMeta({
+      modelOptions: [
+        {
+          key: 'openai:gpt-4o-mini',
+          provider: 'openai',
+          model: 'gpt-4o-mini',
+          label: 'OpenAI',
+          description: 'default'
+        }
+      ]
+    });
 
     expect(meta.runtimeConfigured).toBe(false);
     expect(meta.runtimeProvider).toBe('openai');

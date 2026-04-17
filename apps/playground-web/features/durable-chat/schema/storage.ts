@@ -1,8 +1,1 @@
-export function normalizeStoredRunId(value: unknown) {
-  if (typeof value !== 'string') {
-    return null;
-  }
-
-  const normalized = value.trim();
-  return normalized ? normalized : null;
-}
+export { normalizeStoredRunId } from '@agent-infra/durable-chat-client';

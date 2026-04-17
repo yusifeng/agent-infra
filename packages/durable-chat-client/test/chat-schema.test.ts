@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizeRuntimeMetaResponse, normalizeThreadMessagesResponse, normalizeThreadRunsResponse } from './api';
-import { normalizeRunStreamEvent } from './run-stream';
-import { normalizeStoredRunId } from './storage';
+import { normalizeRuntimeMetaResponse, normalizeThreadMessagesResponse, normalizeThreadRunsResponse } from '../src/schema/api';
+import { normalizeRunStreamEvent } from '../src/schema/run-stream';
+import { normalizeStoredRunId } from '../src/schema/storage';
 
-describe('durable-chat schema', () => {
+describe('durable-chat-client schema', () => {
   it('normalizes storage values to non-empty strings only', () => {
     expect(normalizeStoredRunId(' run-1 ')).toBe('run-1');
     expect(normalizeStoredRunId('   ')).toBeNull();

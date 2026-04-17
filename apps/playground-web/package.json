@@ -14,6 +14,7 @@
     "@agent-infra/app": "workspace:*",
     "@agent-infra/contracts": "workspace:*",
     "@agent-infra/core": "workspace:*",
+    "@agent-infra/durable-chat-client": "workspace:*",
     "@agent-infra/db": "workspace:*",
     "@agent-infra/durable-chat-server": "workspace:*",
     "@agent-infra/runtime-pi": "workspace:*",
