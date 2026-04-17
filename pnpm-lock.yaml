@@ -60,6 +60,9 @@ importers:
       '@agent-infra/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@agent-infra/durable-chat-server':
+        specifier: workspace:*
+        version: link:../../packages/durable-chat-server
       '@agent-infra/runtime-pi':
         specifier: workspace:*
         version: link:../../packages/runtime-pi
@@ -155,6 +158,19 @@ importers:
       drizzle-kit:
         specifier: ^0.31.0
         version: 0.31.10
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.4(@types/debug@4.1.13)(@types/node@22.19.17)(jiti@1.21.7)(tsx@4.21.0)(yaml@2.8.3)
+
+  packages/durable-chat-server:
+    dependencies:
+      '@agent-infra/app':
+        specifier: workspace:*
+        version: link:../app
+      '@agent-infra/db':
+        specifier: workspace:*
+        version: link:../db
+    devDependencies:
       vitest:
         specifier: ^3.2.4
         version: 3.2.4(@types/debug@4.1.13)(@types/node@22.19.17)(jiti@1.21.7)(tsx@4.21.0)(yaml@2.8.3)
