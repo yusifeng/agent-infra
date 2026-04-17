@@ -48,6 +48,21 @@ importers:
 
   apps/playground-fastify-server:
     dependencies:
+      '@agent-infra/app':
+        specifier: workspace:*
+        version: link:../../packages/app
+      '@agent-infra/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@agent-infra/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@agent-infra/durable-chat-server':
+        specifier: workspace:*
+        version: link:../../packages/durable-chat-server
+      '@agent-infra/runtime-pi':
+        specifier: workspace:*
+        version: link:../../packages/runtime-pi
       '@fastify/cors':
         specifier: ^11.0.0
         version: 11.2.0
