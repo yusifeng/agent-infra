@@ -1,5 +1,6 @@
 'use client';
 
+import { createInitialRunInspectorState } from '@agent-infra/durable-chat-client';
 import type { RunDto, RunTimelineResponseDto } from '@agent-infra/contracts';
 import { useReducer } from 'react';
 
@@ -20,19 +21,6 @@ function runInspectorReducer(state: RunInspectorState, action: RunInspectorActio
   return {
     ...state,
     ...action
-  };
-}
-
-function createInitialRunInspectorState(): RunInspectorState {
-  return {
-    logOpen: false,
-    selectedRunId: null,
-    recentRuns: [],
-    recentRunsLoading: false,
-    recentRunsError: null,
-    timeline: null,
-    timelineLoading: false,
-    timelineError: null
   };
 }
 
