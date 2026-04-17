@@ -1,14 +1,14 @@
 import type { MessageDto, RunDto, RunTimelineResponseDto, RuntimePiMetaDto, ThreadDto } from '@agent-infra/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { runSendMessageFlow } from './send-message-flow';
-import type { LiveAssistantDraft } from '../types/live-assistant-draft';
+import { runSendMessageFlow } from '../src/runtime/send-message-flow';
+import type { LiveAssistantDraft } from '../src/types/live-assistant-draft';
 
 const { openThreadRunStreamMock } = vi.hoisted(() => ({
   openThreadRunStreamMock: vi.fn()
 }));
 
-vi.mock('../repo/chat-api', () => ({
+vi.mock('../src/repo/chat-api.js', () => ({
   openThreadRunStream: openThreadRunStreamMock
 }));
 

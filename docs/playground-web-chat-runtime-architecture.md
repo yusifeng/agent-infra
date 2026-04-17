@@ -183,5 +183,19 @@
 - `runtime` 负责 router/history、副作用编排、abort controller、viewport 行为
 - `components/chat-shell/*` 继续作为渲染层，不直接解析未知输入，也不直接持有复杂 fetch/stream 状态机
 
+其中已被证明可复用的 browser-side 能力，当前已上移到 `@agent-infra/durable-chat-client`：
+
+- transport / schema normalizer
+- chat-first service helper
+- send / load / reconcile / session runtime flow
+- optional inspector flow / state / persistence helper
+
+`playground-web` 当前主要保留：
+
+- React hook 封装
+- Next router 与 DOM / viewport 注入
+- UI shell 与文案
+- demo/runtime 组合策略
+
 当前默认不引入外部状态管理库。
 优先通过 feature-local reducer、pure service 提取和 controller 拆分来控制状态复杂度。
