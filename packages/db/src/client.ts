@@ -5,6 +5,22 @@ import { drizzle as drizzleSqlite } from 'drizzle-orm/better-sqlite3';
 import { drizzle as drizzleLibsql } from 'drizzle-orm/libsql/http';
 import { drizzle as drizzlePostgres } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
+import type { MessageRepository, RunEventRepository, RunRepository, ThreadRepository, ToolInvocationRepository } from '@agent-infra/core';
+
+import {
+  DrizzleMessageRepository,
+  DrizzleRunEventRepository,
+  DrizzleRunRepository,
+  DrizzleThreadRepository,
+  DrizzleToolInvocationRepository
+} from './repositories.js';
+import {
+  SqliteMessageRepository,
+  SqliteRunEventRepository,
+  SqliteRunRepository,
+  SqliteThreadRepository,
+  SqliteToolInvocationRepository
+} from './repositories-sqlite.js';
 import { SQLITE_SCHEMA_STATEMENTS } from './schema-sqlite.js';
 
 export type DbMode = 'sqlite' | 'turso' | 'postgres';
@@ -15,6 +31,14 @@ export interface DbConfig {
   connectionString: string;
   initialize: () => Promise<void>;
   sqlitePath?: string;
+}
+
+export interface AgentInfraRepositoryBundle {
+  threadRepo: ThreadRepository;
+  runRepo: RunRepository;
+  messageRepo: MessageRepository;
+  toolRepo: ToolInvocationRepository;
+  runEventRepo: RunEventRepository;
 }
 
 const sqliteTransactionQueues = new Map<string, Promise<void>>();
@@ -69,6 +93,31 @@ export async function withDbTransaction<T>(config: DbConfig, operation: (db: any
   }
 
   return config.db.transaction(async (tx: any) => operation(tx));
+}
+
+export function createAgentInfraRepositories(mode: DbMode, db: any): AgentInfraRepositoryBundle {
+  if (mode === 'sqlite' || mode === 'turso') {
+    return {
+      threadRepo: new SqliteThreadRepository(db),
+      runRepo: new SqliteRunRepository(db),
+      messageRepo: new SqliteMessageRepository(db),
+      toolRepo: new SqliteToolInvocationRepository(db),
+      runEventRepo: new SqliteRunEventRepository(db)
+    };
+  }
+
+  return {
+    threadRepo: new DrizzleThreadRepository(db),
+    runRepo: new DrizzleRunRepository(db),
+    messageRepo: new DrizzleMessageRepository(db),
+    toolRepo: new DrizzleToolInvocationRepository(db),
+    runEventRepo: new DrizzleRunEventRepository(db)
+  };
+}
+
+export function createAgentInfraTransaction(config: DbConfig) {
+  return async <T>(operation: (repositories: AgentInfraRepositoryBundle) => Promise<T>): Promise<T> =>
+    withDbTransaction(config, async (tx: any) => operation(createAgentInfraRepositories(config.mode, tx)));
 }
 
 function ensureSqliteSchema(filePath: string) {

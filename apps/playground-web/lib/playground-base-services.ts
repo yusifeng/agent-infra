@@ -8,19 +8,10 @@ import {
   type AgentInfraRuntimePort
 } from '@agent-infra/app';
 import {
+  createAgentInfraRepositories,
+  createAgentInfraTransaction,
   createDbConfigFromEnv,
-  DrizzleMessageRepository,
-  DrizzleRunEventRepository,
-  DrizzleRunRepository,
-  DrizzleThreadRepository,
-  DrizzleToolInvocationRepository,
-  SqliteMessageRepository,
-  SqliteRunEventRepository,
-  SqliteRunRepository,
-  SqliteThreadRepository,
-  SqliteToolInvocationRepository,
-  type DbConfig,
-  withDbTransaction
+  type DbConfig
 } from '@agent-infra/db';
 
 import type { PlaygroundDbInfo } from './playground-meta';
@@ -38,29 +29,10 @@ export type PlaygroundAppServices = PlaygroundBaseServices & {
 
 let playgroundBaseServicesPromise: Promise<PlaygroundBaseServices> | null = null;
 
-function createRepositories(dbConfig: DbConfig, db: any): AgentInfraAppRepositories {
-  if (dbConfig.mode === 'sqlite' || dbConfig.mode === 'turso') {
-    return {
-      threadRepo: new SqliteThreadRepository(db),
-      runRepo: new SqliteRunRepository(db),
-      messageRepo: new SqliteMessageRepository(db),
-      toolRepo: new SqliteToolInvocationRepository(db),
-      runEventRepo: new SqliteRunEventRepository(db)
-    };
-  }
-
-  return {
-    threadRepo: new DrizzleThreadRepository(db),
-    runRepo: new DrizzleRunRepository(db),
-    messageRepo: new DrizzleMessageRepository(db),
-    toolRepo: new DrizzleToolInvocationRepository(db),
-    runEventRepo: new DrizzleRunEventRepository(db)
-  };
-}
-
 async function buildPlaygroundBaseServices(): Promise<PlaygroundBaseServices> {
   const dbConfig = createDbConfigFromEnv();
   await dbConfig.initialize();
+  const repos = createAgentInfraRepositories(dbConfig.mode, dbConfig.db);
 
   return {
     dbConfig,
@@ -68,12 +40,8 @@ async function buildPlaygroundBaseServices(): Promise<PlaygroundBaseServices> {
       mode: dbConfig.mode,
       connectionString: dbConfig.connectionString
     },
-    repos: createRepositories(dbConfig, dbConfig.db),
-    transaction: async (operation) =>
-      withDbTransaction(dbConfig, async (tx: any) => {
-        const transactionalRepos = createRepositories(dbConfig, tx);
-        return operation(transactionalRepos);
-      })
+    repos,
+    transaction: createAgentInfraTransaction(dbConfig)
   };
 }
 
