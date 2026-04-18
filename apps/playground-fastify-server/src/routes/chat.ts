@@ -1,4 +1,6 @@
+import type { AgentInfraApp } from '@agent-infra/app';
 import type { RunStreamEventDto, RunStreamFailedEventDto, RuntimePiMetaDto } from '@agent-infra/contracts';
+import type { AgentInfraRepositoryBundle } from '@agent-infra/db';
 import {
   buildCreateThreadErrorResponse,
   buildCreateThreadResponse,
@@ -20,12 +22,45 @@ import {
   parseRunTextTurnInput,
   toRunDto
 } from '@agent-infra/durable-chat-server';
+import type { RuntimePiRuntime } from '@agent-infra/runtime-pi/types';
 import type { FastifyInstance } from 'fastify';
 
 import { APP_ID } from '../constants.js';
 import { getPlaygroundAppServices } from '../playground-app-services.js';
 import { getPlaygroundDbInfo, getPlaygroundMeta } from '../playground-meta.js';
 import { getPlaygroundRuntimeServices } from '../playground-services.js';
+
+type ChatAppServices = {
+  app: AgentInfraApp;
+};
+
+type ChatRuntimeServices = ChatAppServices & {
+  repos: AgentInfraRepositoryBundle;
+  durableRuntime: RuntimePiRuntime;
+};
+
+type ChatRouteMeta = ReturnType<typeof getPlaygroundMeta>;
+
+export type ChatRouteDependencies = {
+  getAppServices?: () => Promise<ChatAppServices>;
+  getRuntimeServices?: () => Promise<ChatRuntimeServices>;
+  getRuntimeMeta?: () => ChatRouteMeta;
+};
+
+function buildUnavailableMetaFallback(): ChatRouteMeta {
+  return {
+    configured: false,
+    provider: 'deepseek',
+    model: 'deepseek-chat',
+    defaultModelKey: null,
+    modelOptions: [],
+    configError: null,
+    dbInfo: {
+      mode: 'unavailable',
+      connectionString: 'unavailable'
+    }
+  };
+}
 
 function writeSseEvent(
   reply: { raw: NodeJS.WritableStream & { destroyed?: boolean; writableEnded?: boolean } },
@@ -45,10 +80,14 @@ function writeSseEvent(
   }
 }
 
-export async function registerChatRoutes(app: FastifyInstance) {
+export async function registerChatRoutes(app: FastifyInstance, dependencies: ChatRouteDependencies = {}) {
+  const getAppServices = dependencies.getAppServices ?? getPlaygroundAppServices;
+  const getRuntimeServices = dependencies.getRuntimeServices ?? getPlaygroundRuntimeServices;
+  const getRuntimeMeta = dependencies.getRuntimeMeta ?? (() => getPlaygroundMeta({}, getPlaygroundDbInfo()));
+
   app.get('/api/meta', async (_request, reply) => {
     try {
-      const runtime = getPlaygroundMeta({}, getPlaygroundDbInfo());
+      const runtime = getRuntimeMeta();
 
       const response: RuntimePiMetaDto = buildRuntimeMetaResponse({
         dbMode: runtime.dbInfo.mode,
@@ -63,7 +102,7 @@ export async function registerChatRoutes(app: FastifyInstance) {
 
       return reply.send(response);
     } catch (error) {
-      const runtime = getPlaygroundMeta({}, { mode: 'unavailable', connectionString: 'unavailable' });
+      const runtime = buildUnavailableMetaFallback();
 
       const response: RuntimePiMetaDto = buildUnavailableRuntimeMetaResponse(
         {
@@ -84,7 +123,7 @@ export async function registerChatRoutes(app: FastifyInstance) {
 
   app.get('/api/threads', async (_request, reply) => {
     try {
-      const { app: services } = await getPlaygroundAppServices();
+      const { app: services } = await getAppServices();
       const threads = await services.threads.list({ appId: APP_ID });
 
       return reply.send(buildThreadsResponse(threads));
@@ -97,7 +136,7 @@ export async function registerChatRoutes(app: FastifyInstance) {
     const title = parseCreateThreadTitle(request.body);
 
     try {
-      const { app: services } = await getPlaygroundAppServices();
+      const { app: services } = await getAppServices();
       const thread = await services.threads.create({
         appId: APP_ID,
         title,
@@ -115,7 +154,7 @@ export async function registerChatRoutes(app: FastifyInstance) {
 
   app.get<{ Params: { threadId: string } }>('/api/threads/:threadId/messages', async (request, reply) => {
     try {
-      const { app: services } = await getPlaygroundAppServices();
+      const { app: services } = await getAppServices();
       const messages = await services.threads.getMessages({ threadId: request.params.threadId });
 
       return reply.send(buildThreadMessagesResponse(messages));
@@ -129,7 +168,7 @@ export async function registerChatRoutes(app: FastifyInstance) {
     let started;
 
     try {
-      const { app: services } = await getPlaygroundRuntimeServices();
+      const { app: services } = await getRuntimeServices();
       started = await services.turns.startText({
         threadId: (request.params as { threadId: string }).threadId,
         text: turnInput.text,
@@ -142,7 +181,7 @@ export async function registerChatRoutes(app: FastifyInstance) {
 
     const threadId = (request.params as { threadId: string }).threadId;
     const runId = started.run.id;
-    const services = await getPlaygroundRuntimeServices();
+    const services = await getRuntimeServices();
     const runtimeInput = {
       threadId,
       runId,

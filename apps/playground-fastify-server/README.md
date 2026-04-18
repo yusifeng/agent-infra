@@ -14,6 +14,7 @@ Current purpose:
 - `pnpm --filter playground-fastify-server dev`
 - `pnpm --filter playground-fastify-server build`
 - `pnpm --filter playground-fastify-server typecheck`
+- `pnpm --filter playground-fastify-server test`
 
 ## Env loading
 
