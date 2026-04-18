@@ -40,8 +40,14 @@ Verify that `apps/playground-vite-web` and `apps/playground-fastify-server` form
   - `/chat/:threadId` persistence after refresh
   - creating a second thread from `新聊天`
   - sidebar thread switching between the first and second transcript
+- `pnpm --filter playground-vite-web smoke:phase1:production` now validates a production-shaped startup path by:
+  - building the required workspace packages and both phase-1 apps
+  - starting `playground-fastify-server` via `node dist/server.js`
+  - starting `playground-vite-web` via `vite preview`
+  - proving the main chat loop still works against relative `/api` paths under preview
 - The scripted smoke path now passes in the current workspace with a temporary sqlite DB and reaches `run.completed` with a persisted assistant reply.
 - The browser acceptance path now also passes in the current workspace, after changing the Vite router host to keep `DurableChatConsole` mounted across `/new -> /chat/:threadId`.
+- The production-shaped smoke path now also passes in the current workspace, closing the gap between dev-only validation and a closer-to-deploy startup shape.
 - In the current local environment, `playground-next-web/.env` points at Turso, but direct Turso access can still fail with a TLS connection error before SQL executes.
 - The phase-1 main chat loop itself has been validated with a local `SQLITE_PATH` override:
   - thread creation succeeded

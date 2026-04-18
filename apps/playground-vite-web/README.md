@@ -14,6 +14,7 @@ Current purpose:
 - `pnpm --filter playground-vite-web build`
 - `pnpm --filter playground-vite-web typecheck`
 - `pnpm --filter playground-vite-web smoke:phase1`
+- `pnpm --filter playground-vite-web smoke:phase1:production`
 - `pnpm --filter playground-vite-web acceptance:phase1`
 
 ## Current status
@@ -24,11 +25,13 @@ The app currently provides:
 - Tailwind CSS v4
 - shadcn/ui initialization
 - a local `/api -> http://localhost:4000` proxy target, overridable via `VITE_API_PROXY_TARGET`
+- the same `/api` proxy target also applies under `vite preview`, so production-shaped smoke can keep the client on relative `/api` paths
 - `/new` and `/chat/:threadId` client routes
 - app-local durable chat runtime wired to `@agent-infra/durable-chat-client`
 - a single route host that keeps `DurableChatConsole` mounted across `/new` and `/chat/:threadId`, so the first-send handoff preserves in-flight chat state
 - sidebar + transcript + sticky composer aligned to `playground-next-web`
 - a repeatable phase-1 smoke script that boots Fastify from source on a temporary sqlite DB, runs Vite with the matching proxy target, and verifies the main chat API loop
+- a production-shaped phase-1 smoke script that first builds the required workspace packages, then runs `playground-fastify-server start` plus `vite preview` against the same temporary sqlite-backed main chat loop
 - a browser-level phase-1 acceptance script that drives `/new -> send -> /chat/:threadId -> refresh -> switch thread` against the same temporary sqlite-backed harness
 
 ## Browser acceptance

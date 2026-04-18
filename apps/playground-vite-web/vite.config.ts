@@ -22,6 +22,14 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true
         }
       }
+    },
+    preview: {
+      proxy: {
+        '/api': {
+          target: apiProxyTarget,
+          changeOrigin: true
+        }
+      }
     }
   };
 });

@@ -84,6 +84,43 @@ function spawnWorkspaceProcess(name, args, env) {
   return handle;
 }
 
+export async function runWorkspaceCommand(name, args, env, options = {}) {
+  const handle = spawnWorkspaceProcess(name, args, env);
+  const timeoutMs = options.timeoutMs ?? 600000;
+  let timeoutHandle = null;
+
+  try {
+    await Promise.race([
+      new Promise((resolve, reject) => {
+        handle.child.once('error', reject);
+        handle.child.once('exit', (code, signal) => {
+          if (code === 0) {
+            resolve(undefined);
+            return;
+          }
+
+          reject(
+            new Error(
+              `${name} exited with ${code ?? 'null'}${signal ? ` (signal: ${signal})` : ''}\n\n${describeProcessLogs(handle)}`
+            )
+          );
+        });
+      }),
+      new Promise((_, reject) => {
+        timeoutHandle = setTimeout(() => {
+          reject(new Error(`${name} timed out after ${timeoutMs}ms\n\n${describeProcessLogs(handle)}`));
+        }, timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+
+    await stopProcess(handle);
+  }
+}
+
 async function stopProcess(handle) {
   if (handle.child.exitCode !== null || handle.child.signalCode !== null) {
     return;
@@ -260,6 +297,8 @@ export async function runWithPhase1Harness(callback, options = {}) {
   const timeoutMs =
     options.timeoutMs ??
     Number(process.env.PLAYGROUND_PHASE1_TIMEOUT_MS ?? process.env.PLAYGROUND_PHASE1_SMOKE_TIMEOUT_MS ?? 90000);
+  const fastifyMode = options.fastifyMode ?? 'dev';
+  const viteMode = options.viteMode ?? 'dev';
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'playground-phase1-smoke-'));
   const fastifyPort = await getFreePort();
   const vitePort = await getFreePort();
@@ -274,9 +313,13 @@ export async function runWithPhase1Harness(callback, options = {}) {
   console.log(`[phase1-smoke] SQLite ${sqlitePath}`);
 
   const runHarnessBody = async () => {
+    const fastifyArgs =
+      fastifyMode === 'start'
+        ? ['--filter', 'playground-fastify-server', 'start']
+        : ['--filter', 'playground-fastify-server', 'exec', 'tsx', 'src/server.ts'];
     const fastifyProcess = spawnWorkspaceProcess(
       'playground-fastify-server',
-      ['--filter', 'playground-fastify-server', 'exec', 'tsx', 'src/server.ts'],
+      fastifyArgs,
       {
         ...process.env,
         HOST: '127.0.0.1',
@@ -291,19 +334,13 @@ export async function runWithPhase1Harness(callback, options = {}) {
 
     await waitForJson(`${fastifyBaseUrl}/health`, (payload) => payload?.status === 'ok');
 
+    const viteArgs =
+      viteMode === 'preview'
+        ? ['--filter', 'playground-vite-web', 'exec', 'vite', 'preview', '--host', '127.0.0.1', '--port', String(vitePort), '--strictPort']
+        : ['--filter', 'playground-vite-web', 'exec', 'vite', '--host', '127.0.0.1', '--port', String(vitePort), '--strictPort'];
     const viteProcess = spawnWorkspaceProcess(
       'playground-vite-web',
-      [
-        '--filter',
-        'playground-vite-web',
-        'exec',
-        'vite',
-        '--host',
-        '127.0.0.1',
-        '--port',
-        String(vitePort),
-        '--strictPort'
-      ],
+      viteArgs,
       {
         ...process.env,
         VITE_API_PROXY_TARGET: fastifyBaseUrl

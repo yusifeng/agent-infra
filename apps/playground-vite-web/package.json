@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "typecheck": "tsc -b --pretty false",
     "smoke:phase1": "node scripts/phase1-smoke.mjs",
+    "smoke:phase1:production": "node scripts/phase1-production-smoke.mjs",
     "acceptance:phase1": "node scripts/phase1-browser-acceptance.mjs"
   },
   "dependencies": {
