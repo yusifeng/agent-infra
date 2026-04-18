@@ -11,8 +11,8 @@ import {
   ThreadNotFoundError,
   TurnPersistenceError,
   TurnProjectionError
-} from './errors';
-import type { AgentInfraApp, AgentInfraAppDependencies, AgentInfraAppRepositories, CreateThreadInput, RunTextTurnInput, RuntimeSelection } from './types';
+} from './errors.js';
+import type { AgentInfraApp, AgentInfraAppDependencies, AgentInfraAppRepositories, CreateThreadInput, RunTextTurnInput, RuntimeSelection } from './types.js';
 
 function toErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message) {

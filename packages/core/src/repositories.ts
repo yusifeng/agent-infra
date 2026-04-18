@@ -1,4 +1,4 @@
-import type { Artifact, Message, MessagePart, Run, RunEvent, Thread, ToolInvocation } from './types';
+import type { Artifact, Message, MessagePart, Run, RunEvent, Thread, ToolInvocation } from './types.js';
 
 export interface ThreadRepository {
   create(input: Omit<Thread, 'createdAt' | 'updatedAt'>): Promise<Thread>;
