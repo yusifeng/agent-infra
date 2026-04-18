@@ -4,12 +4,16 @@ import { InvalidTurnTextError } from '@agent-infra/app';
 
 import { toRunDto } from '../src/api-dto';
 import {
+  buildRunTextTurnResponse,
+  buildRunTimelineResponse,
   buildRunReadyEvent,
   buildRunTerminalEvent,
   buildThreadMessagesResponse,
+  buildThreadRunsResponse,
   buildThreadsResponse,
   encodeSseEvent,
   parseCreateThreadTitle,
+  parseThreadRunsLimit,
   parseRunTextTurnInput
 } from '../src/chat-route-helpers';
 import { getRouteErrorMessage, getRouteErrorStatus } from '../src/route-errors';
@@ -77,6 +81,11 @@ describe('durable chat server route helpers', () => {
       provider: undefined,
       model: undefined
     });
+
+    expect(parseThreadRunsLimit(null)).toBe(8);
+    expect(parseThreadRunsLimit('0')).toBe(8);
+    expect(parseThreadRunsLimit('2')).toBe(2);
+    expect(parseThreadRunsLimit('50')).toBe(20);
   });
 
   it('builds thread and message dto responses', () => {
@@ -156,6 +165,40 @@ describe('durable chat server route helpers', () => {
               createdAt: '2026-01-01T00:00:00.000Z'
             }
           ]
+        }
+      ]
+    });
+
+    expect(
+      buildThreadRunsResponse([
+        {
+          id: 'run-1',
+          threadId: 'thread-1',
+          triggerMessageId: null,
+          provider: 'deepseek',
+          model: 'deepseek-chat',
+          status: 'completed',
+          usage: null,
+          error: null,
+          startedAt: new Date('2026-01-01T00:00:00.000Z'),
+          finishedAt: new Date('2026-01-01T00:00:01.000Z'),
+          createdAt: new Date('2026-01-01T00:00:00.000Z')
+        }
+      ])
+    ).toEqual({
+      runs: [
+        {
+          id: 'run-1',
+          threadId: 'thread-1',
+          triggerMessageId: null,
+          provider: 'deepseek',
+          model: 'deepseek-chat',
+          status: 'completed',
+          usage: null,
+          error: null,
+          startedAt: '2026-01-01T00:00:00.000Z',
+          finishedAt: '2026-01-01T00:00:01.000Z',
+          createdAt: '2026-01-01T00:00:00.000Z'
         }
       ]
     });
@@ -246,6 +289,184 @@ describe('durable chat server route helpers', () => {
       type: 'run.failed',
       runId: 'run-1',
       error: 'boom'
+    });
+  });
+
+  it('builds run and timeline response dto payloads', () => {
+    expect(
+      buildRunTextTurnResponse({
+        run: {
+          id: 'run-1',
+          threadId: 'thread-1',
+          triggerMessageId: 'message-1',
+          provider: 'deepseek',
+          model: 'deepseek-chat',
+          status: 'completed',
+          usage: null,
+          error: null,
+          startedAt: new Date('2026-01-01T00:00:00.000Z'),
+          finishedAt: new Date('2026-01-01T00:00:01.000Z'),
+          createdAt: new Date('2026-01-01T00:00:00.000Z')
+        },
+        messages: [
+          {
+            id: 'message-1',
+            threadId: 'thread-1',
+            runId: 'run-1',
+            role: 'assistant',
+            seq: 2,
+            status: 'completed',
+            metadata: null,
+            createdAt: new Date('2026-01-01T00:00:01.000Z'),
+            parts: [
+              {
+                id: 'part-1',
+                messageId: 'message-1',
+                partIndex: 0,
+                type: 'text',
+                textValue: 'ok',
+                jsonValue: null,
+                createdAt: new Date('2026-01-01T00:00:01.000Z')
+              }
+            ]
+          }
+        ],
+        debug: {
+          runEventCount: 1,
+          toolInvocationCount: 0
+        },
+        executionError: undefined
+      })
+    ).toEqual({
+      run: {
+        id: 'run-1',
+        threadId: 'thread-1',
+        triggerMessageId: 'message-1',
+        provider: 'deepseek',
+        model: 'deepseek-chat',
+        status: 'completed',
+        usage: null,
+        error: null,
+        startedAt: '2026-01-01T00:00:00.000Z',
+        finishedAt: '2026-01-01T00:00:01.000Z',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      },
+      messages: [
+        {
+          id: 'message-1',
+          threadId: 'thread-1',
+          runId: 'run-1',
+          role: 'assistant',
+          seq: 2,
+          status: 'completed',
+          metadata: null,
+          createdAt: '2026-01-01T00:00:01.000Z',
+          parts: [
+            {
+              id: 'part-1',
+              messageId: 'message-1',
+              partIndex: 0,
+              type: 'text',
+              textValue: 'ok',
+              jsonValue: null,
+              createdAt: '2026-01-01T00:00:01.000Z'
+            }
+          ]
+        }
+      ],
+      debug: {
+        runEventCount: 1,
+        toolInvocationCount: 0
+      },
+      error: undefined
+    });
+
+    expect(
+      buildRunTimelineResponse({
+        run: {
+          id: 'run-1',
+          threadId: 'thread-1',
+          triggerMessageId: 'message-1',
+          provider: 'deepseek',
+          model: 'deepseek-chat',
+          status: 'completed',
+          usage: null,
+          error: null,
+          startedAt: new Date('2026-01-01T00:00:00.000Z'),
+          finishedAt: new Date('2026-01-01T00:00:01.000Z'),
+          createdAt: new Date('2026-01-01T00:00:00.000Z')
+        },
+        runEvents: [
+          {
+            id: 'event-1',
+            threadId: 'thread-1',
+            runId: 'run-1',
+            seq: 1,
+            type: 'agent_start',
+            payload: { model: 'deepseek-chat' },
+            createdAt: new Date('2026-01-01T00:00:00.000Z')
+          }
+        ],
+        toolInvocations: [
+          {
+            id: 'tool-1',
+            threadId: 'thread-1',
+            runId: 'run-1',
+            messageId: 'message-1',
+            toolName: 'echo',
+            toolCallId: 'call-1',
+            status: 'completed',
+            input: { text: 'ok' },
+            output: { text: 'ok' },
+            error: null,
+            startedAt: new Date('2026-01-01T00:00:00.000Z'),
+            finishedAt: new Date('2026-01-01T00:00:01.000Z'),
+            createdAt: new Date('2026-01-01T00:00:00.000Z')
+          }
+        ]
+      })
+    ).toEqual({
+      run: {
+        id: 'run-1',
+        threadId: 'thread-1',
+        triggerMessageId: 'message-1',
+        provider: 'deepseek',
+        model: 'deepseek-chat',
+        status: 'completed',
+        usage: null,
+        error: null,
+        startedAt: '2026-01-01T00:00:00.000Z',
+        finishedAt: '2026-01-01T00:00:01.000Z',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      },
+      runEvents: [
+        {
+          id: 'event-1',
+          threadId: 'thread-1',
+          runId: 'run-1',
+          seq: 1,
+          type: 'agent_start',
+          payload: { model: 'deepseek-chat' },
+          createdAt: '2026-01-01T00:00:00.000Z'
+        }
+      ],
+      toolInvocations: [
+        {
+          id: 'tool-1',
+          threadId: 'thread-1',
+          runId: 'run-1',
+          messageId: 'message-1',
+          toolName: 'echo',
+          toolCallId: 'call-1',
+          status: 'completed',
+          input: { text: 'ok' },
+          output: { text: 'ok' },
+          error: null,
+          startedAt: '2026-01-01T00:00:00.000Z',
+          finishedAt: '2026-01-01T00:00:01.000Z',
+          createdAt: '2026-01-01T00:00:00.000Z'
+        }
+      ]
     });
   });
 });

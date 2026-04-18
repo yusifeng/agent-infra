@@ -1,6 +1,4 @@
-import type { RunTimelineResponseDto } from '@agent-infra/contracts';
-
-import { getRouteErrorMessage, getRouteErrorStatus, toRunDto, toRunEventDto, toToolInvocationDto } from '@agent-infra/durable-chat-server';
+import { buildRunTimelineErrorResponse, buildRunTimelineResponse, getRouteErrorStatus } from '@agent-infra/durable-chat-server';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { getPlaygroundAppServices } = await import('@/lib/playground-app-services');
@@ -9,21 +7,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   try {
     const { app } = await getPlaygroundAppServices();
     const timeline = await app.runs.getTimeline({ runId });
-    const response: RunTimelineResponseDto = {
-      run: toRunDto(timeline.run),
-      runEvents: timeline.runEvents.map(toRunEventDto),
-      toolInvocations: timeline.toolInvocations.map(toToolInvocationDto)
-    };
-
-    return Response.json(response);
+    return Response.json(buildRunTimelineResponse(timeline));
   } catch (error) {
-    const response: RunTimelineResponseDto = {
-      run: null,
-      runEvents: [],
-      toolInvocations: [],
-      error: getRouteErrorMessage(error, 'failed to load run timeline')
-    };
-
-    return Response.json(response, { status: getRouteErrorStatus(error) });
+    return Response.json(buildRunTimelineErrorResponse(error, 'failed to load run timeline'), {
+      status: getRouteErrorStatus(error)
+    });
   }
 }

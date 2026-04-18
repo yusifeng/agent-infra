@@ -1,5 +1,5 @@
-import type { StartTextTurnResult } from '@agent-infra/app';
-import type { Message, MessagePart, Run, Thread } from '@agent-infra/core';
+import type { RunTextTurnResult, StartTextTurnResult } from '@agent-infra/app';
+import type { Message, MessagePart, Run, RunEvent, Thread, ToolInvocation } from '@agent-infra/core';
 import type {
   CreateThreadResponseDto,
   RunStreamAssistantEventDto,
@@ -8,14 +8,24 @@ import type {
   RunStreamFailedEventDto,
   RunStreamReadyEventDto,
   RunStreamStateEventDto,
+  RunTimelineResponseDto,
   RunTextTurnRequestDto,
   RunTextTurnResponseDto,
   RuntimePiMetaDto,
   ThreadMessagesResponseDto,
+  ThreadRunsResponseDto,
   ThreadsResponseDto
 } from '@agent-infra/contracts';
 
-import { toMessageDto, toRunDto, toRuntimeMetaDto, toThreadDto, type RuntimeMetaDtoInput } from './api-dto.js';
+import {
+  toMessageDto,
+  toRunDto,
+  toRunEventDto,
+  toRuntimeMetaDto,
+  toThreadDto,
+  toToolInvocationDto,
+  type RuntimeMetaDtoInput
+} from './api-dto.js';
 import { getRouteErrorMessage } from './route-errors.js';
 
 function asObject(value: unknown) {
@@ -96,6 +106,62 @@ export function buildRunTextTurnErrorResponse(error: unknown, fallbackMessage: s
     error: getRouteErrorMessage(error, fallbackMessage),
     run: null,
     messages: []
+  };
+}
+
+export function buildRunTextTurnResponse(result: RunTextTurnResult): RunTextTurnResponseDto {
+  return {
+    run: toRunDto(result.run),
+    messages: result.messages.map(toMessageDto),
+    debug: result.debug,
+    error: result.executionError
+  };
+}
+
+export function parseThreadRunsLimit(value: string | null, defaultLimit = 8, maxLimit = 20) {
+  if (!value) {
+    return defaultLimit;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return defaultLimit;
+  }
+
+  return Math.min(parsed, maxLimit);
+}
+
+export function buildThreadRunsResponse(runs: Run[]): ThreadRunsResponseDto {
+  return {
+    runs: runs.map((run) => toRunDto(run)).filter((run): run is NonNullable<typeof run> => run !== null)
+  };
+}
+
+export function buildThreadRunsErrorResponse(error: unknown, fallbackMessage: string): ThreadRunsResponseDto {
+  return {
+    runs: [],
+    error: getRouteErrorMessage(error, fallbackMessage)
+  };
+}
+
+export function buildRunTimelineResponse(timeline: {
+  run: Run | null;
+  runEvents: RunEvent[];
+  toolInvocations: ToolInvocation[];
+}): RunTimelineResponseDto {
+  return {
+    run: toRunDto(timeline.run),
+    runEvents: timeline.runEvents.map(toRunEventDto),
+    toolInvocations: timeline.toolInvocations.map(toToolInvocationDto)
+  };
+}
+
+export function buildRunTimelineErrorResponse(error: unknown, fallbackMessage: string): RunTimelineResponseDto {
+  return {
+    run: null,
+    runEvents: [],
+    toolInvocations: [],
+    error: getRouteErrorMessage(error, fallbackMessage)
   };
 }
 
