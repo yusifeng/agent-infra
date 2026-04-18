@@ -15,6 +15,16 @@ Current purpose:
 - `pnpm --filter playground-fastify-server build`
 - `pnpm --filter playground-fastify-server typecheck`
 
+## Env loading
+
+On startup the server loads `.env*` files in this priority order:
+
+- `apps/playground-fastify-server`
+- repository root
+- `apps/playground-next-web` as a phase-1 compatibility fallback
+
+This keeps the Fastify host usable with the same local runtime/db configuration that the Next reference app already uses.
+
 ## Current API surface
 
 - `GET /health`

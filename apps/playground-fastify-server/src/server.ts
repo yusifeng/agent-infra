@@ -1,12 +1,13 @@
 import cors from '@fastify/cors';
 import Fastify from 'fastify';
 
+import { loadPlaygroundEnv } from './env.js';
 import { registerChatRoutes } from './routes/chat.js';
 
-const host = process.env.HOST ?? '0.0.0.0';
-const port = Number(process.env.PORT ?? 4000);
-
 async function main() {
+  const envFiles = loadPlaygroundEnv();
+  const host = process.env.HOST ?? '0.0.0.0';
+  const port = Number(process.env.PORT ?? 4000);
   const app = Fastify({
     logger: true
   });
@@ -18,6 +19,7 @@ async function main() {
   app.get('/health', async () => {
     return {
       app: 'playground-fastify-server',
+      envFiles,
       status: 'ok'
     };
   });
