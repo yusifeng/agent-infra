@@ -2,6 +2,10 @@
 
 This app is the Fastify-based server scaffold for `agent-infra`.
 
+Runbook:
+
+- [`docs/playground-vite-fastify-runbook.md`](/Users/david/Documents/github/agent-infra/docs/playground-vite-fastify-runbook.md)
+
 Current purpose:
 
 - validate non-Next route hosting

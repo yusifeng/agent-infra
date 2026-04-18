@@ -2,6 +2,10 @@
 
 This app is the Vite-based browser consumer scaffold for `agent-infra`.
 
+Runbook:
+
+- [`docs/playground-vite-fastify-runbook.md`](/Users/david/Documents/github/agent-infra/docs/playground-vite-fastify-runbook.md)
+
 Current purpose:
 
 - validate browser-side durable chat behavior outside Next.js
