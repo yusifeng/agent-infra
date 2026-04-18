@@ -226,7 +226,10 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
     );
 
   return (
-    <div className={clsx('group relative w-[90%] max-w-screen px-4', props.type === 'persisted' && ui.messageAppear)}>
+    <div
+      className={clsx('group relative w-[90%] max-w-screen px-4', props.type === 'persisted' && ui.messageAppear)}
+      data-message-role="assistant"
+    >
       <div className={clsx('relative flex flex-col gap-2 pt-1.5', ui.assistantBubble)}>{content}</div>
       {isCompleted ? (
         <MessageActions
@@ -248,7 +251,10 @@ const MessageCard = memo(function MessageCard({ message }: { message: MessageDto
 
   if (isUser) {
     return (
-      <div className={clsx('group relative flex w-full max-w-screen justify-end px-4', !isOptimistic && ui.messageAppear)}>
+      <div
+        className={clsx('group relative flex w-full max-w-screen justify-end px-4', !isOptimistic && ui.messageAppear)}
+        data-message-role="user"
+      >
         <div className="max-w-[65%]">
           <div className={clsx('relative flex flex-col gap-3 rounded-lg px-3 py-2', ui.userBubble, isOptimistic && 'opacity-85')}>
             <div className="space-y-2">

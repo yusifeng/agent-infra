@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc -b --pretty false",
-    "smoke:phase1": "node scripts/phase1-smoke.mjs"
+    "smoke:phase1": "node scripts/phase1-smoke.mjs",
+    "acceptance:phase1": "node scripts/phase1-browser-acceptance.mjs"
   },
   "dependencies": {
     "@agent-infra/contracts": "workspace:*",
@@ -40,6 +41,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
+    "playwright": "^1.59.1",
     "tailwindcss": "^4.1.4",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.58.0",

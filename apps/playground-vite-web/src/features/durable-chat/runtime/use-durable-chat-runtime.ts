@@ -136,7 +136,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     if (window.innerWidth < 1024) {
       setSidebarOpen(false);
     }
-  }, [setSidebarOpen]);
+  }, []);
 
   useEffect(() => {
     const viewport = messagesViewportRef.current;
@@ -156,7 +156,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     return () => {
       viewport.removeEventListener('scroll', handleScroll);
     };
-  }, [setShowScrollToBottom]);
+  }, []);
 
   useEffect(() => {
     const viewport = messagesViewportRef.current;

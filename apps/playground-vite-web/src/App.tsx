@@ -1,34 +1,32 @@
-import { Navigate, Route, Routes, useParams } from 'react-router-dom';
+import { Navigate, matchPath, useLocation } from 'react-router-dom';
 
 import { DurableChatConsole } from '@/features/durable-chat/durable-chat-console';
 
-function ChatRoutePage({ initialThreadId }: { initialThreadId: string | null }) {
-  return <DurableChatConsole initialThreadId={initialThreadId} />;
-}
-
-function ChatThreadRoutePage() {
-  const params = useParams<{ threadId: string }>();
-  let threadId: string | null = null;
-
-  if (params.threadId) {
-    try {
-      threadId = decodeURIComponent(params.threadId);
-    } catch {
-      threadId = null;
-    }
+function resolveThreadId(pathname: string) {
+  const match = matchPath('/chat/:threadId', pathname);
+  if (!match?.params.threadId) {
+    return null;
   }
 
-  return <ChatRoutePage initialThreadId={threadId} />;
+  try {
+    return decodeURIComponent(match.params.threadId);
+  } catch {
+    return null;
+  }
 }
 
 function App() {
-  return (
-    <Routes>
-      <Route path="/" element={<Navigate replace to="/new" />} />
-      <Route path="/new" element={<ChatRoutePage initialThreadId={null} />} />
-      <Route path="/chat/:threadId" element={<ChatThreadRoutePage />} />
-    </Routes>
-  );
+  const location = useLocation();
+
+  if (location.pathname === '/') {
+    return <Navigate replace to="/new" />;
+  }
+
+  if (location.pathname !== '/new' && !matchPath('/chat/:threadId', location.pathname)) {
+    return <Navigate replace to="/new" />;
+  }
+
+  return <DurableChatConsole initialThreadId={resolveThreadId(location.pathname)} />;
 }
 
 export default App;

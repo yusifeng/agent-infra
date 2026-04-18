@@ -34,7 +34,14 @@ Verify that `apps/playground-vite-web` and `apps/playground-fastify-server` form
   - starts Fastify from source against a temporary sqlite DB
   - starts Vite with a matching `/api` proxy target
   - verifies `/health`, `/api/meta`, `/new`, `/chat/:threadId`, thread creation, SSE stream completion, and persisted transcript recovery
+- `pnpm --filter playground-vite-web acceptance:phase1` now exercises the browser shell itself against the same harness and covers:
+  - `/new`
+  - first send into a newly created thread
+  - `/chat/:threadId` persistence after refresh
+  - creating a second thread from `新聊天`
+  - sidebar thread switching between the first and second transcript
 - The scripted smoke path now passes in the current workspace with a temporary sqlite DB and reaches `run.completed` with a persisted assistant reply.
+- The browser acceptance path now also passes in the current workspace, after changing the Vite router host to keep `DurableChatConsole` mounted across `/new -> /chat/:threadId`.
 - In the current local environment, `playground-next-web/.env` points at Turso, but direct Turso access can still fail with a TLS connection error before SQL executes.
 - The phase-1 main chat loop itself has been validated with a local `SQLITE_PATH` override:
   - thread creation succeeded
