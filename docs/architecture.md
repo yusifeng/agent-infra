@@ -12,7 +12,7 @@
 - `packages/contracts`: serialized request/response contracts only; transport codec and client/server normalizers stay with consumer helpers.
 - `packages/durable-chat-client`: browser-side headless durable chat transport, schema, service/runtime helpers, plus optional inspector primitives.
 - `packages/db`: Drizzle schema plus SQLite / PostgreSQL repository implementations.
-- `packages/durable-chat-server`: reusable server bootstrap plus route transport helpers for chat consumers.
+- `packages/durable-chat-server`: reusable server bootstrap plus route transport helpers and shared route-side chat semantics for overlapping consumer endpoints.
 - `packages/runtime-pi`: pi-agent-core adapter that translates runtime events into durable records.
 - `apps/playground-next-web`: first consumer of `agent-infra`, with browser-local experiments plus a chat-first runtime validation surface that keeps durable inspection as a secondary pane.
 - `apps/playground-vite-web`: Vite-based browser consumer scaffold for validating the same client-side contracts outside Next.js.
@@ -27,7 +27,7 @@ The intended flow is:
 - `packages/runtime-pi` owns runtime execution and event persistence.
 - `packages/contracts` owns serialized HTTP/browser shapes, but not transport-specific codec/runtime helpers.
 - `packages/durable-chat-client` owns reusable browser-side chat transport, normalization, headless service/runtime helpers, and optional inspector recovery primitives.
-- `packages/durable-chat-server` owns reusable consumer bootstrap and route-side DTO/error helpers.
+- `packages/durable-chat-server` owns reusable consumer bootstrap, route-side DTO/error helpers, and shared endpoint semantics that should not be reimplemented per host.
 - `playground-next-web` calls the app layer and renders the resulting contracts.
 
 ## Application Feature Layering

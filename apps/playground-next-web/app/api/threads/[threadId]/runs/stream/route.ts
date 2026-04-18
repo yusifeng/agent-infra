@@ -1,18 +1,21 @@
 import type {
-  RunStreamAssistantEventDto,
-  RunStreamCompletedEventDto,
   RunStreamEventDto,
   RunStreamFailedEventDto,
-  RunStreamReadyEventDto,
-  RunStreamStateEventDto,
   RunTextTurnRequestDto
 } from '@agent-infra/contracts';
 
-import { getRouteErrorMessage, getRouteErrorStatus, toMessageDto, toRunDto } from '@agent-infra/durable-chat-server';
-
-function encodeSseEvent(payload: RunStreamEventDto) {
-  return `event: ${payload.type}\ndata: ${JSON.stringify(payload)}\n\n`;
-}
+import {
+  buildRunAssistantEvent,
+  buildRunReadyEvent,
+  buildRunStateEvent,
+  buildRunTerminalEvent,
+  buildRunTextTurnErrorResponse,
+  encodeSseEvent,
+  getRouteErrorMessage,
+  getRouteErrorStatus,
+  parseRunTextTurnInput,
+  toRunDto
+} from '@agent-infra/durable-chat-server';
 
 async function writeSseEvent(
   writer: WritableStreamDefaultWriter<Uint8Array>,
@@ -37,26 +40,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
   const { getPlaygroundRuntimeServices } = await import('@/lib/playground-services');
 
   const { threadId } = await params;
-  const body = (await req.json().catch(() => ({}))) as RunTextTurnRequestDto;
+  const turnInput = parseRunTextTurnInput((await req.json().catch(() => ({}))) as RunTextTurnRequestDto);
 
   let started;
   try {
     const { app } = await getPlaygroundRuntimeServices();
     started = await app.turns.startText({
       threadId,
-      text: typeof body.text === 'string' ? body.text : '',
-      provider: typeof body.provider === 'string' ? body.provider.trim() : undefined,
-      model: typeof body.model === 'string' ? body.model.trim() : undefined
+      text: turnInput.text,
+      provider: turnInput.provider,
+      model: turnInput.model
     });
   } catch (error) {
-    return Response.json(
-      {
-        error: getRouteErrorMessage(error, 'failed to stream thread turn'),
-        run: null,
-        messages: []
-      },
-      { status: getRouteErrorStatus(error) }
-    );
+    return Response.json(buildRunTextTurnErrorResponse(error, 'failed to stream thread turn'), {
+      status: getRouteErrorStatus(error)
+    });
   }
 
   const stream = new TransformStream<Uint8Array, Uint8Array>();
@@ -64,7 +62,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
   const encoder = new TextEncoder();
   const streamState = { closed: false };
   let writeChain = Promise.resolve<unknown>(undefined);
-  let finalRunSnapshot: RunStreamCompletedEventDto['run'] | RunStreamFailedEventDto['run'] = null;
+  let finalRunSnapshot: RunStreamFailedEventDto['run'] = null;
   let terminalEventSent = false;
 
   const enqueueSseEvent = (payload: RunStreamEventDto) => {
@@ -82,13 +80,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
 
   void (async () => {
     try {
-      const readyEvent: RunStreamReadyEventDto = {
-        type: 'run.ready',
-        runId,
-        run: toRunDto(started.run) as NonNullable<RunStreamReadyEventDto['run']>,
-        userMessage: toMessageDto(started.userMessage)
-      };
-      enqueueSseEvent(readyEvent);
+      enqueueSseEvent(buildRunReadyEvent(started));
 
       await services.durableRuntime.runTurn(
         {
@@ -100,41 +92,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
         runtimeInput,
         {
           onLiveAssistantUpdate: (assistantStream) => {
-            const assistantRow: RunStreamAssistantEventDto = {
-              type: 'run.assistant',
-              runId,
-              assistant: assistantStream
-            };
-            enqueueSseEvent(assistantRow);
+            enqueueSseEvent(buildRunAssistantEvent(runId, assistantStream));
           },
           onPersistedUpdate: (update) => {
             if (update.run) {
               finalRunSnapshot = toRunDto(update.run);
-              const runState: RunStreamStateEventDto = {
-                type: 'run.state',
-                runId,
-                run: toRunDto(update.run) as NonNullable<RunStreamStateEventDto['run']>
-              };
-              enqueueSseEvent(runState);
+              enqueueSseEvent(buildRunStateEvent(runId, update.run));
 
               if (!terminalEventSent && (update.run.status === 'completed' || update.run.status === 'failed')) {
                 terminalEventSent = true;
-
-                if (update.run.status === 'failed') {
-                  const failedEvent: RunStreamFailedEventDto = {
-                    type: 'run.failed',
-                    runId,
-                    run: finalRunSnapshot,
-                    error: update.run.error ?? 'runtime execution failed'
-                  };
-                  enqueueSseEvent(failedEvent);
-                } else {
-                  const completedEvent: RunStreamCompletedEventDto = {
-                    type: 'run.completed',
-                    runId,
-                    run: finalRunSnapshot as NonNullable<RunStreamCompletedEventDto['run']>
-                  };
-                  enqueueSseEvent(completedEvent);
+                const terminalEvent = buildRunTerminalEvent(runId, update.run);
+                if (terminalEvent) {
+                  enqueueSseEvent(terminalEvent);
                 }
               }
             }

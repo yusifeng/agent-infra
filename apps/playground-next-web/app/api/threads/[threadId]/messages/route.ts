@@ -1,6 +1,4 @@
-import type { ThreadMessagesResponseDto } from '@agent-infra/contracts';
-
-import { getRouteErrorMessage, getRouteErrorStatus, toMessageDto } from '@agent-infra/durable-chat-server';
+import { buildThreadMessagesErrorResponse, buildThreadMessagesResponse, getRouteErrorStatus } from '@agent-infra/durable-chat-server';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ threadId: string }> }) {
   const { getPlaygroundAppServices } = await import('@/lib/playground-app-services');
@@ -9,15 +7,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ threadI
   try {
     const { app } = await getPlaygroundAppServices();
     const messages = await app.threads.getMessages({ threadId });
-    const response: ThreadMessagesResponseDto = {
-      messages: messages.map(toMessageDto)
-    };
-
-    return Response.json(response);
+    return Response.json(buildThreadMessagesResponse(messages));
   } catch (error) {
-    const response: ThreadMessagesResponseDto = {
-      error: getRouteErrorMessage(error, 'failed to load thread messages')
-    };
-    return Response.json(response, { status: getRouteErrorStatus(error) });
+    return Response.json(buildThreadMessagesErrorResponse(error, 'failed to load thread messages'), {
+      status: getRouteErrorStatus(error)
+    });
   }
 }

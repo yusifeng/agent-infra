@@ -30,6 +30,7 @@ export type DurableChatAppServices = DurableChatBaseServices & {
 };
 
 export * from './api-dto.js';
+export * from './chat-route-helpers.js';
 export * from './route-errors.js';
 
 export async function createDurableChatBaseServices(dbConfig: DbConfig): Promise<DurableChatBaseServices> {

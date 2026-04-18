@@ -1,6 +1,11 @@
-import type { CreateThreadRequestDto, CreateThreadResponseDto, ThreadsResponseDto } from '@agent-infra/contracts';
-
-import { getRouteErrorMessage, getRouteErrorStatus, toThreadDto } from '@agent-infra/durable-chat-server';
+import {
+  buildCreateThreadErrorResponse,
+  buildCreateThreadResponse,
+  buildThreadsErrorResponse,
+  buildThreadsResponse,
+  getRouteErrorStatus,
+  parseCreateThreadTitle
+} from '@agent-infra/durable-chat-server';
 
 const APP_ID = 'playground-runtime-pi';
 
@@ -10,26 +15,17 @@ export async function GET() {
   try {
     const { app } = await getPlaygroundAppServices();
     const threads = await app.threads.list({ appId: APP_ID });
-    const response: ThreadsResponseDto = {
-      threads: threads.map(toThreadDto)
-    };
-    return Response.json(response);
+    return Response.json(buildThreadsResponse(threads));
   } catch (error) {
-    return Response.json(
-      {
-        threads: [],
-        error: getRouteErrorMessage(error, 'failed to list threads')
-      },
-      { status: getRouteErrorStatus(error) }
-    );
+    return Response.json(buildThreadsErrorResponse(error, 'failed to list threads'), { status: getRouteErrorStatus(error) });
   }
 }
 
 export async function POST(req: Request) {
   const { getPlaygroundAppServices } = await import('@/lib/playground-app-services');
 
-  const body = (await req.json().catch(() => ({}))) as CreateThreadRequestDto;
-  const title = typeof body?.title === 'string' && body.title.trim() ? body.title.trim() : 'New Thread';
+  const body = await req.json().catch(() => ({}));
+  const title = parseCreateThreadTitle(body);
 
   try {
     const { app } = await getPlaygroundAppServices();
@@ -41,18 +37,8 @@ export async function POST(req: Request) {
         runtime: 'pi'
       }
     });
-
-    const response: CreateThreadResponseDto = {
-      thread: toThreadDto(thread)
-    };
-
-    return Response.json(response);
+    return Response.json(buildCreateThreadResponse(thread));
   } catch (error) {
-    return Response.json(
-      {
-        error: getRouteErrorMessage(error, 'failed to create thread')
-      },
-      { status: getRouteErrorStatus(error) }
-    );
+    return Response.json(buildCreateThreadErrorResponse(error, 'failed to create thread'), { status: getRouteErrorStatus(error) });
   }
 }

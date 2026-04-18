@@ -1,24 +1,24 @@
-import type {
-  CreateThreadRequestDto,
-  CreateThreadResponseDto,
-  RunStreamAssistantEventDto,
-  RunStreamCompletedEventDto,
-  RunStreamEventDto,
-  RunStreamFailedEventDto,
-  RunStreamReadyEventDto,
-  RunStreamStateEventDto,
-  RunTextTurnRequestDto,
-  RuntimePiMetaDto,
-  ThreadMessagesResponseDto,
-  ThreadsResponseDto
-} from '@agent-infra/contracts';
+import type { RunStreamEventDto, RunStreamFailedEventDto, RuntimePiMetaDto } from '@agent-infra/contracts';
 import {
+  buildCreateThreadErrorResponse,
+  buildCreateThreadResponse,
+  buildRunAssistantEvent,
+  buildRunReadyEvent,
+  buildRunStateEvent,
+  buildRunTerminalEvent,
+  buildRunTextTurnErrorResponse,
+  buildRuntimeMetaResponse,
+  buildThreadMessagesErrorResponse,
+  buildThreadMessagesResponse,
+  buildThreadsErrorResponse,
+  buildThreadsResponse,
+  buildUnavailableRuntimeMetaResponse,
+  encodeSseEvent,
   getRouteErrorMessage,
   getRouteErrorStatus,
-  toMessageDto,
-  toRuntimeMetaDto,
-  toRunDto,
-  toThreadDto
+  parseCreateThreadTitle,
+  parseRunTextTurnInput,
+  toRunDto
 } from '@agent-infra/durable-chat-server';
 import type { FastifyInstance } from 'fastify';
 
@@ -26,10 +26,6 @@ import { APP_ID } from '../constants.js';
 import { getPlaygroundAppServices } from '../playground-app-services.js';
 import { getPlaygroundDbInfo, getPlaygroundMeta } from '../playground-meta.js';
 import { getPlaygroundRuntimeServices } from '../playground-services.js';
-
-function encodeSseEvent(payload: RunStreamEventDto) {
-  return `event: ${payload.type}\ndata: ${JSON.stringify(payload)}\n\n`;
-}
 
 function writeSseEvent(
   reply: { raw: NodeJS.WritableStream & { destroyed?: boolean; writableEnded?: boolean } },
@@ -54,7 +50,7 @@ export async function registerChatRoutes(app: FastifyInstance) {
     try {
       const runtime = getPlaygroundMeta({}, getPlaygroundDbInfo());
 
-      const response: RuntimePiMetaDto = toRuntimeMetaDto({
+      const response: RuntimePiMetaDto = buildRuntimeMetaResponse({
         dbMode: runtime.dbInfo.mode,
         dbConnection: runtime.dbInfo.connectionString,
         runtimeConfigured: runtime.configured,
@@ -69,16 +65,18 @@ export async function registerChatRoutes(app: FastifyInstance) {
     } catch (error) {
       const runtime = getPlaygroundMeta({}, { mode: 'unavailable', connectionString: 'unavailable' });
 
-      const response: RuntimePiMetaDto = toRuntimeMetaDto({
-        dbMode: runtime.dbInfo.mode,
-        dbConnection: runtime.dbInfo.connectionString,
-        runtimeConfigured: false,
-        runtimeProvider: runtime.provider,
-        runtimeModel: runtime.model,
-        defaultModelKey: runtime.defaultModelKey,
-        modelOptions: runtime.modelOptions,
-        runtimeConfigError: error instanceof Error ? error.message : runtime.configError ?? 'Failed to initialize playground services'
-      });
+      const response: RuntimePiMetaDto = buildUnavailableRuntimeMetaResponse(
+        {
+          dbMode: runtime.dbInfo.mode,
+          dbConnection: runtime.dbInfo.connectionString,
+          runtimeProvider: runtime.provider,
+          runtimeModel: runtime.model,
+          defaultModelKey: runtime.defaultModelKey,
+          modelOptions: runtime.modelOptions
+        },
+        error,
+        runtime.configError ?? 'Failed to initialize playground services'
+      );
 
       return reply.code(503).send(response);
     }
@@ -88,24 +86,15 @@ export async function registerChatRoutes(app: FastifyInstance) {
     try {
       const { app: services } = await getPlaygroundAppServices();
       const threads = await services.threads.list({ appId: APP_ID });
-      const response: ThreadsResponseDto = {
-        threads: threads.map(toThreadDto)
-      };
 
-      return reply.send(response);
+      return reply.send(buildThreadsResponse(threads));
     } catch (error) {
-      return reply.code(getRouteErrorStatus(error)).send({
-        threads: [],
-        error: getRouteErrorMessage(error, 'failed to list threads')
-      } satisfies ThreadsResponseDto);
+      return reply.code(getRouteErrorStatus(error)).send(buildThreadsErrorResponse(error, 'failed to list threads'));
     }
   });
 
-  app.post<{ Body: CreateThreadRequestDto }>('/api/threads', async (request, reply) => {
-    const title =
-      typeof request.body?.title === 'string' && request.body.title.trim()
-        ? request.body.title.trim()
-        : 'New Thread';
+  app.post('/api/threads', async (request, reply) => {
+    const title = parseCreateThreadTitle(request.body);
 
     try {
       const { app: services } = await getPlaygroundAppServices();
@@ -118,13 +107,9 @@ export async function registerChatRoutes(app: FastifyInstance) {
         }
       });
 
-      return reply.send({
-        thread: toThreadDto(thread)
-      } satisfies CreateThreadResponseDto);
+      return reply.send(buildCreateThreadResponse(thread));
     } catch (error) {
-      return reply.code(getRouteErrorStatus(error)).send({
-        error: getRouteErrorMessage(error, 'failed to create thread')
-      } satisfies CreateThreadResponseDto);
+      return reply.code(getRouteErrorStatus(error)).send(buildCreateThreadErrorResponse(error, 'failed to create thread'));
     }
   });
 
@@ -133,139 +118,104 @@ export async function registerChatRoutes(app: FastifyInstance) {
       const { app: services } = await getPlaygroundAppServices();
       const messages = await services.threads.getMessages({ threadId: request.params.threadId });
 
-      return reply.send({
-        messages: messages.map(toMessageDto)
-      } satisfies ThreadMessagesResponseDto);
+      return reply.send(buildThreadMessagesResponse(messages));
     } catch (error) {
-      return reply.code(getRouteErrorStatus(error)).send({
-        error: getRouteErrorMessage(error, 'failed to load thread messages')
-      } satisfies ThreadMessagesResponseDto);
+      return reply.code(getRouteErrorStatus(error)).send(buildThreadMessagesErrorResponse(error, 'failed to load thread messages'));
     }
   });
 
-  app.post<{ Body: RunTextTurnRequestDto; Params: { threadId: string } }>(
-    '/api/threads/:threadId/runs/stream',
-    async (request, reply) => {
-      let started;
+  app.post('/api/threads/:threadId/runs/stream', async (request, reply) => {
+    const turnInput = parseRunTextTurnInput(request.body);
+    let started;
 
-      try {
-        const { app: services } = await getPlaygroundRuntimeServices();
-        started = await services.turns.startText({
-          threadId: request.params.threadId,
-          text: typeof request.body?.text === 'string' ? request.body.text : '',
-          provider: typeof request.body?.provider === 'string' ? request.body.provider.trim() : undefined,
-          model: typeof request.body?.model === 'string' ? request.body.model.trim() : undefined
-        });
-      } catch (error) {
-        return reply.code(getRouteErrorStatus(error)).send({
-          error: getRouteErrorMessage(error, 'failed to stream thread turn'),
-          run: null,
-          messages: []
-        });
-      }
-
-      const runId = started.run.id;
-      const services = await getPlaygroundRuntimeServices();
-      const runtimeInput = {
-        threadId: request.params.threadId,
-        runId,
-        provider: started.runtimeSelection.provider,
-        model: started.runtimeSelection.model
-      };
-      const streamState = { closed: false };
-      let finalRunSnapshot: RunStreamCompletedEventDto['run'] | RunStreamFailedEventDto['run'] = null;
-      let terminalEventSent = false;
-
-      reply.hijack();
-      reply.raw.setHeader('cache-control', 'no-cache, no-transform');
-      reply.raw.setHeader('connection', 'keep-alive');
-      reply.raw.setHeader('content-type', 'text/event-stream; charset=utf-8');
-      reply.raw.flushHeaders?.();
-
-      reply.raw.on('close', () => {
-        streamState.closed = true;
+    try {
+      const { app: services } = await getPlaygroundRuntimeServices();
+      started = await services.turns.startText({
+        threadId: (request.params as { threadId: string }).threadId,
+        text: turnInput.text,
+        provider: turnInput.provider,
+        model: turnInput.model
       });
+    } catch (error) {
+      return reply.code(getRouteErrorStatus(error)).send(buildRunTextTurnErrorResponse(error, 'failed to stream thread turn'));
+    }
 
-      try {
-        const readyEvent: RunStreamReadyEventDto = {
-          type: 'run.ready',
-          runId,
-          run: toRunDto(started.run) as NonNullable<RunStreamReadyEventDto['run']>,
-          userMessage: toMessageDto(started.userMessage)
-        };
-        writeSseEvent(reply, readyEvent, streamState);
+    const threadId = (request.params as { threadId: string }).threadId;
+    const runId = started.run.id;
+    const services = await getPlaygroundRuntimeServices();
+    const runtimeInput = {
+      threadId,
+      runId,
+      provider: started.runtimeSelection.provider,
+      model: started.runtimeSelection.model
+    };
+    const streamState = { closed: false };
+    let finalRunSnapshot: RunStreamFailedEventDto['run'] = null;
+    let terminalEventSent = false;
 
-        await services.durableRuntime.runTurn(
-          {
-            runRepo: services.repos.runRepo,
-            messageRepo: services.repos.messageRepo,
-            toolRepo: services.repos.toolRepo,
-            runEventRepo: services.repos.runEventRepo
+    reply.hijack();
+    reply.raw.setHeader('cache-control', 'no-cache, no-transform');
+    reply.raw.setHeader('connection', 'keep-alive');
+    reply.raw.setHeader('content-type', 'text/event-stream; charset=utf-8');
+    reply.raw.flushHeaders?.();
+
+    reply.raw.on('close', () => {
+      streamState.closed = true;
+    });
+
+    try {
+      writeSseEvent(reply, buildRunReadyEvent(started), streamState);
+
+      await services.durableRuntime.runTurn(
+        {
+          runRepo: services.repos.runRepo,
+          messageRepo: services.repos.messageRepo,
+          toolRepo: services.repos.toolRepo,
+          runEventRepo: services.repos.runEventRepo
+        },
+        runtimeInput,
+        {
+          onLiveAssistantUpdate: (assistantStream) => {
+            writeSseEvent(reply, buildRunAssistantEvent(runId, assistantStream), streamState);
           },
-          runtimeInput,
-          {
-            onLiveAssistantUpdate: (assistantStream) => {
-              const assistantEvent: RunStreamAssistantEventDto = {
-                type: 'run.assistant',
-                runId,
-                assistant: assistantStream
-              };
-              writeSseEvent(reply, assistantEvent, streamState);
-            },
-            onPersistedUpdate: (update) => {
-              if (!update.run) {
-                return;
-              }
+          onPersistedUpdate: (update) => {
+            if (!update.run) {
+              return;
+            }
 
-              finalRunSnapshot = toRunDto(update.run);
-              const runStateEvent: RunStreamStateEventDto = {
-                type: 'run.state',
-                runId,
-                run: toRunDto(update.run) as NonNullable<RunStreamStateEventDto['run']>
-              };
-              writeSseEvent(reply, runStateEvent, streamState);
+            finalRunSnapshot = toRunDto(update.run);
+            writeSseEvent(reply, buildRunStateEvent(runId, update.run), streamState);
 
-              if (!terminalEventSent && (update.run.status === 'completed' || update.run.status === 'failed')) {
+            if (!terminalEventSent) {
+              const terminalEvent = buildRunTerminalEvent(runId, update.run);
+              if (terminalEvent) {
                 terminalEventSent = true;
-
-                if (update.run.status === 'failed') {
-                  const failedEvent: RunStreamFailedEventDto = {
-                    type: 'run.failed',
-                    runId,
-                    run: finalRunSnapshot,
-                    error: update.run.error ?? 'runtime execution failed'
-                  };
-                  writeSseEvent(reply, failedEvent, streamState);
-                } else {
-                  const completedEvent: RunStreamCompletedEventDto = {
-                    type: 'run.completed',
-                    runId,
-                    run: finalRunSnapshot as NonNullable<RunStreamCompletedEventDto['run']>
-                  };
-                  writeSseEvent(reply, completedEvent, streamState);
-                }
+                writeSseEvent(reply, terminalEvent, streamState);
               }
             }
           }
-        );
-      } catch (error) {
-        if (!terminalEventSent) {
-          const failedEvent: RunStreamFailedEventDto = {
+        }
+      );
+    } catch (error) {
+      if (!terminalEventSent) {
+        terminalEventSent = true;
+        writeSseEvent(
+          reply,
+          {
             type: 'run.failed',
             runId,
             run: finalRunSnapshot,
             error: getRouteErrorMessage(error, 'thread stream failed')
-          };
-          terminalEventSent = true;
-          writeSseEvent(reply, failedEvent, streamState);
-        }
-      } finally {
-        if (!streamState.closed && !reply.raw.destroyed && !reply.raw.writableEnded) {
-          reply.raw.end();
-        }
+          },
+          streamState
+        );
       }
-
-      return reply;
+    } finally {
+      if (!streamState.closed && !reply.raw.destroyed && !reply.raw.writableEnded) {
+        reply.raw.end();
+      }
     }
-  );
+
+    return reply;
+  });
 }
