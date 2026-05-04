@@ -200,6 +200,17 @@ async function stopProcess(handle) {
   }
 }
 
+async function bootstrapFastifyDb(env, mode) {
+  const args =
+    mode === 'start'
+      ? ['--filter', 'playground-fastify-server', 'bootstrap:db:built']
+      : ['--filter', 'playground-fastify-server', 'bootstrap:db'];
+
+  await runWorkspaceCommand('playground-fastify-server bootstrap', args, env, {
+    timeoutMs: 600000
+  });
+}
+
 export async function fetchText(url, init) {
   const response = await fetch(url, init);
   const body = await response.text();
@@ -374,6 +385,14 @@ export async function runWithPhase1Harness(callback, options = {}) {
   }
 
   const runHarnessBody = async () => {
+    const fastifyEnv = {
+      ...process.env,
+      HOST: '127.0.0.1',
+      PORT: String(fastifyPort),
+      ...buildDbEnv(dbMode, sqlitePath)
+    };
+    await bootstrapFastifyDb(fastifyEnv, fastifyMode);
+
     const fastifyArgs =
       fastifyMode === 'start'
         ? ['--filter', 'playground-fastify-server', 'start']
@@ -381,12 +400,7 @@ export async function runWithPhase1Harness(callback, options = {}) {
     const fastifyProcess = spawnWorkspaceProcess(
       'playground-fastify-server',
       fastifyArgs,
-      {
-        ...process.env,
-        HOST: '127.0.0.1',
-        PORT: String(fastifyPort),
-        ...buildDbEnv(dbMode, sqlitePath)
-      }
+      fastifyEnv
     );
     processes.push(fastifyProcess);
 

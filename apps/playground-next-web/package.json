@@ -4,9 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "bootstrap:db": "node ./scripts/bootstrap-db.mjs",
     "dev": "next dev",
+    "dev:prepared": "NODE_ENV=development pnpm bootstrap:db && NODE_ENV=development pnpm dev",
     "build": "next build",
     "start": "next start",
+    "start:prepared": "NODE_ENV=production pnpm bootstrap:db && NODE_ENV=production pnpm start",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

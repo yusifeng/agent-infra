@@ -19,7 +19,6 @@ let playgroundBaseServicesPromise: Promise<PlaygroundBaseServices> | null = null
 
 async function buildPlaygroundBaseServices(): Promise<PlaygroundBaseServices> {
   const dbConfig = createDbConfigFromEnv();
-  await dbConfig.bootstrapSchema();
   return createDurableChatBaseServices(dbConfig);
 }
 

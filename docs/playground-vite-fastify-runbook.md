@@ -32,10 +32,15 @@ It does **not** cover the inspector/timeline pane yet.
 
 Use this when actively editing the apps:
 
-- Fastify: `pnpm --filter playground-fastify-server dev`
+- Fastify host with explicit bootstrap first:
+  - `pnpm --filter playground-fastify-server dev:prepared`
+  - or from repo root: `pnpm run dev:fastify-server`
 - Vite: `pnpm --filter playground-vite-web dev`
 
 The web app talks to the server through `/api` and Vite's proxy.
+
+The raw `dev` script still exists, but it assumes the database schema has already been bootstrapped.
+The validated default workflow is the prepared variant, which runs the bootstrap step before starting the host.
 
 ### Production-shaped local validation
 
@@ -46,10 +51,11 @@ Use this when you want a closer-to-deploy local check:
 That command currently proves this sequence:
 
 1. builds the required workspace packages
-2. starts `playground-fastify-server` via `node dist/server.js`
-3. starts `playground-vite-web` via `vite preview`
-4. keeps the browser app on relative `/api` paths
-5. runs the main chat loop against a temporary sqlite database
+2. bootstraps the Fastify host database via `node dist/bootstrap-db.js`
+3. starts `playground-fastify-server` via `node dist/server.js`
+4. starts `playground-vite-web` via `vite preview`
+5. keeps the browser app on relative `/api` paths
+6. runs the main chat loop against a temporary sqlite database
 
 This is the current strongest validated path for “would this still work outside dev mode?”
 
@@ -169,6 +175,23 @@ If browser total is much larger, the missing time is outside the app logic, usua
 3. `apps/playground-next-web` as a compatibility fallback
 
 That fallback exists so the Fastify host can reuse the same local runtime/database configuration already used by the Next reference app.
+
+### Explicit DB bootstrap
+
+The Fastify and Next hosts no longer bootstrap schema inside the first real API request.
+
+Use explicit bootstrap commands instead:
+
+- `pnpm --filter playground-fastify-server bootstrap:db`
+- `pnpm --filter playground-fastify-server bootstrap:db:built`
+- `pnpm --filter playground-next-web bootstrap:db`
+
+Prepared startup wrappers already use these commands:
+
+- `pnpm --filter playground-fastify-server dev:prepared`
+- `pnpm --filter playground-fastify-server start:prepared`
+- `pnpm --filter playground-next-web dev:prepared`
+- `pnpm --filter playground-next-web start:prepared`
 
 ### Database selection
 

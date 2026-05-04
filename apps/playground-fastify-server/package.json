@@ -4,9 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "bootstrap:db": "tsx src/bootstrap-db.ts",
+    "bootstrap:db:built": "node dist/bootstrap-db.js",
     "dev": "tsx watch src/server.ts",
+    "dev:prepared": "NODE_ENV=development pnpm bootstrap:db && NODE_ENV=development pnpm dev",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
+    "start:prepared": "NODE_ENV=production pnpm bootstrap:db:built && NODE_ENV=production pnpm start",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },

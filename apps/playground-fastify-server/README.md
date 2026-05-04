@@ -15,14 +15,19 @@ Current purpose:
 
 ## Commands
 
+- `pnpm --filter playground-fastify-server bootstrap:db`
+- `pnpm --filter playground-fastify-server dev:prepared`
 - `pnpm --filter playground-fastify-server dev`
 - `pnpm --filter playground-fastify-server build`
+- `pnpm --filter playground-fastify-server start:prepared`
 - `pnpm --filter playground-fastify-server typecheck`
 - `pnpm --filter playground-fastify-server test`
 
+The prepared commands are the validated default path. They run DB bootstrap explicitly before the host starts serving requests.
+
 ## Env loading
 
-On startup the server loads `.env*` files in this priority order:
+The bootstrap command and the server both load `.env*` files in this priority order:
 
 - `apps/playground-fastify-server`
 - repository root
