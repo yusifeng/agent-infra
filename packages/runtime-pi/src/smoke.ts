@@ -26,7 +26,12 @@ type RepoBundle = {
   runEventRepo: DrizzleRunEventRepository | SqliteRunEventRepository;
 };
 
-function createRepos(): { repos: RepoBundle; dbMode: 'sqlite' | 'turso' | 'postgres'; connectionString: string; initialize: () => Promise<void> } {
+function createRepos(): {
+  repos: RepoBundle;
+  dbMode: 'sqlite' | 'turso' | 'postgres';
+  connectionString: string;
+  bootstrapSchema: () => Promise<void>;
+} {
   process.env.SQLITE_PATH ??= './runtime-pi-smoke.db';
 
   const dbConfig = createDbConfigFromEnv();
@@ -52,7 +57,7 @@ function createRepos(): { repos: RepoBundle; dbMode: 'sqlite' | 'turso' | 'postg
     repos,
     dbMode: dbConfig.mode,
     connectionString: dbConfig.connectionString,
-    initialize: dbConfig.initialize
+    bootstrapSchema: dbConfig.bootstrapSchema
   };
 }
 
@@ -85,13 +90,13 @@ function formatMessageSummary(message: Awaited<ReturnType<RepoBundle['messageRep
 
 async function main() {
   const prompt = readPrompt();
-  const { repos, dbMode, connectionString, initialize } = createRepos();
+  const { repos, dbMode, connectionString, bootstrapSchema } = createRepos();
   const runtime = resolveRuntimePiConfigFromEnv();
   const piRuntime = createPiRuntime({
     tools: (context) => createDemoTools(context)
   });
 
-  await initialize();
+  await bootstrapSchema();
 
   const thread = await repos.threadRepo.create({
     id: crypto.randomUUID(),

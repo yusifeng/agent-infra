@@ -25,7 +25,9 @@ async function buildPlaygroundBaseServices(): Promise<PlaygroundBaseServices> {
   const startedAt = performance.now();
 
   try {
-    const services = await createDurableChatBaseServices(createDbConfigFromEnv());
+    const dbConfig = createDbConfigFromEnv();
+    await dbConfig.bootstrapSchema();
+    const services = await createDurableChatBaseServices(dbConfig);
     playgroundBaseServicesState.initialized = true;
     playgroundBaseServicesState.lastInitDurationMs = Number((performance.now() - startedAt).toFixed(1));
     return services;

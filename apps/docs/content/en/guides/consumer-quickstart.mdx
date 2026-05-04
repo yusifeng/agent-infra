@@ -107,7 +107,7 @@ function createRepositories(dbConfig: DbConfig, db: any): AgentInfraAppRepositor
 }
 
 const dbConfig = createDbConfigFromEnv();
-await dbConfig.initialize();
+await dbConfig.bootstrapSchema();
 
 const runtime = createPiRuntime({
   tools: (context) => createDemoTools(context)
@@ -149,6 +149,12 @@ This guide intentionally uses the `@agent-infra/runtime-pi/runtime` and `@agent-
 - that keeps Next.js-style server module graphs less likely to pull runtime dependencies into read paths or first-load paths by accident
 
 If you want a working repository example, start from `apps/playground-next-web/lib/playground-services.ts`.
+
+Schema bootstrap is explicit on purpose.
+
+- consumer request paths should assume the database is already ready
+- local demos, smoke scripts, and ephemeral test setups can call `dbConfig.bootstrapSchema()`
+- shared or production environments should prefer a separate bootstrap or migration step
 
 ## Consumer request flow
 

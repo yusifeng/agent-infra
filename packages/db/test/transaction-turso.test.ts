@@ -47,7 +47,7 @@ describe('withDbTransaction turso/libsql delegation', () => {
       mode: 'turso' as const,
       db: { transaction },
       connectionString: process.env.TURSO_DATABASE_URL!,
-      initialize: async () => {}
+      bootstrapSchema: async () => {}
     };
 
     const result = await withDbTransaction(dbConfig, async (db) => {

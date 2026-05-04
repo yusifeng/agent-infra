@@ -107,7 +107,7 @@ function createRepositories(dbConfig: DbConfig, db: any): AgentInfraAppRepositor
 }
 
 const dbConfig = createDbConfigFromEnv();
-await dbConfig.initialize();
+await dbConfig.bootstrapSchema();
 
 const runtime = createPiRuntime({
   tools: (context) => createDemoTools(context)
@@ -147,6 +147,12 @@ const app = createAgentInfraApp({
 - root 入口 `@agent-infra/runtime-pi` 只保留类型与配置解析 helper
 - 真正会触发 runtime 执行链的能力，要求 consumer 显式从重入口导入
 - 这样在 Next.js 这类会分析服务端模块图的环境里，更不容易让读路径或首屏路径意外拖入重依赖
+
+这里特意把 schema bootstrap 设计成**显式动作**：
+
+- consumer 的请求路径应假定数据库已经可用
+- 本地 demo、smoke 脚本、临时测试环境可以主动调用 `dbConfig.bootstrapSchema()`
+- 共享环境或正式环境更适合把 bootstrap / migration 作为独立步骤处理
 
 如果你想看一个可运行的仓库内参考实现，可以直接看 `apps/playground-next-web/lib/playground-services.ts`。
 

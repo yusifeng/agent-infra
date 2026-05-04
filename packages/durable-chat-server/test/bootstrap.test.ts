@@ -6,19 +6,19 @@ import { createDurableChatAppServices, createDurableChatBaseServices } from '../
 
 describe('durable chat server bootstrap', () => {
   it('creates base services from a db config', async () => {
-    const initialize = vi.fn(async () => {});
+    const bootstrapSchema = vi.fn(async () => {});
     const dbConfig = {
       mode: 'postgres' as const,
       db: {
         transaction: vi.fn(async (callback: (db: unknown) => Promise<string>) => callback({ kind: 'tx' }))
       },
       connectionString: 'postgres://example.test/agent-infra',
-      initialize
+      bootstrapSchema
     };
 
     const services = await createDurableChatBaseServices(dbConfig);
 
-    expect(initialize).toHaveBeenCalledTimes(1);
+    expect(bootstrapSchema).not.toHaveBeenCalled();
     expect(services.dbInfo).toEqual({
       mode: 'postgres',
       connectionString: 'postgres://example.test/agent-infra'
@@ -39,7 +39,7 @@ describe('durable chat server bootstrap', () => {
         mode: 'sqlite' as const,
         db: {},
         connectionString: 'file:test.db',
-        initialize: async () => {},
+        bootstrapSchema: async () => {},
         sqlitePath: '/tmp/test.db'
       },
       dbInfo: {

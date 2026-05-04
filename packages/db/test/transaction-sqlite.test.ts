@@ -39,7 +39,7 @@ describe('withDbTransaction sqlite isolation', () => {
 
   it('keeps uncommitted sqlite writes invisible to the shared connection', async () => {
     const dbConfig = createDbConfigFromEnv();
-    await dbConfig.initialize();
+    await dbConfig.bootstrapSchema();
 
     const sharedThreadRepo = new SqliteThreadRepository(dbConfig.db);
 
@@ -65,7 +65,7 @@ describe('withDbTransaction sqlite isolation', () => {
 
   it('rolls back sqlite writes when the transactional operation fails', async () => {
     const dbConfig = createDbConfigFromEnv();
-    await dbConfig.initialize();
+    await dbConfig.bootstrapSchema();
 
     const sharedThreadRepo = new SqliteThreadRepository(dbConfig.db);
 

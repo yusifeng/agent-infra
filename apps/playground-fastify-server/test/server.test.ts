@@ -127,7 +127,9 @@ async function createTestServer(options: {
   const sqlitePath = path.join(tempDir, 'test.db');
 
   const serverBundle = await withSqlitePath(sqlitePath, async () => {
-    const base = await createDurableChatBaseServices(createDbConfigFromEnv());
+    const dbConfig = createDbConfigFromEnv();
+    await dbConfig.bootstrapSchema();
+    const base = await createDurableChatBaseServices(dbConfig);
     const durableRuntime = createFakeDurableRuntime(options.runtimeMode);
     const runtimePort: AgentInfraRuntimePort = {
       async prepare(input) {

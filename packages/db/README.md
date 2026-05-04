@@ -4,9 +4,20 @@
 
 ## Modes
 
-- With `TURSO_DATABASE_URL`: uses Turso/libSQL over HTTP and auto-creates the SQLite-compatible schema. Set `TURSO_AUTH_TOKEN` for remote Turso databases.
+- With `TURSO_DATABASE_URL`: uses Turso/libSQL over HTTP. Set `TURSO_AUTH_TOKEN` for remote Turso databases.
 - Otherwise with `DATABASE_URL`: uses PostgreSQL.
-- Otherwise: uses SQLite at `./local.db` (configurable by `SQLITE_PATH`) and auto-creates schema.
+- Otherwise: uses SQLite at `./local.db` (configurable by `SQLITE_PATH`).
+
+`createDbConfigFromEnv()` only creates a DB config and live client handle. It does **not**
+implicitly create or migrate schema for request-serving code paths.
+
+If a host, test, or smoke script wants bootstrap convenience, it must opt into that
+explicitly:
+
+```ts
+const dbConfig = createDbConfigFromEnv();
+await dbConfig.bootstrapSchema();
+```
 
 ## Local test reliability
 
@@ -43,3 +54,5 @@ Turso/libSQL uses the SQLite schema path in this package.
 - `createDbConfigFromEnv()` prefers `TURSO_DATABASE_URL` over `DATABASE_URL`.
 - For a remote Turso database, set both `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`.
 - For local development without Turso, prefer the existing SQLite mode via `SQLITE_PATH`.
+- For remote/shared environments, prefer running schema bootstrap or migrations as an
+  explicit setup step rather than letting a user request trigger it.

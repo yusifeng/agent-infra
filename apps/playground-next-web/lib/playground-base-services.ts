@@ -18,7 +18,9 @@ export type PlaygroundAppServices = DurableChatAppServices;
 let playgroundBaseServicesPromise: Promise<PlaygroundBaseServices> | null = null;
 
 async function buildPlaygroundBaseServices(): Promise<PlaygroundBaseServices> {
-  return createDurableChatBaseServices(createDbConfigFromEnv());
+  const dbConfig = createDbConfigFromEnv();
+  await dbConfig.bootstrapSchema();
+  return createDurableChatBaseServices(dbConfig);
 }
 
 export async function getPlaygroundBaseServices(): Promise<PlaygroundBaseServices> {

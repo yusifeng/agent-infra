@@ -98,7 +98,7 @@ describe('db bootstrap primitives', () => {
 
     it('wraps sqlite transactions with repository instances', async () => {
       const dbConfig = createDbConfigFromEnv();
-      await dbConfig.initialize();
+      await dbConfig.bootstrapSchema();
       const sharedRepos = createAgentInfraRepositories(dbConfig.mode, dbConfig.db);
       const transaction = createAgentInfraTransaction(dbConfig);
 
@@ -129,7 +129,7 @@ describe('db bootstrap primitives', () => {
         mode: 'postgres' as const,
         db: { transaction: transactionSpy },
         connectionString: 'postgres://example.test/agent-infra',
-        initialize: async () => {}
+        bootstrapSchema: async () => {}
       };
 
       const transaction = createAgentInfraTransaction(dbConfig);

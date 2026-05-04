@@ -186,7 +186,7 @@ flowchart TB
 
 | 函数 | 作用 |
 |------|------|
-| `createDbConfigFromEnv()` | 若存在 `TURSO_DATABASE_URL` 则用 Turso/libSQL；否则若存在 `DATABASE_URL` 则用 Postgres；否则用 `SQLITE_PATH`（默认 `./local.db`）并 `initialize` 时建表。 |
+| `createDbConfigFromEnv()` | 若存在 `TURSO_DATABASE_URL` 则用 Turso/libSQL；否则若存在 `DATABASE_URL` 则用 Postgres；否则用 `SQLITE_PATH`（默认 `./local.db`）。它只创建 DB config 与连接句柄，不再默认在请求路径隐式建表；需要时由调用方显式执行 `bootstrapSchema()`。 |
 | `withDbTransaction(config, operation)` | 统一事务：SQLite 用队列串行化 + `BEGIN IMMEDIATE`；Postgres 用 Drizzle 事务。 |
 
 **主要仓储类**（Postgres / SQLite 各一套，接口相同）：
@@ -271,7 +271,8 @@ flowchart TB
 
 **服务端胶水**：[`lib/runtime-pi-repo.ts`](../apps/playground-next-web/lib/runtime-pi-repo.ts) 是**关键集成点**：
 
-- `createDbConfigFromEnv()` → `dbReady`
+- `createDbConfigFromEnv()` → `dbConfig`
+- 按宿主策略决定是否显式 `await dbConfig.bootstrapSchema()`
 - 按 `dbMode` 选择 `Sqlite*` 或 `Drizzle*` 仓储
 - `createPiRuntime({ tools: ... })` 适配为 `AgentInfraRuntimePort`
 - `withDbTransaction` 作为 `app` 的 `transaction`

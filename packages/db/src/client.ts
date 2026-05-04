@@ -29,7 +29,7 @@ export interface DbConfig {
   mode: DbMode;
   db: any;
   connectionString: string;
-  initialize: () => Promise<void>;
+  bootstrapSchema: () => Promise<void>;
   sqlitePath?: string;
 }
 
@@ -159,7 +159,7 @@ export function createDbConfigFromEnv(): DbConfig {
       mode: 'turso',
       db: drizzleLibsql(client),
       connectionString: tursoDatabaseUrl,
-      initialize: async () => {
+      bootstrapSchema: async () => {
         await ensureTursoSchema(tursoDatabaseUrl, authToken);
       }
     };
@@ -172,7 +172,7 @@ export function createDbConfigFromEnv(): DbConfig {
       mode: 'postgres',
       db: drizzlePostgres(pool),
       connectionString: databaseUrl,
-      initialize: async () => {}
+      bootstrapSchema: async () => {}
     };
   }
 
@@ -185,7 +185,7 @@ export function createDbConfigFromEnv(): DbConfig {
     db: drizzleSqlite(sqlite),
     connectionString: `file:${sqlitePath}`,
     sqlitePath,
-    initialize: async () => {
+    bootstrapSchema: async () => {
       ensureSqliteSchema(sqlitePath);
     }
   };
