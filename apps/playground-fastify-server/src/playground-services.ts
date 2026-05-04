@@ -1,3 +1,5 @@
+import { performance } from 'node:perf_hooks';
+
 import {
   RuntimeSelectionError,
   RuntimeUnavailableError,
@@ -17,6 +19,11 @@ type PlaygroundRuntimeServices = PlaygroundAppServices & {
 };
 
 let playgroundRuntimeServicesPromise: Promise<PlaygroundRuntimeServices> | null = null;
+const playgroundRuntimeServicesState = {
+  initialized: false,
+  initializing: false,
+  lastInitDurationMs: null as number | null
+};
 
 function mapRuntimePiConfigError(error: unknown) {
   const message = error instanceof Error ? error.message : 'Unknown runtime-pi configuration error';
@@ -35,6 +42,8 @@ function mapRuntimePiConfigError(error: unknown) {
 }
 
 async function buildPlaygroundRuntimeServices(): Promise<PlaygroundRuntimeServices> {
+  playgroundRuntimeServicesState.initializing = true;
+  const startedAt = performance.now();
   const base = await getPlaygroundBaseServices();
   const durableRuntime = createLazyPiRuntime(async () => {
     const { createDemoTools } = await import('@agent-infra/runtime-pi/tools');
@@ -67,19 +76,29 @@ async function buildPlaygroundRuntimeServices(): Promise<PlaygroundRuntimeServic
 
   const appServices = createPlaygroundAppServices(base, runtimePort);
 
-  return {
+  const services = {
     ...appServices,
     durableRuntime
   };
+  playgroundRuntimeServicesState.initialized = true;
+  playgroundRuntimeServicesState.lastInitDurationMs = Number((performance.now() - startedAt).toFixed(1));
+  playgroundRuntimeServicesState.initializing = false;
+
+  return services;
 }
 
 export async function getPlaygroundRuntimeServices(): Promise<PlaygroundRuntimeServices> {
   if (!playgroundRuntimeServicesPromise) {
     playgroundRuntimeServicesPromise = buildPlaygroundRuntimeServices().catch((error) => {
       playgroundRuntimeServicesPromise = null;
+      playgroundRuntimeServicesState.initializing = false;
       throw error;
     });
   }
 
   return playgroundRuntimeServicesPromise;
+}
+
+export function getPlaygroundRuntimeServicesState() {
+  return { ...playgroundRuntimeServicesState };
 }

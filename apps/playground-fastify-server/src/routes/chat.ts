@@ -1,4 +1,4 @@
-import type { AgentInfraApp } from '@agent-infra/app';
+import type { AgentInfraApp, StartTextTurnResult } from '@agent-infra/app';
 import type { RunStreamEventDto, RunStreamFailedEventDto, RuntimePiMetaDto } from '@agent-infra/contracts';
 import type { AgentInfraRepositoryBundle } from '@agent-infra/db';
 import {
@@ -26,9 +26,10 @@ import type { RuntimePiRuntime } from '@agent-infra/runtime-pi/types';
 import type { FastifyInstance } from 'fastify';
 
 import { APP_ID } from '../constants.js';
-import { getPlaygroundAppServices } from '../playground-app-services.js';
+import { getPlaygroundAppServices, getPlaygroundAppServicesState } from '../playground-app-services.js';
+import { getPlaygroundBaseServicesState } from '../playground-base-services.js';
 import { getPlaygroundDbInfo, getPlaygroundMeta } from '../playground-meta.js';
-import { getPlaygroundRuntimeServices } from '../playground-services.js';
+import { getPlaygroundRuntimeServices, getPlaygroundRuntimeServicesState } from '../playground-services.js';
 
 type ChatAppServices = {
   app: AgentInfraApp;
@@ -80,14 +81,18 @@ function writeSseEvent(
   }
 }
 
+function describeServiceState(state: { initialized: boolean; initializing: boolean; lastInitDurationMs: number | null }) {
+  return state.initialized ? 'warm' : state.initializing ? 'warming' : 'cold';
+}
+
 export async function registerChatRoutes(app: FastifyInstance, dependencies: ChatRouteDependencies = {}) {
   const getAppServices = dependencies.getAppServices ?? getPlaygroundAppServices;
   const getRuntimeServices = dependencies.getRuntimeServices ?? getPlaygroundRuntimeServices;
   const getRuntimeMeta = dependencies.getRuntimeMeta ?? (() => getPlaygroundMeta({}, getPlaygroundDbInfo()));
 
-  app.get('/api/meta', async (_request, reply) => {
+  app.get('/api/meta', async (request, reply) => {
     try {
-      const runtime = getRuntimeMeta();
+      const runtime = request.requestTiming.measureSync('meta.resolve', () => getRuntimeMeta());
 
       const response: RuntimePiMetaDto = buildRuntimeMetaResponse({
         dbMode: runtime.dbInfo.mode,
@@ -102,7 +107,7 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
 
       return reply.send(response);
     } catch (error) {
-      const runtime = buildUnavailableMetaFallback();
+      const runtime = request.requestTiming.measureSync('meta.unavailable_fallback', () => buildUnavailableMetaFallback());
 
       const response: RuntimePiMetaDto = buildUnavailableRuntimeMetaResponse(
         {
@@ -121,10 +126,12 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
     }
   });
 
-  app.get('/api/threads', async (_request, reply) => {
+  app.get('/api/threads', async (request, reply) => {
     try {
-      const { app: services } = await getAppServices();
-      const threads = await services.threads.list({ appId: APP_ID });
+      request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
+      request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
+      const { app: services } = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      const threads = await request.requestTiming.measureAsync('threads.list', () => services.threads.list({ appId: APP_ID }));
 
       return reply.send(buildThreadsResponse(threads));
     } catch (error) {
@@ -136,15 +143,19 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
     const title = parseCreateThreadTitle(request.body);
 
     try {
-      const { app: services } = await getAppServices();
-      const thread = await services.threads.create({
-        appId: APP_ID,
-        title,
-        metadata: {
-          source: 'playground-vite-web',
-          runtime: 'pi'
-        }
-      });
+      request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
+      request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
+      const { app: services } = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      const thread = await request.requestTiming.measureAsync('threads.create', () =>
+        services.threads.create({
+          appId: APP_ID,
+          title,
+          metadata: {
+            source: 'playground-vite-web',
+            runtime: 'pi'
+          }
+        })
+      );
 
       return reply.send(buildCreateThreadResponse(thread));
     } catch (error) {
@@ -154,8 +165,12 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
 
   app.get<{ Params: { threadId: string } }>('/api/threads/:threadId/messages', async (request, reply) => {
     try {
-      const { app: services } = await getAppServices();
-      const messages = await services.threads.getMessages({ threadId: request.params.threadId });
+      request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
+      request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
+      const { app: services } = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      const messages = await request.requestTiming.measureAsync('messages.get', () =>
+        services.threads.getMessages({ threadId: request.params.threadId })
+      );
 
       return reply.send(buildThreadMessagesResponse(messages));
     } catch (error) {
@@ -165,23 +180,27 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
 
   app.post('/api/threads/:threadId/runs/stream', async (request, reply) => {
     const turnInput = parseRunTextTurnInput(request.body);
-    let started;
+    let started: StartTextTurnResult;
+    let runtimeServices: ChatRuntimeServices;
 
     try {
-      const { app: services } = await getRuntimeServices();
-      started = await services.turns.startText({
-        threadId: (request.params as { threadId: string }).threadId,
-        text: turnInput.text,
-        provider: turnInput.provider,
-        model: turnInput.model
-      });
+      request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
+      request.requestTiming.annotate('runtime_services_state', describeServiceState(getPlaygroundRuntimeServicesState()));
+      runtimeServices = await request.requestTiming.measureAsync('services.runtime', () => getRuntimeServices());
+      started = await request.requestTiming.measureAsync('turns.start_text', () =>
+        runtimeServices.app.turns.startText({
+          threadId: (request.params as { threadId: string }).threadId,
+          text: turnInput.text,
+          provider: turnInput.provider,
+          model: turnInput.model
+        })
+      );
     } catch (error) {
       return reply.code(getRouteErrorStatus(error)).send(buildRunTextTurnErrorResponse(error, 'failed to stream thread turn'));
     }
 
     const threadId = (request.params as { threadId: string }).threadId;
     const runId = started.run.id;
-    const services = await getRuntimeServices();
     const runtimeInput = {
       threadId,
       runId,
@@ -193,6 +212,8 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
     let terminalEventSent = false;
 
     reply.hijack();
+    reply.raw.setHeader('x-request-id', request.id);
+    reply.raw.setHeader('server-timing', request.requestTiming.formatServerTiming({ includeTotal: false }));
     reply.raw.setHeader('cache-control', 'no-cache, no-transform');
     reply.raw.setHeader('connection', 'keep-alive');
     reply.raw.setHeader('content-type', 'text/event-stream; charset=utf-8');
@@ -205,35 +226,37 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
     try {
       writeSseEvent(reply, buildRunReadyEvent(started), streamState);
 
-      await services.durableRuntime.runTurn(
-        {
-          runRepo: services.repos.runRepo,
-          messageRepo: services.repos.messageRepo,
-          toolRepo: services.repos.toolRepo,
-          runEventRepo: services.repos.runEventRepo
-        },
-        runtimeInput,
-        {
-          onLiveAssistantUpdate: (assistantStream) => {
-            writeSseEvent(reply, buildRunAssistantEvent(runId, assistantStream), streamState);
+      await request.requestTiming.measureAsync('runtime.run_turn', () =>
+        runtimeServices.durableRuntime.runTurn(
+          {
+            runRepo: runtimeServices.repos.runRepo,
+            messageRepo: runtimeServices.repos.messageRepo,
+            toolRepo: runtimeServices.repos.toolRepo,
+            runEventRepo: runtimeServices.repos.runEventRepo
           },
-          onPersistedUpdate: (update) => {
-            if (!update.run) {
-              return;
-            }
+          runtimeInput,
+          {
+            onLiveAssistantUpdate: (assistantStream) => {
+              writeSseEvent(reply, buildRunAssistantEvent(runId, assistantStream), streamState);
+            },
+            onPersistedUpdate: (update) => {
+              if (!update.run) {
+                return;
+              }
 
-            finalRunSnapshot = toRunDto(update.run);
-            writeSseEvent(reply, buildRunStateEvent(runId, update.run), streamState);
+              finalRunSnapshot = toRunDto(update.run);
+              writeSseEvent(reply, buildRunStateEvent(runId, update.run), streamState);
 
-            if (!terminalEventSent) {
-              const terminalEvent = buildRunTerminalEvent(runId, update.run);
-              if (terminalEvent) {
-                terminalEventSent = true;
-                writeSseEvent(reply, terminalEvent, streamState);
+              if (!terminalEventSent) {
+                const terminalEvent = buildRunTerminalEvent(runId, update.run);
+                if (terminalEvent) {
+                  terminalEventSent = true;
+                  writeSseEvent(reply, terminalEvent, streamState);
+                }
               }
             }
           }
-        }
+        )
       );
     } catch (error) {
       if (!terminalEventSent) {
@@ -253,6 +276,7 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
       if (!streamState.closed && !reply.raw.destroyed && !reply.raw.writableEnded) {
         reply.raw.end();
       }
+      request.requestTiming.complete(app.log, request, reply);
     }
 
     return reply;

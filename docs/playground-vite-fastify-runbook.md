@@ -104,6 +104,60 @@ On a fresh machine, install the Playwright browser once:
 
 - `pnpm --filter playground-vite-web exec playwright install chromium`
 
+## API timing diagnostics
+
+The current Vite + Fastify setup now exposes a lightweight request timing layer for `/api/*` calls.
+
+### Browser-side view
+
+In `vite dev`, the browser prints request diagnostics to the console for:
+
+- JSON API requests such as `/api/meta`, `/api/threads`, `/api/threads/:threadId/messages`
+- stream lifecycle points such as:
+  - stream open
+  - first SSE event
+  - first assistant event
+  - terminal stream event
+
+You can also inspect the accumulated records in DevTools:
+
+- `window.__agentInfraPrintApiDiagnostics?.()`
+
+Each entry includes:
+
+- total browser-observed duration
+- response-header arrival time
+- `x-request-id`
+- parsed `server-timing`
+
+### Server-side view
+
+Fastify now logs one structured `request timing` record per request.
+
+That log includes:
+
+- request id
+- total duration
+- timing spans
+- simple cache-state annotations for app/runtime service initialization
+
+This lets you distinguish:
+
+- cold service initialization
+- DB query time
+- runtime turn setup time
+- runtime streaming execution time
+
+### What to compare
+
+When a request feels slow, compare these two numbers first:
+
+1. browser total duration
+2. `server-timing total`
+
+If they are close, the delay is mostly inside the server.
+If browser total is much larger, the missing time is outside the app logic, usually proxying, connection setup, or remote DB/network behavior.
+
 ## Environment variables
 
 ### Fastify host process

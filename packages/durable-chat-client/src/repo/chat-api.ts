@@ -18,6 +18,7 @@ import {
   readApiError,
   readJsonRecordOrEmpty
 } from '../schema/api.js';
+import { emitApiDiagnostic, readResponseDiagnostics } from '../service/api-diagnostics.js';
 
 export type ApiResult<T> = {
   ok: boolean;
@@ -31,6 +32,7 @@ export type RunStreamOpenResult = {
   status: number;
   error: string | null;
   body: ReadableStream<Uint8Array> | null;
+  requestId: string | null;
 };
 
 async function fetchJson<T>(
@@ -38,8 +40,25 @@ async function fetchJson<T>(
   normalize: (value: unknown) => T,
   init?: RequestInit
 ): Promise<ApiResult<T>> {
+  const startedAt = performance.now();
   const response = await fetch(input, init);
+  const headersDurationMs = Number((performance.now() - startedAt).toFixed(1));
   const raw = await readJsonRecordOrEmpty(response);
+  const totalDurationMs = Number((performance.now() - startedAt).toFixed(1));
+  const diagnostics = readResponseDiagnostics(response);
+
+  emitApiDiagnostic({
+    durationMs: totalDurationMs,
+    headersDurationMs,
+    kind: 'http-json',
+    method: init?.method ?? 'GET',
+    ok: response.ok,
+    requestId: diagnostics.requestId,
+    serverTiming: diagnostics.serverTiming,
+    serverTimingEntries: diagnostics.serverTimingEntries,
+    status: response.status,
+    url: typeof input === 'string' ? input : input.toString()
+  });
 
   return {
     ok: response.ok,
@@ -82,11 +101,27 @@ export async function openThreadRunStream(
   body: RunTextTurnRequestDto,
   signal: AbortSignal
 ): Promise<RunStreamOpenResult> {
+  const startedAt = performance.now();
   const response = await fetch(`/api/threads/${threadId}/runs/stream`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
     signal
+  });
+  const headersDurationMs = Number((performance.now() - startedAt).toFixed(1));
+  const diagnostics = readResponseDiagnostics(response);
+
+  emitApiDiagnostic({
+    durationMs: headersDurationMs,
+    headersDurationMs,
+    kind: 'stream-open',
+    method: 'POST',
+    ok: response.ok,
+    requestId: diagnostics.requestId,
+    serverTiming: diagnostics.serverTiming,
+    serverTimingEntries: diagnostics.serverTimingEntries,
+    status: response.status,
+    url: `/api/threads/${threadId}/runs/stream`
   });
 
   if (response.ok) {
@@ -94,7 +129,8 @@ export async function openThreadRunStream(
       ok: true,
       status: response.status,
       error: null,
-      body: response.body
+      body: response.body,
+      requestId: diagnostics.requestId
     };
   }
 
@@ -103,6 +139,7 @@ export async function openThreadRunStream(
     ok: false,
     status: response.status,
     error: readApiError(raw),
-    body: null
+    body: null,
+    requestId: diagnostics.requestId
   };
 }

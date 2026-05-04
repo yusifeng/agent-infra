@@ -12,6 +12,7 @@ import {
   upsertMessage,
   upsertRun
 } from '../service/chat-runtime.js';
+import { emitApiDiagnostic } from '../service/api-diagnostics.js';
 import type { LiveAssistantDraft } from '../types/live-assistant-draft.js';
 import type { ChatPhase } from '../types/runtime.js';
 
@@ -87,6 +88,12 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
   let terminalStreamError: string | null = null;
   let readyEventReceived = false;
   let requiresTranscriptRecovery = false;
+  const streamDiagnostics = {
+    firstAssistantEmitted: false,
+    firstEventEmitted: false,
+    requestId: null as string | null,
+    streamOpenedAtMs: 0
+  };
 
   const applyAssistantSnapshot = (event: Extract<RunStreamEventDto, { type: 'run.assistant' }>) => {
     if (event.assistant.eventType.startsWith('toolcall')) {
@@ -129,6 +136,20 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
   };
 
   const processStreamEvent = (event: RunStreamEventDto) => {
+    const elapsedMs = Number((performance.now() - streamDiagnostics.streamOpenedAtMs).toFixed(1));
+
+    if (!streamDiagnostics.firstEventEmitted) {
+      streamDiagnostics.firstEventEmitted = true;
+      emitApiDiagnostic({
+        durationMs: elapsedMs,
+        kind: 'stream-first-event',
+        method: 'POST',
+        note: event.type,
+        requestId: streamDiagnostics.requestId,
+        url: `/api/threads/${threadId}/runs/stream`
+      });
+    }
+
     streamedRunId = event.runId;
     actions.setLiveStreamRunId(event.runId);
 
@@ -159,6 +180,17 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
     }
 
     if (event.type === 'run.assistant') {
+      if (!streamDiagnostics.firstAssistantEmitted) {
+        streamDiagnostics.firstAssistantEmitted = true;
+        emitApiDiagnostic({
+          durationMs: elapsedMs,
+          kind: 'stream-first-assistant',
+          method: 'POST',
+          note: event.assistant.eventType,
+          requestId: streamDiagnostics.requestId,
+          url: `/api/threads/${threadId}/runs/stream`
+        });
+      }
       applyAssistantSnapshot(event);
       return;
     }
@@ -180,6 +212,16 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
       actions.setPersistingTurn(false);
       actions.setChatPhase('failed');
       actions.setLiveAssistantDraft((current) => (current?.runId === event.runId ? null : current));
+      emitApiDiagnostic({
+        durationMs: elapsedMs,
+        kind: 'stream-terminal',
+        method: 'POST',
+        note: 'run.failed',
+        ok: false,
+        requestId: streamDiagnostics.requestId,
+        status: 500,
+        url: `/api/threads/${threadId}/runs/stream`
+      });
       return;
     }
 
@@ -187,6 +229,16 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
       actions.setError(null);
       actions.setLiveStreamRunId(null);
       actions.setChatPhase(resolveSettledChatPhase);
+      emitApiDiagnostic({
+        durationMs: elapsedMs,
+        kind: 'stream-terminal',
+        method: 'POST',
+        note: 'run.completed',
+        ok: true,
+        requestId: streamDiagnostics.requestId,
+        status: 200,
+        url: `/api/threads/${threadId}/runs/stream`
+      });
     }
   };
 
@@ -239,6 +291,8 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
     }
 
     streamSessionStarted = true;
+    streamDiagnostics.requestId = streamResult.requestId;
+    streamDiagnostics.streamOpenedAtMs = performance.now();
     const reader = streamResult.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';

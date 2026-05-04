@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { performance } from 'node:perf_hooks';
 
 import type { AgentInfraRuntimePort } from '@agent-infra/app';
 import { createDbConfigFromEnv } from '@agent-infra/db';
@@ -13,9 +14,24 @@ export type PlaygroundBaseServices = DurableChatBaseServices;
 export type PlaygroundAppServices = DurableChatAppServices;
 
 let playgroundBaseServicesPromise: Promise<PlaygroundBaseServices> | null = null;
+const playgroundBaseServicesState = {
+  initialized: false,
+  initializing: false,
+  lastInitDurationMs: null as number | null
+};
 
 async function buildPlaygroundBaseServices(): Promise<PlaygroundBaseServices> {
-  return createDurableChatBaseServices(createDbConfigFromEnv());
+  playgroundBaseServicesState.initializing = true;
+  const startedAt = performance.now();
+
+  try {
+    const services = await createDurableChatBaseServices(createDbConfigFromEnv());
+    playgroundBaseServicesState.initialized = true;
+    playgroundBaseServicesState.lastInitDurationMs = Number((performance.now() - startedAt).toFixed(1));
+    return services;
+  } finally {
+    playgroundBaseServicesState.initializing = false;
+  }
 }
 
 export async function getPlaygroundBaseServices(): Promise<PlaygroundBaseServices> {
@@ -27,6 +43,10 @@ export async function getPlaygroundBaseServices(): Promise<PlaygroundBaseService
   }
 
   return playgroundBaseServicesPromise;
+}
+
+export function getPlaygroundBaseServicesState() {
+  return { ...playgroundBaseServicesState };
 }
 
 export function createPlaygroundAppServices(

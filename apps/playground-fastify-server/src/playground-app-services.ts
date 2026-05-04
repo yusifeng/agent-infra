@@ -1,3 +1,5 @@
+import { performance } from 'node:perf_hooks';
+
 import { RuntimeUnavailableError, type AgentInfraRuntimePort } from '@agent-infra/app';
 
 import {
@@ -16,10 +18,25 @@ const unavailableRuntimePort: AgentInfraRuntimePort = {
 };
 
 let playgroundAppServicesPromise: Promise<PlaygroundAppServices> | null = null;
+const playgroundAppServicesState = {
+  initialized: false,
+  initializing: false,
+  lastInitDurationMs: null as number | null
+};
 
 async function buildPlaygroundAppServices(): Promise<PlaygroundAppServices> {
-  const base = await getPlaygroundBaseServices();
-  return createPlaygroundAppServices(base, unavailableRuntimePort);
+  playgroundAppServicesState.initializing = true;
+  const startedAt = performance.now();
+
+  try {
+    const base = await getPlaygroundBaseServices();
+    const services = createPlaygroundAppServices(base, unavailableRuntimePort);
+    playgroundAppServicesState.initialized = true;
+    playgroundAppServicesState.lastInitDurationMs = Number((performance.now() - startedAt).toFixed(1));
+    return services;
+  } finally {
+    playgroundAppServicesState.initializing = false;
+  }
 }
 
 export async function getPlaygroundAppServices(): Promise<PlaygroundAppServices> {
@@ -31,4 +48,8 @@ export async function getPlaygroundAppServices(): Promise<PlaygroundAppServices>
   }
 
   return playgroundAppServicesPromise;
+}
+
+export function getPlaygroundAppServicesState() {
+  return { ...playgroundAppServicesState };
 }

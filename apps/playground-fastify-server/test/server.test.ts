@@ -201,6 +201,8 @@ describe('playground-fastify-server', () => {
       url: '/health'
     });
     expect(health.statusCode).toBe(200);
+    expect(health.headers['x-request-id']).toBeTruthy();
+    expect(health.headers['server-timing']).toContain('total;dur=');
     expect(health.json()).toEqual({
       app: 'playground-fastify-server',
       envFiles: ['test.env'],
@@ -212,6 +214,8 @@ describe('playground-fastify-server', () => {
       url: '/api/meta'
     });
     expect(meta.statusCode).toBe(200);
+    expect(meta.headers['x-request-id']).toBeTruthy();
+    expect(meta.headers['server-timing']).toContain('meta_resolve;dur=');
     expect(meta.json()).toMatchObject({
       runtimeConfigured: true,
       runtimeProvider: 'deepseek',
@@ -265,6 +269,7 @@ describe('playground-fastify-server', () => {
       url: '/api/threads'
     });
     expect(initialThreads.statusCode).toBe(200);
+    expect(initialThreads.headers['server-timing']).toContain('threads_list;dur=');
     expect(initialThreads.json()).toEqual({
       threads: []
     });
@@ -294,6 +299,7 @@ describe('playground-fastify-server', () => {
       url: `/api/threads/${threadId}/messages`
     });
     expect(messages.statusCode).toBe(200);
+    expect(messages.headers['server-timing']).toContain('messages_get;dur=');
     expect(messages.json()).toEqual({
       messages: []
     });
@@ -321,6 +327,8 @@ describe('playground-fastify-server', () => {
     });
     expect(stream.statusCode).toBe(200);
     expect(stream.headers['content-type']).toContain('text/event-stream');
+    expect(stream.headers['x-request-id']).toBeTruthy();
+    expect(stream.headers['server-timing']).toContain('turns_start_text;dur=');
 
     const events = parseSsePayloads(stream.body);
     expect(events.map((event) => event.type)).toEqual([

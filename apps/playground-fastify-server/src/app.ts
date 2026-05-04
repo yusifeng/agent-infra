@@ -2,6 +2,7 @@ import cors from '@fastify/cors';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 
 import { loadPlaygroundEnv } from './env.js';
+import { applyTimingHeaders, createRequestTiming } from './request-timing.js';
 import { registerChatRoutes, type ChatRouteDependencies } from './routes/chat.js';
 
 export type BuildPlaygroundServerOptions = ChatRouteDependencies & {
@@ -21,6 +22,19 @@ export async function buildPlaygroundServer(options: BuildPlaygroundServerOption
 
   await app.register(cors, {
     origin: true
+  });
+
+  app.addHook('onRequest', async (request) => {
+    request.requestTiming = createRequestTiming();
+  });
+
+  app.addHook('onSend', async (request, reply, payload) => {
+    applyTimingHeaders(request, reply);
+    return payload;
+  });
+
+  app.addHook('onResponse', async (request, reply) => {
+    request.requestTiming.complete(app.log, request, reply);
   });
 
   app.get('/health', async () => {
