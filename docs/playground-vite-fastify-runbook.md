@@ -53,6 +53,30 @@ That command currently proves this sequence:
 
 This is the current strongest validated path for “would this still work outside dev mode?”
 
+## Multi-database validation
+
+Use these commands when you want to validate the same phase-1 main chat loop across the DB modes that are actually configured in your shell:
+
+- `pnpm --filter playground-vite-web smoke:phase1:db`
+- `pnpm --filter playground-vite-web smoke:phase1:db:production`
+
+These commands always include:
+
+- `sqlite` via a temporary local database
+
+They also include these modes automatically when the required env is present:
+
+- `postgres` when `DATABASE_URL` is set
+- `turso` when `TURSO_DATABASE_URL` is set
+
+Modes without the required env are reported as `skipped`, not silently ignored.
+If a mode is available and fails, the command fails.
+
+You can narrow the matrix explicitly, for example:
+
+- `PLAYGROUND_PHASE1_DB_MODES=sqlite,postgres pnpm --filter playground-vite-web smoke:phase1:db`
+- `PLAYGROUND_PHASE1_DB_MODES=turso pnpm --filter playground-vite-web smoke:phase1:db:production`
+
 ## Browser validation
 
 The browser-level acceptance path is:
@@ -93,6 +117,7 @@ The DB mode comes from `createDbConfigFromEnv()` and follows this priority:
 3. otherwise `SQLITE_PATH` -> local SQLite, defaulting to `./local.db`
 
 For the phase-1 smoke and acceptance scripts, the repository intentionally overrides this and uses a temporary sqlite path so validation stays self-contained.
+The DB-matrix smoke commands are the exception: they intentionally preserve `DATABASE_URL` and `TURSO_*` when those modes are being exercised.
 
 ### Runtime selection
 
@@ -126,9 +151,11 @@ When changing the Fastify host, route helpers, or the Vite/Fastify wiring, use t
 2. `pnpm --filter playground-fastify-server typecheck`
 3. `pnpm --filter playground-vite-web smoke:phase1`
 4. `pnpm --filter playground-vite-web smoke:phase1:production`
-5. `pnpm --filter playground-vite-web acceptance:phase1`
+5. `pnpm --filter playground-vite-web smoke:phase1:db`
+6. `pnpm --filter playground-vite-web smoke:phase1:db:production`
+7. `pnpm --filter playground-vite-web acceptance:phase1`
 
-You do not always need all five, but this is the full validated ladder.
+You do not always need every step, but this is the full validated ladder.
 
 ## Failure triage
 

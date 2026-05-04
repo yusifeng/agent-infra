@@ -1,14 +1,18 @@
 import { collectSseEvents, extractMessageText, fetchJson, fetchText, waitForJson } from './phase1-harness.mjs';
 
-export async function runPhase1MainChatSmoke({ viteBaseUrl, threadTitle = 'Phase 1 smoke' }) {
+export async function runPhase1MainChatSmoke({
+  viteBaseUrl,
+  threadTitle = 'Phase 1 smoke',
+  expectedDbMode = 'sqlite'
+}) {
   const meta = await waitForJson(`${viteBaseUrl}/api/meta`, (payload) => payload?.runtimeConfigured !== undefined);
 
   if (!meta.runtimeConfigured) {
     throw new Error(`Runtime is not configured: ${meta.runtimeConfigError ?? 'unknown error'}`);
   }
 
-  if (meta.dbMode !== 'sqlite') {
-    throw new Error(`Expected sqlite db mode during smoke, received ${meta.dbMode}`);
+  if (meta.dbMode !== expectedDbMode) {
+    throw new Error(`Expected ${expectedDbMode} db mode during smoke, received ${meta.dbMode}`);
   }
 
   const initialThreads = await fetchJson(`${viteBaseUrl}/api/threads`);
@@ -81,6 +85,7 @@ export async function runPhase1MainChatSmoke({ viteBaseUrl, threadTitle = 'Phase
 
   return {
     assistantPreview: assistantText.slice(0, 80),
+    dbMode: meta.dbMode,
     eventTypes,
     finalThreadCount: listedThreads.threads.length,
     initialThreadCount: initialThreads.threads.length,

@@ -84,6 +84,63 @@ function spawnWorkspaceProcess(name, args, env) {
   return handle;
 }
 
+function isNonEmptyString(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function buildDbEnv(mode, sqlitePath) {
+  if (mode === 'sqlite') {
+    return {
+      SQLITE_PATH: sqlitePath,
+      DATABASE_URL: '',
+      TURSO_DATABASE_URL: '',
+      TURSO_AUTH_TOKEN: ''
+    };
+  }
+
+  if (mode === 'postgres') {
+    if (!isNonEmptyString(process.env.DATABASE_URL)) {
+      throw new Error('DATABASE_URL is required for postgres phase-1 smoke');
+    }
+
+    return {
+      SQLITE_PATH: '',
+      DATABASE_URL: process.env.DATABASE_URL,
+      TURSO_DATABASE_URL: '',
+      TURSO_AUTH_TOKEN: ''
+    };
+  }
+
+  if (mode === 'turso') {
+    if (!isNonEmptyString(process.env.TURSO_DATABASE_URL)) {
+      throw new Error('TURSO_DATABASE_URL is required for turso phase-1 smoke');
+    }
+
+    return {
+      SQLITE_PATH: '',
+      DATABASE_URL: '',
+      TURSO_DATABASE_URL: process.env.TURSO_DATABASE_URL,
+      TURSO_AUTH_TOKEN: process.env.TURSO_AUTH_TOKEN ?? ''
+    };
+  }
+
+  throw new Error(`Unsupported phase-1 db mode: ${mode}`);
+}
+
+export function getAvailablePhase1DbModes(env = process.env) {
+  const modes = ['sqlite'];
+
+  if (isNonEmptyString(env.DATABASE_URL)) {
+    modes.push('postgres');
+  }
+
+  if (isNonEmptyString(env.TURSO_DATABASE_URL)) {
+    modes.push('turso');
+  }
+
+  return modes;
+}
+
 export async function runWorkspaceCommand(name, args, env, options = {}) {
   const handle = spawnWorkspaceProcess(name, args, env);
   const timeoutMs = options.timeoutMs ?? 600000;
@@ -299,6 +356,7 @@ export async function runWithPhase1Harness(callback, options = {}) {
     Number(process.env.PLAYGROUND_PHASE1_TIMEOUT_MS ?? process.env.PLAYGROUND_PHASE1_SMOKE_TIMEOUT_MS ?? 90000);
   const fastifyMode = options.fastifyMode ?? 'dev';
   const viteMode = options.viteMode ?? 'dev';
+  const dbMode = options.dbMode ?? 'sqlite';
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'playground-phase1-smoke-'));
   const fastifyPort = await getFreePort();
   const vitePort = await getFreePort();
@@ -310,7 +368,10 @@ export async function runWithPhase1Harness(callback, options = {}) {
 
   console.log(`[phase1-smoke] Fastify ${fastifyBaseUrl}`);
   console.log(`[phase1-smoke] Vite ${viteBaseUrl}`);
-  console.log(`[phase1-smoke] SQLite ${sqlitePath}`);
+  console.log(`[phase1-smoke] DB mode ${dbMode}`);
+  if (dbMode === 'sqlite') {
+    console.log(`[phase1-smoke] SQLite ${sqlitePath}`);
+  }
 
   const runHarnessBody = async () => {
     const fastifyArgs =
@@ -324,10 +385,7 @@ export async function runWithPhase1Harness(callback, options = {}) {
         ...process.env,
         HOST: '127.0.0.1',
         PORT: String(fastifyPort),
-        SQLITE_PATH: sqlitePath,
-        DATABASE_URL: '',
-        TURSO_DATABASE_URL: '',
-        TURSO_AUTH_TOKEN: ''
+        ...buildDbEnv(dbMode, sqlitePath)
       }
     );
     processes.push(fastifyProcess);
@@ -353,12 +411,13 @@ export async function runWithPhase1Harness(callback, options = {}) {
     return callback({
       fastifyBaseUrl,
       viteBaseUrl,
-      sqlitePath
+      sqlitePath,
+      dbMode
     });
   };
 
   try {
-    await Promise.race([
+    return await Promise.race([
       runHarnessBody(),
       new Promise((_, reject) => {
         timeoutHandle = setTimeout(() => {
