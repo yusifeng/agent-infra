@@ -1,6 +1,8 @@
+import { loadPhase1Env } from './phase1-env.mjs';
 import { getAvailablePhase1DbModes, runWithPhase1Harness, runWorkspaceCommand } from './phase1-harness.mjs';
 import { runPhase1MainChatSmoke } from './phase1-main-chat-smoke.mjs';
 
+const loadedEnvFiles = loadPhase1Env();
 const buildTimeoutMs = Number(process.env.PLAYGROUND_PHASE1_BUILD_TIMEOUT_MS ?? 1200000);
 const buildSteps = [
   ['@agent-infra/core', ['--filter', '@agent-infra/core', 'build']],
@@ -68,6 +70,7 @@ console.log(
   JSON.stringify(
     {
       ok: true,
+      loadedEnvFiles,
       requestedModes,
       results,
       skipped

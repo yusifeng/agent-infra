@@ -71,6 +71,14 @@ They also include these modes automatically when the required env is present:
 
 Modes without the required env are reported as `skipped`, not silently ignored.
 If a mode is available and fails, the command fails.
+Before building the matrix, the scripts load `.env*` files using the same compatibility order already used by the Fastify host:
+
+1. `apps/playground-vite-web`
+2. `apps/playground-fastify-server`
+3. repository root
+4. `apps/playground-next-web`
+
+The JSON summary includes `loadedEnvFiles` so you can see which config source the matrix actually consumed.
 
 You can narrow the matrix explicitly, for example:
 

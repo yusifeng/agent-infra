@@ -1,6 +1,8 @@
+import { loadPhase1Env } from './phase1-env.mjs';
 import { getAvailablePhase1DbModes, runWithPhase1Harness } from './phase1-harness.mjs';
 import { runPhase1MainChatSmoke } from './phase1-main-chat-smoke.mjs';
 
+const loadedEnvFiles = loadPhase1Env();
 const requestedModes = (process.env.PLAYGROUND_PHASE1_DB_MODES ?? 'sqlite,postgres,turso')
   .split(',')
   .map((value) => value.trim())
@@ -37,6 +39,7 @@ console.log(
   JSON.stringify(
     {
       ok: true,
+      loadedEnvFiles,
       requestedModes,
       results,
       skipped
