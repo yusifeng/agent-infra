@@ -1,18 +1,24 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['@agent-infra/core', '@agent-infra/db'],
-  serverExternalPackages: [
-    'better-sqlite3',
+  transpilePackages: [
+    '@agent-infra/core',
+    '@agent-infra/db',
     '@agent-infra/runtime-pi',
-    '@agent-infra/runtime-pi/lazy',
-    '@agent-infra/runtime-pi/runtime',
-    '@agent-infra/runtime-pi/tools',
     '@mariozechner/pi-agent-core',
-    '@mariozechner/pi-agent-core/dist/index.js',
-    '@mariozechner/pi-ai',
-    '@mariozechner/pi-ai/dist/index.js'
+    '@mariozechner/pi-ai'
   ],
+  outputFileTracingIncludes: {
+    '/api/threads/[threadId]/runs': [
+      '../../packages/runtime-pi/node_modules/@mariozechner/pi-agent-core/**/*',
+      '../../packages/runtime-pi/node_modules/@mariozechner/pi-ai/**/*'
+    ],
+    '/api/threads/[threadId]/runs/stream': [
+      '../../packages/runtime-pi/node_modules/@mariozechner/pi-agent-core/**/*',
+      '../../packages/runtime-pi/node_modules/@mariozechner/pi-ai/**/*'
+    ]
+  },
+  serverExternalPackages: ['better-sqlite3'],
   webpack: (config, { isServer }) => {
     if (isServer) {
       config.externals ??= [];

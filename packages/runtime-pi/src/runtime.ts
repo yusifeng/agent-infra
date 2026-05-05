@@ -1,11 +1,15 @@
 import crypto from 'node:crypto';
-import { createRequire } from 'node:module';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 
 import type { Message as StoredMessage } from '@agent-infra/core';
-import type { AgentEvent, AgentTool } from '@mariozechner/pi-agent-core';
-import type { AssistantMessage, AssistantMessageEvent, Message as PiMessage, Model, ToolResultMessage } from '@mariozechner/pi-ai';
+import { Agent, type AgentEvent, type AgentTool } from '@mariozechner/pi-agent-core';
+import {
+  getModels,
+  type AssistantMessage,
+  type AssistantMessageEvent,
+  type Message as PiMessage,
+  type Model,
+  type ToolResultMessage
+} from '@mariozechner/pi-ai';
 
 import { resolveRuntimePiConfigFromEnv } from './config.js';
 import { buildInitialAgentState, convertToLlm } from './messages.js';
@@ -40,10 +44,6 @@ export type RuntimePiInternalOptions = RuntimePiRuntimeOptions & {
   tools?: AgentTool[];
 };
 
-type AgentClass = typeof import('@mariozechner/pi-agent-core/dist/index.js').Agent;
-const PI_AGENT_CORE_SPECIFIER = '@mariozechner/pi-agent-core/dist/index.js';
-const PI_AI_MODELS_RELATIVE_PATH = '../../../pi-ai/dist/models.js';
-const runtimeRequire = createRequire(import.meta.url);
 let openAiModelIndexPromise: Promise<Map<string, Model<any>>> | null = null;
 
 function createDeepseekModel(modelId: string): Model<any> {
@@ -73,13 +73,7 @@ function createDeepseekModel(modelId: string): Model<any> {
 async function loadOpenAiModelIndex() {
   if (!openAiModelIndexPromise) {
     openAiModelIndexPromise = (async () => {
-      const resolvedAgentCoreSpecifier = runtimeRequire.resolve(PI_AGENT_CORE_SPECIFIER);
-      const resolvedModelsSpecifier = path.resolve(resolvedAgentCoreSpecifier, PI_AI_MODELS_RELATIVE_PATH);
-      const modelsModule = await import(
-        pathToFileURL(resolvedModelsSpecifier).href
-      ) as { getModels: (provider: string) => Model<any>[] };
-
-      return new Map(modelsModule.getModels('openai').map((model) => [model.id, model]));
+      return new Map(getModels('openai').map((model) => [model.id, model]));
     })().catch((error) => {
       openAiModelIndexPromise = null;
       throw error;
@@ -97,17 +91,6 @@ async function resolveOpenAiModel(modelId: string): Promise<Model<any>> {
   }
 
   return model;
-}
-
-async function loadAgentClass(): Promise<AgentClass> {
-  if (process.env.VITEST) {
-    const module = await import(PI_AGENT_CORE_SPECIFIER) as typeof import('@mariozechner/pi-agent-core/dist/index.js');
-    return module.Agent;
-  }
-
-  const resolvedSpecifier = pathToFileURL(runtimeRequire.resolve(PI_AGENT_CORE_SPECIFIER)).href;
-  const module = await (0, eval)(`import(${JSON.stringify(resolvedSpecifier)})`) as typeof import('@mariozechner/pi-agent-core/dist/index.js');
-  return module.Agent;
 }
 
 async function resolveConfiguredModel(config: RuntimePiConfig): Promise<Model<any>> {
@@ -757,7 +740,6 @@ export async function runAssistantTurnWithPiInternal(
   };
 
   const tools = options.tools ?? [];
-  const Agent = await loadAgentClass();
 
   const agent = new Agent({
     initialState: {

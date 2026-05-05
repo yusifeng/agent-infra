@@ -1,29 +1,16 @@
-import { createRequire } from 'node:module';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
-
 import {
   RuntimeSelectionError,
   RuntimeUnavailableError,
   type AgentInfraRuntimePort
 } from '@agent-infra/app';
+import { createLazyPiRuntime } from '@agent-infra/runtime-pi/lazy';
+import { createDemoTools } from '@agent-infra/runtime-pi/tools';
 import type { RuntimePiRuntime } from '@agent-infra/runtime-pi/types';
 
 import { createPlaygroundAppServices, getPlaygroundBaseServices, type PlaygroundAppServices } from './playground-base-services';
 
 type PlaygroundRuntimeServices = PlaygroundAppServices & {
   durableRuntime: RuntimePiRuntime;
-};
-
-type CreateLazyPiRuntime = typeof import('@agent-infra/runtime-pi/lazy').createLazyPiRuntime;
-type CreateDemoTools = typeof import('@agent-infra/runtime-pi/tools').createDemoTools;
-
-const runtimeRequire = createRequire(import.meta.url);
-const RUNTIME_PI_LAZY_SPECIFIER = '@agent-infra/runtime-pi/lazy';
-const RUNTIME_PI_TOOLS_SPECIFIER = '@agent-infra/runtime-pi/tools';
-const RUNTIME_PI_FALLBACK_PATHS: Record<string, string> = {
-  [RUNTIME_PI_LAZY_SPECIFIER]: path.resolve(process.cwd(), 'node_modules/@agent-infra/runtime-pi/dist/lazy.js'),
-  [RUNTIME_PI_TOOLS_SPECIFIER]: path.resolve(process.cwd(), 'node_modules/@agent-infra/runtime-pi/dist/tools.js')
 };
 
 let playgroundRuntimeServicesPromise: Promise<PlaygroundRuntimeServices> | null = null;
@@ -43,31 +30,8 @@ function mapRuntimePiConfigError(error: unknown) {
 
   return new RuntimeUnavailableError(message, error);
 }
-
-function resolveExternalModulePath(specifier: string) {
-  try {
-    return runtimeRequire.resolve(specifier);
-  } catch {
-    const fallbackPath = RUNTIME_PI_FALLBACK_PATHS[specifier];
-    if (fallbackPath) {
-      return fallbackPath;
-    }
-
-    throw new Error(`Unable to resolve external module: ${specifier}`);
-  }
-}
-
-async function importExternalModule<T>(specifier: string): Promise<T> {
-  const resolvedSpecifier = pathToFileURL(resolveExternalModulePath(specifier)).href;
-  return await (0, eval)(`import(${JSON.stringify(resolvedSpecifier)})`) as T;
-}
-
 async function buildPlaygroundRuntimeServices(): Promise<PlaygroundRuntimeServices> {
   const base = await getPlaygroundBaseServices();
-  const [{ createLazyPiRuntime }, { createDemoTools }] = await Promise.all([
-    importExternalModule<{ createLazyPiRuntime: CreateLazyPiRuntime }>(RUNTIME_PI_LAZY_SPECIFIER),
-    importExternalModule<{ createDemoTools: CreateDemoTools }>(RUNTIME_PI_TOOLS_SPECIFIER)
-  ]);
 
   const durableRuntime = createLazyPiRuntime(async () => {
 
