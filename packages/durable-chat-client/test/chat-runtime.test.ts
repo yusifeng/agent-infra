@@ -117,6 +117,19 @@ describe('durable-chat-client service', () => {
           pendingNewThreadLoadingId: '__pending__'
         })
       )
+    ).toBe(false);
+
+    expect(
+      shouldShowMainChatLoading(
+        deriveMainChatResponseStatus({
+          activeResponseRun: null,
+          activeThreadId: 'thread-1',
+          loadingThreadId: 'thread-1',
+          chatPhase: 'streaming',
+          persistingTurn: false,
+          pendingNewThreadLoadingId: '__pending__'
+        })
+      )
     ).toBe(true);
   });
 

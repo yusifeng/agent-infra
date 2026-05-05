@@ -11,6 +11,7 @@ import {
   RECENT_RUNS_LIMIT,
   resolvePostReconcileChatPhase
 } from '../service/chat-runtime.js';
+import { emitApiDiagnostic } from '../service/api-diagnostics.js';
 import { emitChatRenderDiagnostic } from '../service/render-diagnostics.js';
 import type { ChatPhase } from '../types/runtime.js';
 import type { LiveAssistantDraft } from '../types/live-assistant-draft.js';
@@ -90,6 +91,8 @@ export async function runReconcileCompletedTurn({
   let nextSelectedRunId: string | null = null;
   let reconciledMessages = state.messages;
   let reconciledPageInfo = state.pageInfo;
+  const reconcileStartedAtMs = performance.now();
+  let reconcileCompletedWithoutError = false;
 
   try {
     {
@@ -203,6 +206,7 @@ export async function runReconcileCompletedTurn({
       actions.setTimeline(null);
       actions.setTimelineError(null);
     }
+    reconcileCompletedWithoutError = true;
   } catch (reconcileError) {
     if (isReconcileThreadStale() || !isLatestReconcile()) {
       return;
@@ -217,6 +221,16 @@ export async function runReconcileCompletedTurn({
       }
     }
   } finally {
+    const reconcileStillCurrent = !isReconcileThreadStale() && isLatestReconcile();
+    emitApiDiagnostic({
+      durationMs: Number((performance.now() - reconcileStartedAtMs).toFixed(1)),
+      kind: 'reconcile-sync',
+      method: 'GET',
+      note: inspectorEnabled ? 'messages+runs+timeline' : 'messages-only',
+      ok: reconcileStillCurrent ? reconcileCompletedWithoutError : undefined,
+      status: reconcileStillCurrent ? (reconcileCompletedWithoutError ? 200 : 500) : undefined,
+      url: `/api/threads/${threadId}/messages`
+    });
     reconcileController.abort();
     if (requestId === refs.sendRequestIdRef.current) {
       actions.setPersistingTurn(false);

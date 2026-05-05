@@ -1,5 +1,6 @@
 type ApiDiagnosticKind =
   | 'http-json'
+  | 'reconcile-sync'
   | 'stream-open'
   | 'stream-first-event'
   | 'stream-first-assistant'

@@ -64,7 +64,7 @@ export function deriveMainChatResponseStatus(input: {
     return durableStatus;
   }
 
-  if (persistingTurn || chatPhase === 'streaming' || chatPhase === 'transcript-final') {
+  if (chatPhase === 'streaming') {
     return 'in_progress';
   }
 
