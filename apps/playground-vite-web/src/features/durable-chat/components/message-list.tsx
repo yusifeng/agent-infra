@@ -308,7 +308,7 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
 
   return (
     <div
-      className={clsx('group relative w-[90%] max-w-screen px-4', props.type === 'persisted' && ui.messageAppear)}
+      className="group relative w-[90%] max-w-screen px-4"
       data-message-role="assistant"
       data-message-id={props.type === 'persisted' ? props.message.id : props.liveAssistantDraft.messageId}
       data-render-key={assistantDiagnosticKey}
@@ -345,7 +345,7 @@ const MessageCard = memo(function MessageCard({ message }: { message: MessageDto
   if (isUser) {
     return (
       <div
-        className={clsx('group relative flex w-full max-w-screen justify-end px-4', !isOptimistic && ui.messageAppear)}
+        className="group relative flex w-full max-w-screen justify-end px-4"
         data-message-role="user"
         data-message-id={message.id}
         data-render-key={renderKey}
@@ -400,7 +400,7 @@ const LiveAssistantCard = memo(function LiveAssistantCard({
 
 const ThinkingIndicator = memo(function ThinkingIndicator() {
   return (
-    <div className={clsx('w-[90%] max-w-screen px-4', ui.messageAppear)}>
+    <div className="w-[90%] max-w-screen px-4">
       <div className="flex items-center gap-2.5 py-1.5">
         <span className="h-2 w-2 rounded-full bg-[color:var(--chat-text-tertiary)]" aria-hidden="true" />
         <span className="chat-shimmer-text text-sm font-medium tracking-[0.01em]">Thinking...</span>

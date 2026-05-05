@@ -29,7 +29,6 @@ export const ui = {
   composerDock: 'bg-[var(--chat-bg)] backdrop-blur-[8px]',
   composerCard: 'rounded-xl border border-[color:var(--chat-border)] bg-[var(--chat-surface)] shadow-[var(--chat-shadow-card)]',
   textarea: 'border-none bg-transparent text-[color:var(--chat-text)] outline-none placeholder:text-[color:var(--chat-placeholder)]',
-  messageAppear: 'chat-message-appear',
   scrollButton: 'border border-[color:var(--chat-border)] bg-[var(--chat-surface)]',
   logPane: 'bg-[var(--chat-bg)]',
   badge: 'border border-[color:var(--chat-border)] bg-[var(--chat-badge-bg)] text-[color:var(--chat-text-secondary)]',

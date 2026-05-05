@@ -47,22 +47,6 @@
   background: transparent;
 }
 
-@keyframes chat-message-appear {
-  from {
-    transform: translate3d(0, 8px, 0);
-    opacity: 0;
-  }
-
-  to {
-    transform: translate3d(0, 0, 0);
-    opacity: 1;
-  }
-}
-
-.chat-message-appear {
-  animation: chat-message-appear 180ms ease-out;
-}
-
 @keyframes chat-shimmer {
   0% {
     background-position: -600px 0;
