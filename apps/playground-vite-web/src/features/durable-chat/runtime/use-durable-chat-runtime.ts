@@ -16,6 +16,7 @@ import {
   runStopViewingLiveResponse,
   upsertMessage
 } from '@agent-infra/durable-chat-client';
+import type { LoadThreadMessagesResult } from '@agent-infra/durable-chat-client';
 import { useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -44,7 +45,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       error,
       liveAssistantDraft,
       messagePageInfo,
-      durableRecoveryNotice,
+      durableRecoveryState,
       sidebarOpen,
       showScrollToBottom
     },
@@ -64,7 +65,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     setLiveStreamRunId,
     setLiveAssistantDraft,
     setMessagePageInfo,
-    setDurableRecoveryNotice,
+    setDurableRecoveryState,
     setSidebarOpen,
     setShowScrollToBottom
   } = useChatSessionController();
@@ -294,7 +295,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       },
       actions: {
         setActiveThreadId,
-        setDurableRecoveryNotice
+        setDurableRecoveryState
       },
       operations: {
         loadThreadMessages
@@ -355,8 +356,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       skipTimelineReload?: boolean;
       preserveExistingTimeline?: boolean;
     }
-  ) {
-    return runLoadThreadMessages({
+  ): Promise<LoadThreadMessagesResult> {
+    const result = await runLoadThreadMessages({
       threadId,
       options,
       refs: {
@@ -399,6 +400,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         resetLogInspectorState
       }
     });
+
+    return result ?? { ok: false, restoredRunId: null };
   }
 
   async function loadOlderMessages() {
@@ -532,6 +535,10 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
 
   function startNewChat() {
     stopViewingLiveResponse();
+    setDurableRecoveryState({
+      phase: 'idle',
+      message: null
+    });
     if (typeof window !== 'undefined' && window.innerWidth < 1024) {
       setSidebarOpen(false);
     }
@@ -540,6 +547,10 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
 
   function openThread(threadId: string) {
     stopViewingLiveResponse();
+    setDurableRecoveryState({
+      phase: 'idle',
+      message: null
+    });
     if (typeof window !== 'undefined' && window.innerWidth < 1024) {
       setSidebarOpen(false);
     }
@@ -562,7 +573,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
           runSelectionPersistenceReadyRef
         },
         actions: {
-          setDurableRecoveryNotice,
+          setDurableRecoveryState,
           setError
         },
         operations: {
@@ -590,7 +601,10 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     }
 
     resetDraftThreadState();
-    setDurableRecoveryNotice(null);
+    setDurableRecoveryState({
+      phase: 'idle',
+      message: null
+    });
     setError(null);
   }, [initialThreadId]);
 
@@ -610,7 +624,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     currentThreadTitle,
     displayedMessages,
     draft,
-    durableRecoveryNotice,
+    durableRecoveryState,
     error,
     hasOlderMessages,
     historyLoading,

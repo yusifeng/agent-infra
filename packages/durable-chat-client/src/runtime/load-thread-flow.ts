@@ -4,7 +4,7 @@ import { fetchThreadMessagesResponse } from '../repo/chat-api.js';
 import { assistantMessageHasVisibleContent } from '../service/message-visibility.js';
 import { INITIAL_MESSAGE_PAGE_LIMIT, mergeMessageWindow, mergeThreadMessagesPageInfo } from '../service/chat-runtime.js';
 import type { LiveAssistantDraft } from '../types/live-assistant-draft.js';
-import type { ChatPhase } from '../types/runtime.js';
+import type { ChatPhase, DurableRecoveryState } from '../types/runtime.js';
 
 type Updater<T> = T | ((current: T) => T);
 type Setter<T> = (next: Updater<T>) => void;
@@ -15,6 +15,11 @@ type ApplyHydratedTranscriptArgs = {
   pageInfo: ThreadMessagesPageInfoDto | null;
   selectedRunId: string | null;
   runs: RunDto[];
+};
+
+export type LoadThreadMessagesResult = {
+  ok: boolean;
+  restoredRunId: string | null;
 };
 
 export type HydratedTranscriptPage = {
@@ -60,14 +65,17 @@ type LoadThreadMessagesArgs = {
 
 type ActivateThreadArgs = {
   threadId: string;
-  options?: { preferredRunId?: string | null };
+  options?: {
+    preferredRunId?: string | null;
+    recoveryMode?: 'initial-thread';
+  };
   refs: {
     activeThreadIdRef: RefLike<string | null>;
     shouldAutoScrollRef: RefLike<boolean>;
   };
   actions: {
     setActiveThreadId: Setter<string | null>;
-    setDurableRecoveryNotice: Setter<string | null>;
+    setDurableRecoveryState: Setter<DurableRecoveryState>;
   };
   operations: {
     loadThreadMessages: (
@@ -78,7 +86,7 @@ type ActivateThreadArgs = {
         skipTimelineReload?: boolean;
         preserveExistingTimeline?: boolean;
       }
-    ) => Promise<string | null | undefined>;
+    ) => Promise<LoadThreadMessagesResult>;
   };
 };
 
@@ -163,7 +171,7 @@ export async function runLoadThreadMessages({ threadId, options, refs, actions, 
     const hydratedTranscriptPage = await operations.hydrateTranscript(threadId, controller.signal);
 
     if (controller.signal.aborted || requestId !== refs.messagesRequestIdRef.current) {
-      return;
+      return { ok: false, restoredRunId: null };
     }
 
     const nextMessages = hydratedTranscriptPage.messages;
@@ -175,7 +183,7 @@ export async function runLoadThreadMessages({ threadId, options, refs, actions, 
         selectedRunId: null,
         runs: []
       });
-      return null;
+      return { ok: true, restoredRunId: null };
     }
 
     operations.applyHydratedTranscript({
@@ -185,16 +193,20 @@ export async function runLoadThreadMessages({ threadId, options, refs, actions, 
       runs: []
     });
     if (options?.skipTimelineReload) {
-      return null;
+      return { ok: true, restoredRunId: null };
     }
 
-    return await operations.loadLogInspector(threadId, nextMessages, {
+    const restoredRunId = await operations.loadLogInspector(threadId, nextMessages, {
       preferredRunId: options?.preferredRunId,
       preserveExistingTimeline: options?.preserveExistingTimeline === true
     });
+    return {
+      ok: true,
+      restoredRunId: restoredRunId ?? null
+    };
   } catch (loadError) {
     if (controller.signal.aborted || requestId !== refs.messagesRequestIdRef.current) {
-      return;
+      return { ok: false, restoredRunId: null };
     }
 
     operations.resetLogInspectorState();
@@ -202,7 +214,7 @@ export async function runLoadThreadMessages({ threadId, options, refs, actions, 
     actions.setMessagePageInfo(null);
     actions.setOptimisticUserMessage(null);
     actions.setError(loadError instanceof Error ? loadError.message : 'Failed to load thread messages');
-    return null;
+    return { ok: false, restoredRunId: null };
   } finally {
     if (requestId === refs.messagesRequestIdRef.current) {
       refs.messagesAbortControllerRef.current = null;
@@ -217,18 +229,38 @@ export async function runActivateThread({ threadId, options, refs, actions, oper
   actions.setActiveThreadId(threadId);
   refs.activeThreadIdRef.current = threadId;
   refs.shouldAutoScrollRef.current = true;
-  const restoredRunId = await operations.loadThreadMessages(threadId, options);
-  if (options?.preferredRunId) {
-    actions.setDurableRecoveryNotice(
-      restoredRunId
-        ? 'Restored the focused run from durable records. Live stream drafts are transient and may not survive refresh.'
-        : null
-    );
+  if (options?.recoveryMode === 'initial-thread') {
+    actions.setDurableRecoveryState({
+      phase: 'recovering',
+      message: options.preferredRunId
+        ? 'Restoring the focused run from durable records...'
+        : 'Restoring this durable thread from durable records...'
+    });
   } else {
-    actions.setDurableRecoveryNotice(null);
+    actions.setDurableRecoveryState({
+      phase: 'idle',
+      message: null
+    });
   }
 
-  return restoredRunId;
+  const loadResult = await operations.loadThreadMessages(threadId, options);
+  if (options?.recoveryMode === 'initial-thread') {
+    actions.setDurableRecoveryState(
+      loadResult.ok
+        ? {
+            phase: 'restored',
+            message: loadResult.restoredRunId
+              ? 'Restored the focused run from durable records. Live stream drafts are transient and may not survive refresh.'
+              : 'Restored this durable thread from durable records. Live stream drafts are transient and may not survive refresh.'
+          }
+        : {
+            phase: 'idle',
+            message: null
+          }
+    );
+  }
+
+  return loadResult.restoredRunId;
 }
 
 export async function runLoadOlderMessages({ threadId, beforeCursor, historyLoading, refs, actions }: LoadOlderMessagesArgs) {

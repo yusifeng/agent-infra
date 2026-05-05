@@ -1,8 +1,9 @@
 import type { MessageDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { runLoadOlderMessages } from '../src/runtime/load-thread-flow';
+import { runActivateThread, runLoadOlderMessages } from '../src/runtime/load-thread-flow';
 import { INITIAL_MESSAGE_PAGE_LIMIT } from '../src/service/chat-runtime';
+import type { DurableRecoveryState } from '../src/types/runtime';
 
 const { fetchThreadMessagesResponseMock } = vi.hoisted(() => ({
   fetchThreadMessagesResponseMock: vi.fn()
@@ -178,5 +179,76 @@ describe('runLoadOlderMessages', () => {
 
     expect(didApply).toBe(false);
     expect(setError).toHaveBeenLastCalledWith('upstream unavailable');
+  });
+});
+
+describe('runActivateThread', () => {
+  it('surfaces recovering and restored states for initial thread recovery', async () => {
+    const setActiveThreadId = createSetterSpy<string | null>();
+    const setDurableRecoveryState = createSetterSpy<DurableRecoveryState>();
+    const loadThreadMessages = vi.fn().mockResolvedValue({
+      ok: true,
+      restoredRunId: 'run-1'
+    });
+
+    const restoredRunId = await runActivateThread({
+      threadId: 'thread-1',
+      options: {
+        preferredRunId: 'run-1',
+        recoveryMode: 'initial-thread'
+      },
+      refs: {
+        activeThreadIdRef: { current: null },
+        shouldAutoScrollRef: { current: false }
+      },
+      actions: {
+        setActiveThreadId,
+        setDurableRecoveryState
+      },
+      operations: {
+        loadThreadMessages
+      }
+    });
+
+    expect(restoredRunId).toBe('run-1');
+    expect(setActiveThreadId).toHaveBeenCalledWith('thread-1');
+    expect(setDurableRecoveryState).toHaveBeenNthCalledWith(1, {
+      phase: 'recovering',
+      message: 'Restoring the focused run from durable records...'
+    });
+    expect(setDurableRecoveryState).toHaveBeenNthCalledWith(2, {
+      phase: 'restored',
+      message: 'Restored the focused run from durable records. Live stream drafts are transient and may not survive refresh.'
+    });
+  });
+
+  it('clears recovery state when initial recovery load fails', async () => {
+    const setDurableRecoveryState = createSetterSpy<DurableRecoveryState>();
+
+    await runActivateThread({
+      threadId: 'thread-1',
+      options: {
+        recoveryMode: 'initial-thread'
+      },
+      refs: {
+        activeThreadIdRef: { current: null },
+        shouldAutoScrollRef: { current: false }
+      },
+      actions: {
+        setActiveThreadId: createSetterSpy<string | null>(),
+        setDurableRecoveryState
+      },
+      operations: {
+        loadThreadMessages: vi.fn().mockResolvedValue({
+          ok: false,
+          restoredRunId: null
+        })
+      }
+    });
+
+    expect(setDurableRecoveryState).toHaveBeenLastCalledWith({
+      phase: 'idle',
+      message: null
+    });
   });
 });

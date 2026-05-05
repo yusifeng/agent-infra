@@ -7,6 +7,7 @@ import { copyMessageToClipboard, copyTextToClipboard, messagePartHasVisibleConte
 import { MarkdownRenderer } from './markdown-renderer';
 import { AnimatedEmoji } from './shared';
 import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
+import type { DurableRecoveryState } from '@/features/durable-chat/types/runtime';
 import { maxWithTW, messageListMinHeight, ui } from './ui';
 
 const transcriptRowPerformanceStyle: CSSProperties = {
@@ -323,7 +324,7 @@ const ThinkingIndicator = memo(function ThinkingIndicator() {
 type ChatMessageListProps = {
   meta: RuntimePiMetaDto | null;
   error: string | null;
-  durableRecoveryNotice: string | null;
+  durableRecoveryState: DurableRecoveryState;
   hasOlderMessages: boolean;
   historyLoading: boolean;
   loadingMessages: boolean;
@@ -337,7 +338,7 @@ type ChatMessageListProps = {
 export const ChatMessageList = memo(function ChatMessageList({
   meta,
   error,
-  durableRecoveryNotice,
+  durableRecoveryState,
   hasOlderMessages,
   historyLoading,
   loadingMessages,
@@ -355,9 +356,12 @@ export const ChatMessageList = memo(function ChatMessageList({
         </div>
       ) : null}
 
-      {durableRecoveryNotice ? (
+      {durableRecoveryState.phase !== 'idle' && durableRecoveryState.message ? (
         <div className={clsx(`${maxWithTW} mx-auto mb-4 w-full rounded-xl px-4 py-3 text-sm`, ui.infoBanner)}>
-          {durableRecoveryNotice}
+          <div className="flex items-center gap-2">
+            {durableRecoveryState.phase === 'recovering' ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            <span>{durableRecoveryState.message}</span>
+          </div>
         </div>
       ) : null}
 

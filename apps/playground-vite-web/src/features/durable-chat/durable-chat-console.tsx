@@ -37,7 +37,7 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
               <ChatMessageList
                 meta={runtime.meta}
                 error={runtime.error}
-                durableRecoveryNotice={runtime.durableRecoveryNotice}
+                durableRecoveryState={runtime.durableRecoveryState}
                 hasOlderMessages={runtime.hasOlderMessages}
                 historyLoading={runtime.historyLoading}
                 loadingMessages={runtime.loadingMessages}

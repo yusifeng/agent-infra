@@ -3,7 +3,7 @@ import type { MessageDto, RunDto, RunTimelineResponseDto, RuntimePiMetaDto, Thre
 import { createThreadResponse, fetchRuntimeMetaResponse, fetchThreadsResponse } from '../repo/chat-api.js';
 import { normalizeRuntimeMeta } from '../service/chat-runtime.js';
 import type { LiveAssistantDraft } from '../types/live-assistant-draft.js';
-import type { ChatPhase } from '../types/runtime.js';
+import type { ChatPhase, DurableRecoveryState } from '../types/runtime.js';
 
 type Updater<T> = T | ((current: T) => T);
 type Setter<T> = (next: Updater<T>) => void;
@@ -82,11 +82,14 @@ type InitializeRuntimeArgs = {
     runSelectionPersistenceReadyRef: RefLike<boolean>;
   };
   actions: {
-    setDurableRecoveryNotice: Setter<string | null>;
+    setDurableRecoveryState: Setter<DurableRecoveryState>;
     setError: Setter<string | null>;
   };
   operations: {
-    activateThread: (threadId: string, options?: { preferredRunId?: string | null }) => Promise<string | null | undefined>;
+    activateThread: (
+      threadId: string,
+      options?: { preferredRunId?: string | null; recoveryMode?: 'initial-thread' }
+    ) => Promise<string | null | undefined>;
     getPreferredRunId: (threadId: string) => string | null;
     isCurrentRequest: () => boolean;
     refreshThreads: () => Promise<ThreadDto[]>;
@@ -182,12 +185,17 @@ export async function runInitializeRuntime({ initialThreadId, refs, actions, ope
     }
 
     if (initialThreadId) {
+      const preferredRunId = operations.getPreferredRunId(initialThreadId);
       await operations.activateThread(initialThreadId, {
-        preferredRunId: operations.getPreferredRunId(initialThreadId)
+        preferredRunId,
+        recoveryMode: 'initial-thread'
       });
     } else {
       operations.resetDraftThreadState();
-      actions.setDurableRecoveryNotice(null);
+      actions.setDurableRecoveryState({
+        phase: 'idle',
+        message: null
+      });
       actions.setError(null);
     }
   } catch (refreshError) {

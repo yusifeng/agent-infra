@@ -1,3 +1,4 @@
+import type { DurableRecoveryState } from '@agent-infra/durable-chat-client';
 import type { MessageDto, RuntimePiMetaDto, ThreadDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
 import { useReducer } from 'react';
 
@@ -41,7 +42,10 @@ function createInitialChatSessionState(): ChatSessionState {
     liveStreamRunId: null,
     liveAssistantDraft: null,
     messagePageInfo: null,
-    durableRecoveryNotice: null,
+    durableRecoveryState: {
+      phase: 'idle',
+      message: null
+    },
     sidebarOpen: typeof window === 'undefined' ? true : window.innerWidth >= 1024,
     showScrollToBottom: false
   };
@@ -100,8 +104,8 @@ export function useChatSessionController() {
     setMessagePageInfo: (next: Updater<ThreadMessagesPageInfoDto | null>) => {
       dispatch((current) => ({ ...current, messagePageInfo: resolveNext(current.messagePageInfo, next) }));
     },
-    setDurableRecoveryNotice: (next: Updater<string | null>) => {
-      dispatch((current) => ({ ...current, durableRecoveryNotice: resolveNext(current.durableRecoveryNotice, next) }));
+    setDurableRecoveryState: (next: Updater<DurableRecoveryState>) => {
+      dispatch((current) => ({ ...current, durableRecoveryState: resolveNext(current.durableRecoveryState, next) }));
     },
     setSidebarOpen: (next: Updater<boolean>) => {
       dispatch((current) => ({ ...current, sidebarOpen: resolveNext(current.sidebarOpen, next) }));
