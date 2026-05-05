@@ -125,4 +125,96 @@ describe('runReconcileCompletedTurn', () => {
     expect(actions.setOptimisticUserMessage).toHaveBeenCalledWith(null);
     expect(actions.setLiveAssistantDraft).toHaveBeenCalledWith(null);
   });
+
+  it('preserves existing message identity when reconciling without page info', async () => {
+    const currentUserMessage: MessageDto = {
+      ...createMessage('message-1', 1),
+      metadata: {
+        clientRenderKey: 'optimistic-user-2'
+      }
+    };
+    const currentAssistantMessage = createMessage('message-2', 2);
+    fetchThreadMessagesResponseMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        messages: [
+          {
+            ...createMessage('message-1', 1),
+            metadata: {
+              clientRenderKey: 'optimistic-user-2'
+            }
+          },
+          createMessage('message-2', 2),
+          createMessage('message-3', 3)
+        ],
+        pageInfo: {
+          hasOlder: false,
+          hasNewer: false,
+          startCursor: 'cursor-1',
+          endCursor: 'cursor-3'
+        },
+        activeRun: null
+      }
+    });
+
+    const actions = {
+      setActiveResponseRun: createSetterSpy<RunDto | null>(),
+      setChatPhase: createSetterSpy<'idle' | 'thinking' | 'streaming' | 'transcript-final' | 'failed'>(),
+      setError: createSetterSpy<string | null>(),
+      setLiveAssistantDraft: createSetterSpy<null>(),
+      setLoadingThreadId: createSetterSpy<string | null>(),
+      setMessages: createSetterSpy<MessageDto[]>(),
+      setMessagePageInfo: createSetterSpy<{
+        hasOlder: boolean;
+        hasNewer: boolean;
+        startCursor: string | null;
+        endCursor: string | null;
+      } | null>(),
+      setOptimisticUserMessage: createSetterSpy<MessageDto | null>(),
+      setPersistingTurn: createSetterSpy<boolean>(),
+      setRecentRuns: createSetterSpy<never[]>(),
+      setRecentRunsError: createSetterSpy<string | null>(),
+      setRecentRunsLoading: createSetterSpy<boolean>(),
+      setSelectedRunId: createSetterSpy<string | null>(),
+      setTimeline: createSetterSpy<null>(),
+      setTimelineError: createSetterSpy<string | null>(),
+      setTimelineLoading: createSetterSpy<boolean>()
+    };
+
+    await runReconcileCompletedTurn({
+      threadId: 'thread-1',
+      preferredRunId: null,
+      requestId: 4,
+      state: {
+        messages: [currentUserMessage, currentAssistantMessage],
+        pageInfo: null
+      },
+      refs: {
+        activeThreadIdRef: { current: 'thread-1' },
+        logOpenRef: { current: false },
+        reconcileRequestIdRef: { current: 0 },
+        selectedRunIdRef: { current: null },
+        sendRequestIdRef: { current: 4 }
+      },
+      actions
+    });
+
+    expect(fetchThreadMessagesResponseMock).toHaveBeenCalledWith('thread-1', expect.any(AbortSignal));
+    const reconciledMessages = actions.setMessages.mock.calls.at(0)?.[0];
+    expect(Array.isArray(reconciledMessages)).toBe(true);
+    expect(reconciledMessages).toHaveLength(3);
+    expect(reconciledMessages?.[0]).toBe(currentUserMessage);
+    expect(reconciledMessages?.[1]).toBe(currentAssistantMessage);
+    expect(reconciledMessages?.[2]).toEqual(createMessage('message-3', 3));
+    expect(reconciledMessages?.[0]?.metadata).toEqual({
+      clientRenderKey: 'optimistic-user-2'
+    });
+    expect(actions.setMessagePageInfo).toHaveBeenCalledWith({
+      hasOlder: false,
+      hasNewer: false,
+      startCursor: 'cursor-1',
+      endCursor: 'cursor-3'
+    });
+  });
 });

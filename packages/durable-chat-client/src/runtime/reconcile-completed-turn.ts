@@ -4,12 +4,14 @@ import { fetchRunTimelineResponse, fetchThreadMessagesResponse, fetchThreadRunsR
 import {
   chooseInitialRunId,
   compareRunsByCreatedAt,
+  getMessageRenderKey,
   includeSelectedRun,
   mergeMessageWindow,
   mergeThreadMessagesPageInfo,
   RECENT_RUNS_LIMIT,
   resolvePostReconcileChatPhase
 } from '../service/chat-runtime.js';
+import { emitChatRenderDiagnostic } from '../service/render-diagnostics.js';
 import type { ChatPhase } from '../types/runtime.js';
 import type { LiveAssistantDraft } from '../types/live-assistant-draft.js';
 
@@ -112,14 +114,22 @@ export async function runReconcileCompletedTurn({
       }
 
       const nextMessages = messagesResult.data.messages ?? [];
+      const mergeMode = state.pageInfo?.endCursor ? 'append' : 'replace-merge';
       if (state.pageInfo?.endCursor) {
         reconciledMessages = mergeMessageWindow(state.messages, nextMessages);
         reconciledPageInfo = mergeThreadMessagesPageInfo(state.pageInfo, messagesResult.data.pageInfo ?? null, 'append');
       } else {
-        reconciledMessages = nextMessages;
+        reconciledMessages = mergeMessageWindow(state.messages, nextMessages);
         reconciledPageInfo = messagesResult.data.pageInfo ?? null;
       }
 
+      emitReconcileMessagesDiagnostic({
+        currentMessages: state.messages,
+        incomingMessages: nextMessages,
+        nextMessages: reconciledMessages,
+        pageInfoMode: mergeMode,
+        threadId
+      });
       actions.setMessages(reconciledMessages);
       actions.setMessagePageInfo(reconciledPageInfo);
       actions.setActiveResponseRun(messagesResult.data.activeRun ?? null);
@@ -220,4 +230,65 @@ export async function runReconcileCompletedTurn({
       }
     }
   }
+}
+
+function emitReconcileMessagesDiagnostic(input: {
+  currentMessages: MessageDto[];
+  incomingMessages: MessageDto[];
+  nextMessages: MessageDto[];
+  pageInfoMode: 'append' | 'replace-merge';
+  threadId: string;
+}) {
+  const { currentMessages, incomingMessages, nextMessages, pageInfoMode, threadId } = input;
+  const currentMessagesById = new Map(currentMessages.map((message) => [message.id, message]));
+  const incomingMessagesById = new Map(incomingMessages.map((message) => [message.id, message]));
+
+  let preservedMessageRefs = 0;
+  let replacedExistingMessageRefs = 0;
+  let adoptedIncomingMessageRefs = 0;
+  let untouchedExistingMessages = 0;
+  let newMessages = 0;
+
+  for (const message of nextMessages) {
+    const currentMessage = currentMessagesById.get(message.id);
+    const incomingMessage = incomingMessagesById.get(message.id);
+
+    if (currentMessage && message === currentMessage) {
+      preservedMessageRefs += 1;
+      if (!incomingMessage) {
+        untouchedExistingMessages += 1;
+      }
+      continue;
+    }
+
+    if (incomingMessage && message === incomingMessage) {
+      adoptedIncomingMessageRefs += 1;
+    }
+
+    if (currentMessage) {
+      replacedExistingMessageRefs += 1;
+    } else {
+      newMessages += 1;
+    }
+  }
+
+  emitChatRenderDiagnostic({
+    component: 'ReconcileMessages',
+    key: threadId,
+    phase: 'update',
+    changedKeys: ['messages'],
+    summary: {
+      pageInfoMode,
+      currentCount: currentMessages.length,
+      incomingCount: incomingMessages.length,
+      nextCount: nextMessages.length,
+      preservedMessageRefs,
+      replacedExistingMessageRefs,
+      adoptedIncomingMessageRefs,
+      untouchedExistingMessages,
+      newMessages,
+      currentRenderKeys: currentMessages.map(getMessageRenderKey).join(' | '),
+      nextRenderKeys: nextMessages.map(getMessageRenderKey).join(' | ')
+    }
+  });
 }
