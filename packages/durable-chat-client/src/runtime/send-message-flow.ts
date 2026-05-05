@@ -3,7 +3,7 @@ import type { MessageDto, RunDto, RunStreamEventDto, RunTimelineResponseDto, Run
 import { openThreadRunStream } from '../repo/chat-api.js';
 import {
   applyRunStateToTimeline,
-  buildAssistantMessageFromSnapshot,
+  attachMessageRenderKey,
   buildOptimisticUserMessage,
   getChatPhaseForAssistantSnapshot,
   isPrimaryChatAssistantEventType,
@@ -110,14 +110,13 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
     if (event.assistant.eventType === 'text_end') {
       actions.setLiveStreamRunId(null);
       actions.setChatPhase(getChatPhaseForAssistantSnapshot(event.assistant));
-      if (threadId && !requiresTranscriptRecovery) {
-        actions.setMessages((current) =>
-          upsertMessage(current, buildAssistantMessageFromSnapshot(current, threadId as string, event.runId, event.assistant))
-        );
-      }
-      if (!requiresTranscriptRecovery) {
-        actions.setLiveAssistantDraft(null);
-      }
+      actions.setLiveAssistantDraft({
+        runId: event.runId,
+        messageId: event.assistant.messageId,
+        partialText: event.assistant.partialText,
+        partialReasoning: event.assistant.partialReasoning,
+        eventType: event.assistant.eventType
+      });
       return;
     }
 
@@ -163,7 +162,7 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
       readyEventReceived = true;
       actions.setActiveResponseRun(event.run);
       actions.setOptimisticUserMessage(null);
-      actions.setMessages((current) => upsertMessage(current, event.userMessage));
+      actions.setMessages((current) => upsertMessage(current, attachMessageRenderKey(event.userMessage, `optimistic-user-${requestId}`)));
       actions.setRecentRuns((current) => upsertRun(current, event.run));
       actions.setLiveAssistantDraft((current) =>
         current

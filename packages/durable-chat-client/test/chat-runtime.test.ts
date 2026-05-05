@@ -2,12 +2,14 @@ import type { MessageDto, RunDto, RunStreamEventDto } from '@agent-infra/contrac
 import { describe, expect, it } from 'vitest';
 
 import {
+  attachMessageRenderKey,
   applyRunStateToTimeline,
   buildAssistantMessageFromSnapshot,
   buildOptimisticUserMessage,
   chooseInitialRunId,
   deriveDurableResponseStatus,
   deriveMainChatResponseStatus,
+  getMessageRenderKey,
   getChatPhaseForAssistantSnapshot,
   mergeMessageWindow,
   mergeThreadMessagesPageInfo,
@@ -130,6 +132,14 @@ describe('durable-chat-client service', () => {
     expect(replaced[0]?.metadata).toEqual({ replaced: true });
   });
 
+  it('preserves the client render key and object identity for equivalent message updates', () => {
+    const current = attachMessageRenderKey(createMessage('message-1', 1, null), 'optimistic-user-1');
+    const updated = upsertMessage([current], createMessage('message-1', 1, null));
+
+    expect(updated[0]).toBe(current);
+    expect(getMessageRenderKey(updated[0] as MessageDto)).toBe('optimistic-user-1');
+  });
+
   it('merges durable message windows and keeps sequence order', () => {
     const merged = mergeMessageWindow(
       [createMessage('message-2', 2, null), createMessage('message-3', 3, null)],
@@ -222,7 +232,8 @@ describe('durable-chat-client service', () => {
 
     expect(message.id).toBe('optimistic-user-3');
     expect(message.seq).toBe(2);
-    expect(message.metadata).toEqual({ optimistic: true });
+    expect(message.metadata).toEqual({ optimistic: true, clientRenderKey: 'optimistic-user-3' });
+    expect(getMessageRenderKey(message)).toBe('optimistic-user-3');
     expect(message.parts[0]?.textValue).toBe('hello');
   });
 

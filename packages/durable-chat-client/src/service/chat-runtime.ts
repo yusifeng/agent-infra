@@ -13,6 +13,7 @@ import type { ChatPhase, MainChatResponseStatus } from '../types/runtime.js';
 
 export const RECENT_RUNS_LIMIT = 8;
 export const INITIAL_MESSAGE_PAGE_LIMIT = 40;
+const CLIENT_MESSAGE_RENDER_KEY = 'clientRenderKey';
 
 export function deriveDurableResponseStatus(run: RunDto | null): MainChatResponseStatus {
   if (!run) {
@@ -118,8 +119,14 @@ export function upsertMessage(messages: MessageDto[], nextMessage: MessageDto) {
     return [...messages, nextMessage].sort((left, right) => left.seq - right.seq);
   }
 
+  const existingMessage = messages[existingIndex];
+  const mergedMessage = preserveClientMessageRenderKey(existingMessage, nextMessage);
+  if (areMessagesEquivalent(existingMessage, mergedMessage)) {
+    return messages;
+  }
+
   const nextMessages = [...messages];
-  nextMessages[existingIndex] = nextMessage;
+  nextMessages[existingIndex] = mergedMessage;
   return nextMessages;
 }
 
@@ -135,10 +142,74 @@ export function mergeMessageWindow(currentMessages: MessageDto[], incomingMessag
   }
 
   for (const message of incomingMessages) {
-    messageMap.set(message.id, message);
+    const existingMessage = messageMap.get(message.id);
+    if (!existingMessage) {
+      messageMap.set(message.id, message);
+      continue;
+    }
+
+    const mergedMessage = preserveClientMessageRenderKey(existingMessage, message);
+    messageMap.set(message.id, areMessagesEquivalent(existingMessage, mergedMessage) ? existingMessage : mergedMessage);
   }
 
   return sortMessagesBySeq([...messageMap.values()]);
+}
+
+function getClientMessageRenderKey(metadata: Record<string, unknown> | null | undefined) {
+  const renderKey = metadata?.[CLIENT_MESSAGE_RENDER_KEY];
+  return typeof renderKey === 'string' && renderKey.length > 0 ? renderKey : null;
+}
+
+function preserveClientMessageRenderKey(currentMessage: MessageDto, nextMessage: MessageDto) {
+  const currentRenderKey = getClientMessageRenderKey(currentMessage.metadata);
+  if (!currentRenderKey || getClientMessageRenderKey(nextMessage.metadata) === currentRenderKey) {
+    return nextMessage;
+  }
+
+  return {
+    ...nextMessage,
+    metadata: {
+      ...(nextMessage.metadata ?? {}),
+      [CLIENT_MESSAGE_RENDER_KEY]: currentRenderKey
+    }
+  } satisfies MessageDto;
+}
+
+function areMessagePartsEquivalent(left: MessageDto['parts'], right: MessageDto['parts']) {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  return left.every((part, index) => {
+    const other = right[index];
+    if (!other) {
+      return false;
+    }
+
+    return (
+      part.id === other.id &&
+      part.messageId === other.messageId &&
+      part.partIndex === other.partIndex &&
+      part.type === other.type &&
+      part.textValue === other.textValue &&
+      JSON.stringify(part.jsonValue ?? null) === JSON.stringify(other.jsonValue ?? null) &&
+      part.createdAt === other.createdAt
+    );
+  });
+}
+
+function areMessagesEquivalent(left: MessageDto, right: MessageDto) {
+  return (
+    left.id === right.id &&
+    left.threadId === right.threadId &&
+    left.runId === right.runId &&
+    left.role === right.role &&
+    left.seq === right.seq &&
+    left.status === right.status &&
+    JSON.stringify(left.metadata ?? null) === JSON.stringify(right.metadata ?? null) &&
+    left.createdAt === right.createdAt &&
+    areMessagePartsEquivalent(left.parts, right.parts)
+  );
 }
 
 export function mergeThreadMessagesPageInfo(
@@ -224,7 +295,10 @@ export function buildOptimisticUserMessage(threadId: string, requestId: number, 
     role: 'user',
     seq: (currentMessages[currentMessages.length - 1]?.seq ?? 0) + 1,
     status: 'created',
-    metadata: { optimistic: true },
+    metadata: {
+      optimistic: true,
+      [CLIENT_MESSAGE_RENDER_KEY]: `optimistic-user-${requestId}`
+    },
     createdAt: new Date().toISOString(),
     parts: [
       {
@@ -238,6 +312,24 @@ export function buildOptimisticUserMessage(threadId: string, requestId: number, 
       }
     ]
   };
+}
+
+export function attachMessageRenderKey(message: MessageDto, renderKey: string): MessageDto {
+  if (getClientMessageRenderKey(message.metadata) === renderKey) {
+    return message;
+  }
+
+  return {
+    ...message,
+    metadata: {
+      ...(message.metadata ?? {}),
+      [CLIENT_MESSAGE_RENDER_KEY]: renderKey
+    }
+  };
+}
+
+export function getMessageRenderKey(message: MessageDto) {
+  return getClientMessageRenderKey(message.metadata) ?? message.id;
 }
 
 export function upsertRun(runs: RunDto[], nextRun: RunDto) {

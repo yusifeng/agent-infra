@@ -1,4 +1,5 @@
 import type { MessageDto, MessagePartDto, RuntimePiMetaDto } from '@agent-infra/contracts';
+import { getMessageRenderKey } from '@agent-infra/durable-chat-client';
 import clsx from 'clsx';
 import { Copy, Loader2, RotateCw, Trash2 } from 'lucide-react';
 import { memo, type ComponentType, type CSSProperties } from 'react';
@@ -409,7 +410,7 @@ export const ChatMessageList = memo(function ChatMessageList({
               </div>
             ) : null}
             {messages.map((message) => (
-              <MessageCard key={message.id} message={message} />
+              <MessageCard key={getMessageRenderKey(message)} message={message} />
             ))}
             {liveAssistantDraft ? <LiveAssistantCard liveAssistantDraft={liveAssistantDraft} /> : null}
             {isThinking ? <ThinkingIndicator /> : null}

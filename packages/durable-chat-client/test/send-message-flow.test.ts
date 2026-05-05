@@ -14,6 +14,14 @@ vi.mock('../src/repo/chat-api.js', () => ({
 
 type Updater<T> = T | ((current: T) => T);
 
+function resolveUpdater<T>(next: Updater<T> | undefined, current: T) {
+  if (!next) {
+    return current;
+  }
+
+  return typeof next === 'function' ? (next as (value: T) => T)(current) : next;
+}
+
 function createSetterSpy<T>() {
   return vi.fn<(next: Updater<T>) => void>();
 }
@@ -51,6 +59,36 @@ function createMessage(id: string, seq: number): MessageDto {
     createdAt: '2026-01-01T00:00:00.000Z',
     parts: []
   };
+}
+
+function createRun(id: string, status: RunDto['status']): RunDto {
+  return {
+    id,
+    threadId: 'thread-existing',
+    triggerMessageId: null,
+    provider: 'deepseek',
+    model: 'deepseek-chat',
+    status,
+    usage: null,
+    error: null,
+    startedAt: null,
+    finishedAt: null,
+    createdAt: '2026-01-01T00:00:00.000Z'
+  };
+}
+
+function createTextStream(events: unknown[]) {
+  const encoder = new TextEncoder();
+  const payload = events
+    .map((event) => `event: ${(event as { type: string }).type}\ndata: ${JSON.stringify(event)}\n\n`)
+    .join('');
+
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoder.encode(payload));
+      controller.close();
+    }
+  });
 }
 
 function createRefs() {
@@ -150,5 +188,104 @@ describe('runSendMessageFlow', () => {
     });
 
     await flowPromise;
+  });
+
+  it('keeps the live assistant draft through text_end and only persists the durable user row', async () => {
+    const refs = createRefs();
+    refs.activeThreadIdRef.current = 'thread-existing';
+    const actions = createActions();
+    const reconcileCompletedTurn = vi.fn().mockResolvedValue(undefined);
+
+    openThreadRunStreamMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      requestId: 'req-1',
+      body: createTextStream([
+        {
+          type: 'run.ready',
+          runId: 'run-1',
+          run: createRun('run-1', 'queued'),
+          userMessage: {
+            id: 'message-user-1',
+            threadId: 'thread-existing',
+            runId: null,
+            role: 'user',
+            seq: 2,
+            status: 'completed',
+            metadata: null,
+            createdAt: '2026-01-01T00:00:00.000Z',
+            parts: [
+              {
+                id: 'part-user-1',
+                messageId: 'message-user-1',
+                partIndex: 0,
+                type: 'text',
+                textValue: '你好',
+                jsonValue: null,
+                createdAt: '2026-01-01T00:00:00.000Z'
+              }
+            ]
+          }
+        },
+        {
+          type: 'run.assistant',
+          runId: 'run-1',
+          assistant: {
+            messageId: 'assistant-1',
+            eventType: 'text_delta',
+            partialText: '你好，有什么可以帮你？',
+            partialReasoning: null
+          }
+        },
+        {
+          type: 'run.assistant',
+          runId: 'run-1',
+          assistant: {
+            messageId: 'assistant-1',
+            eventType: 'text_end',
+            partialText: '你好，有什么可以帮你？',
+            partialReasoning: null
+          }
+        },
+        {
+          type: 'run.completed',
+          runId: 'run-1',
+          run: createRun('run-1', 'completed')
+        }
+      ])
+    });
+
+    await runSendMessageFlow({
+      state: {
+        activeThreadId: 'thread-existing',
+        draft: '你好',
+        isChatResponding: false,
+        messages: [createMessage('message-1', 1)],
+        selectedModelOption: createSelectedModelOption()
+      },
+      refs,
+      actions,
+      operations: {
+        createThreadRecord: vi.fn(),
+        pendingNewThreadLoadingId: 'pending-new-thread',
+        reconcileCompletedTurn,
+        refreshThreads: vi.fn().mockResolvedValue([]),
+        replaceCurrentPath: vi.fn()
+      }
+    });
+
+    expect(actions.setMessages).toHaveBeenCalledTimes(1);
+    const persistedUserMessage = resolveUpdater(actions.setMessages.mock.calls[0]?.[0], [createMessage('message-1', 1)]);
+    expect(persistedUserMessage[1]?.metadata).toEqual({ clientRenderKey: 'optimistic-user-1' });
+
+    expect(actions.setLiveAssistantDraft).toHaveBeenLastCalledWith({
+      runId: 'run-1',
+      messageId: 'assistant-1',
+      partialText: '你好，有什么可以帮你？',
+      partialReasoning: null,
+      eventType: 'text_end'
+    });
+    expect(reconcileCompletedTurn).toHaveBeenCalledWith('thread-existing', 'run-1', 1);
   });
 });
