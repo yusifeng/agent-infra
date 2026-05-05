@@ -1,4 +1,4 @@
-import type { MessageDto, RunDto } from '@agent-infra/contracts';
+import type { MessageDto, RunDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
 
 import { assistantMessageHasVisibleContent } from '../service/message-visibility.js';
 import type { LiveAssistantDraft } from '../types/live-assistant-draft.js';
@@ -10,8 +10,14 @@ type RefLike<T> = { current: T };
 
 type ApplyHydratedTranscriptArgs = {
   messages: MessageDto[];
+  pageInfo: ThreadMessagesPageInfoDto | null;
   selectedRunId: string | null;
   runs: RunDto[];
+};
+
+export type HydratedTranscriptPage = {
+  messages: MessageDto[];
+  pageInfo: ThreadMessagesPageInfoDto | null;
 };
 
 type LoadThreadMessagesArgs = {
@@ -30,15 +36,17 @@ type LoadThreadMessagesArgs = {
   };
   actions: {
     setError: Setter<string | null>;
+    setHistoryLoading: Setter<boolean>;
     setLiveAssistantDraft: Setter<LiveAssistantDraft | null>;
     setLoadingMessages: Setter<boolean>;
+    setMessagePageInfo: Setter<ThreadMessagesPageInfoDto | null>;
     setOptimisticUserMessage: Setter<MessageDto | null>;
     setRecentRunsError: Setter<string | null>;
     setRecentRunsLoading: Setter<boolean>;
   };
   operations: {
     applyHydratedTranscript: (args: ApplyHydratedTranscriptArgs) => void;
-    hydrateTranscript: (threadId: string, signal: AbortSignal) => Promise<MessageDto[]>;
+    hydrateTranscript: (threadId: string, signal: AbortSignal) => Promise<HydratedTranscriptPage>;
     loadLogInspector: (
       threadId: string,
       messagesSnapshot: MessageDto[],
@@ -74,6 +82,7 @@ type ActivateThreadArgs = {
 
 export function applyHydratedTranscriptState(args: {
   messages: MessageDto[];
+  pageInfo: ThreadMessagesPageInfoDto | null;
   selectedRunId: string | null;
   runs: RunDto[];
   actions: {
@@ -81,17 +90,19 @@ export function applyHydratedTranscriptState(args: {
     setError: Setter<string | null>;
     setLiveAssistantDraft: Setter<LiveAssistantDraft | null>;
     setMessages: Setter<MessageDto[]>;
+    setMessagePageInfo: Setter<ThreadMessagesPageInfoDto | null>;
     setOptimisticUserMessage: Setter<MessageDto | null>;
     setRecentRuns: Setter<RunDto[]>;
     setRecentRunsError: Setter<string | null>;
     setSelectedRunId: Setter<string | null>;
   };
 }) {
-  const { messages, selectedRunId, runs, actions } = args;
+  const { messages, pageInfo, selectedRunId, runs, actions } = args;
   const hasPersistedAssistantForSelectedRun =
     selectedRunId !== null && messages.some((message) => message.runId === selectedRunId && assistantMessageHasVisibleContent(message));
 
   actions.setMessages(messages);
+  actions.setMessagePageInfo(pageInfo);
   actions.setRecentRuns(runs);
   actions.setSelectedRunId(selectedRunId);
   actions.setOptimisticUserMessage(null);
@@ -122,6 +133,7 @@ export async function runLoadThreadMessages({ threadId, options, refs, actions, 
   refs.messagesAbortControllerRef.current = controller;
   if (!background) {
     actions.setLoadingMessages(true);
+    actions.setHistoryLoading(false);
   }
   if (!refs.logOpenRef.current) {
     operations.resetLogInspectorState();
@@ -131,15 +143,18 @@ export async function runLoadThreadMessages({ threadId, options, refs, actions, 
   }
 
   try {
-    const nextMessages = await operations.hydrateTranscript(threadId, controller.signal);
+    const hydratedTranscriptPage = await operations.hydrateTranscript(threadId, controller.signal);
 
     if (controller.signal.aborted || requestId !== refs.messagesRequestIdRef.current) {
       return;
     }
 
+    const nextMessages = hydratedTranscriptPage.messages;
+
     if (!refs.logOpenRef.current) {
       operations.applyHydratedTranscript({
         messages: nextMessages,
+        pageInfo: hydratedTranscriptPage.pageInfo,
         selectedRunId: null,
         runs: []
       });
@@ -148,6 +163,7 @@ export async function runLoadThreadMessages({ threadId, options, refs, actions, 
 
     operations.applyHydratedTranscript({
       messages: nextMessages,
+      pageInfo: hydratedTranscriptPage.pageInfo,
       selectedRunId: null,
       runs: []
     });
@@ -166,6 +182,7 @@ export async function runLoadThreadMessages({ threadId, options, refs, actions, 
 
     operations.resetLogInspectorState();
     actions.setLiveAssistantDraft(null);
+    actions.setMessagePageInfo(null);
     actions.setOptimisticUserMessage(null);
     actions.setError(loadError instanceof Error ? loadError.message : 'Failed to load thread messages');
     return null;

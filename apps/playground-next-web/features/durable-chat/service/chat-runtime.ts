@@ -1,4 +1,5 @@
 export {
+  INITIAL_MESSAGE_PAGE_LIMIT,
   RECENT_RUNS_LIMIT,
   applyRunStateToTimeline,
   buildAssistantMessageFromSnapshot,
@@ -9,6 +10,8 @@ export {
   getChatPhaseForAssistantSnapshot,
   includeSelectedRun,
   isPrimaryChatAssistantEventType,
+  mergeMessageWindow,
+  mergeThreadMessagesPageInfo,
   normalizeRuntimeMeta,
   parseSseChunk,
   resolvePostReconcileChatPhase,

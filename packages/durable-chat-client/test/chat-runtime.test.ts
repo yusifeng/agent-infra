@@ -7,6 +7,8 @@ import {
   buildOptimisticUserMessage,
   chooseInitialRunId,
   getChatPhaseForAssistantSnapshot,
+  mergeMessageWindow,
+  mergeThreadMessagesPageInfo,
   normalizeRuntimeMeta,
   parseSseChunk,
   resolvePostReconcileChatPhase,
@@ -83,6 +85,74 @@ describe('durable-chat-client service', () => {
       metadata: { replaced: true }
     });
     expect(replaced[0]?.metadata).toEqual({ replaced: true });
+  });
+
+  it('merges durable message windows and keeps sequence order', () => {
+    const merged = mergeMessageWindow(
+      [createMessage('message-2', 2, null), createMessage('message-3', 3, null)],
+      [createMessage('message-1', 1, null), createMessage('message-3', 3, 'run-1')]
+    );
+
+    expect(merged.map((message) => message.id)).toEqual(['message-1', 'message-2', 'message-3']);
+    expect(merged[2]?.runId).toBe('run-1');
+  });
+
+  it('merges page info differently for prepend and append windows', () => {
+    const currentPageInfo = {
+      hasOlder: true,
+      hasNewer: false,
+      startCursor: 'cursor-4',
+      endCursor: 'cursor-7'
+    };
+
+    expect(
+      mergeThreadMessagesPageInfo(
+        currentPageInfo,
+        {
+          hasOlder: false,
+          hasNewer: true,
+          startCursor: 'cursor-1',
+          endCursor: 'cursor-3'
+        },
+        'prepend'
+      )
+    ).toEqual({
+      hasOlder: false,
+      hasNewer: false,
+      startCursor: 'cursor-1',
+      endCursor: 'cursor-7'
+    });
+
+    expect(
+      mergeThreadMessagesPageInfo(
+        currentPageInfo,
+        {
+          hasOlder: true,
+          hasNewer: false,
+          startCursor: 'cursor-8',
+          endCursor: 'cursor-9'
+        },
+        'append'
+      )
+    ).toEqual({
+      hasOlder: true,
+      hasNewer: false,
+      startCursor: 'cursor-4',
+      endCursor: 'cursor-9'
+    });
+
+    expect(
+      mergeThreadMessagesPageInfo(
+        currentPageInfo,
+        {
+          hasOlder: true,
+          hasNewer: false,
+          startCursor: null,
+          endCursor: null
+        },
+        'append'
+      )
+    ).toEqual(currentPageInfo);
   });
 
   it('buildAssistantMessageFromSnapshot creates reasoning and text parts in order', () => {

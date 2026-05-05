@@ -1,8 +1,10 @@
+import type { MessageDto } from '@agent-infra/contracts';
 import {
   applyHydratedTranscriptState,
   runActivateThread,
   runCreateThreadRecord,
   runInitializeRuntime,
+  INITIAL_MESSAGE_PAGE_LIMIT,
   runLoadThreadMessages,
   runReconcileCompletedTurn,
   runRefreshMeta,
@@ -39,6 +41,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       loadingMessages,
       error,
       liveAssistantDraft,
+      messagePageInfo,
       durableRecoveryNotice,
       sidebarOpen,
       showScrollToBottom
@@ -54,9 +57,11 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     setPersistingTurn,
     setLoadingThreadId,
     setLoadingMessages,
+    setHistoryLoading,
     setError,
     setLiveStreamRunId,
     setLiveAssistantDraft,
+    setMessagePageInfo,
     setDurableRecoveryNotice,
     setSidebarOpen,
     setShowScrollToBottom
@@ -76,6 +81,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const runSelectionPersistenceReadyRef = useRef(false);
   const activeThreadIdRef = useRef<string | null>(null);
   const logOpenRef = useRef(false);
+  const messagePageInfoRef = useRef<typeof messagePageInfo>(null);
+  const messagesRef = useRef<MessageDto[]>([]);
   const selectedRunIdRef = useRef<string | null>(null);
   const messagesRequestIdRef = useRef(0);
   const messagesAbortControllerRef = useRef<AbortController | null>(null);
@@ -117,6 +124,14 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   useEffect(() => {
     selectedRunIdRef.current = selectedRunId;
   }, [selectedRunId]);
+
+  useEffect(() => {
+    messagePageInfoRef.current = messagePageInfo;
+  }, [messagePageInfo]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -202,11 +217,13 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         setActiveThreadId,
         setChatPhase,
         setDraft,
+        setHistoryLoading,
         setLiveAssistantDraft,
         setLiveStreamRunId,
         setLoadingMessages,
         setLoadingThreadId,
         setMessages,
+        setMessagePageInfo,
         setOptimisticUserMessage,
         setPersistingTurn,
         setRecentRuns,
@@ -298,12 +315,18 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }
 
   async function hydrateTranscript(threadId: string, signal: AbortSignal) {
-    const result = await fetchThreadMessagesResponse(threadId, signal);
+    const result = await fetchThreadMessagesResponse(threadId, {
+      limit: INITIAL_MESSAGE_PAGE_LIMIT,
+      signal
+    });
     if (!result.ok) {
       throw new Error(result.error ?? `Failed to load messages (${result.status})`);
     }
 
-    return result.data.messages ?? [];
+    return {
+      messages: result.data.messages ?? [],
+      pageInfo: result.data.pageInfo ?? null
+    };
   }
 
   async function loadThreadMessages(
@@ -326,16 +349,19 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       },
       actions: {
         setError,
+        setHistoryLoading,
         setLiveAssistantDraft,
         setLoadingMessages,
+        setMessagePageInfo,
         setOptimisticUserMessage,
         setRecentRunsError,
         setRecentRunsLoading
       },
       operations: {
-        applyHydratedTranscript: ({ messages: hydratedMessages, selectedRunId, runs }) =>
+        applyHydratedTranscript: ({ messages: hydratedMessages, pageInfo, selectedRunId, runs }) =>
           applyHydratedTranscriptState({
             messages: hydratedMessages,
+            pageInfo,
             selectedRunId,
             runs,
             actions: {
@@ -343,6 +369,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
               setError,
               setLiveAssistantDraft,
               setMessages,
+              setMessagePageInfo,
               setOptimisticUserMessage,
               setRecentRuns,
               setRecentRunsError,
@@ -359,16 +386,15 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   async function reconcileCompletedTurn(
     threadId: string,
     preferredRunId: string | null,
-    requestId: number,
-    options?: { recoverTranscript?: boolean }
+    requestId: number
   ) {
     await runReconcileCompletedTurn({
       threadId,
       preferredRunId,
       requestId,
-      options,
       state: {
-        messages
+        messages: messagesRef.current,
+        pageInfo: messagePageInfoRef.current
       },
       refs: {
         activeThreadIdRef,
@@ -379,9 +405,11 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       },
       actions: {
         setChatPhase,
+        setError,
         setLiveAssistantDraft,
         setLoadingThreadId,
         setMessages,
+        setMessagePageInfo,
         setOptimisticUserMessage,
         setPersistingTurn,
         setRecentRuns,

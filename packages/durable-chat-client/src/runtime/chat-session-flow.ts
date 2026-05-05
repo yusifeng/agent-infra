@@ -1,4 +1,4 @@
-import type { MessageDto, RunDto, RunTimelineResponseDto, RuntimePiMetaDto, ThreadDto } from '@agent-infra/contracts';
+import type { MessageDto, RunDto, RunTimelineResponseDto, RuntimePiMetaDto, ThreadDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
 
 import { createThreadResponse, fetchRuntimeMetaResponse, fetchThreadsResponse } from '../repo/chat-api.js';
 import { normalizeRuntimeMeta } from '../service/chat-runtime.js';
@@ -25,11 +25,13 @@ type ResetDraftThreadStateArgs = {
     setActiveThreadId: Setter<string | null>;
     setChatPhase: Setter<ChatPhase>;
     setDraft: Setter<string>;
+    setHistoryLoading: Setter<boolean>;
     setLiveAssistantDraft: Setter<LiveAssistantDraft | null>;
     setLiveStreamRunId: Setter<string | null>;
     setLoadingMessages: Setter<boolean>;
     setLoadingThreadId: Setter<string | null>;
     setMessages: Setter<MessageDto[]>;
+    setMessagePageInfo: Setter<ThreadMessagesPageInfoDto | null>;
     setOptimisticUserMessage: Setter<MessageDto | null>;
     setPersistingTurn: Setter<boolean>;
     setRecentRuns: Setter<RunDto[]>;
@@ -106,8 +108,10 @@ export function runResetDraftThreadState({ refs, actions }: ResetDraftThreadStat
   actions.setLoadingThreadId(null);
   actions.setActiveThreadId(null);
   actions.setDraft('');
+  actions.setHistoryLoading(false);
   actions.setOptimisticUserMessage(null);
   actions.setMessages([]);
+  actions.setMessagePageInfo(null);
   actions.setRecentRuns([]);
   actions.setSelectedRunId(null);
   actions.setTimeline(null);

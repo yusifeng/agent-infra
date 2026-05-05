@@ -30,6 +30,11 @@ import { runReconcileCompletedTurn } from '@/features/durable-chat/runtime/recon
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
 import { upsertMessage } from '@/features/durable-chat/service/chat-runtime';
+import {
+  INITIAL_MESSAGE_PAGE_LIMIT,
+  mergeMessageWindow,
+  mergeThreadMessagesPageInfo
+} from '@/features/durable-chat/service/chat-runtime';
 import type { DurableChatRuntimeOptions } from '@/features/durable-chat/types/runtime';
 
 const PENDING_NEW_THREAD_LOADING_ID = '__pending-new-thread__';
@@ -49,9 +54,11 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       persistingTurn,
       loadingThreadId,
       loadingMessages,
+      historyLoading,
       error,
       liveStreamRunId,
       liveAssistantDraft,
+      messagePageInfo,
       durableRecoveryNotice,
       sidebarOpen,
       showScrollToBottom
@@ -67,9 +74,11 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     setPersistingTurn,
     setLoadingThreadId,
     setLoadingMessages,
+    setHistoryLoading,
     setError,
     setLiveStreamRunId,
     setLiveAssistantDraft,
+    setMessagePageInfo,
     setDurableRecoveryNotice,
     setSidebarOpen,
     setShowScrollToBottom
@@ -99,6 +108,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const runSelectionPersistenceReadyRef = useRef(false);
   const activeThreadIdRef = useRef<string | null>(null);
   const logOpenRef = useRef(false);
+  const messagePageInfoRef = useRef<typeof messagePageInfo>(null);
+  const messagesRef = useRef<MessageDto[]>([]);
   const selectedRunIdRef = useRef<string | null>(null);
   const messagesRequestIdRef = useRef(0);
   const messagesAbortControllerRef = useRef<AbortController | null>(null);
@@ -110,6 +121,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const sendAbortControllerRef = useRef<AbortController | null>(null);
   const reconcileRequestIdRef = useRef(0);
   const messagesViewportRef = useRef<HTMLDivElement>(null);
+  const pendingPrependAnchorRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
   const shouldAutoScrollRef = useRef(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -135,6 +147,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     () => (optimisticUserMessage ? upsertMessage(messages, optimisticUserMessage) : messages),
     [messages, optimisticUserMessage]
   );
+  const hasOlderMessages = messagePageInfo?.hasOlder === true;
 
   useEffect(() => {
     activeThreadIdRef.current = activeThreadId;
@@ -143,6 +156,14 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   useEffect(() => {
     logOpenRef.current = logOpen;
   }, [logOpen]);
+
+  useEffect(() => {
+    messagePageInfoRef.current = messagePageInfo;
+  }, [messagePageInfo]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   useEffect(() => {
     selectedRunIdRef.current = selectedRunId;
@@ -202,7 +223,21 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
 
   useEffect(() => {
     const viewport = messagesViewportRef.current;
-    if (!viewport || !shouldAutoScrollRef.current) {
+    if (!viewport) {
+      return;
+    }
+
+    const pendingAnchor = pendingPrependAnchorRef.current;
+    if (pendingAnchor) {
+      pendingPrependAnchorRef.current = null;
+      window.requestAnimationFrame(() => {
+        const heightDelta = viewport.scrollHeight - pendingAnchor.scrollHeight;
+        viewport.scrollTop = pendingAnchor.scrollTop + heightDelta;
+      });
+      return;
+    }
+
+    if (!shouldAutoScrollRef.current) {
       return;
     }
 
@@ -212,7 +247,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         behavior: messages.length > 0 ? 'smooth' : 'auto'
       });
     });
-  }, [messages, liveAssistantDraft?.partialText, liveAssistantDraft?.partialReasoning, activeThreadId, loadingMessages]);
+  }, [messages, liveAssistantDraft?.partialText, liveAssistantDraft?.partialReasoning, activeThreadId, loadingMessages, historyLoading]);
 
   function scrollToMessagesBottom() {
     const viewport = messagesViewportRef.current;
@@ -244,11 +279,13 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         setActiveThreadId,
         setChatPhase,
         setDraft,
+        setHistoryLoading,
         setLiveAssistantDraft,
         setLiveStreamRunId,
         setLoadingMessages,
         setLoadingThreadId,
         setMessages,
+        setMessagePageInfo,
         setOptimisticUserMessage,
         setPersistingTurn,
         setRecentRuns,
@@ -406,12 +443,18 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }
 
   async function hydrateTranscript(threadId: string, signal: AbortSignal) {
-    const result = await fetchThreadMessagesResponse(threadId, signal);
+    const result = await fetchThreadMessagesResponse(threadId, {
+      limit: INITIAL_MESSAGE_PAGE_LIMIT,
+      signal
+    });
     if (!result.ok) {
       throw new Error(result.error ?? `Failed to load messages (${result.status})`);
     }
 
-    return result.data.messages ?? [];
+    return {
+      messages: result.data.messages ?? [],
+      pageInfo: result.data.pageInfo ?? null
+    };
   }
 
   async function loadThreadMessages(
@@ -434,16 +477,19 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       },
       actions: {
         setError,
+        setHistoryLoading,
         setLiveAssistantDraft,
         setLoadingMessages,
+        setMessagePageInfo,
         setOptimisticUserMessage,
         setRecentRunsError,
         setRecentRunsLoading
       },
       operations: {
-        applyHydratedTranscript: ({ messages, selectedRunId, runs }) =>
+        applyHydratedTranscript: ({ messages, pageInfo, selectedRunId, runs }) =>
           applyHydratedTranscriptState({
             messages,
+            pageInfo,
             selectedRunId,
             runs,
             actions: {
@@ -451,6 +497,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
               setError,
               setLiveAssistantDraft,
               setMessages,
+              setMessagePageInfo,
               setOptimisticUserMessage,
               setRecentRuns,
               setRecentRunsError,
@@ -464,19 +511,55 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     });
   }
 
+  async function loadOlderMessages() {
+    const threadId = activeThreadIdRef.current;
+    const beforeCursor = messagePageInfoRef.current?.startCursor;
+    if (!threadId || !beforeCursor || historyLoading) {
+      return;
+    }
+
+    const viewport = messagesViewportRef.current;
+    if (viewport) {
+      pendingPrependAnchorRef.current = {
+        scrollHeight: viewport.scrollHeight,
+        scrollTop: viewport.scrollTop
+      };
+    }
+    shouldAutoScrollRef.current = false;
+    setHistoryLoading(true);
+    setError(null);
+
+    try {
+      const result = await fetchThreadMessagesResponse(threadId, {
+        before: beforeCursor,
+        limit: INITIAL_MESSAGE_PAGE_LIMIT
+      });
+      if (!result.ok) {
+        throw new Error(result.error ?? `Failed to load older messages (${result.status})`);
+      }
+
+      setMessages((current) => mergeMessageWindow(current, result.data.messages ?? []));
+      setMessagePageInfo((current) => mergeThreadMessagesPageInfo(current, result.data.pageInfo ?? null, 'prepend'));
+    } catch (loadError) {
+      pendingPrependAnchorRef.current = null;
+      setError(loadError instanceof Error ? loadError.message : 'Failed to load older messages');
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
   async function reconcileCompletedTurn(
     threadId: string,
     preferredRunId: string | null,
-    requestId: number,
-    options?: { recoverTranscript?: boolean }
+    requestId: number
   ) {
     await runReconcileCompletedTurn({
       threadId,
       preferredRunId,
       requestId,
-      options,
       state: {
-        messages
+        messages: messagesRef.current,
+        pageInfo: messagePageInfoRef.current
       },
       refs: {
         activeThreadIdRef,
@@ -487,9 +570,11 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       },
       actions: {
         setChatPhase,
+        setError,
         setLiveAssistantDraft,
         setLoadingThreadId,
         setMessages,
+        setMessagePageInfo,
         setOptimisticUserMessage,
         setPersistingTurn,
         setRecentRuns,
@@ -649,6 +734,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     draft,
     durableRecoveryNotice,
     error,
+    hasOlderMessages,
+    historyLoading,
     inputLocked,
     isChatResponding,
     liveAssistantDraft,
@@ -662,6 +749,9 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     onNewChat: startNewChat,
     onOpenSidebar: () => setSidebarOpen(true),
     onOpenThread: openThread,
+    onLoadOlderMessages: () => {
+      void loadOlderMessages();
+    },
     onScrollToBottom: scrollToMessagesBottom,
     onSelectedModelKeyChange: setSelectedModelKey,
     onSelectRun: (runId: string) => {

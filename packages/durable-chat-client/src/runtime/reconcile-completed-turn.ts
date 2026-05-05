@@ -1,10 +1,12 @@
-import type { MessageDto, RunDto, RunTimelineResponseDto } from '@agent-infra/contracts';
+import type { MessageDto, RunDto, RunTimelineResponseDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
 
 import { fetchRunTimelineResponse, fetchThreadMessagesResponse, fetchThreadRunsResponse } from '../repo/chat-api.js';
 import {
   chooseInitialRunId,
   compareRunsByCreatedAt,
   includeSelectedRun,
+  mergeMessageWindow,
+  mergeThreadMessagesPageInfo,
   RECENT_RUNS_LIMIT,
   resolvePostReconcileChatPhase
 } from '../service/chat-runtime.js';
@@ -19,9 +21,9 @@ type ReconcileCompletedTurnArgs = {
   threadId: string;
   preferredRunId: string | null;
   requestId: number;
-  options?: { recoverTranscript?: boolean };
   state: {
     messages: MessageDto[];
+    pageInfo: ThreadMessagesPageInfoDto | null;
   };
   refs: {
     activeThreadIdRef: RefLike<string | null>;
@@ -32,9 +34,11 @@ type ReconcileCompletedTurnArgs = {
   };
   actions: {
     setChatPhase: Setter<ChatPhase>;
+    setError: Setter<string | null>;
     setLiveAssistantDraft: Setter<LiveAssistantDraft | null>;
     setLoadingThreadId: Setter<string | null>;
     setMessages: Setter<MessageDto[]>;
+    setMessagePageInfo: Setter<ThreadMessagesPageInfoDto | null>;
     setOptimisticUserMessage: Setter<MessageDto | null>;
     setPersistingTurn: Setter<boolean>;
     setRecentRuns: Setter<RunDto[]>;
@@ -64,7 +68,6 @@ export async function runReconcileCompletedTurn({
   threadId,
   preferredRunId,
   requestId,
-  options,
   state,
   refs,
   actions
@@ -83,10 +86,19 @@ export async function runReconcileCompletedTurn({
   const requestedRunId = preferredRunId ?? (inspectorEnabled ? refs.selectedRunIdRef.current : null);
   let nextSelectedRunId: string | null = null;
   let reconciledMessages = state.messages;
+  let reconciledPageInfo = state.pageInfo;
 
   try {
-    if (options?.recoverTranscript) {
-      const messagesResult = await fetchThreadMessagesResponse(threadId, reconcileController.signal);
+    {
+      const messagesResult = await fetchThreadMessagesResponse(
+        threadId,
+        state.pageInfo?.endCursor
+          ? {
+              after: state.pageInfo.endCursor,
+              signal: reconcileController.signal
+            }
+          : reconcileController.signal
+      );
 
       if (isReconcileThreadStale()) {
         return;
@@ -98,8 +110,17 @@ export async function runReconcileCompletedTurn({
         return;
       }
 
-      reconciledMessages = messagesResult.data.messages ?? [];
+      const nextMessages = messagesResult.data.messages ?? [];
+      if (state.pageInfo?.endCursor) {
+        reconciledMessages = mergeMessageWindow(state.messages, nextMessages);
+        reconciledPageInfo = mergeThreadMessagesPageInfo(state.pageInfo, messagesResult.data.pageInfo ?? null, 'append');
+      } else {
+        reconciledMessages = nextMessages;
+        reconciledPageInfo = messagesResult.data.pageInfo ?? null;
+      }
+
       actions.setMessages(reconciledMessages);
+      actions.setMessagePageInfo(reconciledPageInfo);
       if (isCurrentSend()) {
         actions.setOptimisticUserMessage(null);
         actions.setLiveAssistantDraft(null);
@@ -174,6 +195,8 @@ export async function runReconcileCompletedTurn({
     if (isReconcileThreadStale() || !isLatestReconcile()) {
       return;
     }
+
+    actions.setError(reconcileError instanceof Error ? reconcileError.message : 'Failed to reconcile thread messages');
 
     if (inspectorEnabled) {
       actions.setRecentRunsError(reconcileError instanceof Error ? reconcileError.message : 'Failed to reconcile recent runs');

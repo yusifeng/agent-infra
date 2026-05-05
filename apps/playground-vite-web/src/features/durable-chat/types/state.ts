@@ -1,4 +1,4 @@
-import type { MessageDto, RuntimePiMetaDto, ThreadDto } from '@agent-infra/contracts';
+import type { MessageDto, RuntimePiMetaDto, ThreadDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
 
 import type { LiveAssistantDraft } from './live-assistant-draft';
 import type { ChatPhase } from './runtime';
@@ -17,9 +17,11 @@ export type ChatSessionState = {
   persistingTurn: boolean;
   loadingThreadId: string | null;
   loadingMessages: boolean;
+  historyLoading: boolean;
   error: string | null;
   liveStreamRunId: string | null;
   liveAssistantDraft: LiveAssistantDraft | null;
+  messagePageInfo: ThreadMessagesPageInfoDto | null;
   durableRecoveryNotice: string | null;
   sidebarOpen: boolean;
   showScrollToBottom: boolean;

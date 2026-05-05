@@ -58,12 +58,7 @@ type SendMessageFlowArgs = {
   operations: {
     createThreadRecord: () => Promise<ThreadDto>;
     pendingNewThreadLoadingId: string;
-    reconcileCompletedTurn: (
-      threadId: string,
-      preferredRunId: string | null,
-      requestId: number,
-      options?: { recoverTranscript?: boolean }
-    ) => Promise<void>;
+    reconcileCompletedTurn: (threadId: string, preferredRunId: string | null, requestId: number) => Promise<void>;
     refreshThreads: () => Promise<ThreadDto[]>;
     replaceCurrentPath: (pathname: string) => void;
   };
@@ -354,9 +349,7 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
       if (threadId && refs.activeThreadIdRef.current === threadId) {
         const preferredRunId = streamedRunId ?? refs.selectedRunIdRef.current;
         actions.setPersistingTurn(true);
-        void operations.reconcileCompletedTurn(threadId, preferredRunId, requestId, {
-          recoverTranscript: requiresTranscriptRecovery
-        });
+        void operations.reconcileCompletedTurn(threadId, preferredRunId, requestId);
       }
 
       void operations.refreshThreads().catch((refreshError) => {

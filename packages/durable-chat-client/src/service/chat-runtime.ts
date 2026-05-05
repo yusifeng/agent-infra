@@ -3,6 +3,7 @@ import type {
   RunDto,
   RunStreamAssistantSnapshotDto,
   RunStreamEventDto,
+  ThreadMessagesPageInfoDto,
   RunTimelineResponseDto,
   RuntimePiMetaDto
 } from '@agent-infra/contracts';
@@ -11,6 +12,7 @@ import { normalizeRunStreamEvent } from '../schema/run-stream.js';
 import type { ChatPhase } from '../types/runtime.js';
 
 export const RECENT_RUNS_LIMIT = 8;
+export const INITIAL_MESSAGE_PAGE_LIMIT = 40;
 
 export function normalizeRuntimeMeta(data: Partial<RuntimePiMetaDto>): RuntimePiMetaDto {
   const modelOptions = Array.isArray(data.modelOptions) ? data.modelOptions : [];
@@ -59,6 +61,55 @@ export function upsertMessage(messages: MessageDto[], nextMessage: MessageDto) {
   const nextMessages = [...messages];
   nextMessages[existingIndex] = nextMessage;
   return nextMessages;
+}
+
+function sortMessagesBySeq(messages: MessageDto[]) {
+  return [...messages].sort((left, right) => left.seq - right.seq);
+}
+
+export function mergeMessageWindow(currentMessages: MessageDto[], incomingMessages: MessageDto[]) {
+  const messageMap = new Map<string, MessageDto>();
+
+  for (const message of currentMessages) {
+    messageMap.set(message.id, message);
+  }
+
+  for (const message of incomingMessages) {
+    messageMap.set(message.id, message);
+  }
+
+  return sortMessagesBySeq([...messageMap.values()]);
+}
+
+export function mergeThreadMessagesPageInfo(
+  currentPageInfo: ThreadMessagesPageInfoDto | null,
+  nextPageInfo: ThreadMessagesPageInfoDto | null | undefined,
+  direction: 'replace' | 'prepend' | 'append'
+) {
+  const normalizedNextPageInfo = nextPageInfo ?? null;
+  if (direction === 'replace' || !currentPageInfo) {
+    return normalizedNextPageInfo;
+  }
+
+  if (!normalizedNextPageInfo) {
+    return currentPageInfo;
+  }
+
+  if (direction === 'prepend') {
+    return {
+      hasOlder: normalizedNextPageInfo.hasOlder,
+      hasNewer: currentPageInfo.hasNewer,
+      startCursor: normalizedNextPageInfo.startCursor ?? currentPageInfo.startCursor,
+      endCursor: currentPageInfo.endCursor
+    } satisfies ThreadMessagesPageInfoDto;
+  }
+
+  return {
+    hasOlder: currentPageInfo.hasOlder,
+    hasNewer: normalizedNextPageInfo.hasNewer,
+    startCursor: currentPageInfo.startCursor,
+    endCursor: normalizedNextPageInfo.endCursor ?? currentPageInfo.endCursor
+  } satisfies ThreadMessagesPageInfoDto;
 }
 
 export function buildAssistantMessageFromSnapshot(

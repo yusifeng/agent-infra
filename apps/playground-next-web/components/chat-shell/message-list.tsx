@@ -322,22 +322,28 @@ type ChatMessageListProps = {
   meta: RuntimePiMetaDto | null;
   error: string | null;
   durableRecoveryNotice: string | null;
+  hasOlderMessages: boolean;
+  historyLoading: boolean;
   loadingMessages: boolean;
   activeThreadId: string | null;
   messages: MessageDto[];
   liveAssistantDraft: LiveAssistantDraft | null;
   isThinking: boolean;
+  onLoadOlderMessages: () => void;
 };
 
 export const ChatMessageList = memo(function ChatMessageList({
   meta,
   error,
   durableRecoveryNotice,
+  hasOlderMessages,
+  historyLoading,
   loadingMessages,
   activeThreadId,
   messages,
   liveAssistantDraft,
-  isThinking
+  isThinking,
+  onLoadOlderMessages
 }: ChatMessageListProps) {
   return (
     <div className="flex-1 p-6">
@@ -378,6 +384,24 @@ export const ChatMessageList = memo(function ChatMessageList({
       ) : (
         <div className={`${maxWithTW} mx-auto w-full`} style={messageListMinHeight}>
           <div className="flex flex-col gap-3">
+            {hasOlderMessages || historyLoading ? (
+              <div className="flex justify-center px-4 pb-2 pt-1">
+                <button
+                  type="button"
+                  disabled={historyLoading}
+                  onClick={onLoadOlderMessages}
+                  className={clsx(
+                    'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition',
+                    historyLoading
+                      ? 'cursor-wait border-slate-200 bg-slate-50 text-slate-400'
+                      : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700'
+                  )}
+                >
+                  {historyLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                  <span>{historyLoading ? 'Loading older messages...' : 'Load older messages'}</span>
+                </button>
+              </div>
+            ) : null}
             {messages.map((message) => (
               <MessageCard key={message.id} message={message} />
             ))}

@@ -1,6 +1,6 @@
 'use client';
 
-import type { MessageDto, RuntimePiMetaDto, ThreadDto } from '@agent-infra/contracts';
+import type { MessageDto, RuntimePiMetaDto, ThreadDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
 import { useReducer } from 'react';
 
 import type { LiveAssistantDraft } from '../types/live-assistant-draft';
@@ -38,9 +38,11 @@ function createInitialChatSessionState(): ChatSessionState {
     persistingTurn: false,
     loadingThreadId: null,
     loadingMessages: false,
+    historyLoading: false,
     error: null,
     liveStreamRunId: null,
     liveAssistantDraft: null,
+    messagePageInfo: null,
     durableRecoveryNotice: null,
     sidebarOpen: typeof window === 'undefined' ? true : window.innerWidth >= 1024,
     showScrollToBottom: false
@@ -86,6 +88,9 @@ export function useChatSessionController() {
     setLoadingMessages: (next: Updater<boolean>) => {
       dispatch((current) => ({ ...current, loadingMessages: resolveNext(current.loadingMessages, next) }));
     },
+    setHistoryLoading: (next: Updater<boolean>) => {
+      dispatch((current) => ({ ...current, historyLoading: resolveNext(current.historyLoading, next) }));
+    },
     setError: (next: Updater<string | null>) => {
       dispatch((current) => ({ ...current, error: resolveNext(current.error, next) }));
     },
@@ -94,6 +99,9 @@ export function useChatSessionController() {
     },
     setLiveAssistantDraft: (next: Updater<LiveAssistantDraft | null>) => {
       dispatch((current) => ({ ...current, liveAssistantDraft: resolveNext(current.liveAssistantDraft, next) }));
+    },
+    setMessagePageInfo: (next: Updater<ThreadMessagesPageInfoDto | null>) => {
+      dispatch((current) => ({ ...current, messagePageInfo: resolveNext(current.messagePageInfo, next) }));
     },
     setDurableRecoveryNotice: (next: Updater<string | null>) => {
       dispatch((current) => ({ ...current, durableRecoveryNotice: resolveNext(current.durableRecoveryNotice, next) }));
