@@ -38,11 +38,14 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
                 meta={runtime.meta}
                 error={runtime.error}
                 durableRecoveryNotice={runtime.durableRecoveryNotice}
+                hasOlderMessages={runtime.hasOlderMessages}
+                historyLoading={runtime.historyLoading}
                 loadingMessages={runtime.loadingMessages}
                 activeThreadId={runtime.activeThreadId}
                 messages={runtime.displayedMessages}
                 liveAssistantDraft={runtime.liveAssistantDraft}
                 isThinking={runtime.showResponseLoading}
+                onLoadOlderMessages={runtime.onLoadOlderMessages}
               />
             </div>
 
