@@ -97,10 +97,12 @@ const WelcomeMessage = memo(function WelcomeMessage({ activeThreadId }: { active
 });
 
 const MessageActions = memo(function MessageActions({
+  available = true,
   items,
   align = 'start',
   onActionClick
 }: {
+  available?: boolean;
   items: Array<{
     disabled?: boolean;
     icon: ComponentType<{ className?: string }>;
@@ -113,21 +115,25 @@ const MessageActions = memo(function MessageActions({
   return (
     <div
       className={clsx(
-        'pointer-events-none mt-1 flex w-full translate-y-1 opacity-0 transition duration-150 ease-out group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100',
+        'absolute inset-x-0 bottom-0 flex w-full',
+        available
+          ? 'pointer-events-none translate-y-1 opacity-0 transition duration-150 ease-out group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100'
+          : 'pointer-events-none invisible',
         align === 'end' ? 'justify-end' : 'justify-start'
       )}
       data-message-actions="true"
+      data-message-actions-available={available ? 'true' : 'false'}
     >
       <div className="flex items-center gap-1">
         {items.map((item) => (
           <button
             key={item.key}
             type="button"
-            disabled={item.disabled}
+            disabled={!available || item.disabled}
             title={item.label}
             aria-label={item.label}
             onClick={() => {
-              if (!item.disabled) {
+              if (available && !item.disabled) {
                 onActionClick(item.key);
               }
             }}
@@ -308,23 +314,22 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
 
   return (
     <div
-      className="group relative w-[90%] max-w-screen px-4"
+      className="group relative w-[90%] max-w-screen px-4 pb-8"
       data-message-role="assistant"
       data-message-id={props.type === 'persisted' ? props.message.id : props.liveAssistantDraft.messageId}
       data-render-key={assistantDiagnosticKey}
       style={transcriptRowPerformanceStyle}
     >
       <div className={clsx('relative flex flex-col gap-2 pt-1.5', ui.assistantBubble)}>{content}</div>
-      {isCompleted ? (
-        <MessageActions
-          items={assistantActions}
-          onActionClick={(key) => {
-            if (key === 'copy') {
-              handleCopy();
-            }
-          }}
-        />
-      ) : null}
+      <MessageActions
+        available={isCompleted}
+        items={assistantActions}
+        onActionClick={(key) => {
+          if (key === 'copy') {
+            handleCopy();
+          }
+        }}
+      />
     </div>
   );
 });
@@ -351,7 +356,7 @@ const MessageCard = memo(function MessageCard({ message }: { message: MessageDto
         data-render-key={renderKey}
         style={transcriptRowPerformanceStyle}
       >
-        <div className="max-w-[65%]">
+        <div className="relative max-w-[65%] pb-8">
           <div className={clsx('relative flex flex-col gap-3 rounded-lg px-3 py-2', ui.userBubble, isOptimistic && 'opacity-85')}>
             <div className="space-y-2">
               {message.parts.map((part) => (
@@ -359,29 +364,28 @@ const MessageCard = memo(function MessageCard({ message }: { message: MessageDto
               ))}
             </div>
           </div>
-          {!isOptimistic ? (
-            <MessageActions
-              align="end"
-              items={[
-                {
-                  icon: Copy,
-                  key: 'copy',
-                  label: 'Copy'
-                },
-                {
-                  disabled: true,
-                  icon: Trash2,
-                  key: 'delete',
-                  label: 'Delete'
-                }
-              ]}
-              onActionClick={(key) => {
-                if (key === 'copy') {
-                  void copyMessageToClipboard(message);
-                }
-              }}
-            />
-          ) : null}
+          <MessageActions
+            align="end"
+            available={!isOptimistic}
+            items={[
+              {
+                icon: Copy,
+                key: 'copy',
+                label: 'Copy'
+              },
+              {
+                disabled: true,
+                icon: Trash2,
+                key: 'delete',
+                label: 'Delete'
+              }
+            ]}
+            onActionClick={(key) => {
+              if (key === 'copy') {
+                void copyMessageToClipboard(message);
+              }
+            }}
+          />
         </div>
       </div>
     );
