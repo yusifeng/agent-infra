@@ -117,7 +117,7 @@ const MessageActions = memo(function MessageActions({
   return (
     <div
       className={clsx(
-        'absolute inset-x-0 bottom-0 flex w-full',
+        'absolute inset-x-0 bottom-0 flex w-full px-4',
         available
           ? 'pointer-events-none translate-y-1 opacity-0 transition duration-150 ease-out group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100'
           : 'pointer-events-none invisible',

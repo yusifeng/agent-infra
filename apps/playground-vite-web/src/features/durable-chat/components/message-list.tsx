@@ -115,7 +115,7 @@ const MessageActions = memo(function MessageActions({
   return (
     <div
       className={clsx(
-        'absolute inset-x-0 bottom-0 flex w-full',
+        'absolute inset-x-0 bottom-0 flex w-full px-4',
         available
           ? 'pointer-events-none translate-y-1 opacity-0 transition duration-150 ease-out group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100'
           : 'pointer-events-none invisible',
@@ -491,7 +491,7 @@ export const ChatMessageList = memo(function ChatMessageList({
         </div>
       ) : (
         <div className={`${maxWithTW} mx-auto w-full`} style={messageListMinHeight}>
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
             {hasOlderMessages || historyLoading ? (
               <div className="flex justify-center px-4 pb-2 pt-1">
                 <button
