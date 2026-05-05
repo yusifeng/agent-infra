@@ -8,27 +8,33 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
     },
     "./config": {
       "types": "./dist/config.d.ts",
-      "import": "./dist/config.js"
+      "import": "./dist/config.js",
+      "require": "./dist/config.js"
     },
     "./lazy": {
       "types": "./dist/lazy.d.ts",
-      "import": "./dist/lazy.js"
+      "import": "./dist/lazy.js",
+      "require": "./dist/lazy.js"
     },
     "./runtime": {
       "types": "./dist/runtime.d.ts",
-      "import": "./dist/runtime.js"
+      "import": "./dist/runtime.js",
+      "require": "./dist/runtime.js"
     },
     "./tools": {
       "types": "./dist/tools.d.ts",
-      "import": "./dist/tools.js"
+      "import": "./dist/tools.js",
+      "require": "./dist/tools.js"
     },
     "./types": {
       "types": "./dist/types.d.ts",
-      "import": "./dist/types.js"
+      "import": "./dist/types.js",
+      "require": "./dist/types.js"
     }
   },
   "scripts": {
