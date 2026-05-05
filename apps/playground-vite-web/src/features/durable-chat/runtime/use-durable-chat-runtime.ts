@@ -1,12 +1,12 @@
 import type { MessageDto } from '@agent-infra/contracts';
 import {
   applyHydratedTranscriptState,
-  mergeMessageWindow,
-  mergeThreadMessagesPageInfo,
+  fetchThreadMessagesResponse,
   runActivateThread,
   runCreateThreadRecord,
   runInitializeRuntime,
   INITIAL_MESSAGE_PAGE_LIMIT,
+  runLoadOlderMessages,
   runLoadThreadMessages,
   runReconcileCompletedTurn,
   runRefreshMeta,
@@ -19,7 +19,6 @@ import {
 import { useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { fetchThreadMessagesResponse } from '@/features/durable-chat/repo/chat-api';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
 import type { DurableChatRuntimeOptions } from '@/features/durable-chat/types/runtime';
@@ -417,30 +416,23 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       };
     }
     shouldAutoScrollRef.current = false;
-    setHistoryLoading(true);
-    setError(null);
-
-    try {
-      const result = await fetchThreadMessagesResponse(threadId, {
-        before: beforeCursor,
-        limit: INITIAL_MESSAGE_PAGE_LIMIT
-      });
-      if (!result.ok) {
-        throw new Error(result.error ?? `Failed to load older messages (${result.status})`);
+    const didApply = await runLoadOlderMessages({
+      threadId,
+      beforeCursor,
+      historyLoading,
+      refs: {
+        activeThreadIdRef
+      },
+      actions: {
+        setError,
+        setHistoryLoading,
+        setMessages,
+        setMessagePageInfo
       }
+    });
 
-      if (activeThreadIdRef.current !== threadId) {
-        pendingPrependAnchorRef.current = null;
-        return;
-      }
-
-      setMessages((current) => mergeMessageWindow(current, result.data.messages ?? []));
-      setMessagePageInfo((current) => mergeThreadMessagesPageInfo(current, result.data.pageInfo ?? null, 'prepend'));
-    } catch (loadError) {
+    if (!didApply) {
       pendingPrependAnchorRef.current = null;
-      setError(loadError instanceof Error ? loadError.message : 'Failed to load older messages');
-    } finally {
-      setHistoryLoading(false);
     }
   }
 

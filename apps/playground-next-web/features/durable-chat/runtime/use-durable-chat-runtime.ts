@@ -19,7 +19,12 @@ import {
   runResetDraftThreadState,
   runStopViewingLiveResponse
 } from '@/features/durable-chat/runtime/chat-session-flow';
-import { applyHydratedTranscriptState, runActivateThread, runLoadThreadMessages } from '@/features/durable-chat/runtime/load-thread-flow';
+import {
+  applyHydratedTranscriptState,
+  runActivateThread,
+  runLoadOlderMessages,
+  runLoadThreadMessages
+} from '@/features/durable-chat/runtime/load-thread-flow';
 import {
   runLoadLogInspectorFlow,
   runLoadRunTimeline,
@@ -29,12 +34,7 @@ import { runSendMessageFlow } from '@/features/durable-chat/runtime/send-message
 import { runReconcileCompletedTurn } from '@/features/durable-chat/runtime/reconcile-completed-turn';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
-import { upsertMessage } from '@/features/durable-chat/service/chat-runtime';
-import {
-  INITIAL_MESSAGE_PAGE_LIMIT,
-  mergeMessageWindow,
-  mergeThreadMessagesPageInfo
-} from '@/features/durable-chat/service/chat-runtime';
+import { INITIAL_MESSAGE_PAGE_LIMIT, upsertMessage } from '@/features/durable-chat/service/chat-runtime';
 import type { DurableChatRuntimeOptions } from '@/features/durable-chat/types/runtime';
 
 const PENDING_NEW_THREAD_LOADING_ID = '__pending-new-thread__';
@@ -526,25 +526,23 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       };
     }
     shouldAutoScrollRef.current = false;
-    setHistoryLoading(true);
-    setError(null);
-
-    try {
-      const result = await fetchThreadMessagesResponse(threadId, {
-        before: beforeCursor,
-        limit: INITIAL_MESSAGE_PAGE_LIMIT
-      });
-      if (!result.ok) {
-        throw new Error(result.error ?? `Failed to load older messages (${result.status})`);
+    const didApply = await runLoadOlderMessages({
+      threadId,
+      beforeCursor,
+      historyLoading,
+      refs: {
+        activeThreadIdRef
+      },
+      actions: {
+        setError,
+        setHistoryLoading,
+        setMessages,
+        setMessagePageInfo
       }
+    });
 
-      setMessages((current) => mergeMessageWindow(current, result.data.messages ?? []));
-      setMessagePageInfo((current) => mergeThreadMessagesPageInfo(current, result.data.pageInfo ?? null, 'prepend'));
-    } catch (loadError) {
+    if (!didApply) {
       pendingPrependAnchorRef.current = null;
-      setError(loadError instanceof Error ? loadError.message : 'Failed to load older messages');
-    } finally {
-      setHistoryLoading(false);
     }
   }
 

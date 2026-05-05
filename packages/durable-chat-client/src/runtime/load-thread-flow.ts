@@ -1,6 +1,8 @@
 import type { MessageDto, RunDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
 
+import { fetchThreadMessagesResponse } from '../repo/chat-api.js';
 import { assistantMessageHasVisibleContent } from '../service/message-visibility.js';
+import { INITIAL_MESSAGE_PAGE_LIMIT, mergeMessageWindow, mergeThreadMessagesPageInfo } from '../service/chat-runtime.js';
 import type { LiveAssistantDraft } from '../types/live-assistant-draft.js';
 import type { ChatPhase } from '../types/runtime.js';
 
@@ -77,6 +79,21 @@ type ActivateThreadArgs = {
         preserveExistingTimeline?: boolean;
       }
     ) => Promise<string | null | undefined>;
+  };
+};
+
+type LoadOlderMessagesArgs = {
+  threadId: string | null;
+  beforeCursor: string | null;
+  historyLoading: boolean;
+  refs: {
+    activeThreadIdRef: RefLike<string | null>;
+  };
+  actions: {
+    setError: Setter<string | null>;
+    setHistoryLoading: Setter<boolean>;
+    setMessages: Setter<MessageDto[]>;
+    setMessagePageInfo: Setter<ThreadMessagesPageInfoDto | null>;
   };
 };
 
@@ -212,4 +229,36 @@ export async function runActivateThread({ threadId, options, refs, actions, oper
   }
 
   return restoredRunId;
+}
+
+export async function runLoadOlderMessages({ threadId, beforeCursor, historyLoading, refs, actions }: LoadOlderMessagesArgs) {
+  if (!threadId || !beforeCursor || historyLoading) {
+    return false;
+  }
+
+  actions.setHistoryLoading(true);
+  actions.setError(null);
+
+  try {
+    const result = await fetchThreadMessagesResponse(threadId, {
+      before: beforeCursor,
+      limit: INITIAL_MESSAGE_PAGE_LIMIT
+    });
+    if (!result.ok) {
+      throw new Error(result.error ?? `Failed to load older messages (${result.status})`);
+    }
+
+    if (refs.activeThreadIdRef.current !== threadId) {
+      return false;
+    }
+
+    actions.setMessages((current) => mergeMessageWindow(current, result.data.messages ?? []));
+    actions.setMessagePageInfo((current) => mergeThreadMessagesPageInfo(current, result.data.pageInfo ?? null, 'prepend'));
+    return true;
+  } catch (loadError) {
+    actions.setError(loadError instanceof Error ? loadError.message : 'Failed to load older messages');
+    return false;
+  } finally {
+    actions.setHistoryLoading(false);
+  }
 }
