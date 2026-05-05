@@ -6,7 +6,9 @@ export {
   buildOptimisticUserMessage,
   chooseInitialRunId,
   compareRunsByCreatedAt,
+  deriveDurableResponseStatus,
   deriveLatestRunId,
+  deriveMainChatResponseStatus,
   getChatPhaseForAssistantSnapshot,
   includeSelectedRun,
   isPrimaryChatAssistantEventType,
@@ -16,6 +18,7 @@ export {
   parseSseChunk,
   resolvePostReconcileChatPhase,
   resolveSettledChatPhase,
+  shouldShowMainChatLoading,
   upsertMessage,
   upsertRun
 } from '@agent-infra/durable-chat-client';

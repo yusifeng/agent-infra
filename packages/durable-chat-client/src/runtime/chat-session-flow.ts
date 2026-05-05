@@ -23,6 +23,7 @@ type ResetDraftThreadStateArgs = {
   };
   actions: {
     setActiveThreadId: Setter<string | null>;
+    setActiveResponseRun: Setter<RunDto | null>;
     setChatPhase: Setter<ChatPhase>;
     setDraft: Setter<string>;
     setHistoryLoading: Setter<boolean>;
@@ -49,6 +50,7 @@ type StopViewingLiveResponseArgs = {
     sendAbortControllerRef: RefLike<AbortController | null>;
   };
   actions: {
+    setActiveResponseRun: Setter<RunDto | null>;
     setChatPhase: Setter<ChatPhase>;
     setLiveStreamRunId: Setter<string | null>;
     setLoadingThreadId: Setter<string | null>;
@@ -107,6 +109,7 @@ export function runResetDraftThreadState({ refs, actions }: ResetDraftThreadStat
   refs.sendRequestIdRef.current += 1;
   refs.sendAbortControllerRef.current?.abort();
   actions.setChatPhase('idle');
+  actions.setActiveResponseRun(null);
   actions.setPersistingTurn(false);
   actions.setLoadingThreadId(null);
   actions.setActiveThreadId(null);
@@ -130,6 +133,7 @@ export function runResetDraftThreadState({ refs, actions }: ResetDraftThreadStat
 
 export function runStopViewingLiveResponse({ refs, actions }: StopViewingLiveResponseArgs) {
   refs.sendAbortControllerRef.current?.abort();
+  actions.setActiveResponseRun(null);
   actions.setChatPhase('idle');
   actions.setLiveStreamRunId(null);
   actions.setPersistingTurn(false);

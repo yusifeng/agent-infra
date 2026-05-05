@@ -157,14 +157,23 @@ function toThreadMessagesPageInfoDto(messages: Array<Message & { parts: MessageP
 }
 
 export function buildThreadMessagesResponse(
-  input: Array<Message & { parts: MessagePart[] }> | MessagePageResult
+  input:
+    | Array<Message & { parts: MessagePart[] }>
+    | MessagePageResult
+    | {
+        messages: Array<Message & { parts: MessagePart[] }>;
+        pageInfo?: MessagePageResult['pageInfo'];
+        activeRun?: Run | null;
+      }
 ): ThreadMessagesResponseDto {
   const messages = Array.isArray(input) ? input : input.messages;
   const pageInfo = Array.isArray(input) ? undefined : input.pageInfo;
+  const activeRun = Array.isArray(input) ? undefined : 'activeRun' in input ? input.activeRun : undefined;
 
   return {
     messages: messages.map(toMessageDto),
-    pageInfo: toThreadMessagesPageInfoDto(messages, pageInfo)
+    pageInfo: toThreadMessagesPageInfoDto(messages, pageInfo),
+    activeRun: activeRun ? toRunDto(activeRun) : null
   };
 }
 

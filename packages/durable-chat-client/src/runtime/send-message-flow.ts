@@ -40,6 +40,7 @@ type SendMessageFlowArgs = {
   };
   actions: {
     setActiveThreadId: Setter<string | null>;
+    setActiveResponseRun: Setter<RunDto | null>;
     setChatPhase: Setter<ChatPhase>;
     setDraft: Setter<string>;
     setError: Setter<string | null>;
@@ -160,6 +161,7 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
 
     if (event.type === 'run.ready') {
       readyEventReceived = true;
+      actions.setActiveResponseRun(event.run);
       actions.setOptimisticUserMessage(null);
       actions.setMessages((current) => upsertMessage(current, event.userMessage));
       actions.setRecentRuns((current) => upsertRun(current, event.run));
@@ -199,9 +201,14 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
       actions.setRecentRuns((current) => upsertRun(current, failedRun));
     }
 
+    if (event.type === 'run.state') {
+      actions.setActiveResponseRun(event.run.status === 'queued' || event.run.status === 'running' ? event.run : null);
+    }
+
     if (event.type === 'run.failed') {
       requiresTranscriptRecovery = true;
       terminalStreamError = event.error;
+      actions.setActiveResponseRun(null);
       actions.setError(event.error);
       actions.setLiveStreamRunId(null);
       actions.setPersistingTurn(false);
@@ -221,6 +228,7 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
     }
 
     if (event.type === 'run.completed') {
+      actions.setActiveResponseRun(null);
       actions.setError(null);
       actions.setLiveStreamRunId(null);
       actions.setChatPhase(resolveSettledChatPhase);
@@ -238,6 +246,7 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
   };
 
   actions.setChatPhase('thinking');
+  actions.setActiveResponseRun(null);
   actions.setPersistingTurn(false);
   actions.setLoadingThreadId(threadId ?? operations.pendingNewThreadLoadingId);
   actions.setError(null);
@@ -329,11 +338,13 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
 
     if (!readyEventReceived) {
       actions.setDraft(text);
+      actions.setActiveResponseRun(null);
       actions.setOptimisticUserMessage(null);
       actions.setLiveAssistantDraft(null);
     } else {
       requiresTranscriptRecovery = true;
     }
+    actions.setActiveResponseRun(null);
     actions.setChatPhase('failed');
     actions.setPersistingTurn(false);
     actions.setLoadingThreadId(null);

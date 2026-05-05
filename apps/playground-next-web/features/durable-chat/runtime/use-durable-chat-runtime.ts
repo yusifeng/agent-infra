@@ -35,7 +35,12 @@ import { runSendMessageFlow } from '@/features/durable-chat/runtime/send-message
 import { runReconcileCompletedTurn } from '@/features/durable-chat/runtime/reconcile-completed-turn';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
-import { INITIAL_MESSAGE_PAGE_LIMIT, upsertMessage } from '@/features/durable-chat/service/chat-runtime';
+import {
+  deriveMainChatResponseStatus,
+  INITIAL_MESSAGE_PAGE_LIMIT,
+  shouldShowMainChatLoading,
+  upsertMessage
+} from '@/features/durable-chat/service/chat-runtime';
 import type { DurableChatRuntimeOptions } from '@/features/durable-chat/types/runtime';
 
 const PENDING_NEW_THREAD_LOADING_ID = '__pending-new-thread__';
@@ -60,6 +65,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       liveStreamRunId,
       liveAssistantDraft,
       messagePageInfo,
+      activeResponseRun,
       durableRecoveryState,
       sidebarOpen,
       showScrollToBottom
@@ -80,6 +86,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     setLiveStreamRunId,
     setLiveAssistantDraft,
     setMessagePageInfo,
+    setActiveResponseRun,
     setDurableRecoveryState,
     setSidebarOpen,
     setShowScrollToBottom
@@ -135,13 +142,16 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const runEvents = timeline?.runEvents ?? [];
   const toolInvocations = timeline?.toolInvocations ?? [];
   const currentThreadTitle = activeThread?.title?.trim() || activeThreadId || 'New chat';
-  const isSending = chatPhase === 'thinking';
-  const isStreamingText = chatPhase === 'streaming';
-  const isFinalizingTranscript = chatPhase === 'transcript-final';
-  const isChatResponding = isSending || isStreamingText;
-  const isLoadingForActiveThread =
-    loadingThreadId !== null && (loadingThreadId === activeThreadId || (loadingThreadId === PENDING_NEW_THREAD_LOADING_ID && activeThreadId === null));
-  const showResponseLoading = (isChatResponding || isFinalizingTranscript || persistingTurn) && isLoadingForActiveThread;
+  const responseStatus = deriveMainChatResponseStatus({
+    activeResponseRun,
+    activeThreadId,
+    loadingThreadId,
+    chatPhase,
+    persistingTurn,
+    pendingNewThreadLoadingId: PENDING_NEW_THREAD_LOADING_ID
+  });
+  const isChatResponding = shouldShowMainChatLoading(responseStatus);
+  const showResponseLoading = shouldShowMainChatLoading(responseStatus);
   const sendDisabled = !draft.trim() || isChatResponding || !meta?.runtimeConfigured || !selectedModelOption;
   const inputLocked = isChatResponding;
   const displayedMessages = useMemo(
@@ -278,6 +288,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       },
       actions: {
         setActiveThreadId,
+        setActiveResponseRun,
         setChatPhase,
         setDraft,
         setHistoryLoading,
@@ -327,6 +338,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         sendAbortControllerRef
       },
       actions: {
+        setActiveResponseRun,
         setChatPhase,
         setLiveStreamRunId,
         setLoadingThreadId,
@@ -454,7 +466,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
 
     return {
       messages: result.data.messages ?? [],
-      pageInfo: result.data.pageInfo ?? null
+      pageInfo: result.data.pageInfo ?? null,
+      activeResponseRun: result.data.activeRun ?? null
     };
   }
 
@@ -477,6 +490,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         messagesRequestIdRef
       },
       actions: {
+        setActiveResponseRun,
         setError,
         setHistoryLoading,
         setLiveAssistantDraft,
@@ -487,13 +501,15 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         setRecentRunsLoading
       },
       operations: {
-        applyHydratedTranscript: ({ messages, pageInfo, selectedRunId, runs }) =>
+        applyHydratedTranscript: ({ messages, pageInfo, activeResponseRun, selectedRunId, runs }) =>
           applyHydratedTranscriptState({
             messages,
             pageInfo,
+            activeResponseRun,
             selectedRunId,
             runs,
             actions: {
+              setActiveResponseRun,
               setChatPhase,
               setError,
               setLiveAssistantDraft,
@@ -537,6 +553,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         activeThreadIdRef
       },
       actions: {
+        setActiveResponseRun,
         setError,
         setHistoryLoading,
         setMessages,
@@ -570,6 +587,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         sendRequestIdRef
       },
       actions: {
+        setActiveResponseRun,
         setChatPhase,
         setError,
         setLiveAssistantDraft,
@@ -618,6 +636,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       },
       actions: {
         setActiveThreadId,
+        setActiveResponseRun,
         setChatPhase,
         setDraft,
         setError,
@@ -778,6 +797,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     recentRuns,
     recentRunsError,
     recentRunsLoading,
+    responseStatus,
     runEvents,
     selectedModelKey,
     selectedModelOption,

@@ -1,4 +1,4 @@
-import type { MessageDto } from '@agent-infra/contracts';
+import type { MessageDto, RunDto } from '@agent-infra/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { runReconcileCompletedTurn } from '../src/runtime/reconcile-completed-turn';
@@ -53,11 +53,13 @@ describe('runReconcileCompletedTurn', () => {
           hasNewer: false,
           startCursor: 'cursor-3',
           endCursor: 'cursor-4'
-        }
+        },
+        activeRun: null
       }
     });
 
     const actions = {
+      setActiveResponseRun: createSetterSpy<RunDto | null>(),
       setChatPhase: createSetterSpy<'idle' | 'thinking' | 'streaming' | 'transcript-final' | 'failed'>(),
       setError: createSetterSpy<string | null>(),
       setLiveAssistantDraft: createSetterSpy<null>(),
@@ -119,6 +121,7 @@ describe('runReconcileCompletedTurn', () => {
       startCursor: 'cursor-1',
       endCursor: 'cursor-4'
     });
+    expect(actions.setActiveResponseRun).toHaveBeenCalledWith(null);
     expect(actions.setOptimisticUserMessage).toHaveBeenCalledWith(null);
     expect(actions.setLiveAssistantDraft).toHaveBeenCalledWith(null);
   });

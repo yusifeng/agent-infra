@@ -68,6 +68,13 @@ function createRepositories(stateRef: { current: InMemoryState }, snapshot?: InM
       async findById(id) {
         return getState().runs.get(id) ?? null;
       },
+      async findLatestActiveByThread(threadId) {
+        const activeRuns = [...getState().runs.values()]
+          .filter((run) => run.threadId === threadId && (run.status === 'queued' || run.status === 'running'))
+          .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+
+        return activeRuns[0] ?? null;
+      },
       async listByThread(threadId, options) {
         const runs = [...getState().runs.values()]
           .filter((run) => run.threadId === threadId)
@@ -517,6 +524,31 @@ describe('createAgentInfraApp', () => {
 
     const allRuns = await app.runs.listByThread({ threadId: thread.id });
     expect(allRuns.map((run) => run.id)).toEqual([second.run.id, first.run.id]);
+  });
+
+  it('returns the latest active run for a thread', async () => {
+    const { app, repositories } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Active run path' });
+
+    const first = await app.turns.startText({
+      threadId: thread.id,
+      text: 'First'
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    const second = await app.turns.startText({
+      threadId: thread.id,
+      text: 'Second'
+    });
+
+    expect((await app.runs.getActiveByThread({ threadId: thread.id }))?.id).toBe(second.run.id);
+
+    await repositories.runRepo.updateStatus(second.run.id, 'completed');
+    expect((await app.runs.getActiveByThread({ threadId: thread.id }))?.id).toBe(first.run.id);
+
+    await repositories.runRepo.updateStatus(first.run.id, 'failed');
+    expect(await app.runs.getActiveByThread({ threadId: thread.id })).toBeNull();
   });
 
   it('throws a typed not-found error for a missing run timeline', async () => {

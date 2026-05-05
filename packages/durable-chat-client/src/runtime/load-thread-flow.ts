@@ -13,6 +13,7 @@ type RefLike<T> = { current: T };
 type ApplyHydratedTranscriptArgs = {
   messages: MessageDto[];
   pageInfo: ThreadMessagesPageInfoDto | null;
+  activeResponseRun: RunDto | null;
   selectedRunId: string | null;
   runs: RunDto[];
 };
@@ -25,6 +26,7 @@ export type LoadThreadMessagesResult = {
 export type HydratedTranscriptPage = {
   messages: MessageDto[];
   pageInfo: ThreadMessagesPageInfoDto | null;
+  activeResponseRun: RunDto | null;
 };
 
 type LoadThreadMessagesArgs = {
@@ -42,6 +44,7 @@ type LoadThreadMessagesArgs = {
     messagesRequestIdRef: RefLike<number>;
   };
   actions: {
+    setActiveResponseRun: Setter<RunDto | null>;
     setError: Setter<string | null>;
     setHistoryLoading: Setter<boolean>;
     setLiveAssistantDraft: Setter<LiveAssistantDraft | null>;
@@ -102,15 +105,18 @@ type LoadOlderMessagesArgs = {
     setHistoryLoading: Setter<boolean>;
     setMessages: Setter<MessageDto[]>;
     setMessagePageInfo: Setter<ThreadMessagesPageInfoDto | null>;
+    setActiveResponseRun: Setter<RunDto | null>;
   };
 };
 
 export function applyHydratedTranscriptState(args: {
   messages: MessageDto[];
   pageInfo: ThreadMessagesPageInfoDto | null;
+  activeResponseRun: RunDto | null;
   selectedRunId: string | null;
   runs: RunDto[];
   actions: {
+    setActiveResponseRun: Setter<RunDto | null>;
     setChatPhase: Setter<ChatPhase>;
     setError: Setter<string | null>;
     setLiveAssistantDraft: Setter<LiveAssistantDraft | null>;
@@ -122,12 +128,13 @@ export function applyHydratedTranscriptState(args: {
     setSelectedRunId: Setter<string | null>;
   };
 }) {
-  const { messages, pageInfo, selectedRunId, runs, actions } = args;
+  const { messages, pageInfo, activeResponseRun, selectedRunId, runs, actions } = args;
   const hasPersistedAssistantForSelectedRun =
     selectedRunId !== null && messages.some((message) => message.runId === selectedRunId && assistantMessageHasVisibleContent(message));
 
   actions.setMessages(messages);
   actions.setMessagePageInfo(pageInfo);
+  actions.setActiveResponseRun(activeResponseRun);
   actions.setRecentRuns(runs);
   actions.setSelectedRunId(selectedRunId);
   actions.setOptimisticUserMessage(null);
@@ -180,6 +187,7 @@ export async function runLoadThreadMessages({ threadId, options, refs, actions, 
       operations.applyHydratedTranscript({
         messages: nextMessages,
         pageInfo: hydratedTranscriptPage.pageInfo,
+        activeResponseRun: hydratedTranscriptPage.activeResponseRun,
         selectedRunId: null,
         runs: []
       });
@@ -189,6 +197,7 @@ export async function runLoadThreadMessages({ threadId, options, refs, actions, 
     operations.applyHydratedTranscript({
       messages: nextMessages,
       pageInfo: hydratedTranscriptPage.pageInfo,
+      activeResponseRun: hydratedTranscriptPage.activeResponseRun,
       selectedRunId: null,
       runs: []
     });
@@ -212,6 +221,7 @@ export async function runLoadThreadMessages({ threadId, options, refs, actions, 
     operations.resetLogInspectorState();
     actions.setLiveAssistantDraft(null);
     actions.setMessagePageInfo(null);
+    actions.setActiveResponseRun(null);
     actions.setOptimisticUserMessage(null);
     actions.setError(loadError instanceof Error ? loadError.message : 'Failed to load thread messages');
     return { ok: false, restoredRunId: null };
@@ -286,6 +296,7 @@ export async function runLoadOlderMessages({ threadId, beforeCursor, historyLoad
 
     actions.setMessages((current) => mergeMessageWindow(current, result.data.messages ?? []));
     actions.setMessagePageInfo((current) => mergeThreadMessagesPageInfo(current, result.data.pageInfo ?? null, 'prepend'));
+    actions.setActiveResponseRun(result.data.activeRun ?? null);
     return true;
   } catch (loadError) {
     actions.setError(loadError instanceof Error ? loadError.message : 'Failed to load older messages');

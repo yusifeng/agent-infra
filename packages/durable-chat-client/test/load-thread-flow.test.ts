@@ -1,7 +1,7 @@
-import type { MessageDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
+import type { MessageDto, RunDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { runActivateThread, runLoadOlderMessages } from '../src/runtime/load-thread-flow';
+import { runActivateThread, runLoadOlderMessages, runLoadThreadMessages } from '../src/runtime/load-thread-flow';
 import { INITIAL_MESSAGE_PAGE_LIMIT } from '../src/service/chat-runtime';
 import type { DurableRecoveryState } from '../src/types/runtime';
 
@@ -53,7 +53,8 @@ describe('runLoadOlderMessages', () => {
           hasNewer: true,
           startCursor: 'cursor-1',
           endCursor: 'cursor-2'
-        }
+        },
+        activeRun: null
       }
     });
 
@@ -61,6 +62,7 @@ describe('runLoadOlderMessages', () => {
     const setHistoryLoading = createSetterSpy<boolean>();
     const setMessages = createSetterSpy<MessageDto[]>();
     const setMessagePageInfo = createSetterSpy<ThreadMessagesPageInfoDto | null>();
+    const setActiveResponseRun = createSetterSpy<RunDto | null>();
 
     const didApply = await runLoadOlderMessages({
       threadId: 'thread-1',
@@ -73,7 +75,8 @@ describe('runLoadOlderMessages', () => {
         setError,
         setHistoryLoading,
         setMessages,
-        setMessagePageInfo
+        setMessagePageInfo,
+        setActiveResponseRun
       }
     });
 
@@ -109,6 +112,7 @@ describe('runLoadOlderMessages', () => {
       startCursor: 'cursor-1',
       endCursor: 'cursor-4'
     });
+    expect(setActiveResponseRun).toHaveBeenCalledWith(null);
   });
 
   it('ignores stale older-page responses after thread switch', async () => {
@@ -122,7 +126,8 @@ describe('runLoadOlderMessages', () => {
           hasNewer: true,
           startCursor: 'cursor-1',
           endCursor: 'cursor-1'
-        }
+        },
+        activeRun: null
       }
     });
 
@@ -140,7 +145,8 @@ describe('runLoadOlderMessages', () => {
         setError: createSetterSpy<string | null>(),
         setHistoryLoading: createSetterSpy<boolean>(),
         setMessages,
-        setMessagePageInfo
+        setMessagePageInfo,
+        setActiveResponseRun: createSetterSpy<RunDto | null>()
       }
     });
 
@@ -156,7 +162,8 @@ describe('runLoadOlderMessages', () => {
       error: 'upstream unavailable',
       data: {
         messages: [],
-        pageInfo: null
+        pageInfo: null,
+        activeRun: null
       }
     });
 
@@ -173,12 +180,79 @@ describe('runLoadOlderMessages', () => {
         setError,
         setHistoryLoading: createSetterSpy<boolean>(),
         setMessages: createSetterSpy<MessageDto[]>(),
-        setMessagePageInfo: createSetterSpy<ThreadMessagesPageInfoDto | null>()
+        setMessagePageInfo: createSetterSpy<ThreadMessagesPageInfoDto | null>(),
+        setActiveResponseRun: createSetterSpy<RunDto | null>()
       }
     });
 
     expect(didApply).toBe(false);
     expect(setError).toHaveBeenLastCalledWith('upstream unavailable');
+  });
+});
+
+describe('runLoadThreadMessages', () => {
+  it('hydrates activeResponseRun from durable thread state', async () => {
+    const setActiveResponseRun = createSetterSpy<RunDto | null>();
+    const applyHydratedTranscript = vi.fn();
+
+    const result = await runLoadThreadMessages({
+      threadId: 'thread-1',
+      refs: {
+        activeThreadIdRef: { current: 'thread-1' },
+        logOpenRef: { current: false },
+        messagesAbortControllerRef: { current: null },
+        messagesRequestIdRef: { current: 0 }
+      },
+      actions: {
+        setActiveResponseRun,
+        setError: createSetterSpy<string | null>(),
+        setHistoryLoading: createSetterSpy<boolean>(),
+        setLiveAssistantDraft: createSetterSpy<any>(),
+        setLoadingMessages: createSetterSpy<boolean>(),
+        setMessagePageInfo: createSetterSpy<ThreadMessagesPageInfoDto | null>(),
+        setOptimisticUserMessage: createSetterSpy<MessageDto | null>(),
+        setRecentRunsError: createSetterSpy<string | null>(),
+        setRecentRunsLoading: createSetterSpy<boolean>()
+      },
+      operations: {
+        applyHydratedTranscript,
+        hydrateTranscript: vi.fn().mockResolvedValue({
+          messages: [createMessage('message-1', 1)],
+          pageInfo: null,
+          activeResponseRun: {
+            id: 'run-active',
+            threadId: 'thread-1',
+            triggerMessageId: null,
+            provider: 'openai',
+            model: 'gpt-4o-mini',
+            status: 'running',
+            usage: null,
+            error: null,
+            startedAt: '2026-01-01T00:00:00.000Z',
+            finishedAt: null,
+            createdAt: '2026-01-01T00:00:00.000Z'
+          }
+        }),
+        loadLogInspector: vi.fn(),
+        resetLogInspectorState: vi.fn()
+      }
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      restoredRunId: null
+    });
+    expect(applyHydratedTranscript).toHaveBeenCalledWith({
+      messages: [createMessage('message-1', 1)],
+      pageInfo: null,
+      activeResponseRun: expect.objectContaining({
+        id: 'run-active',
+        status: 'running'
+      }),
+      selectedRunId: null,
+      runs: []
+    });
+    expect(setActiveResponseRun).not.toHaveBeenCalledWith(null);
   });
 });
 

@@ -17,17 +17,25 @@ export async function GET(req: Request, { params }: { params: Promise<{ threadId
     const hasPaginationParams = query.limit !== undefined || query.before !== undefined || query.after !== undefined;
 
     if (!hasPaginationParams) {
-      const messages = await app.threads.getMessages({ threadId });
-      return Response.json(buildThreadMessagesResponse(messages));
+      const activeRunPromise = app.runs.getActiveByThread({ threadId });
+      const [messages, activeRun] = await Promise.all([app.threads.getMessages({ threadId }), activeRunPromise]);
+      return Response.json(buildThreadMessagesResponse({ messages, activeRun }));
     }
 
-    const page = await app.threads.getMessagesPage({
-      threadId,
-      limit: query.limit,
-      beforeSeq: query.before ? decodeThreadMessageCursor(query.before, threadId) : undefined,
-      afterSeq: query.after ? decodeThreadMessageCursor(query.after, threadId) : undefined
-    });
-    return Response.json(buildThreadMessagesResponse(page));
+    const beforeSeq = query.before ? decodeThreadMessageCursor(query.before, threadId) : undefined;
+    const afterSeq = query.after ? decodeThreadMessageCursor(query.after, threadId) : undefined;
+    const activeRunPromise = app.runs.getActiveByThread({ threadId });
+
+    const [page, activeRun] = await Promise.all([
+      app.threads.getMessagesPage({
+        threadId,
+        limit: query.limit,
+        beforeSeq,
+        afterSeq
+      }),
+      activeRunPromise
+    ]);
+    return Response.json(buildThreadMessagesResponse({ ...page, activeRun }));
   } catch (error) {
     return Response.json(buildThreadMessagesErrorResponse(error, 'failed to load thread messages'), {
       status: getRouteErrorStatus(error)

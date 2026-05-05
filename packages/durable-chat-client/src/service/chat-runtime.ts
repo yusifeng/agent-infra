@@ -9,10 +9,70 @@ import type {
 } from '@agent-infra/contracts';
 
 import { normalizeRunStreamEvent } from '../schema/run-stream.js';
-import type { ChatPhase } from '../types/runtime.js';
+import type { ChatPhase, MainChatResponseStatus } from '../types/runtime.js';
 
 export const RECENT_RUNS_LIMIT = 8;
 export const INITIAL_MESSAGE_PAGE_LIMIT = 40;
+
+export function deriveDurableResponseStatus(run: RunDto | null): MainChatResponseStatus {
+  if (!run) {
+    return 'idle';
+  }
+
+  switch (run.status) {
+    case 'running':
+      return 'in_progress';
+    case 'queued':
+    case 'completed':
+    case 'failed':
+    case 'cancelled':
+      return run.status;
+    default:
+      return 'idle';
+  }
+}
+
+export function shouldShowMainChatLoading(status: MainChatResponseStatus) {
+  return status === 'queued' || status === 'in_progress';
+}
+
+export function deriveMainChatResponseStatus(input: {
+  activeResponseRun: RunDto | null;
+  activeThreadId: string | null;
+  loadingThreadId: string | null;
+  chatPhase: ChatPhase;
+  persistingTurn: boolean;
+  pendingNewThreadLoadingId: string;
+}) {
+  const { activeResponseRun, activeThreadId, loadingThreadId, chatPhase, persistingTurn, pendingNewThreadLoadingId } = input;
+  const durableStatus = deriveDurableResponseStatus(activeResponseRun);
+
+  if (durableStatus === 'queued' || durableStatus === 'in_progress') {
+    return durableStatus;
+  }
+
+  if (chatPhase === 'failed') {
+    return 'failed';
+  }
+
+  const isLoadingForActiveThread =
+    loadingThreadId !== null &&
+    (loadingThreadId === activeThreadId || (loadingThreadId === pendingNewThreadLoadingId && activeThreadId === null));
+
+  if (!isLoadingForActiveThread) {
+    return durableStatus;
+  }
+
+  if (persistingTurn || chatPhase === 'streaming' || chatPhase === 'transcript-final') {
+    return 'in_progress';
+  }
+
+  if (chatPhase === 'thinking') {
+    return 'queued';
+  }
+
+  return durableStatus;
+}
 
 export function normalizeRuntimeMeta(data: Partial<RuntimePiMetaDto>): RuntimePiMetaDto {
   const modelOptions = Array.isArray(data.modelOptions) ? data.modelOptions : [];

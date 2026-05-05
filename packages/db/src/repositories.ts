@@ -50,6 +50,17 @@ export class DrizzleRunRepository implements RunRepository {
     return { ...row, usage: row.usageJson };
   }
 
+  async findLatestActiveByThread(threadId: string): Promise<Run | null> {
+    const [row] = await this.db
+      .select()
+      .from(runs)
+      .where(and(eq(runs.threadId, threadId), inArray(runs.status, ['queued', 'running'])))
+      .orderBy(desc(runs.createdAt))
+      .limit(1);
+    if (!row) return null;
+    return { ...row, usage: row.usageJson };
+  }
+
   async listByThread(threadId: string, options?: { limit?: number }): Promise<Run[]> {
     let query = this.db.select().from(runs).where(eq(runs.threadId, threadId)).orderBy(desc(runs.createdAt));
     if (options?.limit && options.limit > 0) {

@@ -168,11 +168,12 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
       const { app: services } = await request.requestTiming.measureAsync('services.app', () => getAppServices());
-      const messages = await request.requestTiming.measureAsync('messages.get', () =>
-        services.threads.getMessages({ threadId: request.params.threadId })
-      );
+      const [messages, activeRun] = await Promise.all([
+        request.requestTiming.measureAsync('messages.get', () => services.threads.getMessages({ threadId: request.params.threadId })),
+        request.requestTiming.measureAsync('runs.active', () => services.runs.getActiveByThread({ threadId: request.params.threadId }))
+      ]);
 
-      return reply.send(buildThreadMessagesResponse(messages));
+      return reply.send(buildThreadMessagesResponse({ messages, activeRun }));
     } catch (error) {
       return reply.code(getRouteErrorStatus(error)).send(buildThreadMessagesErrorResponse(error, 'failed to load thread messages'));
     }

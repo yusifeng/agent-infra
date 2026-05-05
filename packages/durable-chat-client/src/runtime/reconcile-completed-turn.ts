@@ -33,6 +33,7 @@ type ReconcileCompletedTurnArgs = {
     sendRequestIdRef: RefLike<number>;
   };
   actions: {
+    setActiveResponseRun: Setter<RunDto | null>;
     setChatPhase: Setter<ChatPhase>;
     setError: Setter<string | null>;
     setLiveAssistantDraft: Setter<LiveAssistantDraft | null>;
@@ -121,6 +122,7 @@ export async function runReconcileCompletedTurn({
 
       actions.setMessages(reconciledMessages);
       actions.setMessagePageInfo(reconciledPageInfo);
+      actions.setActiveResponseRun(messagesResult.data.activeRun ?? null);
       if (isCurrentSend()) {
         actions.setOptimisticUserMessage(null);
         actions.setLiveAssistantDraft(null);

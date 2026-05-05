@@ -182,7 +182,8 @@ describe('durable chat server route helpers', () => {
         hasNewer: true,
         startCursor: expect.any(String),
         endCursor: expect.any(String)
-      }
+      },
+      activeRun: null
     });
 
     expect(
@@ -264,11 +265,25 @@ describe('durable chat server route helpers', () => {
         hasNewer: false,
         startSeq: 2,
         endSeq: 3
+      },
+      activeRun: {
+        id: 'run-active',
+        threadId: 'thread-1',
+        triggerMessageId: null,
+        provider: 'deepseek',
+        model: 'deepseek-chat',
+        status: 'running',
+        usage: null,
+        error: null,
+        startedAt: null,
+        finishedAt: null,
+        createdAt: new Date('2026-01-01T00:00:02.000Z')
       }
     });
 
     expect(decodeThreadMessageCursor(response.pageInfo?.startCursor ?? '', 'thread-1')).toBe(2);
     expect(() => decodeThreadMessageCursor(response.pageInfo?.startCursor ?? '', 'thread-2')).toThrow('invalid thread message cursor');
+    expect(response.activeRun?.status).toBe('running');
   });
 
   it('builds run stream events and encodes sse frames', () => {

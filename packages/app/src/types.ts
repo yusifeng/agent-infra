@@ -94,6 +94,10 @@ export interface GetThreadRunsInput {
   limit?: number;
 }
 
+export interface GetActiveThreadRunInput {
+  threadId: string;
+}
+
 export interface AgentInfraAppDependencies {
   repositories: AgentInfraAppRepositories;
   runtime: AgentInfraRuntimePort;
@@ -116,5 +120,6 @@ export interface AgentInfraApp {
   runs: {
     getTimeline(input: GetRunTimelineInput): Promise<RunTimelineResult>;
     listByThread(input: GetThreadRunsInput): Promise<Run[]>;
+    getActiveByThread(input: GetActiveThreadRunInput): Promise<Run | null>;
   };
 }

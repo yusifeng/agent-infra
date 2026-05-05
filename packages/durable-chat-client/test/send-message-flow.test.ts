@@ -69,6 +69,7 @@ function createRefs() {
 function createActions() {
   return {
     setActiveThreadId: createSetterSpy<string | null>(),
+    setActiveResponseRun: createSetterSpy<RunDto | null>(),
     setChatPhase: createSetterSpy<'idle' | 'thinking' | 'streaming' | 'transcript-final' | 'failed'>(),
     setDraft: createSetterSpy<string>(),
     setError: createSetterSpy<string | null>(),

@@ -72,4 +72,57 @@ describe('SqliteRunRepository', () => {
     const limitedRuns = await runRepo.listByThread('thread-1', { limit: 1 });
     expect(limitedRuns.map((run) => run.id)).toEqual([second.id]);
   });
+
+  it('finds the latest active run for a thread', async () => {
+    const first = await runRepo.create({
+      id: 'run-1',
+      threadId: 'thread-1',
+      triggerMessageId: null,
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+      status: 'queued',
+      usage: null,
+      error: null,
+      startedAt: null,
+      finishedAt: null
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    const second = await runRepo.create({
+      id: 'run-2',
+      threadId: 'thread-1',
+      triggerMessageId: null,
+      provider: 'deepseek',
+      model: 'deepseek-chat',
+      status: 'running',
+      usage: null,
+      error: null,
+      startedAt: null,
+      finishedAt: null
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    await runRepo.create({
+      id: 'run-3',
+      threadId: 'thread-1',
+      triggerMessageId: null,
+      provider: 'deepseek',
+      model: 'deepseek-chat',
+      status: 'completed',
+      usage: null,
+      error: null,
+      startedAt: null,
+      finishedAt: null
+    });
+
+    expect((await runRepo.findLatestActiveByThread('thread-1'))?.id).toBe(second.id);
+
+    await runRepo.updateStatus(second.id, 'completed');
+    expect((await runRepo.findLatestActiveByThread('thread-1'))?.id).toBe(first.id);
+
+    await runRepo.updateStatus(first.id, 'failed');
+    expect(await runRepo.findLatestActiveByThread('thread-1')).toBeNull();
+  });
 });

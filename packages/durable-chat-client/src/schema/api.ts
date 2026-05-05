@@ -313,6 +313,7 @@ export function normalizeThreadMessagesResponse(value: unknown): ThreadMessagesR
       ? record.messages.map(normalizeMessage).filter((message): message is MessageDto => message !== null)
       : [],
     pageInfo: normalizeThreadMessagesPageInfo(record.pageInfo) ?? undefined,
+    activeRun: normalizeRun(record.activeRun),
     error: readApiError(record) ?? undefined
   };
 }

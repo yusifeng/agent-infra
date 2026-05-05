@@ -6,6 +6,8 @@ import {
   buildAssistantMessageFromSnapshot,
   buildOptimisticUserMessage,
   chooseInitialRunId,
+  deriveDurableResponseStatus,
+  deriveMainChatResponseStatus,
   getChatPhaseForAssistantSnapshot,
   mergeMessageWindow,
   mergeThreadMessagesPageInfo,
@@ -13,6 +15,7 @@ import {
   parseSseChunk,
   resolvePostReconcileChatPhase,
   resolveSettledChatPhase,
+  shouldShowMainChatLoading,
   upsertMessage
 } from '../src/service/chat-runtime';
 
@@ -73,6 +76,46 @@ describe('durable-chat-client service', () => {
     expect(chooseInitialRunId(messages, runs, 'run-latest')).toBe('run-latest');
     expect(chooseInitialRunId(messages, runs, 'missing')).toBe('run-latest');
     expect(chooseInitialRunId(messages, [], null)).toBe('run-from-message');
+  });
+
+  it('derives durable and main chat response status from active runs and local phases', () => {
+    expect(deriveDurableResponseStatus(null)).toBe('idle');
+    expect(deriveDurableResponseStatus({ ...createRun('run-1', '2026-01-01T00:00:00.000Z'), status: 'running' })).toBe('in_progress');
+
+    expect(
+      deriveMainChatResponseStatus({
+        activeResponseRun: { ...createRun('run-2', '2026-01-02T00:00:00.000Z'), status: 'running' },
+        activeThreadId: 'thread-1',
+        loadingThreadId: null,
+        chatPhase: 'idle',
+        persistingTurn: false,
+        pendingNewThreadLoadingId: '__pending__'
+      })
+    ).toBe('in_progress');
+
+    expect(
+      deriveMainChatResponseStatus({
+        activeResponseRun: null,
+        activeThreadId: null,
+        loadingThreadId: '__pending__',
+        chatPhase: 'thinking',
+        persistingTurn: false,
+        pendingNewThreadLoadingId: '__pending__'
+      })
+    ).toBe('queued');
+
+    expect(
+      shouldShowMainChatLoading(
+        deriveMainChatResponseStatus({
+          activeResponseRun: null,
+          activeThreadId: 'thread-1',
+          loadingThreadId: 'thread-1',
+          chatPhase: 'transcript-final',
+          persistingTurn: true,
+          pendingNewThreadLoadingId: '__pending__'
+        })
+      )
+    ).toBe(true);
   });
 
   it('upsertMessage inserts by sequence and replaces by id', () => {

@@ -138,6 +138,7 @@ export interface CreateThreadResponseDto {
 export interface ThreadMessagesResponseDto {
   messages?: MessageDto[];
   pageInfo?: ThreadMessagesPageInfoDto;
+  activeRun?: RunDto | null;
   error?: string;
 }
 

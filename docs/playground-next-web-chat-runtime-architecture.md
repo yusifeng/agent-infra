@@ -65,9 +65,10 @@
 
 ### assistant transcript 的完成时机
 
-- 主聊天 loading 只跟 `chatPhase === 'thinking' | 'streaming'` 绑定。
+- 主聊天 loading 现在由 package 层 `responseStatus` 驱动，UI 只把 `queued | in_progress` 视为底部唯一 loading。
+- `responseStatus` 的首要真相来自 durable `activeRun.status`；本地 `chatPhase` / `persistingTurn` 只作为 live turn 尚未 durable 化前的桥接态。
 - `text_end` 到来后，chat phase 进入 `transcript-final`。
-- durable 尾态补齐已下沉到独立的 `persistingTurn`，不再回流驱动主聊天 loading。
+- durable 尾态补齐已下沉到独立的 `persistingTurn`，它不再自己决定 UI 是否 loading，只参与 `responseStatus` 的临时桥接计算。
 - 主聊天 UI 只把以下事件当作 chat-first 主事件集合：
   - assistant `start`
   - assistant `text_delta`

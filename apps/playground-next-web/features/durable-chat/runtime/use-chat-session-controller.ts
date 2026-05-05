@@ -1,7 +1,7 @@
 'use client';
 
 import type { DurableRecoveryState } from '@agent-infra/durable-chat-client';
-import type { MessageDto, RuntimePiMetaDto, ThreadDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
+import type { MessageDto, RunDto, RuntimePiMetaDto, ThreadDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
 import { useReducer } from 'react';
 
 import type { LiveAssistantDraft } from '../types/live-assistant-draft';
@@ -44,6 +44,7 @@ function createInitialChatSessionState(): ChatSessionState {
     liveStreamRunId: null,
     liveAssistantDraft: null,
     messagePageInfo: null,
+    activeResponseRun: null,
     durableRecoveryState: {
       phase: 'idle',
       message: null
@@ -106,6 +107,9 @@ export function useChatSessionController() {
     },
     setMessagePageInfo: (next: Updater<ThreadMessagesPageInfoDto | null>) => {
       dispatch((current) => ({ ...current, messagePageInfo: resolveNext(current.messagePageInfo, next) }));
+    },
+    setActiveResponseRun: (next: Updater<RunDto | null>) => {
+      dispatch((current) => ({ ...current, activeResponseRun: resolveNext(current.activeResponseRun, next) }));
     },
     setDurableRecoveryState: (next: Updater<DurableRecoveryState>) => {
       dispatch((current) => ({ ...current, durableRecoveryState: resolveNext(current.durableRecoveryState, next) }));

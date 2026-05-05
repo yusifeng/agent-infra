@@ -34,6 +34,19 @@ describe('durable-chat-client schema', () => {
         hasNewer: false,
         startCursor: 'cursor-1',
         endCursor: 'cursor-2'
+      },
+      activeRun: {
+        id: 'run-active',
+        threadId: 'thread-1',
+        triggerMessageId: null,
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+        status: 'running',
+        usage: null,
+        error: null,
+        startedAt: null,
+        finishedAt: null,
+        createdAt: '2026-01-01T00:00:00.000Z'
       }
     });
 
@@ -65,6 +78,7 @@ describe('durable-chat-client schema', () => {
       startCursor: 'cursor-1',
       endCursor: 'cursor-2'
     });
+    expect(messages.activeRun?.id).toBe('run-active');
     expect(runs.runs).toHaveLength(1);
   });
 

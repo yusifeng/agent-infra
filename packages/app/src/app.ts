@@ -258,6 +258,10 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
         return dependencies.repositories.runRepo.listByThread(input.threadId, {
           limit: input.limit
         });
+      },
+      async getActiveByThread(input) {
+        await loadThreadOrThrow(dependencies.repositories, input.threadId);
+        return dependencies.repositories.runRepo.findLatestActiveByThread(input.threadId);
       }
     }
   };
