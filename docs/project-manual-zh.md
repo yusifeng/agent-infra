@@ -2,6 +2,8 @@
 
 本文面向**第一次接触本仓库的初级程序员**：说明仓库在做什么、`packages` 与 `apps` 里每个包/应用的职责，以及你需要优先认识的**主要类型、函数与类**。阅读时建议配合根目录的 [`AGENTS.md`](../AGENTS.md) 中的构建命令使用。
 
+如果你当前关心的是 `playground-next-web` 的实际部署、Vercel 配置、Turso 环境变量或线上 smoke 验证，请优先阅读 [`playground-next-web-vercel-runbook.md`](./playground-next-web-vercel-runbook.md)。
+
 ---
 
 ## 1. 这个项目是干什么的？
