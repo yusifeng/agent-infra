@@ -3,13 +3,18 @@
 import type { MessageDto, MessagePartDto, RuntimePiMetaDto } from '@agent-infra/contracts';
 import clsx from 'clsx';
 import { Copy, Loader2, RotateCw, Trash2 } from 'lucide-react';
-import { memo, type ComponentType } from 'react';
+import { memo, type ComponentType, type CSSProperties } from 'react';
 
 import { copyMessageToClipboard, copyTextToClipboard, messagePartHasVisibleContent } from './helpers';
 import { MarkdownRenderer } from './markdown-renderer';
 import { AnimatedEmoji } from './shared';
 import { maxWithTW, messageListMinHeight, ui } from './ui';
 import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
+
+const transcriptRowPerformanceStyle: CSSProperties = {
+  containIntrinsicSize: '180px',
+  contentVisibility: 'auto'
+};
 
 const WelcomeMessage = memo(function WelcomeMessage({ activeThreadId }: { activeThreadId: string | null }) {
   const greeting = (() => {
@@ -236,7 +241,10 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
       );
 
   return (
-    <div className={clsx('group relative w-[90%] max-w-screen px-4', props.type === 'persisted' && ui.messageAppear)}>
+    <div
+      className={clsx('group relative w-[90%] max-w-screen px-4', props.type === 'persisted' && ui.messageAppear)}
+      style={transcriptRowPerformanceStyle}
+    >
       <div className={clsx('relative flex flex-col gap-2 pt-1.5', ui.assistantBubble)}>{content}</div>
       {isCompleted ? (
         <MessageActions
@@ -271,7 +279,10 @@ const MessageCard = memo(function MessageCard({ message }: { message: MessageDto
 
   if (isUser) {
     return (
-      <div className={clsx('group relative flex w-full max-w-screen justify-end px-4', !isOptimistic && ui.messageAppear)}>
+      <div
+        className={clsx('group relative flex w-full max-w-screen justify-end px-4', !isOptimistic && ui.messageAppear)}
+        style={transcriptRowPerformanceStyle}
+      >
         <div className="max-w-[65%]">
           <div className={clsx('relative flex flex-col gap-3 rounded-lg px-3 py-2', ui.userBubble, isOptimistic && 'opacity-85')}>
             <div className="space-y-2">
