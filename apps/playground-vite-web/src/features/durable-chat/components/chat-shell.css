@@ -74,32 +74,12 @@
   animation: chat-shimmer 2s linear infinite;
 }
 
-@keyframes chat-markdown-block-appear {
-  from {
-    transform: translate3d(0, 6px, 0);
-    opacity: 0;
-  }
-
-  to {
-    transform: translate3d(0, 0, 0);
-    opacity: 1;
-  }
-}
-
 .chat-shell-theme .markdown-body {
   color: var(--chat-text);
   font-size: 15px;
   line-height: 1.82;
   overflow-wrap: anywhere;
   word-break: break-word;
-}
-
-.chat-shell-theme .markdown-body > * {
-  animation: chat-markdown-block-appear 220ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.chat-shell-theme .markdown-body--live > * {
-  animation: none;
 }
 
 .chat-shell-theme .markdown-body > :first-child {
