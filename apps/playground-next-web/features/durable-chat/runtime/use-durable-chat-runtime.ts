@@ -1,6 +1,7 @@
 'use client';
 
 import type { LoadThreadMessagesResult } from '@agent-infra/durable-chat-client';
+import { installChatRenderDiagnostics } from '@agent-infra/durable-chat-client';
 import type {
   MessageDto,
   RuntimePiMetaDto,
@@ -159,6 +160,10 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     [messages, optimisticUserMessage]
   );
   const hasOlderMessages = messagePageInfo?.hasOlder === true;
+
+  useEffect(() => {
+    installChatRenderDiagnostics();
+  }, []);
 
   useEffect(() => {
     activeThreadIdRef.current = activeThreadId;

@@ -7,6 +7,7 @@ export * from './schema/run-stream.js';
 export * from './schema/storage.js';
 export * from './service/chat-runtime.js';
 export * from './service/api-diagnostics.js';
+export * from './service/render-diagnostics.js';
 export * from './service/message-visibility.js';
 export * from './runtime/chat-session-flow.js';
 export * from './runtime/load-thread-flow.js';

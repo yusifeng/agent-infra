@@ -1,8 +1,8 @@
 import type { MessageDto, MessagePartDto, RuntimePiMetaDto } from '@agent-infra/contracts';
-import { getMessageRenderKey } from '@agent-infra/durable-chat-client';
+import { emitChatRenderDiagnostic, getMessageRenderKey } from '@agent-infra/durable-chat-client';
 import clsx from 'clsx';
 import { Copy, Loader2, RotateCw, Trash2 } from 'lucide-react';
-import { memo, type ComponentType, type CSSProperties } from 'react';
+import { memo, useEffect, useRef, type ComponentType, type CSSProperties } from 'react';
 
 import { copyMessageToClipboard, copyTextToClipboard, messagePartHasVisibleContent } from './helpers';
 import { MarkdownRenderer } from './markdown-renderer';
@@ -15,6 +15,58 @@ const transcriptRowPerformanceStyle: CSSProperties = {
   containIntrinsicSize: '180px',
   contentVisibility: 'auto'
 };
+
+function useRenderDiagnostic(component: string, key: string, summary: Record<string, unknown>) {
+  const mountedRef = useRef(false);
+  const previousSummaryRef = useRef<Record<string, unknown> | null>(null);
+  const latestSummaryRef = useRef(summary);
+  latestSummaryRef.current = summary;
+
+  useEffect(() => {
+    emitChatRenderDiagnostic({
+      component,
+      key,
+      phase: 'mount',
+      summary: latestSummaryRef.current
+    });
+    mountedRef.current = true;
+    previousSummaryRef.current = latestSummaryRef.current;
+
+    return () => {
+      emitChatRenderDiagnostic({
+        component,
+        key,
+        phase: 'unmount',
+        summary: latestSummaryRef.current
+      });
+    };
+  }, [component, key]);
+
+  useEffect(() => {
+    if (!mountedRef.current) {
+      return;
+    }
+
+    const previousSummary = previousSummaryRef.current;
+    if (!previousSummary) {
+      previousSummaryRef.current = summary;
+      return;
+    }
+
+    const keys = new Set([...Object.keys(previousSummary), ...Object.keys(summary)]);
+    const changedKeys = [...keys].filter((currentKey) => previousSummary[currentKey] !== summary[currentKey]);
+    if (changedKeys.length > 0) {
+      emitChatRenderDiagnostic({
+        component,
+        key,
+        phase: 'update',
+        changedKeys,
+        summary
+      });
+    }
+    previousSummaryRef.current = summary;
+  });
+}
 
 const WelcomeMessage = memo(function WelcomeMessage({ activeThreadId }: { activeThreadId: string | null }) {
   const greeting = (() => {
@@ -180,6 +232,28 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
         liveAssistantDraft: LiveAssistantDraft;
       }
 ) {
+  const assistantDiagnosticKey = props.type === 'persisted' ? getMessageRenderKey(props.message) : props.liveAssistantDraft.messageId;
+  useRenderDiagnostic(
+    props.type === 'persisted' ? 'PersistedAssistantCard' : 'LiveAssistantCard',
+    assistantDiagnosticKey,
+    props.type === 'persisted'
+      ? {
+          messageId: props.message.id,
+          partSignature: props.message.parts.map((part) => `${part.partIndex}:${part.type}:${part.textValue?.length ?? 0}`).join('|'),
+          renderKey: assistantDiagnosticKey,
+          runId: props.message.runId ?? '',
+          seq: props.message.seq,
+          status: props.message.status
+        }
+      : {
+          eventType: props.liveAssistantDraft.eventType,
+          messageId: props.liveAssistantDraft.messageId,
+          partialReasoningLength: props.liveAssistantDraft.partialReasoning?.length ?? 0,
+          partialTextLength: props.liveAssistantDraft.partialText.length,
+          runId: props.liveAssistantDraft.runId ?? ''
+        }
+  );
+
   const isCompleted = props.type === 'persisted' ? true : props.liveAssistantDraft.eventType === 'text_end';
   const hasVisibleContent =
     props.type === 'persisted'
@@ -236,6 +310,8 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
     <div
       className={clsx('group relative w-[90%] max-w-screen px-4', props.type === 'persisted' && ui.messageAppear)}
       data-message-role="assistant"
+      data-message-id={props.type === 'persisted' ? props.message.id : props.liveAssistantDraft.messageId}
+      data-render-key={assistantDiagnosticKey}
       style={transcriptRowPerformanceStyle}
     >
       <div className={clsx('relative flex flex-col gap-2 pt-1.5', ui.assistantBubble)}>{content}</div>
@@ -256,12 +332,23 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
 const MessageCard = memo(function MessageCard({ message }: { message: MessageDto }) {
   const isUser = message.role === 'user';
   const isOptimistic = message.metadata?.optimistic === true;
+  const renderKey = getMessageRenderKey(message);
+  useRenderDiagnostic('MessageCard', renderKey, {
+    messageId: message.id,
+    optimistic: isOptimistic,
+    partSignature: message.parts.map((part) => `${part.partIndex}:${part.type}:${part.textValue?.length ?? 0}`).join('|'),
+    role: message.role,
+    seq: message.seq,
+    status: message.status
+  });
 
   if (isUser) {
     return (
       <div
         className={clsx('group relative flex w-full max-w-screen justify-end px-4', !isOptimistic && ui.messageAppear)}
         data-message-role="user"
+        data-message-id={message.id}
+        data-render-key={renderKey}
         style={transcriptRowPerformanceStyle}
       >
         <div className="max-w-[65%]">
@@ -349,6 +436,16 @@ export const ChatMessageList = memo(function ChatMessageList({
   isThinking,
   onLoadOlderMessages
 }: ChatMessageListProps) {
+  useRenderDiagnostic('ChatMessageList', activeThreadId ?? 'new-thread', {
+    hasOlderMessages,
+    historyLoading,
+    isThinking,
+    liveDraftKey: liveAssistantDraft ? `${liveAssistantDraft.messageId}:${liveAssistantDraft.eventType}` : '',
+    loadingMessages,
+    messageCount: messages.length,
+    messageRenderKeys: messages.map((message) => getMessageRenderKey(message)).join('|')
+  });
+
   return (
     <div className="flex-1 p-6">
       {!meta?.runtimeConfigured && meta?.runtimeConfigError ? (
