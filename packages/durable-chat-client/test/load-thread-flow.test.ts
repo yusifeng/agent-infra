@@ -288,11 +288,11 @@ describe('runActivateThread', () => {
     expect(setActiveThreadId).toHaveBeenCalledWith('thread-1');
     expect(setDurableRecoveryState).toHaveBeenNthCalledWith(1, {
       phase: 'recovering',
-      message: 'Restoring the focused run from durable records...'
+      message: null
     });
     expect(setDurableRecoveryState).toHaveBeenNthCalledWith(2, {
       phase: 'restored',
-      message: 'Restored the focused run from durable records. Live stream drafts are transient and may not survive refresh.'
+      message: null
     });
   });
 

@@ -242,9 +242,7 @@ export async function runActivateThread({ threadId, options, refs, actions, oper
   if (options?.recoveryMode === 'initial-thread') {
     actions.setDurableRecoveryState({
       phase: 'recovering',
-      message: options.preferredRunId
-        ? 'Restoring the focused run from durable records...'
-        : 'Restoring this durable thread from durable records...'
+      message: null
     });
   } else {
     actions.setDurableRecoveryState({
@@ -259,9 +257,7 @@ export async function runActivateThread({ threadId, options, refs, actions, oper
       loadResult.ok
         ? {
             phase: 'restored',
-            message: loadResult.restoredRunId
-              ? 'Restored the focused run from durable records. Live stream drafts are transient and may not survive refresh.'
-              : 'Restored this durable thread from durable records. Live stream drafts are transient and may not survive refresh.'
+            message: null
           }
         : {
             phase: 'idle',
