@@ -68,6 +68,13 @@ async function fetchJson<T>(
   };
 }
 
+export type FetchThreadMessagesOptions = {
+  before?: string | null;
+  after?: string | null;
+  limit?: number;
+  signal?: AbortSignal;
+};
+
 export async function fetchThreadsResponse() {
   return fetchJson<ThreadsResponseDto>('/api/threads', normalizeThreadsResponse);
 }
@@ -80,8 +87,28 @@ export async function fetchRunTimelineResponse(runId: string, signal?: AbortSign
   return fetchJson<RunTimelineResponseDto>(`/api/runs/${runId}/timeline`, normalizeRunTimelineResponse, { signal });
 }
 
-export async function fetchThreadMessagesResponse(threadId: string, signal?: AbortSignal) {
-  return fetchJson<ThreadMessagesResponseDto>(`/api/threads/${threadId}/messages`, normalizeThreadMessagesResponse, { signal });
+export async function fetchThreadMessagesResponse(threadId: string, options?: AbortSignal | FetchThreadMessagesOptions) {
+  const resolvedOptions =
+    options instanceof AbortSignal || options === undefined
+      ? { signal: options }
+      : options;
+
+  const searchParams = new URLSearchParams();
+  if (resolvedOptions.limit && resolvedOptions.limit > 0) {
+    searchParams.set('limit', String(resolvedOptions.limit));
+  }
+  if (resolvedOptions.before) {
+    searchParams.set('before', resolvedOptions.before);
+  }
+  if (resolvedOptions.after) {
+    searchParams.set('after', resolvedOptions.after);
+  }
+
+  const suffix = searchParams.size > 0 ? `?${searchParams.toString()}` : '';
+
+  return fetchJson<ThreadMessagesResponseDto>(`/api/threads/${threadId}/messages${suffix}`, normalizeThreadMessagesResponse, {
+    signal: resolvedOptions.signal
+  });
 }
 
 export async function fetchThreadRunsResponse(threadId: string, limit: number, signal?: AbortSignal) {

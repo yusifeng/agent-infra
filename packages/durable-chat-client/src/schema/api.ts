@@ -8,6 +8,7 @@ import type {
   RuntimePiMetaDto,
   ThreadDto,
   ThreadMessagesResponseDto,
+  ThreadMessagesPageInfoDto,
   ThreadRunsResponseDto,
   ThreadsResponseDto,
   ToolInvocationDto
@@ -163,6 +164,26 @@ function normalizeMessage(value: unknown): MessageDto | null {
   };
 }
 
+function normalizeThreadMessagesPageInfo(value: unknown): ThreadMessagesPageInfoDto | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const hasOlder = asBoolean(record.hasOlder);
+  const hasNewer = asBoolean(record.hasNewer);
+  if (hasOlder === null || hasNewer === null) {
+    return null;
+  }
+
+  return {
+    hasOlder,
+    hasNewer,
+    startCursor: asNullableString(record.startCursor),
+    endCursor: asNullableString(record.endCursor)
+  };
+}
+
 function normalizeToolInvocation(value: unknown): ToolInvocationDto | null {
   const record = asRecord(value);
   if (!record) {
@@ -291,6 +312,7 @@ export function normalizeThreadMessagesResponse(value: unknown): ThreadMessagesR
     messages: Array.isArray(record.messages)
       ? record.messages.map(normalizeMessage).filter((message): message is MessageDto => message !== null)
       : [],
+    pageInfo: normalizeThreadMessagesPageInfo(record.pageInfo) ?? undefined,
     error: readApiError(record) ?? undefined
   };
 }

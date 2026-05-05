@@ -1,5 +1,5 @@
 import type { RunTextTurnResult, StartTextTurnResult } from '@agent-infra/app';
-import type { Message, MessagePart, Run, RunEvent, Thread, ToolInvocation } from '@agent-infra/core';
+import type { Message, MessagePageResult, MessagePart, Run, RunEvent, Thread, ToolInvocation } from '@agent-infra/core';
 import type {
   CreateThreadResponseDto,
   RunStreamAssistantEventDto,
@@ -13,6 +13,7 @@ import type {
   RunTextTurnResponseDto,
   RuntimePiMetaDto,
   ThreadMessagesResponseDto,
+  ThreadMessagesPageInfoDto,
   ThreadRunsResponseDto,
   ThreadsResponseDto
 } from '@agent-infra/contracts';
@@ -26,7 +27,7 @@ import {
   toToolInvocationDto,
   type RuntimeMetaDtoInput
 } from './api-dto.js';
-import { getRouteErrorMessage } from './route-errors.js';
+import { getRouteErrorMessage, InvalidRouteCursorError } from './route-errors.js';
 
 function asObject(value: unknown) {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
@@ -79,9 +80,91 @@ export function buildCreateThreadErrorResponse(error: unknown, fallbackMessage: 
   };
 }
 
-export function buildThreadMessagesResponse(messages: Array<Message & { parts: MessagePart[] }>): ThreadMessagesResponseDto {
+function encodeThreadMessageCursor(threadId: string, seq: number) {
+  return Buffer.from(JSON.stringify({ threadId, seq }), 'utf8').toString('base64url');
+}
+
+export function decodeThreadMessageCursor(cursor: string, threadId: string) {
+  try {
+    const decoded = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as {
+      threadId?: unknown;
+      seq?: unknown;
+    };
+
+    if (decoded.threadId !== threadId || typeof decoded.seq !== 'number' || !Number.isInteger(decoded.seq) || decoded.seq <= 0) {
+      throw new InvalidRouteCursorError('invalid thread message cursor');
+    }
+
+    return decoded.seq;
+  } catch (error) {
+    if (error instanceof InvalidRouteCursorError) {
+      throw error;
+    }
+
+    throw new InvalidRouteCursorError('invalid thread message cursor');
+  }
+}
+
+export function parseThreadMessagesQuery(
+  searchParams: URLSearchParams,
+  options: { defaultLimit?: number; maxLimit?: number } = {}
+) {
+  const defaultLimit = options.defaultLimit ?? 40;
+  const maxLimit = options.maxLimit ?? 100;
+  const rawLimit = searchParams.get('limit');
+  const rawBefore = searchParams.get('before');
+  const rawAfter = searchParams.get('after');
+
+  let limit: number | undefined;
+  if (rawLimit !== null) {
+    const parsed = Number.parseInt(rawLimit, 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      limit = defaultLimit;
+    } else {
+      limit = Math.min(parsed, maxLimit);
+    }
+  }
+
+  if (limit === undefined && (rawBefore?.trim() || rawAfter?.trim())) {
+    limit = defaultLimit;
+  }
+
   return {
-    messages: messages.map(toMessageDto)
+    limit,
+    before: rawBefore?.trim() || undefined,
+    after: rawAfter?.trim() || undefined
+  };
+}
+
+function toThreadMessagesPageInfoDto(messages: Array<Message & { parts: MessagePart[] }>, pageInfo?: MessagePageResult['pageInfo']): ThreadMessagesPageInfoDto | undefined {
+  if (!pageInfo || messages.length === 0 || pageInfo.startSeq === null || pageInfo.endSeq === null) {
+    return pageInfo
+      ? {
+          hasOlder: pageInfo.hasOlder,
+          hasNewer: pageInfo.hasNewer,
+          startCursor: null,
+          endCursor: null
+        }
+      : undefined;
+  }
+
+  return {
+    hasOlder: pageInfo.hasOlder,
+    hasNewer: pageInfo.hasNewer,
+    startCursor: encodeThreadMessageCursor(messages[0].threadId, pageInfo.startSeq),
+    endCursor: encodeThreadMessageCursor(messages[0].threadId, pageInfo.endSeq)
+  };
+}
+
+export function buildThreadMessagesResponse(
+  input: Array<Message & { parts: MessagePart[] }> | MessagePageResult
+): ThreadMessagesResponseDto {
+  const messages = Array.isArray(input) ? input : input.messages;
+  const pageInfo = Array.isArray(input) ? undefined : input.pageInfo;
+
+  return {
+    messages: messages.map(toMessageDto),
+    pageInfo: toThreadMessagesPageInfoDto(messages, pageInfo)
   };
 }
 

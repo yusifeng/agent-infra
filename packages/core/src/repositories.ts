@@ -1,5 +1,17 @@
 import type { Artifact, Message, MessagePart, Run, RunEvent, Thread, ToolInvocation } from './types.js';
 
+export interface MessagePageInfo {
+  hasOlder: boolean;
+  hasNewer: boolean;
+  startSeq: number | null;
+  endSeq: number | null;
+}
+
+export interface MessagePageResult {
+  messages: Array<Message & { parts: MessagePart[] }>;
+  pageInfo: MessagePageInfo;
+}
+
 export interface ThreadRepository {
   create(input: Omit<Thread, 'createdAt' | 'updatedAt'>): Promise<Thread>;
   findById(id: string): Promise<Thread | null>;
@@ -24,6 +36,7 @@ export interface MessageRepository {
   updateStatus(id: string, status: Message['status']): Promise<Message>;
   createPart(input: Omit<MessagePart, 'createdAt'>): Promise<MessagePart>;
   listByThread(threadId: string): Promise<Array<Message & { parts: MessagePart[] }>>;
+  listPageByThread(threadId: string, options?: { limit?: number; beforeSeq?: number; afterSeq?: number }): Promise<MessagePageResult>;
   nextSeq(threadId: string): Promise<number>;
 }
 

@@ -11,8 +11,10 @@ import {
   buildThreadMessagesResponse,
   buildThreadRunsResponse,
   buildThreadsResponse,
+  decodeThreadMessageCursor,
   encodeSseEvent,
   parseCreateThreadTitle,
+  parseThreadMessagesQuery,
   parseThreadRunsLimit,
   parseRunTextTurnInput
 } from '../src/chat-route-helpers';
@@ -120,29 +122,37 @@ describe('durable chat server route helpers', () => {
     });
 
     expect(
-      buildThreadMessagesResponse([
-        {
-          id: 'message-1',
-          threadId: 'thread-1',
-          runId: null,
-          role: 'user',
-          seq: 1,
-          status: 'completed',
-          metadata: null,
-          createdAt: new Date('2026-01-01T00:00:00.000Z'),
-          parts: [
-            {
-              id: 'part-1',
-              messageId: 'message-1',
-              partIndex: 0,
-              type: 'text',
-              textValue: 'hello',
-              jsonValue: null,
-              createdAt: new Date('2026-01-01T00:00:00.000Z')
-            }
-          ]
+      buildThreadMessagesResponse({
+        messages: [
+          {
+            id: 'message-1',
+            threadId: 'thread-1',
+            runId: null,
+            role: 'user',
+            seq: 1,
+            status: 'completed',
+            metadata: null,
+            createdAt: new Date('2026-01-01T00:00:00.000Z'),
+            parts: [
+              {
+                id: 'part-1',
+                messageId: 'message-1',
+                partIndex: 0,
+                type: 'text',
+                textValue: 'hello',
+                jsonValue: null,
+                createdAt: new Date('2026-01-01T00:00:00.000Z')
+              }
+            ]
+          }
+        ],
+        pageInfo: {
+          hasOlder: false,
+          hasNewer: true,
+          startSeq: 1,
+          endSeq: 1
         }
-      ])
+      })
     ).toEqual({
       messages: [
         {
@@ -166,7 +176,13 @@ describe('durable chat server route helpers', () => {
             }
           ]
         }
-      ]
+      ],
+      pageInfo: {
+        hasOlder: false,
+        hasNewer: true,
+        startCursor: expect.any(String),
+        endCursor: expect.any(String)
+      }
     });
 
     expect(
@@ -202,6 +218,57 @@ describe('durable chat server route helpers', () => {
         }
       ]
     });
+  });
+
+  it('parses thread message pagination params and validates opaque cursors', () => {
+    const parsed = parseThreadMessagesQuery(new URLSearchParams('limit=50&before=cursor-a'));
+    expect(parsed).toEqual({
+      limit: 50,
+      before: 'cursor-a',
+      after: undefined
+    });
+
+    expect(parseThreadMessagesQuery(new URLSearchParams('before=cursor-a'))).toEqual({
+      limit: 40,
+      before: 'cursor-a',
+      after: undefined
+    });
+
+    const response = buildThreadMessagesResponse({
+      messages: [
+        {
+          id: 'message-2',
+          threadId: 'thread-1',
+          runId: null,
+          role: 'assistant',
+          seq: 2,
+          status: 'completed',
+          metadata: null,
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          parts: []
+        },
+        {
+          id: 'message-3',
+          threadId: 'thread-1',
+          runId: null,
+          role: 'assistant',
+          seq: 3,
+          status: 'completed',
+          metadata: null,
+          createdAt: new Date('2026-01-01T00:00:01.000Z'),
+          parts: []
+        }
+      ],
+      pageInfo: {
+        hasOlder: true,
+        hasNewer: false,
+        startSeq: 2,
+        endSeq: 3
+      }
+    });
+
+    expect(decodeThreadMessageCursor(response.pageInfo?.startCursor ?? '', 'thread-1')).toBe(2);
+    expect(() => decodeThreadMessageCursor(response.pageInfo?.startCursor ?? '', 'thread-2')).toThrow('invalid thread message cursor');
   });
 
   it('builds run stream events and encodes sse frames', () => {

@@ -1,4 +1,17 @@
-import type { Message, MessagePart, MessageRepository, Run, RunEvent, RunEventRepository, RunRepository, Thread, ThreadRepository, ToolInvocation, ToolInvocationRepository } from '@agent-infra/core';
+import type {
+  Message,
+  MessagePageResult,
+  MessagePart,
+  MessageRepository,
+  Run,
+  RunEvent,
+  RunEventRepository,
+  RunRepository,
+  Thread,
+  ThreadRepository,
+  ToolInvocation,
+  ToolInvocationRepository
+} from '@agent-infra/core';
 
 export interface AgentInfraAppRepositories {
   threadRepo: ThreadRepository;
@@ -44,6 +57,9 @@ export interface ListThreadsInput {
 
 export interface GetThreadMessagesInput {
   threadId: string;
+  limit?: number;
+  beforeSeq?: number;
+  afterSeq?: number;
 }
 
 export interface RunTextTurnInput {
@@ -91,6 +107,7 @@ export interface AgentInfraApp {
     create(input: CreateThreadInput): Promise<Thread>;
     list(input: ListThreadsInput): Promise<Thread[]>;
     getMessages(input: GetThreadMessagesInput): Promise<Array<Message & { parts: MessagePart[] }>>;
+    getMessagesPage(input: GetThreadMessagesInput): Promise<MessagePageResult>;
   };
   turns: {
     startText(input: RunTextTurnInput): Promise<StartTextTurnResult>;

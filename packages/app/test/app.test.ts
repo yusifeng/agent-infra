@@ -127,6 +127,42 @@ function createRepositories(stateRef: { current: InMemoryState }, snapshot?: InM
             parts: [...message.parts].sort((left, right) => left.partIndex - right.partIndex)
           }));
       },
+      async listPageByThread(threadId, options = {}) {
+        const allMessages = await this.listByThread(threadId);
+        const filtered = allMessages.filter((message) => {
+          if (typeof options.beforeSeq === 'number' && message.seq >= options.beforeSeq) {
+            return false;
+          }
+
+          if (typeof options.afterSeq === 'number' && message.seq <= options.afterSeq) {
+            return false;
+          }
+
+          return true;
+        });
+
+        let pageMessages = filtered;
+        if (options.limit && options.limit > 0) {
+          if (typeof options.afterSeq === 'number') {
+            pageMessages = filtered.slice(0, options.limit);
+          } else {
+            pageMessages = filtered.slice(-options.limit);
+          }
+        }
+
+        const startSeq = pageMessages[0]?.seq ?? null;
+        const endSeq = pageMessages.at(-1)?.seq ?? null;
+
+        return {
+          messages: pageMessages,
+          pageInfo: {
+            hasOlder: startSeq !== null ? allMessages.some((message) => message.seq < startSeq) : false,
+            hasNewer: endSeq !== null ? allMessages.some((message) => message.seq > endSeq) : false,
+            startSeq,
+            endSeq
+          }
+        };
+      },
       async nextSeq(threadId) {
         return (
           [...getState().messages.values()]
@@ -388,6 +424,59 @@ describe('createAgentInfraApp', () => {
     const { app } = createDependencies(createHappyRuntime());
 
     await expect(app.threads.getMessages({ threadId: 'missing-thread' })).rejects.toBeInstanceOf(ThreadNotFoundError);
+  });
+
+  it('returns paged thread messages with durable page info', async () => {
+    const { app, repositories } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Paged messages path' });
+
+    for (const seq of [1, 2, 3, 4, 5]) {
+      const message = await repositories.messageRepo.create({
+        id: `message-${seq}`,
+        threadId: thread.id,
+        runId: null,
+        role: 'assistant',
+        seq,
+        status: 'completed',
+        metadata: null
+      });
+
+      await repositories.messageRepo.createPart({
+        id: `part-${seq}`,
+        messageId: message.id,
+        partIndex: 0,
+        type: 'text',
+        textValue: `message ${seq}`,
+        jsonValue: null
+      });
+    }
+
+    const latestPage = await app.threads.getMessagesPage({
+      threadId: thread.id,
+      limit: 2
+    });
+
+    expect(latestPage.messages.map((message) => message.seq)).toEqual([4, 5]);
+    expect(latestPage.pageInfo).toEqual({
+      hasOlder: true,
+      hasNewer: false,
+      startSeq: 4,
+      endSeq: 5
+    });
+
+    const olderPage = await app.threads.getMessagesPage({
+      threadId: thread.id,
+      beforeSeq: latestPage.pageInfo.startSeq ?? undefined,
+      limit: 2
+    });
+
+    expect(olderPage.messages.map((message) => message.seq)).toEqual([2, 3]);
+    expect(olderPage.pageInfo).toEqual({
+      hasOlder: true,
+      hasNewer: true,
+      startSeq: 2,
+      endSeq: 3
+    });
   });
 
   it('returns run timeline data from the app boundary', async () => {

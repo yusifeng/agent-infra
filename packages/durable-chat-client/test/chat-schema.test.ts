@@ -28,7 +28,13 @@ describe('durable-chat-client schema', () => {
         {
           id: 'broken-message'
         }
-      ]
+      ],
+      pageInfo: {
+        hasOlder: true,
+        hasNewer: false,
+        startCursor: 'cursor-1',
+        endCursor: 'cursor-2'
+      }
     });
 
     const runs = normalizeThreadRunsResponse({
@@ -53,6 +59,12 @@ describe('durable-chat-client schema', () => {
     });
 
     expect(messages.messages).toHaveLength(1);
+    expect(messages.pageInfo).toEqual({
+      hasOlder: true,
+      hasNewer: false,
+      startCursor: 'cursor-1',
+      endCursor: 'cursor-2'
+    });
     expect(runs.runs).toHaveLength(1);
   });
 

@@ -1,4 +1,4 @@
-import { asc, desc, eq, inArray, max } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, lt, max } from 'drizzle-orm';
 import type {
   Artifact,
   ArtifactRepository,
@@ -98,6 +98,38 @@ export class DrizzleRunEventRepository implements RunEventRepository {
 export class DrizzleMessageRepository implements MessageRepository {
   constructor(private readonly db: any) {}
 
+  private async loadMessageParts(messageIds: string[]) {
+    if (messageIds.length === 0) {
+      return new Map<string, MessagePart[]>();
+    }
+
+    const partRows = await this.db
+      .select()
+      .from(messageParts)
+      .where(inArray(messageParts.messageId, messageIds))
+      .orderBy(asc(messageParts.partIndex));
+
+    const partsByMessageId = new Map<string, MessagePart[]>();
+    for (const part of partRows as MessagePart[]) {
+      const existing = partsByMessageId.get(part.messageId) ?? [];
+      existing.push(part);
+      partsByMessageId.set(part.messageId, existing);
+    }
+
+    return partsByMessageId;
+  }
+
+  private async hasMessage(threadId: string, direction: 'older' | 'newer', seq: number) {
+    const predicate = direction === 'older' ? lt(messages.seq, seq) : gt(messages.seq, seq);
+    const [row] = await this.db
+      .select({ id: messages.id })
+      .from(messages)
+      .where(and(eq(messages.threadId, threadId), predicate))
+      .limit(1);
+
+    return Boolean(row);
+  }
+
   async create(input: Omit<Message, 'createdAt'>): Promise<Message> {
     const createdAt = new Date();
     await this.db.insert(messages).values({ ...input, createdAt });
@@ -118,27 +150,62 @@ export class DrizzleMessageRepository implements MessageRepository {
   }
 
   async listByThread(threadId: string): Promise<Array<Message & { parts: MessagePart[] }>> {
-    const msgRows = await this.db.select().from(messages).where(eq(messages.threadId, threadId)).orderBy(asc(messages.seq));
-    if (msgRows.length === 0) return [];
+    const page = await this.listPageByThread(threadId);
+    return page.messages;
+  }
 
-    const messageIds = msgRows.map((message: Message) => message.id);
-    const partRows = await this.db
-      .select()
-      .from(messageParts)
-      .where(inArray(messageParts.messageId, messageIds))
-      .orderBy(asc(messageParts.partIndex));
-
-    const partsByMessageId = new Map<string, MessagePart[]>();
-    for (const part of partRows as MessagePart[]) {
-      const existing = partsByMessageId.get(part.messageId) ?? [];
-      existing.push(part);
-      partsByMessageId.set(part.messageId, existing);
+  async listPageByThread(threadId: string, options: { limit?: number; beforeSeq?: number; afterSeq?: number } = {}) {
+    const predicates = [eq(messages.threadId, threadId)];
+    if (typeof options.beforeSeq === 'number') {
+      predicates.push(lt(messages.seq, options.beforeSeq));
+    }
+    if (typeof options.afterSeq === 'number') {
+      predicates.push(gt(messages.seq, options.afterSeq));
     }
 
-    return msgRows.map((m: Message) => ({
+    const applyPredicate = predicates.length === 1 ? predicates[0] : and(...predicates);
+    const readAscending = typeof options.afterSeq === 'number';
+
+    let query = this.db
+      .select()
+      .from(messages)
+      .where(applyPredicate)
+      .orderBy(readAscending ? asc(messages.seq) : desc(messages.seq));
+
+    if (options.limit && options.limit > 0) {
+      query = query.limit(options.limit);
+    }
+
+    const rawRows = (await query) as Message[];
+    const msgRows = readAscending ? rawRows : [...rawRows].reverse();
+    const messageIds = msgRows.map((message) => message.id);
+    const partsByMessageId = await this.loadMessageParts(messageIds);
+    const hydratedMessages = msgRows.map((m: Message) => ({
       ...m,
       parts: partsByMessageId.get(m.id) ?? []
     }));
+
+    const startSeq = hydratedMessages[0]?.seq ?? null;
+    const endSeq = hydratedMessages.at(-1)?.seq ?? null;
+
+    let hasOlder = false;
+    let hasNewer = false;
+    if (startSeq !== null && endSeq !== null) {
+      [hasOlder, hasNewer] = await Promise.all([
+        this.hasMessage(threadId, 'older', startSeq),
+        this.hasMessage(threadId, 'newer', endSeq)
+      ]);
+    }
+
+    return {
+      messages: hydratedMessages,
+      pageInfo: {
+        hasOlder,
+        hasNewer,
+        startSeq,
+        endSeq
+      }
+    };
   }
 
   async nextSeq(threadId: string): Promise<number> {

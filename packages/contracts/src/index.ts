@@ -105,6 +105,9 @@ export interface CreateThreadRequestDto {
 
 export interface GetThreadMessagesRequestDto {
   threadId: string;
+  limit?: number;
+  before?: string;
+  after?: string;
 }
 
 export interface RunTextTurnRequestDto {
@@ -134,7 +137,15 @@ export interface CreateThreadResponseDto {
 
 export interface ThreadMessagesResponseDto {
   messages?: MessageDto[];
+  pageInfo?: ThreadMessagesPageInfoDto;
   error?: string;
+}
+
+export interface ThreadMessagesPageInfoDto {
+  hasOlder: boolean;
+  hasNewer: boolean;
+  startCursor: string | null;
+  endCursor: string | null;
 }
 
 export interface ThreadRunsResponseDto {

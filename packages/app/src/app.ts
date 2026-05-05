@@ -197,6 +197,14 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
       async getMessages(input) {
         await loadThreadOrThrow(dependencies.repositories, input.threadId);
         return dependencies.repositories.messageRepo.listByThread(input.threadId);
+      },
+      async getMessagesPage(input) {
+        await loadThreadOrThrow(dependencies.repositories, input.threadId);
+        return dependencies.repositories.messageRepo.listPageByThread(input.threadId, {
+          limit: input.limit,
+          beforeSeq: input.beforeSeq,
+          afterSeq: input.afterSeq
+        });
       }
     },
     turns: {
