@@ -720,6 +720,14 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       return;
     }
 
+    if (
+      initialThreadId &&
+      activeThreadId === initialThreadId &&
+      (loadingThreadId === initialThreadId || chatPhase !== 'idle' || optimisticUserMessage !== null || liveAssistantDraft !== null)
+    ) {
+      return;
+    }
+
     if (initialThreadId) {
       void activateThread(initialThreadId, {
         preferredRunId: readPersistedRunId(initialThreadId)
