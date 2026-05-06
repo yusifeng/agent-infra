@@ -1,8 +1,8 @@
 import type { MessageDto, MessagePartDto, RuntimePiMetaDto } from '@agent-infra/contracts';
 import { emitChatRenderDiagnostic, getMessageRenderKey } from '@agent-infra/durable-chat-client';
 import clsx from 'clsx';
-import { Copy, Loader2, RotateCw, Trash2 } from 'lucide-react';
-import { memo, useEffect, useRef, type ComponentType, type CSSProperties } from 'react';
+import { Atom, ChevronDown, ChevronRight, Copy, Loader2, RotateCw, Trash2 } from 'lucide-react';
+import { memo, useEffect, useRef, useState, type ComponentType, type CSSProperties } from 'react';
 
 import { copyMessageToClipboard, copyTextToClipboard, messagePartHasVisibleContent } from './helpers';
 import { MarkdownRenderer } from './markdown-renderer';
@@ -15,6 +15,8 @@ const transcriptRowPerformanceStyle: CSSProperties = {
   containIntrinsicSize: '180px',
   contentVisibility: 'auto'
 };
+
+const reasoningMarkdownClassName = 'text-sm leading-7 text-slate-400';
 
 function useRenderDiagnostic(component: string, key: string, summary: Record<string, unknown>) {
   const mountedRef = useRef(false);
@@ -69,29 +71,87 @@ function useRenderDiagnostic(component: string, key: string, summary: Record<str
 }
 
 const WelcomeMessage = memo(function WelcomeMessage({ activeThreadId }: { activeThreadId: string | null }) {
-  const greeting = (() => {
-    const hour = new Date().getHours();
-    if (hour < 6) return '夜深了';
-    if (hour < 12) return '早上好';
-    if (hour < 18) return '下午好';
-    return '晚上好';
-  })();
+  return (
+    <div className="flex w-full items-center justify-center px-4 py-2">
+      <div className="flex w-full max-w-[800px] flex-col items-center gap-3 text-center">
+        {activeThreadId ? <AnimatedEmoji emoji="👋" size={40} /> : null}
+        <h1 className={clsx('my-1 text-[32px]', ui.welcomeTitle)}>
+          {activeThreadId ? '继续这个 durable chat' : '我能帮什么忙吗，朋友？'}
+        </h1>
+        {activeThreadId ? (
+          <div className={clsx('max-w-[720px] text-sm leading-7', ui.welcomeDesc)}>
+            这里保留真实的 durable thread 与 run 行为，只验证 Vite consumer 在非 Next.js 环境下的主聊天链路。
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+});
+
+const ReasoningPanel = memo(function ReasoningPanel({
+  content,
+  thinking = false
+}: {
+  content: string;
+  thinking?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(thinking);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (thinking) {
+      setExpanded(true);
+    }
+  }, [thinking]);
+
+  useEffect(() => {
+    if (!thinking || !expanded) {
+      return;
+    }
+
+    const element = contentRef.current;
+    if (!element) {
+      return;
+    }
+
+    const distanceToBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
+    if (distanceToBottom < 120) {
+      window.requestAnimationFrame(() => {
+        element.scrollTop = element.scrollHeight;
+      });
+    }
+  }, [content, thinking, expanded]);
 
   return (
-    <div className="flex w-full items-center justify-center p-4">
-      <div className="flex w-full max-w-[800px] flex-col items-center gap-4">
-        <div className="flex items-center gap-2">
-          <AnimatedEmoji emoji="👋" size={40} />
-          <h1 className={clsx('my-1 text-[32px]', ui.welcomeTitle)}>
-            {activeThreadId ? '继续这个 durable chat' : greeting}
-          </h1>
+    <div className="overflow-hidden" data-reasoning-panel="true">
+      <button
+        type="button"
+        onClick={() => setExpanded((current) => !current)}
+        className="flex w-full items-center justify-between gap-3 py-1 text-left"
+        aria-expanded={expanded}
+      >
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Atom className={clsx('h-4 w-4 text-indigo-500', thinking && 'animate-pulse')} />
+          <span className="truncate text-sm font-medium text-slate-600">
+            {thinking ? '思考中...' : '已思考'}
+          </span>
         </div>
-        <div className={clsx('max-w-[720px] text-sm leading-7', ui.welcomeDesc)}>
-          {activeThreadId
-            ? '这里保留真实的 durable thread 与 run 行为，只验证 Vite consumer 在非 Next.js 环境下的主聊天链路。'
-            : '我是您的 durable chat 助手，请问现在能帮您做什么？'}
+        {expanded ? <ChevronDown className="h-4 w-4 text-slate-400" /> : <ChevronRight className="h-4 w-4 text-slate-400" />}
+      </button>
+
+      {expanded ? (
+        <div ref={contentRef} className="mt-2 max-h-80 overflow-y-auto border-l border-slate-200 pl-4">
+          {content ? (
+            <MarkdownRenderer
+              className={reasoningMarkdownClassName}
+              plainTextClassName={reasoningMarkdownClassName}
+              text={content}
+            />
+          ) : (
+            <div className="text-sm italic leading-7 text-slate-400">思考中...</div>
+          )}
         </div>
-      </div>
+      ) : null}
     </div>
   );
 });
@@ -171,12 +231,7 @@ const MessagePartView = memo(function MessagePartView({
   }
 
   if (part.type === 'reasoning') {
-    return (
-      <details className={clsx('rounded-2xl px-4 py-3', ui.reasoning)}>
-        <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Reasoning</summary>
-        <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs leading-6 text-slate-600">{part.textValue ?? ''}</pre>
-      </details>
-    );
+    return <ReasoningPanel content={part.textValue ?? ''} />;
   }
 
   if (part.type === 'tool-call') {
@@ -290,14 +345,7 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
     ) : (
       <>
         {props.liveAssistantDraft.partialReasoning ? (
-          <details className={clsx('rounded-2xl px-4 py-3', ui.reasoning)}>
-            <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Reasoning
-            </summary>
-            <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-xs leading-6 text-slate-600">
-              {props.liveAssistantDraft.partialReasoning}
-            </pre>
-          </details>
+          <ReasoningPanel content={props.liveAssistantDraft.partialReasoning} thinking={props.liveAssistantDraft.eventType !== 'text_end'} />
         ) : null}
 
         {props.liveAssistantDraft.partialText ? (
@@ -424,6 +472,7 @@ type ChatMessageListProps = {
   messages: MessageDto[];
   liveAssistantDraft: LiveAssistantDraft | null;
   showLoadingText: boolean;
+  centeredEmptyState: boolean;
   onLoadOlderMessages: () => void;
 };
 
@@ -438,6 +487,7 @@ export const ChatMessageList = memo(function ChatMessageList({
   messages,
   liveAssistantDraft,
   showLoadingText,
+  centeredEmptyState,
   onLoadOlderMessages
 }: ChatMessageListProps) {
   useRenderDiagnostic('ChatMessageList', activeThreadId ?? 'new-thread', {
@@ -451,7 +501,7 @@ export const ChatMessageList = memo(function ChatMessageList({
   });
 
   return (
-    <div className="flex-1 p-6">
+    <div className={clsx('flex-1 p-6', centeredEmptyState && 'flex-none pb-3')}>
       {!meta?.runtimeConfigured && meta?.runtimeConfigError ? (
         <div className={clsx(`${maxWithTW} mx-auto mb-4 w-full rounded-xl px-4 py-3 text-sm`, ui.warningBanner)}>
           {meta.runtimeConfigError}
@@ -483,8 +533,8 @@ export const ChatMessageList = memo(function ChatMessageList({
           </div>
         </div>
       ) : messages.length === 0 ? (
-        <div className={`${maxWithTW} mx-auto w-full`} style={messageListMinHeight}>
-          <div className="flex min-h-full flex-col items-center justify-center gap-3">
+        <div className={`${maxWithTW} mx-auto w-full`} style={centeredEmptyState ? undefined : messageListMinHeight}>
+          <div className={clsx('flex flex-col items-center gap-3', centeredEmptyState ? 'justify-end' : 'min-h-full justify-center')}>
             <WelcomeMessage activeThreadId={activeThreadId} />
             {showLoadingText ? <ThinkingIndicator /> : null}
           </div>

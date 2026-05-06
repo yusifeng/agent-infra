@@ -33,6 +33,11 @@ export function DurableChatConsole() {
   const pathname = usePathname();
   const initialThreadId = useMemo(() => readThreadIdFromPathname(pathname), [pathname]);
   const runtime = useDurableChatRuntime({ initialThreadId });
+  const centeredEmptyState =
+    !runtime.activeThreadId &&
+    runtime.displayedMessages.length === 0 &&
+    runtime.liveAssistantDraft === null &&
+    !runtime.loadingMessages;
 
   return (
     <main className={clsx('flex h-full min-h-0 overflow-hidden', ui.shell)}>
@@ -54,10 +59,14 @@ export function DurableChatConsole() {
             onToggleLog={runtime.onToggleLog}
           />
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className={clsx('flex min-h-0 flex-1 flex-col overflow-hidden', centeredEmptyState && 'justify-center')}>
             <div
               ref={runtime.messagesViewportRef}
-              className={clsx('relative flex min-h-0 flex-1 flex-col overflow-y-auto', ui.messageViewport)}
+              className={clsx(
+                'relative flex min-h-0 flex-1 flex-col overflow-y-auto',
+                centeredEmptyState && 'flex-none overflow-visible',
+                ui.messageViewport
+              )}
             >
               <ChatMessageList
                 meta={runtime.meta}
@@ -74,6 +83,7 @@ export function DurableChatConsole() {
                   runtime.liveAssistantDraft?.eventType === 'start' &&
                   runtime.liveAssistantDraft.partialText.length === 0
                 }
+                centeredEmptyState={centeredEmptyState}
                 onLoadOlderMessages={runtime.onLoadOlderMessages}
               />
             </div>
@@ -87,6 +97,7 @@ export function DurableChatConsole() {
               selectedModelOption={runtime.selectedModelOption}
               meta={runtime.meta}
               showScrollToBottom={runtime.showScrollToBottom}
+              centered={centeredEmptyState}
               textareaRef={runtime.textareaRef}
               sendAbortControllerRef={runtime.sendAbortControllerRef}
               onDraftChange={runtime.onDraftChange}

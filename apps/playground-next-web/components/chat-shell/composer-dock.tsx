@@ -3,6 +3,7 @@
 import type { RuntimePiMetaDto } from '@agent-infra/contracts';
 import clsx from 'clsx';
 import {
+  Atom,
   ChevronDown,
   CircleStop,
   Send,
@@ -22,6 +23,7 @@ type ComposerDockProps = {
   selectedModelOption: RuntimePiMetaDto['modelOptions'][number] | null;
   meta: RuntimePiMetaDto | null;
   showScrollToBottom: boolean;
+  centered: boolean;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   sendAbortControllerRef: MutableRefObject<AbortController | null>;
   onDraftChange: (value: string) => void;
@@ -41,6 +43,7 @@ export function ComposerDock({
   selectedModelOption,
   meta,
   showScrollToBottom,
+  centered,
   textareaRef,
   sendAbortControllerRef,
   onDraftChange,
@@ -50,14 +53,24 @@ export function ComposerDock({
   onScrollToBottom
 }: ComposerDockProps) {
   const hasDraftValue = Boolean(draft.trim());
+  const reasoningOption = meta?.modelOptions.find((option) => option.model === 'deepseek-reasoner') ?? null;
+  const fallbackOption =
+    meta?.modelOptions.find((option) => option.key !== reasoningOption?.key) ?? meta?.modelOptions[0] ?? null;
+  const reasoningEnabled = reasoningOption?.key === selectedModelKey;
 
   return (
-    <div className={clsx('sticky bottom-0 z-10 px-4 pb-4', ui.composerDock)}>
+    <div
+      className={clsx(
+        'z-10 px-4',
+        centered ? 'pb-6 pt-3' : 'sticky bottom-0 pb-4',
+        ui.composerDock
+      )}
+    >
       <div className={`${composerMaxWithTW} relative mx-auto`}>
         <div
           className={clsx(
             'absolute bottom-[calc(100%+16px)] left-1/2 z-[1] -translate-x-1/2 transition-transform transition-opacity duration-200 ease-out',
-            !showScrollToBottom && 'pointer-events-none translate-y-2 scale-[0.8] opacity-0'
+            (centered || !showScrollToBottom) && 'pointer-events-none translate-y-2 scale-[0.8] opacity-0'
           )}
         >
           <button
@@ -96,7 +109,7 @@ export function ComposerDock({
                   }
                 }}
                 rows={3}
-                placeholder={activeThreadId ? 'Send a prompt in this durable thread...' : 'Send the first prompt to create a durable thread...'}
+                placeholder={activeThreadId ? '继续这个 durable thread...' : '给 durable chat 发送消息'}
                 disabled={!meta?.runtimeConfigured || inputLocked || !selectedModelOption}
                 className={clsx('w-full resize-none overflow-y-auto text-sm leading-relaxed', ui.textarea)}
                 style={{
@@ -106,8 +119,31 @@ export function ComposerDock({
               />
             </div>
 
-            <div className="flex items-center justify-between px-3 py-1.5">
-              <div className="flex min-w-0 items-center">
+            <div className="flex items-center justify-between gap-3 px-3 py-1.5">
+              <div className="flex min-w-0 items-center gap-2">
+                <button
+                  type="button"
+                  disabled={!reasoningOption || inputLocked || !meta?.runtimeConfigured}
+                  onClick={() => {
+                    if (!reasoningOption) {
+                      return;
+                    }
+
+                    onSelectedModelKeyChange(reasoningEnabled ? (fallbackOption?.key ?? selectedModelKey) : reasoningOption.key);
+                  }}
+                  className={clsx(
+                    ui.composerToggleButton,
+                    reasoningEnabled
+                      ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                      : 'border-[color:var(--chat-border)] bg-[var(--chat-surface)] text-[color:var(--chat-text-secondary)] hover:border-[color:var(--chat-border-strong)] hover:bg-[var(--chat-hover)]'
+                  )}
+                  aria-pressed={reasoningEnabled}
+                  title={reasoningOption ? '切换深度思考模式' : '当前环境未提供深度思考模型'}
+                >
+                  <Atom className={clsx('h-4 w-4', reasoningEnabled && 'animate-pulse')} />
+                  <span>深度思考</span>
+                </button>
+
                 <label className={ui.composerModelChip}>
                   {selectedModelOption?.provider ? <ProviderMonogram provider={selectedModelOption.provider} /> : null}
                   <div className="relative min-w-0">

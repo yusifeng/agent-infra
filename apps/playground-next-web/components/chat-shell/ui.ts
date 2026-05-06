@@ -39,6 +39,8 @@ export const ui = {
   errorBanner: 'border border-rose-500/30 bg-rose-500/10 text-rose-800',
   threadAction:
     'shrink-0 opacity-0 pointer-events-none transition group-hover:opacity-100 group-hover:pointer-events-auto',
+  composerToggleButton:
+    'inline-flex h-9 items-center gap-2 rounded-full border px-3 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50',
   composerPrimaryButton:
     'flex h-8 w-8 items-center justify-center rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-surface)] transition hover:border-[color:var(--chat-border-strong)] hover:bg-[var(--chat-hover)] disabled:cursor-default disabled:opacity-75',
   composerModelChip:

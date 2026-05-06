@@ -49,6 +49,7 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
     liveAssistantDraft !== null &&
     liveAssistantDraft.eventType === 'start' &&
     liveAssistantDraft.partialText.length === 0;
+  const centeredEmptyState = !activeThreadId && displayedMessages.length === 0 && liveAssistantDraft === null && !loadingMessages;
 
   return (
     <main className={clsx('chat-shell-theme chat-shell-scrollbars flex h-full min-h-0 overflow-hidden', ui.shell)}>
@@ -69,10 +70,14 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
             onOpenSidebar={onOpenSidebar}
           />
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className={clsx('flex min-h-0 flex-1 flex-col overflow-hidden', centeredEmptyState && 'justify-center')}>
             <div
               ref={messagesViewportRef}
-              className={clsx('relative flex min-h-0 flex-1 flex-col overflow-y-auto', ui.messageViewport)}
+              className={clsx(
+                'relative flex min-h-0 flex-1 flex-col overflow-y-auto',
+                centeredEmptyState && 'flex-none overflow-visible',
+                ui.messageViewport
+              )}
             >
               <ChatMessageList
                 meta={meta}
@@ -85,6 +90,7 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
                 messages={displayedMessages}
                 liveAssistantDraft={liveAssistantDraft}
                 showLoadingText={showLoadingText}
+                centeredEmptyState={centeredEmptyState}
                 onLoadOlderMessages={onLoadOlderMessages}
               />
             </div>
@@ -99,6 +105,7 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
               selectedModelOption={selectedModelOption}
               meta={meta}
               showScrollToBottom={showScrollToBottom}
+              centered={centeredEmptyState}
               textareaRef={textareaRef}
               sendAbortControllerRef={sendAbortControllerRef}
               onDraftChange={onDraftChange}

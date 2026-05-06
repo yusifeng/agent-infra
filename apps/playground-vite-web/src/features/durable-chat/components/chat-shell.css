@@ -82,6 +82,15 @@
   word-break: break-word;
 }
 
+.chat-shell-theme [data-reasoning-panel='true'] .markdown-body,
+.chat-shell-theme [data-reasoning-panel='true'] .markdown-body p,
+.chat-shell-theme [data-reasoning-panel='true'] .markdown-body li,
+.chat-shell-theme [data-reasoning-panel='true'] .markdown-body blockquote,
+.chat-shell-theme [data-reasoning-panel='true'] .markdown-body strong,
+.chat-shell-theme [data-reasoning-panel='true'] .markdown-body em {
+  color: #94a3b8;
+}
+
 .chat-shell-theme .markdown-body > :first-child {
   margin-top: 0;
 }
