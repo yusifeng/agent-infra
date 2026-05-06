@@ -365,7 +365,12 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         setDurableRecoveryState
       },
       operations: {
-        loadThreadMessages
+        loadThreadMessages: (nextThreadId, nextOptions) =>
+          loadThreadMessages(nextThreadId, {
+            ...nextOptions,
+            preserveExistingTimeline: nextOptions?.preserveExistingTimeline ?? logOpenRef.current,
+            skipTimelineReload: nextOptions?.skipTimelineReload ?? logOpenRef.current
+          })
       }
     });
   }
@@ -753,11 +758,15 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       return;
     }
 
+    if (loadingMessages) {
+      return;
+    }
+
     void loadLogInspector(activeThreadId, messages, {
       preferredRunId: readPersistedRunId(activeThreadId) ?? selectedRunIdRef.current,
       preserveExistingTimeline: true
     });
-  }, [activeThreadId, logOpen]);
+  }, [activeThreadId, loadingMessages, logOpen]);
 
   useEffect(
     () => () => {
