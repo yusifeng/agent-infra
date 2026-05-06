@@ -69,7 +69,11 @@ export function DurableChatConsole() {
                 activeThreadId={runtime.activeThreadId}
                 messages={runtime.displayedMessages}
                 liveAssistantDraft={runtime.liveAssistantDraft}
-                isThinking={runtime.showResponseLoading}
+                showLoadingText={
+                  runtime.showResponseLoading &&
+                  runtime.liveAssistantDraft?.eventType === 'start' &&
+                  runtime.liveAssistantDraft.partialText.length === 0
+                }
                 onLoadOlderMessages={runtime.onLoadOlderMessages}
               />
             </div>

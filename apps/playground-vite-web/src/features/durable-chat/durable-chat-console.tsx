@@ -9,63 +9,103 @@ import { useDurableChatRuntime } from './runtime/use-durable-chat-runtime';
 
 export function DurableChatConsole({ initialThreadId }: { initialThreadId: string | null }) {
   const runtime = useDurableChatRuntime({ initialThreadId });
+  const {
+    sidebarOpen,
+    threads,
+    activeThreadId,
+    onCloseSidebar,
+    onNewChat,
+    onOpenThread,
+    currentThreadTitle,
+    onOpenSidebar,
+    messagesViewportRef,
+    meta,
+    error,
+    durableRecoveryState,
+    hasOlderMessages,
+    historyLoading,
+    loadingMessages,
+    displayedMessages,
+    liveAssistantDraft,
+    onLoadOlderMessages,
+    draft,
+    isChatResponding,
+    sendDisabled,
+    inputLocked,
+    selectedModelKey,
+    selectedModelOption,
+    showScrollToBottom,
+    textareaRef,
+    sendAbortControllerRef,
+    onDraftChange,
+    onSelectedModelKeyChange,
+    onSend,
+    onStop,
+    onScrollToBottom,
+    showResponseLoading
+  } = runtime;
+  const showLoadingText =
+    showResponseLoading &&
+    liveAssistantDraft !== null &&
+    liveAssistantDraft.eventType === 'start' &&
+    liveAssistantDraft.partialText.length === 0;
 
   return (
     <main className={clsx('chat-shell-theme chat-shell-scrollbars flex h-full min-h-0 overflow-hidden', ui.shell)}>
       <ChatSidebar
-        sidebarOpen={runtime.sidebarOpen}
-        threads={runtime.threads}
-        activeThreadId={runtime.activeThreadId}
-        onClose={runtime.onCloseSidebar}
-        onNewChat={runtime.onNewChat}
-        onOpenThread={runtime.onOpenThread}
+        sidebarOpen={sidebarOpen}
+        threads={threads}
+        activeThreadId={activeThreadId}
+        onClose={onCloseSidebar}
+        onNewChat={onNewChat}
+        onOpenThread={onOpenThread}
       />
 
       <div className="relative flex flex-1 min-h-0 min-w-0 overflow-hidden">
         <div className={clsx('relative flex flex-1 min-h-0 min-w-0 flex-col overflow-hidden', ui.chatPane)}>
           <ChatHeader
-            currentThreadTitle={runtime.currentThreadTitle}
-            sidebarOpen={runtime.sidebarOpen}
-            onOpenSidebar={runtime.onOpenSidebar}
+            currentThreadTitle={currentThreadTitle}
+            sidebarOpen={sidebarOpen}
+            onOpenSidebar={onOpenSidebar}
           />
 
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div
-              ref={runtime.messagesViewportRef}
+              ref={messagesViewportRef}
               className={clsx('relative flex min-h-0 flex-1 flex-col overflow-y-auto', ui.messageViewport)}
             >
               <ChatMessageList
-                meta={runtime.meta}
-                error={runtime.error}
-                durableRecoveryState={runtime.durableRecoveryState}
-                hasOlderMessages={runtime.hasOlderMessages}
-                historyLoading={runtime.historyLoading}
-                loadingMessages={runtime.loadingMessages}
-                activeThreadId={runtime.activeThreadId}
-                messages={runtime.displayedMessages}
-                liveAssistantDraft={runtime.liveAssistantDraft}
-                isThinking={runtime.showResponseLoading}
-                onLoadOlderMessages={runtime.onLoadOlderMessages}
+                meta={meta}
+                error={error}
+                durableRecoveryState={durableRecoveryState}
+                hasOlderMessages={hasOlderMessages}
+                historyLoading={historyLoading}
+                loadingMessages={loadingMessages}
+                activeThreadId={activeThreadId}
+                messages={displayedMessages}
+                liveAssistantDraft={liveAssistantDraft}
+                showLoadingText={showLoadingText}
+                onLoadOlderMessages={onLoadOlderMessages}
               />
             </div>
 
             <ComposerDock
-              activeThreadId={runtime.activeThreadId}
-              draft={runtime.draft}
-              isResponding={runtime.isChatResponding}
-              sendDisabled={runtime.sendDisabled}
-              inputLocked={runtime.inputLocked}
-              selectedModelKey={runtime.selectedModelKey}
-              selectedModelOption={runtime.selectedModelOption}
-              meta={runtime.meta}
-              showScrollToBottom={runtime.showScrollToBottom}
-              textareaRef={runtime.textareaRef}
-              sendAbortControllerRef={runtime.sendAbortControllerRef}
-              onDraftChange={runtime.onDraftChange}
-              onSelectedModelKeyChange={runtime.onSelectedModelKeyChange}
-              onSend={runtime.onSend}
-              onStop={runtime.onStop}
-              onScrollToBottom={runtime.onScrollToBottom}
+              activeThreadId={activeThreadId}
+              draft={draft}
+              isResponding={isChatResponding}
+              sendDisabled={sendDisabled}
+              inputLocked={inputLocked}
+              selectedModelKey={selectedModelKey}
+              selectedModelOption={selectedModelOption}
+              meta={meta}
+              showScrollToBottom={showScrollToBottom}
+              textareaRef={textareaRef}
+              sendAbortControllerRef={sendAbortControllerRef}
+              onDraftChange={onDraftChange}
+              onSelectedModelKeyChange={onSelectedModelKeyChange}
+              onSend={onSend}
+              onStop={onStop}
+              onScrollToBottom={onScrollToBottom}
             />
           </div>
         </div>

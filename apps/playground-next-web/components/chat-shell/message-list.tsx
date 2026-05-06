@@ -432,7 +432,7 @@ type ChatMessageListProps = {
   activeThreadId: string | null;
   messages: MessageDto[];
   liveAssistantDraft: LiveAssistantDraft | null;
-  isThinking: boolean;
+  showLoadingText: boolean;
   onLoadOlderMessages: () => void;
 };
 
@@ -446,13 +446,13 @@ export const ChatMessageList = memo(function ChatMessageList({
   activeThreadId,
   messages,
   liveAssistantDraft,
-  isThinking,
+  showLoadingText,
   onLoadOlderMessages
 }: ChatMessageListProps) {
   useRenderDiagnostic('ChatMessageList', activeThreadId ?? 'new-thread', {
     hasOlderMessages,
     historyLoading,
-    isThinking,
+    isThinking: showLoadingText,
     liveDraftKey: liveAssistantDraft ? `${liveAssistantDraft.messageId}:${liveAssistantDraft.eventType}` : '',
     loadingMessages,
     messageCount: messages.length,
@@ -495,7 +495,7 @@ export const ChatMessageList = memo(function ChatMessageList({
         <div className={`${maxWithTW} mx-auto w-full`} style={messageListMinHeight}>
           <div className="flex min-h-full flex-col items-center justify-center gap-3">
             <WelcomeMessage activeThreadId={activeThreadId} />
-            {isThinking ? <ThinkingIndicator /> : null}
+            {showLoadingText ? <ThinkingIndicator /> : null}
           </div>
         </div>
       ) : (
@@ -523,7 +523,7 @@ export const ChatMessageList = memo(function ChatMessageList({
               <MessageCard key={getMessageRenderKey(message)} message={message} />
             ))}
             {liveAssistantDraft ? <LiveAssistantCard liveAssistantDraft={liveAssistantDraft} /> : null}
-            {isThinking ? <ThinkingIndicator /> : null}
+            {showLoadingText ? <ThinkingIndicator /> : null}
           </div>
         </div>
       )}
