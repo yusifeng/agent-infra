@@ -72,7 +72,7 @@ export function ComposerDock({
             className={clsx('flex h-[26px] w-[26px] items-center justify-center rounded-full', ui.scrollButton)}
             aria-label="Scroll to bottom"
           >
-            <ChevronDown className="h-4 w-4 text-slate-600" />
+            <ChevronDown className="h-4 w-4 text-[color:var(--chat-text-secondary)]" />
           </button>
         </div>
 
@@ -125,7 +125,7 @@ export function ComposerDock({
                   className={clsx(
                     ui.composerToggleButton,
                     reasoningEnabled
-                      ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                      ? 'border-[color:var(--chat-reasoning-divider)] bg-[var(--chat-surface-muted)] text-[color:var(--chat-reasoning-accent)]'
                       : 'border-[color:var(--chat-border)] bg-[var(--chat-surface)] text-[color:var(--chat-text-secondary)] hover:border-[color:var(--chat-border-strong)] hover:bg-[var(--chat-hover)]'
                   )}
                   aria-pressed={reasoningEnabled}
@@ -142,7 +142,7 @@ export function ComposerDock({
                       value={selectedModelKey}
                       onChange={(event) => onSelectedModelKeyChange(event.target.value)}
                       disabled={inputLocked || !meta || meta.modelOptions.length === 0}
-                      className="max-w-[172px] appearance-none bg-transparent pr-4 text-xs text-slate-500 outline-none"
+                      className="max-w-[172px] appearance-none bg-transparent pr-4 text-xs text-[color:var(--chat-text-secondary)] outline-none"
                     >
                       {meta?.modelOptions.map((option) => (
                         <option key={option.key} value={option.key}>
@@ -150,7 +150,7 @@ export function ComposerDock({
                         </option>
                       ))}
                     </select>
-                    <ChevronDown className="pointer-events-none absolute right-0 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                    <ChevronDown className="pointer-events-none absolute right-0 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[color:var(--chat-icon-muted)]" />
                   </div>
                 </label>
               </div>
@@ -168,7 +168,11 @@ export function ComposerDock({
                   }}
                   className={clsx(
                     ui.composerPrimaryButton,
-                    isResponding ? 'border-rose-200 text-rose-600' : hasDraftValue ? 'border-slate-300 text-sky-600' : 'text-slate-300',
+                    isResponding
+                      ? 'border-[color:var(--destructive)] text-[color:var(--destructive)]'
+                      : hasDraftValue
+                        ? 'border-[color:var(--chat-border-strong)] text-[color:var(--chat-reasoning-accent)]'
+                        : 'text-[color:var(--chat-icon-muted)]',
                     !isResponding && sendDisabled && 'cursor-not-allowed opacity-60'
                   )}
                   title={isResponding ? '停止接收响应' : '发送 (Cmd/Ctrl + Enter)'}

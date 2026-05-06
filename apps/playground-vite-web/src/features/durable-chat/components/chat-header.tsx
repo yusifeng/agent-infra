@@ -12,7 +12,7 @@ type ChatHeaderProps = {
 
 export function ChatHeader({ currentThreadTitle, sidebarOpen, onOpenSidebar }: ChatHeaderProps) {
   return (
-    <header className="z-[11] flex h-10 min-h-10 max-h-10 items-center justify-between border-b border-slate-200 px-2">
+    <header className="z-[11] flex h-10 min-h-10 max-h-10 items-center justify-between border-b border-[color:var(--chat-reasoning-divider)] px-2">
       <div className="flex min-w-0 items-center gap-3">
         {!sidebarOpen ? (
           <IconButton icon={PanelLeftOpen} onClick={onOpenSidebar} size="small" title="打开侧边栏" />

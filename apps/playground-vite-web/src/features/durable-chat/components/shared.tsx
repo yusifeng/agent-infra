@@ -31,7 +31,7 @@ export function IconButton({
       disabled={disabled}
       onClick={onClick}
       className={clsx(
-        'flex items-center justify-center text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 disabled:pointer-events-none disabled:opacity-50',
+        'flex items-center justify-center text-[color:var(--chat-text-secondary)] transition hover:bg-[var(--chat-hover)] hover:text-[color:var(--chat-text)] disabled:pointer-events-none disabled:opacity-50',
         frameClass,
         className
       )}
@@ -69,7 +69,7 @@ export function AnimatedEmoji({ emoji, size = 40 }: { emoji: string; size?: numb
 
 export function ProviderMonogram({ provider }: { provider: string }) {
   return (
-    <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-slate-200 text-[10px] font-semibold uppercase text-slate-500">
+    <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-[var(--chat-surface-muted)] text-[10px] font-semibold uppercase text-[color:var(--chat-text-secondary)]">
       {provider.slice(0, 1)}
     </span>
   );

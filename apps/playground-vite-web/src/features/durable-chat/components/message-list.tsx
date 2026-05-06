@@ -16,7 +16,7 @@ const transcriptRowPerformanceStyle: CSSProperties = {
   contentVisibility: 'auto'
 };
 
-const reasoningMarkdownClassName = 'text-sm leading-7 text-slate-400';
+const reasoningMarkdownClassName = 'text-sm leading-7 text-[color:var(--chat-reasoning-text)]';
 
 function useRenderDiagnostic(component: string, key: string, summary: Record<string, unknown>) {
   const mountedRef = useRef(false);
@@ -131,16 +131,20 @@ const ReasoningPanel = memo(function ReasoningPanel({
         aria-expanded={expanded}
       >
         <div className="flex min-w-0 items-center gap-2.5">
-          <Atom className={clsx('h-4 w-4 text-indigo-500', thinking && 'animate-pulse')} />
-          <span className="truncate text-sm font-medium text-slate-600">
+          <Atom className={clsx('h-4 w-4 text-[color:var(--chat-reasoning-accent)]', thinking && 'animate-pulse')} />
+          <span className="truncate text-sm font-medium text-[color:var(--chat-reasoning-title)]">
             {thinking ? '思考中...' : '已思考'}
           </span>
         </div>
-        {expanded ? <ChevronDown className="h-4 w-4 text-slate-400" /> : <ChevronRight className="h-4 w-4 text-slate-400" />}
+        {expanded ? (
+          <ChevronDown className="h-4 w-4 text-[color:var(--chat-icon-muted)]" />
+        ) : (
+          <ChevronRight className="h-4 w-4 text-[color:var(--chat-icon-muted)]" />
+        )}
       </button>
 
       {expanded ? (
-        <div ref={contentRef} className="mt-2 max-h-80 overflow-y-auto border-l border-slate-200 pl-4">
+        <div ref={contentRef} className="mt-2 max-h-80 overflow-y-auto border-l border-[color:var(--chat-reasoning-divider)] pl-4">
           {content ? (
             <MarkdownRenderer
               className={reasoningMarkdownClassName}
@@ -148,7 +152,7 @@ const ReasoningPanel = memo(function ReasoningPanel({
               text={content}
             />
           ) : (
-            <div className="text-sm italic leading-7 text-slate-400">思考中...</div>
+            <div className="text-sm italic leading-7 text-[color:var(--chat-reasoning-text)]">思考中...</div>
           )}
         </div>
       ) : null}
@@ -197,7 +201,7 @@ const MessageActions = memo(function MessageActions({
                 onActionClick(item.key);
               }
             }}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-[color:var(--chat-icon-muted)] transition hover:bg-[var(--chat-hover)] hover:text-[color:var(--chat-text)] disabled:cursor-not-allowed disabled:opacity-40"
           >
             <item.icon className="h-[15px] w-[15px]" />
           </button>
@@ -219,12 +223,12 @@ const MessagePartView = memo(function MessagePartView({
   if (part.type === 'text') {
     const textValue = part.textValue ?? '';
     return variant === 'user' ? (
-      <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-800">{textValue}</div>
+      <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-[color:var(--chat-text)]">{textValue}</div>
     ) : (
       <MarkdownRenderer
         cacheKey={cacheKey}
-        className="text-[15px] leading-[1.9] text-slate-800"
-        plainTextClassName="text-[15px] leading-[1.9] text-slate-800"
+        className="text-[15px] leading-[1.9] text-[color:var(--chat-text)]"
+        plainTextClassName="text-[15px] leading-[1.9] text-[color:var(--chat-text)]"
         text={textValue}
       />
     );
@@ -238,7 +242,7 @@ const MessagePartView = memo(function MessagePartView({
     const json = part.jsonValue ?? {};
     return (
       <div className={clsx('space-y-2 rounded-2xl px-4 py-3', ui.toolCall)}>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-700">Tool Call · {String(json.toolName ?? 'unknown')}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--chat-tool-call-text)]">Tool Call · {String(json.toolName ?? 'unknown')}</p>
         <pre className={clsx('overflow-auto rounded-2xl p-3 text-xs', ui.codeBlock)}>
           {JSON.stringify({ toolCallId: json.toolCallId ?? 'n/a', input: json.input ?? null }, null, 2)}
         </pre>
@@ -250,10 +254,10 @@ const MessagePartView = memo(function MessagePartView({
     const json = part.jsonValue ?? {};
     return (
       <div className={clsx('space-y-2 rounded-2xl px-4 py-3', ui.toolResult)}>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--chat-tool-result-text)]">
           Tool Result · {String(json.toolName ?? 'unknown')}
         </p>
-        {part.textValue ? <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{part.textValue}</p> : null}
+        {part.textValue ? <p className="whitespace-pre-wrap text-sm leading-6 text-[color:var(--chat-text-secondary)]">{part.textValue}</p> : null}
         <pre className={clsx('overflow-auto rounded-2xl p-3 text-xs', ui.codeBlock)}>{JSON.stringify(json, null, 2)}</pre>
       </div>
     );
@@ -351,12 +355,12 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
         {props.liveAssistantDraft.partialText ? (
           <MarkdownRenderer
             cacheKey={props.liveAssistantDraft.runId ? `live:${props.liveAssistantDraft.runId}` : 'live-assistant'}
-            animateBlocks={false}
-            className="text-[15px] leading-[1.9] text-slate-800"
-            plainTextClassName="text-[15px] leading-[1.9] text-slate-800"
-            text={props.liveAssistantDraft.partialText}
-          />
-        ) : null}
+              animateBlocks={false}
+              className="text-[15px] leading-[1.9] text-[color:var(--chat-text)]"
+              plainTextClassName="text-[15px] leading-[1.9] text-[color:var(--chat-text)]"
+              text={props.liveAssistantDraft.partialText}
+            />
+          ) : null}
       </>
     );
 
@@ -526,7 +530,7 @@ export const ChatMessageList = memo(function ChatMessageList({
       {loadingMessages ? (
         <div className={`${maxWithTW} mx-auto w-full`} style={messageListMinHeight}>
           <div className="flex min-h-full items-center">
-            <div className="flex items-center gap-3 px-4 py-3 text-sm text-slate-500">
+            <div className="flex items-center gap-3 px-4 py-3 text-sm text-[color:var(--chat-text-secondary)]">
               <Loader2 className="h-4 w-4 animate-spin" />
               <span>Loading thread messages...</span>
             </div>
@@ -551,8 +555,8 @@ export const ChatMessageList = memo(function ChatMessageList({
                   className={clsx(
                     'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition',
                     historyLoading
-                      ? 'cursor-wait border-slate-200 bg-slate-50 text-slate-400'
-                      : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700'
+                      ? 'cursor-wait border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] text-[color:var(--chat-text-tertiary)]'
+                      : 'border-[color:var(--chat-border)] bg-[var(--chat-surface)] text-[color:var(--chat-text-secondary)] hover:border-[color:var(--chat-border-strong)] hover:text-[color:var(--chat-text)]'
                   )}
                 >
                   {historyLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}

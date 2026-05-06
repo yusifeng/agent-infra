@@ -23,8 +23,8 @@ export const ui = {
   userBubble: 'bg-[var(--chat-user-bubble)] text-[color:var(--chat-text)]',
   subtlePanel: 'border border-[color:var(--chat-border)] bg-[var(--chat-surface)]',
   reasoning: 'border border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)]',
-  toolCall: 'border border-indigo-500/20 bg-indigo-500/10',
-  toolResult: 'border border-emerald-500/20 bg-emerald-500/10',
+  toolCall: 'border border-[color:var(--chat-tool-call-border)] bg-[color:var(--chat-tool-call-bg)]',
+  toolResult: 'border border-[color:var(--chat-tool-result-border)] bg-[color:var(--chat-tool-result-bg)]',
   codeBlock: 'bg-[var(--chat-code-bg)] text-[var(--chat-code-text)]',
   composerDock: 'bg-[var(--chat-bg)] backdrop-blur-[8px]',
   composerCard: 'rounded-xl border border-[color:var(--chat-border)] bg-[var(--chat-surface)] shadow-[var(--chat-shadow-card)]',
@@ -33,9 +33,9 @@ export const ui = {
   badge: 'border border-[color:var(--chat-border)] bg-[var(--chat-badge-bg)] text-[color:var(--chat-text-secondary)]',
   welcomeTitle: '[margin-block:0.2em_0] font-extrabold leading-none text-[color:var(--chat-text)]',
   welcomeDesc: 'text-center text-[color:var(--chat-text-secondary)]',
-  warningBanner: 'border border-amber-500/35 bg-amber-500/12 text-amber-800',
-  infoBanner: 'border border-sky-500/30 bg-sky-500/12 text-sky-800',
-  errorBanner: 'border border-rose-500/30 bg-rose-500/10 text-rose-800',
+  warningBanner: 'chat-warning-banner',
+  infoBanner: 'chat-info-banner',
+  errorBanner: 'chat-error-banner',
   composerToggleButton:
     'inline-flex h-9 items-center gap-2 rounded-full border px-3 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50',
   composerPrimaryButton:

@@ -1,0 +1,53 @@
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --radius: 0.625rem;
+
+  --chat-bg: #fbfbfb;
+  --chat-surface: #ffffff;
+  --chat-surface-muted: #f8fafc;
+  --chat-sidebar-bg: #f8fafc;
+  --chat-border: rgba(15, 23, 42, 0.08);
+  --chat-border-strong: rgba(15, 23, 42, 0.12);
+  --chat-text: #0f172a;
+  --chat-text-secondary: #64748b;
+  --chat-text-tertiary: #94a3b8;
+  --chat-placeholder: #94a3b8;
+  --chat-hover: #f1f5f9;
+  --chat-user-bubble: #f3f4f6;
+  --chat-badge-bg: #f8fafc;
+  --chat-code-bg: #0f172a;
+  --chat-code-text: #e2e8f0;
+  --chat-shadow-card: 0 8px 24px rgba(15, 23, 42, 0.04);
+  --chat-scrollbar-thumb: rgba(148, 163, 184, 0.48);
+  --chat-link: #2563eb;
+  --chat-reasoning-text: #94a3b8;
+  --chat-reasoning-accent: #6366f1;
+  --chat-reasoning-divider: #e2e8f0;
+  --chat-reasoning-title: #475569;
+  --chat-icon-muted: #94a3b8;
+  --chat-code-outline: rgba(148, 163, 184, 0.12);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+}

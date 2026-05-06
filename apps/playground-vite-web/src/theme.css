@@ -1,0 +1,11 @@
+@import "../../shared/chat-theme.css";
+
+:root {
+  color: #0f172a;
+  background-color: #f8fafc;
+  font-family: 'Geist Variable', 'SF Pro Display', 'Segoe UI', sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

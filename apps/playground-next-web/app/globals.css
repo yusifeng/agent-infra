@@ -1,6 +1,7 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+@import "../../shared/chat-theme.css";
 
 html,
 body {
@@ -9,7 +10,8 @@ body {
 }
 
 body {
-  @apply bg-slate-50 text-slate-900;
+  background: var(--chat-bg);
+  color: var(--chat-text);
   min-height: 100dvh;
   overflow: hidden;
 }

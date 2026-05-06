@@ -39,7 +39,7 @@ export function ChatSidebar({
   return (
     <>
       {sidebarOpen ? (
-        <div className="fixed inset-0 z-20 bg-slate-950/30 backdrop-blur-sm lg:hidden" onClick={onClose} />
+        <div className="fixed inset-0 z-20 bg-[color:var(--chat-overlay)] backdrop-blur-sm lg:hidden" onClick={onClose} />
       ) : null}
 
       <div
@@ -56,7 +56,7 @@ export function ChatSidebar({
         >
           <div className={clsx('flex h-full min-h-0 min-w-0 flex-col overflow-hidden', ui.sidebar)}>
             <div className="flex shrink-0 items-center justify-between px-4 pt-2">
-              <h1 className="mb-2 text-3xl font-bold tracking-tight text-slate-900">Forma</h1>
+              <h1 className="mb-2 text-3xl font-bold tracking-tight text-[color:var(--chat-text)]">Forma</h1>
               <IconButton icon={PanelLeftClose} onClick={onClose} title="关闭侧边栏" />
             </div>
 
@@ -75,7 +75,7 @@ export function ChatSidebar({
               <button
                 type="button"
                 onClick={() => setThreadsExpanded((current) => !current)}
-                className="mb-1 flex w-full items-center px-2 py-1 text-left text-xs text-slate-400 transition hover:text-slate-500"
+                className="mb-1 flex w-full items-center px-2 py-1 text-left text-xs text-[color:var(--chat-text-tertiary)] transition hover:text-[color:var(--chat-text-secondary)]"
               >
                 <span>聊天</span>
                 <ChevronDown className={clsx('ml-1 h-4 w-4 transition-transform', !threadsExpanded && '-rotate-90')} />
