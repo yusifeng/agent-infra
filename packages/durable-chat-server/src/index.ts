@@ -34,6 +34,7 @@ export * from './chat-route-helpers.js';
 export * from './route-errors.js';
 
 export async function createDurableChatBaseServices(dbConfig: DbConfig): Promise<DurableChatBaseServices> {
+  await dbConfig.bootstrapSchema();
   const repos = createAgentInfraRepositories(dbConfig.mode, dbConfig.db);
 
   return {

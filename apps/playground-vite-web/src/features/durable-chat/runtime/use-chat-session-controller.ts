@@ -33,6 +33,8 @@ function createInitialChatSessionState(): ChatSessionState {
     optimisticUserMessage: null,
     meta: null,
     selectedModelKey: '',
+    selectedThinkingEnabled: false,
+    selectedReasoningEffort: 'high',
     chatPhase: 'idle',
     persistingTurn: false,
     loadingThreadId: null,
@@ -77,6 +79,12 @@ export function useChatSessionController() {
     },
     setSelectedModelKey: (next: Updater<string>) => {
       dispatch((current) => ({ ...current, selectedModelKey: resolveNext(current.selectedModelKey, next) }));
+    },
+    setSelectedThinkingEnabled: (next: Updater<boolean>) => {
+      dispatch((current) => ({ ...current, selectedThinkingEnabled: resolveNext(current.selectedThinkingEnabled, next) }));
+    },
+    setSelectedReasoningEffort: (next: Updater<'high' | 'max'>) => {
+      dispatch((current) => ({ ...current, selectedReasoningEffort: resolveNext(current.selectedReasoningEffort, next) }));
     },
     setChatPhase: (next: Updater<ChatPhase>) => {
       dispatch((current) => ({ ...current, chatPhase: resolveNext(current.chatPhase, next) }));

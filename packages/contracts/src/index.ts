@@ -95,6 +95,8 @@ export interface RuntimePiMetaDto {
   runtimeConfigError: string | null;
 }
 
+export type RuntimePiReasoningEffortDto = 'high' | 'max';
+
 export type RunEventSummaryDto = Pick<RunEventDto, 'seq' | 'type'>;
 
 export type ToolInvocationSummaryDto = Pick<ToolInvocationDto, 'id' | 'toolName' | 'status'>;
@@ -114,6 +116,8 @@ export interface RunTextTurnRequestDto {
   text: string;
   provider?: string;
   model?: string;
+  thinkingEnabled?: boolean;
+  reasoningEffort?: RuntimePiReasoningEffortDto;
 }
 
 export interface GetRunTimelineRequestDto {

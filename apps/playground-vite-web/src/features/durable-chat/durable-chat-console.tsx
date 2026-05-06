@@ -33,12 +33,16 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
     sendDisabled,
     inputLocked,
     selectedModelKey,
+    selectedThinkingEnabled,
+    selectedReasoningEffort,
     selectedModelOption,
     showScrollToBottom,
     textareaRef,
     sendAbortControllerRef,
     onDraftChange,
     onSelectedModelKeyChange,
+    onSelectedThinkingEnabledChange,
+    onSelectedReasoningEffortChange,
     onSend,
     onStop,
     onScrollToBottom,
@@ -102,6 +106,8 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
               sendDisabled={sendDisabled}
               inputLocked={inputLocked}
               selectedModelKey={selectedModelKey}
+              selectedThinkingEnabled={selectedThinkingEnabled}
+              selectedReasoningEffort={selectedReasoningEffort}
               selectedModelOption={selectedModelOption}
               meta={meta}
               showScrollToBottom={showScrollToBottom}
@@ -110,6 +116,8 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
               sendAbortControllerRef={sendAbortControllerRef}
               onDraftChange={onDraftChange}
               onSelectedModelKeyChange={onSelectedModelKeyChange}
+              onSelectedThinkingEnabledChange={onSelectedThinkingEnabledChange}
+              onSelectedReasoningEffortChange={onSelectedReasoningEffortChange}
               onSend={onSend}
               onStop={onStop}
               onScrollToBottom={onScrollToBottom}

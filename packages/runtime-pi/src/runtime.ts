@@ -47,18 +47,25 @@ export type RuntimePiInternalOptions = RuntimePiRuntimeOptions & {
 let openAiModelIndexPromise: Promise<Map<string, Model<any>>> | null = null;
 
 function createDeepseekModel(modelId: string): Model<any> {
-  if (modelId !== 'deepseek-chat' && modelId !== 'deepseek-reasoner') {
+  if (modelId !== 'deepseek-v4-flash' && modelId !== 'deepseek-v4-pro') {
     throw new Error(`Unknown DeepSeek model: ${modelId}`);
   }
 
   return {
     id: modelId,
-    name: modelId === 'deepseek-reasoner' ? 'DeepSeek Reasoner' : 'DeepSeek Chat',
+    name: modelId === 'deepseek-v4-pro' ? 'DeepSeek V4 Pro' : 'DeepSeek V4 Flash',
     api: 'openai-completions',
     provider: 'deepseek',
     baseUrl: DEEPSEEK_BASE_URL,
-    reasoning: modelId === 'deepseek-reasoner',
+    reasoning: true,
     input: ['text'],
+    compat: {
+      supportsReasoningEffort: true,
+      reasoningEffortMap: {
+        high: 'high',
+        xhigh: 'max'
+      }
+    },
     cost: {
       input: 0,
       output: 0,
@@ -740,14 +747,33 @@ export async function runAssistantTurnWithPiInternal(
   };
 
   const tools = options.tools ?? [];
+  const deepseekThinkingEnabled = input.provider === 'deepseek' ? input.thinkingEnabled === true : false;
+  const thinkingLevel =
+    deepseekThinkingEnabled
+      ? input.reasoningEffort === 'max'
+        ? 'xhigh'
+        : 'high'
+      : 'off';
 
   const agent = new Agent({
     initialState: {
       systemPrompt,
       model,
-      thinkingLevel: 'off',
+      thinkingLevel,
       tools,
       messages
+    },
+    onPayload: async (payload) => {
+      if (input.provider !== 'deepseek' || !payload || typeof payload !== 'object' || Array.isArray(payload)) {
+        return undefined;
+      }
+
+      return {
+        ...(payload as Record<string, unknown>),
+        thinking: {
+          type: deepseekThinkingEnabled ? 'enabled' : 'disabled'
+        }
+      };
     },
     convertToLlm,
     getApiKey: options.getApiKey ?? ((provider) => (provider === config?.provider ? config.apiKey : undefined)),

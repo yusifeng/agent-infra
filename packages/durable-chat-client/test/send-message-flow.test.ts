@@ -39,9 +39,9 @@ function createDeferred<T>() {
 
 function createSelectedModelOption(): RuntimePiMetaDto['modelOptions'][number] {
   return {
-    key: 'deepseek:deepseek-chat',
+    key: 'deepseek:deepseek-v4-flash',
     provider: 'deepseek',
-    model: 'deepseek-chat',
+    model: 'deepseek-v4-flash',
     label: 'DeepSeek',
     description: 'DeepSeek Chat'
   };
@@ -67,7 +67,7 @@ function createRun(id: string, status: RunDto['status']): RunDto {
     threadId: 'thread-existing',
     triggerMessageId: null,
     provider: 'deepseek',
-    model: 'deepseek-chat',
+    model: 'deepseek-v4-flash',
     status,
     usage: null,
     error: null,
@@ -148,6 +148,8 @@ describe('runSendMessageFlow', () => {
         draft: '你好',
         isChatResponding: false,
         messages: [createMessage('message-1', 1)],
+        selectedThinkingEnabled: false,
+        selectedReasoningEffort: 'high',
         selectedModelOption: createSelectedModelOption()
       },
       refs,
@@ -261,6 +263,8 @@ describe('runSendMessageFlow', () => {
         draft: '你好',
         isChatResponding: false,
         messages: [createMessage('message-1', 1)],
+        selectedThinkingEnabled: true,
+        selectedReasoningEffort: 'max',
         selectedModelOption: createSelectedModelOption()
       },
       refs,
@@ -272,6 +276,17 @@ describe('runSendMessageFlow', () => {
         replaceCurrentPath: vi.fn()
       }
     });
+
+    expect(openThreadRunStreamMock).toHaveBeenCalledWith(
+      'thread-existing',
+      expect.objectContaining({
+        provider: 'deepseek',
+        model: 'deepseek-v4-flash',
+        thinkingEnabled: true,
+        reasoningEffort: 'max'
+      }),
+      expect.any(AbortSignal)
+    );
 
     expect(actions.setMessages).toHaveBeenCalledTimes(1);
     const persistedUserMessage = resolveUpdater(actions.setMessages.mock.calls[0]?.[0], [createMessage('message-1', 1)]);

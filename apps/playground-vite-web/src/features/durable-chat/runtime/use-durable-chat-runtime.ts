@@ -39,6 +39,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       optimisticUserMessage,
       meta,
       selectedModelKey,
+      selectedThinkingEnabled,
+      selectedReasoningEffort,
       chatPhase,
       persistingTurn,
       loadingThreadId,
@@ -59,6 +61,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     setOptimisticUserMessage,
     setMeta,
     setSelectedModelKey,
+    setSelectedThinkingEnabled,
+    setSelectedReasoningEffort,
     setChatPhase,
     setPersistingTurn,
     setLoadingThreadId,
@@ -508,6 +512,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         draft,
         isChatResponding,
         messages,
+        selectedThinkingEnabled,
+        selectedReasoningEffort,
         selectedModelOption
       },
       refs: {
@@ -658,6 +664,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     },
     onScrollToBottom: scrollToMessagesBottom,
     onSelectedModelKeyChange: setSelectedModelKey,
+    onSelectedThinkingEnabledChange: setSelectedThinkingEnabled,
+    onSelectedReasoningEffortChange: setSelectedReasoningEffort,
     onSend: () => {
       void sendMessage();
     },
@@ -665,6 +673,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     persistingTurn,
     responseStatus,
     selectedModelKey,
+    selectedThinkingEnabled,
+    selectedReasoningEffort,
     selectedModelOption,
     sendAbortControllerRef,
     sendDisabled,

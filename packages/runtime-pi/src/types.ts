@@ -16,6 +16,8 @@ export interface RuntimePiInput {
   runId: string;
   provider?: string;
   model?: string;
+  thinkingEnabled?: boolean;
+  reasoningEffort?: 'high' | 'max';
 }
 
 export interface RuntimePiModelOption {

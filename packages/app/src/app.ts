@@ -226,7 +226,9 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
             threadId: queued.thread.id,
             runId,
             provider: queued.runtimeSelection.provider,
-            model: queued.runtimeSelection.model
+            model: queued.runtimeSelection.model,
+            thinkingEnabled: input.thinkingEnabled,
+            reasoningEffort: input.reasoningEffort
           });
         } catch (error) {
           executionError = toErrorMessage(error, 'runtime execution failed');

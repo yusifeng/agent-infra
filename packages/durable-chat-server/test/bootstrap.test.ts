@@ -18,7 +18,7 @@ describe('durable chat server bootstrap', () => {
 
     const services = await createDurableChatBaseServices(dbConfig);
 
-    expect(bootstrapSchema).not.toHaveBeenCalled();
+    expect(bootstrapSchema).toHaveBeenCalledTimes(1);
     expect(services.dbInfo).toEqual({
       mode: 'postgres',
       connectionString: 'postgres://example.test/agent-infra'
@@ -79,7 +79,7 @@ describe('durable chat server bootstrap', () => {
       transaction: vi.fn(async (operation) => operation(base.repos))
     };
     const runtime: AgentInfraRuntimePort = {
-      prepare: vi.fn(async () => ({ provider: 'deepseek', model: 'deepseek-chat' })),
+      prepare: vi.fn(async () => ({ provider: 'deepseek', model: 'deepseek-v4-flash' })),
       runTextTurn: vi.fn(async () => {})
     };
 

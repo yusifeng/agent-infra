@@ -49,7 +49,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
       threadId,
       text: turnInput.text,
       provider: turnInput.provider,
-      model: turnInput.model
+      model: turnInput.model,
+      thinkingEnabled: turnInput.thinkingEnabled,
+      reasoningEffort: turnInput.reasoningEffort
     });
   } catch (error) {
     return Response.json(buildRunTextTurnErrorResponse(error, 'failed to stream thread turn'), {
@@ -75,7 +77,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
     threadId,
     runId,
     provider: started.runtimeSelection.provider,
-    model: started.runtimeSelection.model
+    model: started.runtimeSelection.model,
+    thinkingEnabled: turnInput.thinkingEnabled,
+    reasoningEffort: turnInput.reasoningEffort
   };
 
   void (async () => {

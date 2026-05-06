@@ -39,7 +39,7 @@ describe('durable chat server route helpers', () => {
         threadId: 'thread-1',
         triggerMessageId: null,
         provider: 'deepseek',
-        model: 'deepseek-chat',
+        model: 'deepseek-v4-flash',
         status: 'completed',
         usage: null,
         error: null,
@@ -52,7 +52,7 @@ describe('durable chat server route helpers', () => {
       threadId: 'thread-1',
       triggerMessageId: null,
       provider: 'deepseek',
-      model: 'deepseek-chat',
+      model: 'deepseek-v4-flash',
       status: 'completed',
       usage: null,
       error: null,
@@ -71,17 +71,23 @@ describe('durable chat server route helpers', () => {
       parseRunTextTurnInput({
         text: 'hello',
         provider: ' deepseek ',
-        model: ' deepseek-chat '
+        model: ' deepseek-v4-flash ',
+        thinkingEnabled: true,
+        reasoningEffort: 'max'
       })
     ).toEqual({
       text: 'hello',
       provider: 'deepseek',
-      model: 'deepseek-chat'
+      model: 'deepseek-v4-flash',
+      thinkingEnabled: true,
+      reasoningEffort: 'max'
     });
     expect(parseRunTextTurnInput(null)).toEqual({
       text: '',
       provider: undefined,
-      model: undefined
+      model: undefined,
+      thinkingEnabled: undefined,
+      reasoningEffort: undefined
     });
 
     expect(parseThreadRunsLimit(null)).toBe(8);
@@ -193,7 +199,7 @@ describe('durable chat server route helpers', () => {
           threadId: 'thread-1',
           triggerMessageId: null,
           provider: 'deepseek',
-          model: 'deepseek-chat',
+          model: 'deepseek-v4-flash',
           status: 'completed',
           usage: null,
           error: null,
@@ -209,7 +215,7 @@ describe('durable chat server route helpers', () => {
           threadId: 'thread-1',
           triggerMessageId: null,
           provider: 'deepseek',
-          model: 'deepseek-chat',
+          model: 'deepseek-v4-flash',
           status: 'completed',
           usage: null,
           error: null,
@@ -271,7 +277,7 @@ describe('durable chat server route helpers', () => {
         threadId: 'thread-1',
         triggerMessageId: null,
         provider: 'deepseek',
-        model: 'deepseek-chat',
+        model: 'deepseek-v4-flash',
         status: 'running',
         usage: null,
         error: null,
@@ -293,7 +299,7 @@ describe('durable chat server route helpers', () => {
         threadId: 'thread-1',
         triggerMessageId: 'message-1',
         provider: 'deepseek',
-        model: 'deepseek-chat',
+        model: 'deepseek-v4-flash',
         status: 'queued',
         usage: null,
         error: null,
@@ -324,7 +330,7 @@ describe('durable chat server route helpers', () => {
       },
       runtimeSelection: {
         provider: 'deepseek',
-        model: 'deepseek-chat'
+        model: 'deepseek-v4-flash'
       }
     });
 
@@ -340,7 +346,7 @@ describe('durable chat server route helpers', () => {
         threadId: 'thread-1',
         triggerMessageId: 'message-1',
         provider: 'deepseek',
-        model: 'deepseek-chat',
+        model: 'deepseek-v4-flash',
         status: 'completed',
         usage: null,
         error: null,
@@ -359,7 +365,7 @@ describe('durable chat server route helpers', () => {
         threadId: 'thread-1',
         triggerMessageId: 'message-1',
         provider: 'deepseek',
-        model: 'deepseek-chat',
+        model: 'deepseek-v4-flash',
         status: 'failed',
         usage: null,
         error: 'boom',
@@ -382,7 +388,7 @@ describe('durable chat server route helpers', () => {
           threadId: 'thread-1',
           triggerMessageId: 'message-1',
           provider: 'deepseek',
-          model: 'deepseek-chat',
+          model: 'deepseek-v4-flash',
           status: 'completed',
           usage: null,
           error: null,
@@ -425,7 +431,7 @@ describe('durable chat server route helpers', () => {
         threadId: 'thread-1',
         triggerMessageId: 'message-1',
         provider: 'deepseek',
-        model: 'deepseek-chat',
+        model: 'deepseek-v4-flash',
         status: 'completed',
         usage: null,
         error: null,
@@ -470,7 +476,7 @@ describe('durable chat server route helpers', () => {
           threadId: 'thread-1',
           triggerMessageId: 'message-1',
           provider: 'deepseek',
-          model: 'deepseek-chat',
+          model: 'deepseek-v4-flash',
           status: 'completed',
           usage: null,
           error: null,
@@ -485,7 +491,7 @@ describe('durable chat server route helpers', () => {
             runId: 'run-1',
             seq: 1,
             type: 'agent_start',
-            payload: { model: 'deepseek-chat' },
+            payload: { model: 'deepseek-v4-flash' },
             createdAt: new Date('2026-01-01T00:00:00.000Z')
           }
         ],
@@ -513,7 +519,7 @@ describe('durable chat server route helpers', () => {
         threadId: 'thread-1',
         triggerMessageId: 'message-1',
         provider: 'deepseek',
-        model: 'deepseek-chat',
+        model: 'deepseek-v4-flash',
         status: 'completed',
         usage: null,
         error: null,
@@ -528,7 +534,7 @@ describe('durable chat server route helpers', () => {
           runId: 'run-1',
           seq: 1,
           type: 'agent_start',
-          payload: { model: 'deepseek-chat' },
+          payload: { model: 'deepseek-v4-flash' },
           createdAt: '2026-01-01T00:00:00.000Z'
         }
       ],

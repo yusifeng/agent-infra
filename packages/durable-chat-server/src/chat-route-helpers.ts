@@ -185,11 +185,16 @@ export function buildThreadMessagesErrorResponse(error: unknown, fallbackMessage
 
 export function parseRunTextTurnInput(body: unknown): RunTextTurnRequestDto {
   const record = asObject(body);
+  const reasoningEffort =
+    record.reasoningEffort === 'high' || record.reasoningEffort === 'max' ? record.reasoningEffort : undefined;
+  const thinkingEnabled = typeof record.thinkingEnabled === 'boolean' ? record.thinkingEnabled : undefined;
 
   return {
     text: typeof record.text === 'string' ? record.text : '',
     provider: typeof record.provider === 'string' ? record.provider.trim() : undefined,
-    model: typeof record.model === 'string' ? record.model.trim() : undefined
+    model: typeof record.model === 'string' ? record.model.trim() : undefined,
+    thinkingEnabled,
+    reasoningEffort
   };
 }
 

@@ -69,7 +69,7 @@ export function getPlaygroundMeta(
     return {
       configured: false,
       provider: modelOptions[0]?.provider ?? 'deepseek',
-      model: modelOptions[0]?.model ?? 'deepseek-chat',
+      model: modelOptions[0]?.model ?? 'deepseek-v4-flash',
       defaultModelKey: modelOptions[0]?.key ?? null,
       modelOptions,
       configError: error instanceof Error ? error.message : 'Unknown runtime-pi configuration error',

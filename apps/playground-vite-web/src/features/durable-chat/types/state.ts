@@ -13,6 +13,8 @@ export type ChatSessionState = {
   optimisticUserMessage: MessageDto | null;
   meta: RuntimePiMetaDto | null;
   selectedModelKey: string;
+  selectedThinkingEnabled: boolean;
+  selectedReasoningEffort: 'high' | 'max';
   chatPhase: ChatPhase;
   persistingTurn: boolean;
   loadingThreadId: string | null;

@@ -1,22 +1,22 @@
 import type { RuntimePiConfig, RuntimePiInput, RuntimePiModelOption, RuntimePiProvider } from './types.js';
 
-const DEFAULT_DEEPSEEK_MODEL = 'deepseek-chat';
+const DEFAULT_DEEPSEEK_MODEL = 'deepseek-v4-flash';
 const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini';
 
 const RUNTIME_PI_MODEL_OPTIONS: RuntimePiModelOption[] = [
   {
-    key: 'deepseek:deepseek-chat',
+    key: 'deepseek:deepseek-v4-flash',
     provider: 'deepseek',
-    model: 'deepseek-chat',
-    label: 'DeepSeek · deepseek-chat',
-    description: 'DeepSeek chat model via the official OpenAI-compatible endpoint.'
+    model: 'deepseek-v4-flash',
+    label: 'DeepSeek · deepseek-v4-flash',
+    description: 'Fast DeepSeek v4 model via the official OpenAI-compatible endpoint.'
   },
   {
-    key: 'deepseek:deepseek-reasoner',
+    key: 'deepseek:deepseek-v4-pro',
     provider: 'deepseek',
-    model: 'deepseek-reasoner',
-    label: 'DeepSeek · deepseek-reasoner',
-    description: 'DeepSeek reasoning model via the official OpenAI-compatible endpoint.'
+    model: 'deepseek-v4-pro',
+    label: 'DeepSeek · deepseek-v4-pro',
+    description: 'Stronger DeepSeek v4 model via the official OpenAI-compatible endpoint.'
   },
   {
     key: 'openai:gpt-4o-mini',

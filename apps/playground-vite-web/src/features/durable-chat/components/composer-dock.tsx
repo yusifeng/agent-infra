@@ -13,6 +13,8 @@ type ComposerDockProps = {
   sendDisabled: boolean;
   inputLocked: boolean;
   selectedModelKey: string;
+  selectedThinkingEnabled: boolean;
+  selectedReasoningEffort: 'high' | 'max';
   selectedModelOption: RuntimePiMetaDto['modelOptions'][number] | null;
   meta: RuntimePiMetaDto | null;
   showScrollToBottom: boolean;
@@ -21,6 +23,8 @@ type ComposerDockProps = {
   sendAbortControllerRef: MutableRefObject<AbortController | null>;
   onDraftChange: (value: string) => void;
   onSelectedModelKeyChange: (value: string) => void;
+  onSelectedThinkingEnabledChange: (value: boolean) => void;
+  onSelectedReasoningEffortChange: (value: 'high' | 'max') => void;
   onSend: () => void;
   onStop: () => void;
   onScrollToBottom: () => void;
@@ -33,6 +37,8 @@ export function ComposerDock({
   sendDisabled,
   inputLocked,
   selectedModelKey,
+  selectedThinkingEnabled,
+  selectedReasoningEffort,
   selectedModelOption,
   meta,
   showScrollToBottom,
@@ -41,15 +47,14 @@ export function ComposerDock({
   sendAbortControllerRef,
   onDraftChange,
   onSelectedModelKeyChange,
+  onSelectedThinkingEnabledChange,
+  onSelectedReasoningEffortChange,
   onSend,
   onStop,
   onScrollToBottom
 }: ComposerDockProps) {
   const hasDraftValue = Boolean(draft.trim());
-  const reasoningOption = meta?.modelOptions.find((option) => option.model === 'deepseek-reasoner') ?? null;
-  const fallbackOption =
-    meta?.modelOptions.find((option) => option.key !== reasoningOption?.key) ?? meta?.modelOptions[0] ?? null;
-  const reasoningEnabled = reasoningOption?.key === selectedModelKey;
+  const isDeepseekModel = selectedModelOption?.provider === 'deepseek';
 
   return (
     <div
@@ -112,29 +117,6 @@ export function ComposerDock({
 
             <div className="flex items-center justify-between gap-3 px-3 py-1.5">
               <div className="flex min-w-0 items-center gap-2">
-                <button
-                  type="button"
-                  disabled={!reasoningOption || inputLocked || !meta?.runtimeConfigured}
-                  onClick={() => {
-                    if (!reasoningOption) {
-                      return;
-                    }
-
-                    onSelectedModelKeyChange(reasoningEnabled ? (fallbackOption?.key ?? selectedModelKey) : reasoningOption.key);
-                  }}
-                  className={clsx(
-                    ui.composerToggleButton,
-                    reasoningEnabled
-                      ? 'border-[color:var(--chat-reasoning-divider)] bg-[var(--chat-surface-muted)] text-[color:var(--chat-reasoning-accent)]'
-                      : 'border-[color:var(--chat-border)] bg-[var(--chat-surface)] text-[color:var(--chat-text-secondary)] hover:border-[color:var(--chat-border-strong)] hover:bg-[var(--chat-hover)]'
-                  )}
-                  aria-pressed={reasoningEnabled}
-                  title={reasoningOption ? '切换深度思考模式' : '当前环境未提供深度思考模型'}
-                >
-                  <Atom className={clsx('h-4 w-4', reasoningEnabled && 'animate-pulse')} />
-                  <span>深度思考</span>
-                </button>
-
                 <label className={ui.composerModelChip}>
                   {selectedModelOption?.provider ? <ProviderMonogram provider={selectedModelOption.provider} /> : null}
                   <div className="relative min-w-0">
@@ -153,6 +135,49 @@ export function ComposerDock({
                     <ChevronDown className="pointer-events-none absolute right-0 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[color:var(--chat-icon-muted)]" />
                   </div>
                 </label>
+
+                {isDeepseekModel ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => onSelectedThinkingEnabledChange(!selectedThinkingEnabled)}
+                      disabled={inputLocked || !meta?.runtimeConfigured}
+                      className={clsx(
+                        ui.composerToggleButton,
+                        selectedThinkingEnabled
+                          ? 'border-[color:var(--chat-reasoning-divider)] bg-[var(--chat-surface-muted)] text-[color:var(--chat-reasoning-accent)]'
+                          : 'border-[color:var(--chat-border)] text-[color:var(--chat-text-secondary)]'
+                      )}
+                      aria-pressed={selectedThinkingEnabled}
+                    >
+                      <Atom className="h-4 w-4" />
+                      <span>深度思考</span>
+                    </button>
+
+                    {selectedThinkingEnabled ? (
+                      <label
+                        className={clsx(
+                          ui.composerToggleButton,
+                          'border-[color:var(--chat-reasoning-divider)] bg-[var(--chat-surface-muted)] text-[color:var(--chat-reasoning-accent)]'
+                        )}
+                      >
+                        <span>思考程度</span>
+                        <div className="relative min-w-0">
+                          <select
+                            value={selectedReasoningEffort}
+                            onChange={(event) => onSelectedReasoningEffortChange(event.target.value as 'high' | 'max')}
+                            disabled={inputLocked || !meta?.runtimeConfigured}
+                            className="max-w-[96px] appearance-none bg-transparent pr-4 text-sm text-[color:var(--chat-reasoning-accent)] outline-none"
+                          >
+                            <option value="high">高</option>
+                            <option value="max">最高</option>
+                          </select>
+                          <ChevronDown className="pointer-events-none absolute right-0 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[color:var(--chat-reasoning-accent)]" />
+                        </div>
+                      </label>
+                    ) : null}
+                  </>
+                ) : null}
               </div>
 
               <div className="flex items-center">

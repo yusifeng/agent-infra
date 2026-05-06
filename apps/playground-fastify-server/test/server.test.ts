@@ -59,7 +59,7 @@ function createFakeDurableRuntime(mode: 'success' | 'failure' = 'success'): Runt
     async prepare(input) {
       return {
         provider: input?.provider ?? 'deepseek',
-        model: input?.model ?? 'deepseek-chat'
+        model: input?.model ?? 'deepseek-v4-flash'
       };
     },
     async runTurn(ctx, input, options) {
@@ -191,8 +191,8 @@ describe('playground-fastify-server', () => {
       metaOverride: {
         configured: true,
         provider: 'deepseek',
-        model: 'deepseek-chat',
-        defaultModelKey: 'deepseek:deepseek-chat',
+        model: 'deepseek-v4-flash',
+        defaultModelKey: 'deepseek:deepseek-v4-flash',
         runtimeConfigError: null
       }
     });
@@ -221,7 +221,7 @@ describe('playground-fastify-server', () => {
     expect(meta.json()).toMatchObject({
       runtimeConfigured: true,
       runtimeProvider: 'deepseek',
-      runtimeModel: 'deepseek-chat',
+      runtimeModel: 'deepseek-v4-flash',
       dbMode: 'sqlite'
     });
   });
@@ -303,7 +303,8 @@ describe('playground-fastify-server', () => {
     expect(messages.statusCode).toBe(200);
     expect(messages.headers['server-timing']).toContain('messages_get;dur=');
     expect(messages.json()).toEqual({
-      messages: []
+      messages: [],
+      activeRun: null
     });
   });
 

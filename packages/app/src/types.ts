@@ -31,6 +31,8 @@ export interface RunTextRuntimeInput {
   runId: string;
   provider: string;
   model: string;
+  thinkingEnabled?: boolean;
+  reasoningEffort?: 'high' | 'max';
 }
 
 export interface StartTextTurnResult {
@@ -67,6 +69,8 @@ export interface RunTextTurnInput {
   text: string;
   provider?: string;
   model?: string;
+  thinkingEnabled?: boolean;
+  reasoningEffort?: 'high' | 'max';
 }
 
 export interface RunTextTurnResult {

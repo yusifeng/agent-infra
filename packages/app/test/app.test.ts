@@ -6,7 +6,7 @@ import type {
   Thread,
   ToolInvocation
 } from '@agent-infra/core';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createAgentInfraApp } from '../src/app';
 import { InvalidTurnTextError, RunNotFoundError, ThreadNotFoundError } from '../src/errors';
@@ -263,7 +263,7 @@ function createHappyRuntime(): AgentInfraRuntimePort {
     async prepare(input) {
       return {
         provider: input.provider ?? 'deepseek',
-        model: input.model ?? 'deepseek-chat'
+        model: input.model ?? 'deepseek-v4-flash'
       };
     },
     async runTextTurn(repositories, input) {
@@ -312,7 +312,7 @@ function createFailingRuntime(): AgentInfraRuntimePort {
     async prepare(input) {
       return {
         provider: input.provider ?? 'deepseek',
-        model: input.model ?? 'deepseek-chat'
+        model: input.model ?? 'deepseek-v4-flash'
       };
     },
     async runTextTurn(repositories, input: RunTextRuntimeInput) {
@@ -376,7 +376,7 @@ describe('createAgentInfraApp', () => {
       threadId: thread.id,
       text: 'Hello there',
       provider: 'deepseek',
-      model: 'deepseek-chat'
+      model: 'deepseek-v4-flash'
     });
 
     expect(result.run.status).toBe('completed');
@@ -390,6 +390,32 @@ describe('createAgentInfraApp', () => {
     expect(result.executionError).toBeUndefined();
   });
 
+  it('passes reasoning effort through to the runtime input', async () => {
+    const runtime = createHappyRuntime();
+    const runTextTurn = vi.spyOn(runtime, 'runTextTurn');
+    const { app } = createDependencies(runtime);
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Reasoning path' });
+
+    await app.turns.runText({
+      threadId: thread.id,
+      text: 'Think harder',
+      provider: 'deepseek',
+      model: 'deepseek-v4-pro',
+      thinkingEnabled: true,
+      reasoningEffort: 'max'
+    });
+
+    expect(runTextTurn).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        provider: 'deepseek',
+        model: 'deepseek-v4-pro',
+        thinkingEnabled: true,
+        reasoningEffort: 'max'
+      })
+    );
+  });
+
   it('queues a text turn and returns the run plus user message before runtime execution', async () => {
     const { app, repositories } = createDependencies(createHappyRuntime());
     const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Queued path' });
@@ -398,13 +424,13 @@ describe('createAgentInfraApp', () => {
       threadId: thread.id,
       text: 'Queue me',
       provider: 'deepseek',
-      model: 'deepseek-chat'
+      model: 'deepseek-v4-flash'
     });
 
     expect(started.run.status).toBe('queued');
     expect(started.runtimeSelection).toEqual({
       provider: 'deepseek',
-      model: 'deepseek-chat'
+      model: 'deepseek-v4-flash'
     });
     expect(started.userMessage.role).toBe('user');
     expect(started.userMessage.parts[0]?.textValue).toBe('Queue me');

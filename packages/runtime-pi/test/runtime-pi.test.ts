@@ -276,7 +276,7 @@ describe('runAssistantTurnWithPiInternal', () => {
 
     expect(resolveRuntimePiConfigFromEnv()).toEqual({
       provider: 'deepseek',
-      model: 'deepseek-chat',
+      model: 'deepseek-v4-flash',
       apiKey: 'deepseek-key'
     });
   });
@@ -285,9 +285,9 @@ describe('runAssistantTurnWithPiInternal', () => {
     process.env.DEEPSEEK_API_KEY = 'deepseek-key';
     process.env.OPENAI_API_KEY = 'openai-key';
 
-    expect(resolveRuntimePiConfigFromEnv({ provider: 'deepseek', model: 'deepseek-reasoner' })).toEqual({
+    expect(resolveRuntimePiConfigFromEnv({ provider: 'deepseek', model: 'deepseek-v4-pro' })).toEqual({
       provider: 'deepseek',
-      model: 'deepseek-reasoner',
+      model: 'deepseek-v4-pro',
       apiKey: 'deepseek-key'
     });
   });
@@ -464,7 +464,7 @@ describe('runAssistantTurnWithPiInternal', () => {
       getApiKey: async () => 'faux-key',
       resolveConfig: async () => ({
         provider: 'deepseek',
-        model: 'deepseek-chat',
+        model: 'deepseek-v4-flash',
         apiKey: 'unused-key'
       }),
       tools: (context) => {

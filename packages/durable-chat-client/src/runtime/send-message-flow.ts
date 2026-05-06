@@ -26,6 +26,8 @@ type SendMessageFlowArgs = {
     draft: string;
     isChatResponding: boolean;
     messages: MessageDto[];
+    selectedThinkingEnabled: boolean;
+    selectedReasoningEffort: 'high' | 'max';
     selectedModelOption: RuntimePiMetaDto['modelOptions'][number] | null;
   };
   refs: {
@@ -274,15 +276,18 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
       operations.replaceCurrentPath(`/chat/${threadId}`);
     }
 
-    const streamResult = await openThreadRunStream(
-      threadId,
-      {
-        text,
-        provider: state.selectedModelOption.provider,
-        model: state.selectedModelOption.model
-      },
-      controller.signal
-    );
+      const streamResult = await openThreadRunStream(
+        threadId,
+        {
+          text,
+          provider: state.selectedModelOption.provider,
+          model: state.selectedModelOption.model,
+          thinkingEnabled: state.selectedModelOption.provider === 'deepseek' ? state.selectedThinkingEnabled : undefined,
+          reasoningEffort:
+            state.selectedModelOption.provider === 'deepseek' && state.selectedThinkingEnabled ? state.selectedReasoningEffort : undefined
+        },
+        controller.signal
+      );
 
     if (!streamResult.ok) {
       throw new Error(streamResult.error ?? `request failed (${streamResult.status})`);

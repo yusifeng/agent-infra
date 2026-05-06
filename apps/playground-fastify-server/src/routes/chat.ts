@@ -52,7 +52,7 @@ function buildUnavailableMetaFallback(): ChatRouteMeta {
   return {
     configured: false,
     provider: 'deepseek',
-    model: 'deepseek-chat',
+    model: 'deepseek-v4-flash',
     defaultModelKey: null,
     modelOptions: [],
     configError: null,
@@ -193,7 +193,9 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
           threadId: (request.params as { threadId: string }).threadId,
           text: turnInput.text,
           provider: turnInput.provider,
-          model: turnInput.model
+          model: turnInput.model,
+          thinkingEnabled: turnInput.thinkingEnabled,
+          reasoningEffort: turnInput.reasoningEffort
         })
       );
     } catch (error) {
@@ -206,7 +208,9 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
       threadId,
       runId,
       provider: started.runtimeSelection.provider,
-      model: started.runtimeSelection.model
+      model: started.runtimeSelection.model,
+      thinkingEnabled: turnInput.thinkingEnabled,
+      reasoningEffort: turnInput.reasoningEffort
     };
     const streamState = { closed: false };
     let finalRunSnapshot: RunStreamFailedEventDto['run'] = null;
