@@ -118,6 +118,7 @@ export interface RunTextTurnRequestDto {
   model?: string;
   thinkingEnabled?: boolean;
   reasoningEffort?: RuntimePiReasoningEffortDto;
+  webSearchEnabled?: boolean;
 }
 
 export interface GetRunTimelineRequestDto {

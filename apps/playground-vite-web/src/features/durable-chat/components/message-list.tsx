@@ -1,7 +1,7 @@
 import type { MessageDto, MessagePartDto, RuntimePiMetaDto } from '@agent-infra/contracts';
 import { emitChatRenderDiagnostic, getMessageRenderKey } from '@agent-infra/durable-chat-client';
 import clsx from 'clsx';
-import { Atom, ChevronDown, ChevronRight, Copy, Loader2, RotateCw, Trash2 } from 'lucide-react';
+import { Atom, ChevronDown, ChevronRight, Copy, Globe, Loader2, RotateCw, Trash2 } from 'lucide-react';
 import { memo, useEffect, useRef, useState, type ComponentType, type CSSProperties } from 'react';
 
 import { copyMessageToClipboard, copyTextToClipboard, messagePartHasVisibleContent } from './helpers';
@@ -17,6 +17,47 @@ const transcriptRowPerformanceStyle: CSSProperties = {
 };
 
 const reasoningMarkdownClassName = 'text-sm leading-7 text-[color:var(--chat-reasoning-text)]';
+
+function asRecord(value: unknown) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+type SearchLabelPayload = {
+  query: string;
+  resultCount: number;
+  sourceNames: string[];
+  toolCallId: string;
+};
+
+function parseSearchLabelPayload(part: MessagePartDto): SearchLabelPayload | null {
+  if (part.type !== 'tool-result') {
+    return null;
+  }
+
+  const value = part.jsonValue ?? {};
+  if (value.toolName !== 'searchWeb' || typeof value.toolCallId !== 'string') {
+    return null;
+  }
+
+  const details = asRecord(value.details);
+  if (!details) {
+    return null;
+  }
+
+  const query = typeof details.query === 'string' ? details.query.trim() : '';
+  if (!query) {
+    return null;
+  }
+
+  return {
+    query,
+    resultCount: typeof details.resultCount === 'number' ? details.resultCount : 0,
+    sourceNames: Array.isArray(details.sourceNames)
+      ? details.sourceNames.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).slice(0, 4)
+      : [],
+    toolCallId: value.toolCallId
+  };
+}
 
 function useRenderDiagnostic(component: string, key: string, summary: Record<string, unknown>) {
   const mountedRef = useRef(false);
@@ -211,14 +252,41 @@ const MessageActions = memo(function MessageActions({
   );
 });
 
+const SearchResultLabel = memo(function SearchResultLabel({
+  payload,
+  onOpen
+}: {
+  payload: SearchLabelPayload;
+  onOpen: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="inline-flex max-w-full items-center gap-2 rounded-full border border-[color:var(--chat-border)] bg-[var(--chat-surface)] px-3 py-2 text-left text-sm text-[color:var(--chat-text-secondary)] transition hover:border-[color:var(--chat-border-strong)] hover:bg-[var(--chat-hover)]"
+      title={`打开搜索结果：${payload.query}`}
+    >
+      <Globe className="h-4 w-4 shrink-0 text-[color:var(--chat-reasoning-accent)]" />
+      <span className="truncate">已阅读 {payload.resultCount} 个网页</span>
+      {payload.sourceNames.length > 0 ? (
+        <span className="truncate text-xs text-[color:var(--chat-text-tertiary)]">{payload.sourceNames.join(' · ')}</span>
+      ) : null}
+    </button>
+  );
+});
+
 const MessagePartView = memo(function MessagePartView({
   part,
   variant = 'assistant',
-  cacheKey
+  cacheKey,
+  messageRunId,
+  onOpenSearchResult
 }: {
   part: MessagePartDto;
   variant?: 'assistant' | 'user';
   cacheKey?: string;
+  messageRunId?: string | null;
+  onOpenSearchResult?: (runId: string, toolCallId: string) => void;
 }) {
   if (part.type === 'text') {
     const textValue = part.textValue ?? '';
@@ -251,6 +319,11 @@ const MessagePartView = memo(function MessagePartView({
   }
 
   if (part.type === 'tool-result') {
+    const searchPayload = parseSearchLabelPayload(part);
+    if (searchPayload && messageRunId && onOpenSearchResult) {
+      return <SearchResultLabel payload={searchPayload} onOpen={() => onOpenSearchResult(messageRunId, searchPayload.toolCallId)} />;
+    }
+
     const json = part.jsonValue ?? {};
     return (
       <div className={clsx('space-y-2 rounded-2xl px-4 py-3', ui.toolResult)}>
@@ -291,6 +364,7 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
     | {
         type: 'persisted';
         message: MessageDto;
+        onOpenSearchResult?: (runId: string, toolCallId: string) => void;
       }
     | {
         type: 'live';
@@ -343,7 +417,13 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
     props.type === 'persisted' ? (
       <div className="space-y-2">
         {props.message.parts.filter(messagePartHasVisibleContent).map((part) => (
-          <MessagePartView key={part.id} cacheKey={`${props.message.id}:${part.id}`} part={part} />
+          <MessagePartView
+            key={part.id}
+            cacheKey={`${props.message.id}:${part.id}`}
+            messageRunId={props.message.runId}
+            onOpenSearchResult={props.onOpenSearchResult}
+            part={part}
+          />
         ))}
       </div>
     ) : (
@@ -386,7 +466,13 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
   );
 });
 
-const MessageCard = memo(function MessageCard({ message }: { message: MessageDto }) {
+const MessageCard = memo(function MessageCard({
+  message,
+  onOpenSearchResult
+}: {
+  message: MessageDto;
+  onOpenSearchResult?: (runId: string, toolCallId: string) => void;
+}) {
   const isUser = message.role === 'user';
   const isOptimistic = message.metadata?.optimistic === true;
   const renderKey = getMessageRenderKey(message);
@@ -443,7 +529,7 @@ const MessageCard = memo(function MessageCard({ message }: { message: MessageDto
     );
   }
 
-  return <AssistantTranscriptCard message={message} type="persisted" />;
+  return <AssistantTranscriptCard message={message} onOpenSearchResult={onOpenSearchResult} type="persisted" />;
 });
 
 const LiveAssistantCard = memo(function LiveAssistantCard({
@@ -478,6 +564,7 @@ type ChatMessageListProps = {
   showLoadingText: boolean;
   centeredEmptyState: boolean;
   onLoadOlderMessages: () => void;
+  onOpenSearchResult: (runId: string, toolCallId: string) => void;
 };
 
 export const ChatMessageList = memo(function ChatMessageList({
@@ -492,7 +579,8 @@ export const ChatMessageList = memo(function ChatMessageList({
   liveAssistantDraft,
   showLoadingText,
   centeredEmptyState,
-  onLoadOlderMessages
+  onLoadOlderMessages,
+  onOpenSearchResult
 }: ChatMessageListProps) {
   useRenderDiagnostic('ChatMessageList', activeThreadId ?? 'new-thread', {
     hasOlderMessages,
@@ -565,7 +653,7 @@ export const ChatMessageList = memo(function ChatMessageList({
               </div>
             ) : null}
             {messages.map((message) => (
-              <MessageCard key={getMessageRenderKey(message)} message={message} />
+              <MessageCard key={getMessageRenderKey(message)} message={message} onOpenSearchResult={onOpenSearchResult} />
             ))}
             {liveAssistantDraft ? <LiveAssistantCard liveAssistantDraft={liveAssistantDraft} /> : null}
             {showLoadingText ? <ThinkingIndicator /> : null}

@@ -147,7 +147,7 @@ async function resolveRuntimeSelection(
 
 async function resolveTools(
   tools: RuntimePiToolProvider | undefined,
-  context: { threadId: string; runId: string; provider: string; model: string }
+  context: { threadId: string; runId: string; provider: string; model: string; webSearchEnabled?: boolean }
 ) {
   if (!tools) {
     return [] as AgentTool[];
@@ -599,6 +599,7 @@ async function handleAgentEvent(
       output: {
         content: Array.isArray(event.result?.content) ? event.result.content : [],
         details: event.result?.details ?? null,
+        artifact: asRecordOrNull((event.result as { artifact?: unknown } | null | undefined)?.artifact),
         isError: event.isError
       },
       error: event.isError ? extractTextContent(Array.isArray(event.result?.content) ? event.result.content : []) || event.toolName : null,
@@ -698,7 +699,8 @@ export function createPiRuntime(options: RuntimePiRuntimeOptions = {}): RuntimeP
         threadId: input.threadId,
         runId: input.runId,
         provider: selection.provider,
-        model: selection.model
+        model: selection.model,
+        webSearchEnabled: input.webSearchEnabled
       });
 
       await runAssistantTurnWithPiInternal(

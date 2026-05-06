@@ -33,6 +33,7 @@ function createInitialChatSessionState(): ChatSessionState {
     optimisticUserMessage: null,
     meta: null,
     selectedModelKey: '',
+    selectedWebSearchEnabled: false,
     selectedThinkingEnabled: false,
     selectedReasoningEffort: 'high',
     chatPhase: 'idle',
@@ -79,6 +80,9 @@ export function useChatSessionController() {
     },
     setSelectedModelKey: (next: Updater<string>) => {
       dispatch((current) => ({ ...current, selectedModelKey: resolveNext(current.selectedModelKey, next) }));
+    },
+    setSelectedWebSearchEnabled: (next: Updater<boolean>) => {
+      dispatch((current) => ({ ...current, selectedWebSearchEnabled: resolveNext(current.selectedWebSearchEnabled, next) }));
     },
     setSelectedThinkingEnabled: (next: Updater<boolean>) => {
       dispatch((current) => ({ ...current, selectedThinkingEnabled: resolveNext(current.selectedThinkingEnabled, next) }));

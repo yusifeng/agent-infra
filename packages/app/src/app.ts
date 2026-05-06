@@ -228,7 +228,8 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
             provider: queued.runtimeSelection.provider,
             model: queued.runtimeSelection.model,
             thinkingEnabled: input.thinkingEnabled,
-            reasoningEffort: input.reasoningEffort
+            reasoningEffort: input.reasoningEffort,
+            webSearchEnabled: input.webSearchEnabled
           });
         } catch (error) {
           executionError = toErrorMessage(error, 'runtime execution failed');

@@ -6,12 +6,16 @@ import {
   buildCreateThreadResponse,
   buildRunAssistantEvent,
   buildRunReadyEvent,
+  buildRunTimelineErrorResponse,
+  buildRunTimelineResponse,
   buildRunStateEvent,
   buildRunTerminalEvent,
   buildRunTextTurnErrorResponse,
   buildRuntimeMetaResponse,
   buildThreadMessagesErrorResponse,
   buildThreadMessagesResponse,
+  buildThreadRunsErrorResponse,
+  buildThreadRunsResponse,
   buildThreadsErrorResponse,
   buildThreadsResponse,
   buildUnavailableRuntimeMetaResponse,
@@ -19,6 +23,7 @@ import {
   getRouteErrorMessage,
   getRouteErrorStatus,
   parseCreateThreadTitle,
+  parseThreadRunsLimit,
   parseRunTextTurnInput,
   toRunDto
 } from '@agent-infra/durable-chat-server';
@@ -179,6 +184,39 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
     }
   });
 
+  app.get<{ Params: { threadId: string }; Querystring: { limit?: string } }>('/api/threads/:threadId/runs', async (request, reply) => {
+    try {
+      request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
+      request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
+      const { app: services } = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      const runs = await request.requestTiming.measureAsync('runs.list', () =>
+        services.runs.listByThread({
+          threadId: request.params.threadId,
+          limit: parseThreadRunsLimit(request.query.limit ?? null)
+        })
+      );
+
+      return reply.send(buildThreadRunsResponse(runs));
+    } catch (error) {
+      return reply.code(getRouteErrorStatus(error)).send(buildThreadRunsErrorResponse(error, 'failed to load thread runs'));
+    }
+  });
+
+  app.get<{ Params: { runId: string } }>('/api/runs/:runId/timeline', async (request, reply) => {
+    try {
+      request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
+      request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
+      const { app: services } = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      const timeline = await request.requestTiming.measureAsync('runs.timeline', () =>
+        services.runs.getTimeline({ runId: request.params.runId })
+      );
+
+      return reply.send(buildRunTimelineResponse(timeline));
+    } catch (error) {
+      return reply.code(getRouteErrorStatus(error)).send(buildRunTimelineErrorResponse(error, 'failed to load run timeline'));
+    }
+  });
+
   app.post('/api/threads/:threadId/runs/stream', async (request, reply) => {
     const turnInput = parseRunTextTurnInput(request.body);
     let started: StartTextTurnResult;
@@ -195,7 +233,8 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
           provider: turnInput.provider,
           model: turnInput.model,
           thinkingEnabled: turnInput.thinkingEnabled,
-          reasoningEffort: turnInput.reasoningEffort
+          reasoningEffort: turnInput.reasoningEffort,
+          webSearchEnabled: turnInput.webSearchEnabled
         })
       );
     } catch (error) {
@@ -210,7 +249,8 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
       provider: started.runtimeSelection.provider,
       model: started.runtimeSelection.model,
       thinkingEnabled: turnInput.thinkingEnabled,
-      reasoningEffort: turnInput.reasoningEffort
+      reasoningEffort: turnInput.reasoningEffort,
+      webSearchEnabled: turnInput.webSearchEnabled
     };
     const streamState = { closed: false };
     let finalRunSnapshot: RunStreamFailedEventDto['run'] = null;

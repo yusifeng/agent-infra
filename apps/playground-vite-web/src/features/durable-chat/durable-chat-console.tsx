@@ -3,6 +3,7 @@ import clsx from 'clsx';
 import { ChatHeader } from './components/chat-header';
 import { ComposerDock } from './components/composer-dock';
 import { ChatMessageList } from './components/message-list';
+import { SearchResultsPanel } from './components/search-results-panel';
 import { ChatSidebar } from './components/sidebar';
 import { ui } from './components/ui';
 import { useDurableChatRuntime } from './runtime/use-durable-chat-runtime';
@@ -32,15 +33,23 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
     isChatResponding,
     sendDisabled,
     inputLocked,
+    selectedWebSearchEnabled,
     selectedThinkingEnabled,
     selectedReasoningEffort,
     selectedModelOption,
+    activeSearchResult,
+    searchPanelError,
+    searchPanelLoading,
+    searchPanelOpen,
     showScrollToBottom,
     textareaRef,
     sendAbortControllerRef,
     onDraftChange,
+    onSelectedWebSearchEnabledChange,
     onSelectedThinkingEnabledChange,
     onSelectedReasoningEffortChange,
+    onOpenSearchResult,
+    onCloseSearchPanel,
     onSend,
     onStop,
     onScrollToBottom,
@@ -94,6 +103,7 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
                 showLoadingText={showLoadingText}
                 centeredEmptyState={centeredEmptyState}
                 onLoadOlderMessages={onLoadOlderMessages}
+                onOpenSearchResult={onOpenSearchResult}
               />
             </div>
 
@@ -103,6 +113,7 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
               isResponding={isChatResponding}
               sendDisabled={sendDisabled}
               inputLocked={inputLocked}
+              selectedWebSearchEnabled={selectedWebSearchEnabled}
               selectedThinkingEnabled={selectedThinkingEnabled}
               selectedReasoningEffort={selectedReasoningEffort}
               selectedModelOption={selectedModelOption}
@@ -112,6 +123,7 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
               textareaRef={textareaRef}
               sendAbortControllerRef={sendAbortControllerRef}
               onDraftChange={onDraftChange}
+              onSelectedWebSearchEnabledChange={onSelectedWebSearchEnabledChange}
               onSelectedThinkingEnabledChange={onSelectedThinkingEnabledChange}
               onSelectedReasoningEffortChange={onSelectedReasoningEffortChange}
               onSend={onSend}
@@ -120,6 +132,14 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
             />
           </div>
         </div>
+
+        <SearchResultsPanel
+          open={searchPanelOpen}
+          loading={searchPanelLoading}
+          error={searchPanelError}
+          result={activeSearchResult}
+          onClose={onCloseSearchPanel}
+        />
       </div>
     </main>
   );

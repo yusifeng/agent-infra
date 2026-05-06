@@ -188,13 +188,15 @@ export function parseRunTextTurnInput(body: unknown): RunTextTurnRequestDto {
   const reasoningEffort =
     record.reasoningEffort === 'high' || record.reasoningEffort === 'max' ? record.reasoningEffort : undefined;
   const thinkingEnabled = typeof record.thinkingEnabled === 'boolean' ? record.thinkingEnabled : undefined;
+  const webSearchEnabled = typeof record.webSearchEnabled === 'boolean' ? record.webSearchEnabled : undefined;
 
   return {
     text: typeof record.text === 'string' ? record.text : '',
     provider: typeof record.provider === 'string' ? record.provider.trim() : undefined,
     model: typeof record.model === 'string' ? record.model.trim() : undefined,
     thinkingEnabled,
-    reasoningEffort
+    reasoningEffort,
+    webSearchEnabled
   };
 }
 

@@ -73,21 +73,24 @@ describe('durable chat server route helpers', () => {
         provider: ' deepseek ',
         model: ' deepseek-v4-flash ',
         thinkingEnabled: true,
-        reasoningEffort: 'max'
+        reasoningEffort: 'max',
+        webSearchEnabled: true
       })
     ).toEqual({
       text: 'hello',
       provider: 'deepseek',
       model: 'deepseek-v4-flash',
       thinkingEnabled: true,
-      reasoningEffort: 'max'
+      reasoningEffort: 'max',
+      webSearchEnabled: true
     });
     expect(parseRunTextTurnInput(null)).toEqual({
       text: '',
       provider: undefined,
       model: undefined,
       thinkingEnabled: undefined,
-      reasoningEffort: undefined
+      reasoningEffort: undefined,
+      webSearchEnabled: undefined
     });
 
     expect(parseThreadRunsLimit(null)).toBe(8);

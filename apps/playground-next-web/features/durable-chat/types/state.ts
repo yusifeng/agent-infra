@@ -13,6 +13,7 @@ export type ChatSessionState = {
   optimisticUserMessage: MessageDto | null;
   meta: RuntimePiMetaDto | null;
   selectedModelKey: string;
+  selectedWebSearchEnabled: boolean;
   selectedThinkingEnabled: boolean;
   selectedReasoningEffort: 'high' | 'max';
   chatPhase: ChatPhase;

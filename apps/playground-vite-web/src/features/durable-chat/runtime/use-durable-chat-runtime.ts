@@ -1,7 +1,8 @@
-import type { MessageDto } from '@agent-infra/contracts';
+import type { MessageDto, ToolInvocationDto } from '@agent-infra/contracts';
 import {
   applyHydratedTranscriptState,
   deriveMainChatResponseStatus,
+  fetchRunTimelineResponse,
   fetchThreadMessagesResponse,
   runActivateThread,
   runCreateThreadRecord,
@@ -19,14 +20,75 @@ import {
   upsertMessage
 } from '@agent-infra/durable-chat-client';
 import type { LoadThreadMessagesResult } from '@agent-infra/durable-chat-client';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
+import type { ActiveSearchPanelData, SearchPanelResultItem } from '@/features/durable-chat/types/search';
 import type { DurableChatRuntimeOptions } from '@/features/durable-chat/types/runtime';
 
 const PENDING_NEW_THREAD_LOADING_ID = '__pending-new-thread__';
+
+function asRecord(value: unknown) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function parseSearchResultItem(value: unknown): SearchPanelResultItem | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const title = typeof record.title === 'string' ? record.title.trim() : '';
+  const url = typeof record.url === 'string' ? record.url.trim() : '';
+  const snippet = typeof record.snippet === 'string' ? record.snippet.trim() : '';
+  const sourceName = typeof record.sourceName === 'string' ? record.sourceName.trim() : '';
+
+  if (!title || !url) {
+    return null;
+  }
+
+  return {
+    rank: typeof record.rank === 'number' && Number.isFinite(record.rank) ? record.rank : 0,
+    title,
+    url,
+    snippet,
+    sourceName,
+    publishedAt: typeof record.publishedAt === 'string' ? record.publishedAt : null
+  };
+}
+
+function buildSearchPanelData(invocation: ToolInvocationDto): ActiveSearchPanelData | null {
+  const output = asRecord(invocation.output);
+  const artifact = asRecord(output?.artifact);
+  if (!artifact) {
+    return null;
+  }
+
+  const rawResults = Array.isArray(artifact.results) ? artifact.results : [];
+  const results = rawResults.map(parseSearchResultItem).filter((item): item is SearchPanelResultItem => item !== null);
+  const query =
+    typeof artifact.query === 'string'
+      ? artifact.query
+      : typeof invocation.input?.query === 'string'
+        ? invocation.input.query
+        : '';
+
+  if (!query) {
+    return null;
+  }
+
+  return {
+    runId: invocation.runId,
+    toolCallId: invocation.toolCallId,
+    query,
+    provider: typeof artifact.provider === 'string' ? artifact.provider : 'unknown',
+    resultCount: typeof artifact.resultCount === 'number' ? artifact.resultCount : results.length,
+    retrievedAt: typeof artifact.retrievedAt === 'string' ? artifact.retrievedAt : null,
+    results
+  };
+}
 
 export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRuntimeOptions) {
   const navigate = useNavigate();
@@ -39,6 +101,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       optimisticUserMessage,
       meta,
       selectedModelKey,
+      selectedWebSearchEnabled,
       selectedThinkingEnabled,
       selectedReasoningEffort,
       chatPhase,
@@ -61,6 +124,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     setOptimisticUserMessage,
     setMeta,
     setSelectedModelKey,
+    setSelectedWebSearchEnabled,
     setSelectedThinkingEnabled,
     setSelectedReasoningEffort,
     setChatPhase,
@@ -108,6 +172,11 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const pendingPrependAnchorRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
   const shouldAutoScrollRef = useRef(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const searchResultCacheRef = useRef<Map<string, ActiveSearchPanelData>>(new Map());
+  const [searchPanelOpen, setSearchPanelOpen] = useState(false);
+  const [activeSearchResult, setActiveSearchResult] = useState<ActiveSearchPanelData | null>(null);
+  const [searchPanelLoading, setSearchPanelLoading] = useState(false);
+  const [searchPanelError, setSearchPanelError] = useState<string | null>(null);
   const activeThread = useMemo(() => threads.find((thread) => thread.id === activeThreadId) ?? null, [threads, activeThreadId]);
   const selectedModelOption = useMemo(
     () => meta?.modelOptions.find((option) => option.key === selectedModelKey) ?? meta?.modelOptions[0] ?? null,
@@ -134,6 +203,13 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
 
   useEffect(() => {
     activeThreadIdRef.current = activeThreadId;
+  }, [activeThreadId]);
+
+  useEffect(() => {
+    setSearchPanelOpen(false);
+    setActiveSearchResult(null);
+    setSearchPanelLoading(false);
+    setSearchPanelError(null);
   }, [activeThreadId]);
 
   useEffect(() => {
@@ -512,6 +588,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         draft,
         isChatResponding,
         messages,
+        selectedWebSearchEnabled,
         selectedThinkingEnabled,
         selectedReasoningEffort,
         selectedModelOption
@@ -551,6 +628,50 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         replaceCurrentPath
       }
     });
+  }
+
+  async function openSearchResult(runId: string, toolCallId: string) {
+    const cacheKey = `${runId}:${toolCallId}`;
+    const cached = searchResultCacheRef.current.get(cacheKey);
+    if (cached) {
+      setActiveSearchResult(cached);
+      setSearchPanelError(null);
+      setSearchPanelOpen(true);
+      return;
+    }
+
+    setSearchPanelLoading(true);
+    setSearchPanelError(null);
+
+    try {
+      const result = await fetchRunTimelineResponse(runId);
+      if (!result.ok) {
+        throw new Error(result.error ?? `Failed to load search results (${result.status})`);
+      }
+
+      const invocation = result.data.toolInvocations.find(
+        (candidate) => candidate.toolName === 'searchWeb' && candidate.toolCallId === toolCallId
+      );
+
+      if (!invocation) {
+        throw new Error('Search results are no longer available for this conversation turn.');
+      }
+
+      const panelData = buildSearchPanelData(invocation);
+      if (!panelData) {
+        throw new Error('Search results are present but could not be parsed.');
+      }
+
+      searchResultCacheRef.current.set(cacheKey, panelData);
+      setActiveSearchResult(panelData);
+      setSearchPanelOpen(true);
+    } catch (nextError) {
+      setSearchPanelOpen(true);
+      setActiveSearchResult(null);
+      setSearchPanelError(nextError instanceof Error ? nextError.message : 'Failed to load search results.');
+    } finally {
+      setSearchPanelLoading(false);
+    }
   }
 
   function startNewChat() {
@@ -664,20 +785,30 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     },
     onScrollToBottom: scrollToMessagesBottom,
     onSelectedModelKeyChange: setSelectedModelKey,
+    onSelectedWebSearchEnabledChange: setSelectedWebSearchEnabled,
     onSelectedThinkingEnabledChange: setSelectedThinkingEnabled,
     onSelectedReasoningEffortChange: setSelectedReasoningEffort,
+    onOpenSearchResult: (runId: string, toolCallId: string) => {
+      void openSearchResult(runId, toolCallId);
+    },
+    onCloseSearchPanel: () => setSearchPanelOpen(false),
     onSend: () => {
       void sendMessage();
     },
     onStop: stopViewingLiveResponse,
     persistingTurn,
     responseStatus,
+    activeSearchResult,
     selectedModelKey,
+    selectedWebSearchEnabled,
     selectedThinkingEnabled,
     selectedReasoningEffort,
     selectedModelOption,
     sendAbortControllerRef,
     sendDisabled,
+    searchPanelError,
+    searchPanelLoading,
+    searchPanelOpen,
     showResponseLoading,
     showScrollToBottom,
     sidebarOpen,

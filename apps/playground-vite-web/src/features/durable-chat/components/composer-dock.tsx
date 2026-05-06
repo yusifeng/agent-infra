@@ -1,6 +1,6 @@
 import type { RuntimePiMetaDto } from '@agent-infra/contracts';
 import clsx from 'clsx';
-import { ArrowUp, Atom, ChevronDown, CircleStop } from 'lucide-react';
+import { ArrowUp, Atom, ChevronDown, CircleStop, Globe } from 'lucide-react';
 import type { MutableRefObject, RefObject } from 'react';
 
 import { buttonVariants } from '@/components/ui/button';
@@ -15,6 +15,7 @@ type ComposerDockProps = {
   isResponding: boolean;
   sendDisabled: boolean;
   inputLocked: boolean;
+  selectedWebSearchEnabled: boolean;
   selectedThinkingEnabled: boolean;
   selectedReasoningEffort: 'high' | 'max';
   selectedModelOption: RuntimePiMetaDto['modelOptions'][number] | null;
@@ -24,6 +25,7 @@ type ComposerDockProps = {
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   sendAbortControllerRef: MutableRefObject<AbortController | null>;
   onDraftChange: (value: string) => void;
+  onSelectedWebSearchEnabledChange: (value: boolean) => void;
   onSelectedThinkingEnabledChange: (value: boolean) => void;
   onSelectedReasoningEffortChange: (value: 'high' | 'max') => void;
   onSend: () => void;
@@ -37,6 +39,7 @@ export function ComposerDock({
   isResponding,
   sendDisabled,
   inputLocked,
+  selectedWebSearchEnabled,
   selectedThinkingEnabled,
   selectedReasoningEffort,
   selectedModelOption,
@@ -46,6 +49,7 @@ export function ComposerDock({
   textareaRef,
   sendAbortControllerRef,
   onDraftChange,
+  onSelectedWebSearchEnabledChange,
   onSelectedThinkingEnabledChange,
   onSelectedReasoningEffortChange,
   onSend,
@@ -54,6 +58,7 @@ export function ComposerDock({
 }: ComposerDockProps) {
   const hasDraftValue = Boolean(draft.trim());
   const isDeepseekModel = selectedModelOption?.provider === 'deepseek';
+  const searchToggleDisabled = inputLocked || !meta?.runtimeConfigured || !selectedModelOption;
   const thinkingToggleDisabled = inputLocked || !meta?.runtimeConfigured;
   const reasoningSelectDisabled = thinkingToggleDisabled || !selectedThinkingEnabled;
 
@@ -118,6 +123,23 @@ export function ComposerDock({
 
             <div className="flex items-center justify-between gap-3 p-3">
               <div className="flex min-w-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => onSelectedWebSearchEnabledChange(!selectedWebSearchEnabled)}
+                  disabled={searchToggleDisabled}
+                  className={cn(
+                    buttonVariants({ variant: 'outline', size: 'sm' }),
+                    'h-9 shrink-0 rounded-full',
+                    selectedWebSearchEnabled
+                      ? 'border-[color:var(--chat-reasoning-divider)] bg-[var(--chat-surface-muted)] text-[color:var(--chat-reasoning-accent)] hover:text-[color:var(--chat-reasoning-accent)]'
+                      : 'border-[color:var(--chat-border)] bg-[var(--chat-surface)] text-[color:var(--chat-text-secondary)] hover:border-[color:var(--chat-border-strong)] hover:bg-[var(--chat-hover)] hover:text-[color:var(--chat-text-secondary)]'
+                  )}
+                  aria-pressed={selectedWebSearchEnabled}
+                >
+                  <Globe className="h-4 w-4" />
+                  <span>网页搜索</span>
+                </button>
+
                 {isDeepseekModel ? (
                   <>
                     <button

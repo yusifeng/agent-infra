@@ -46,10 +46,30 @@ async function buildPlaygroundRuntimeServices(): Promise<PlaygroundRuntimeServic
   const startedAt = performance.now();
   const base = await getPlaygroundBaseServices();
   const durableRuntime = createLazyPiRuntime(async () => {
-    const { createDemoTools } = await import('@agent-infra/runtime-pi/tools');
+    const [{ createDemoTools }, { TavilySearchProvider }, { createSearchWebTool }] = await Promise.all([
+      import('@agent-infra/runtime-pi/tools'),
+      import('./search/tavily-provider.js'),
+      import('./tools/search-web.js')
+    ]);
+    const tavilyApiKey = process.env.TAVILY_API_KEY?.trim();
 
     return {
-      tools: (context) => createDemoTools(context)
+      tools: (context) => {
+        const tools = createDemoTools(context);
+
+        if (!context.webSearchEnabled || !tavilyApiKey) {
+          return tools;
+        }
+
+        return [
+          ...tools,
+          createSearchWebTool({
+            provider: new TavilySearchProvider({
+              apiKey: tavilyApiKey
+            })
+          })
+        ];
+      }
     };
   });
 

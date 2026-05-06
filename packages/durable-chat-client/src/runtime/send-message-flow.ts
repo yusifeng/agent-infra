@@ -26,6 +26,7 @@ type SendMessageFlowArgs = {
     draft: string;
     isChatResponding: boolean;
     messages: MessageDto[];
+    selectedWebSearchEnabled: boolean;
     selectedThinkingEnabled: boolean;
     selectedReasoningEffort: 'high' | 'max';
     selectedModelOption: RuntimePiMetaDto['modelOptions'][number] | null;
@@ -284,7 +285,8 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
           model: state.selectedModelOption.model,
           thinkingEnabled: state.selectedModelOption.provider === 'deepseek' ? state.selectedThinkingEnabled : undefined,
           reasoningEffort:
-            state.selectedModelOption.provider === 'deepseek' && state.selectedThinkingEnabled ? state.selectedReasoningEffort : undefined
+            state.selectedModelOption.provider === 'deepseek' && state.selectedThinkingEnabled ? state.selectedReasoningEffort : undefined,
+          webSearchEnabled: state.selectedWebSearchEnabled
         },
         controller.signal
       );

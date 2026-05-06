@@ -18,6 +18,7 @@ export interface RuntimePiInput {
   model?: string;
   thinkingEnabled?: boolean;
   reasoningEffort?: 'high' | 'max';
+  webSearchEnabled?: boolean;
 }
 
 export interface RuntimePiModelOption {
@@ -39,6 +40,7 @@ export interface RuntimePiToolContext {
   runId: string;
   provider: string;
   model: string;
+  webSearchEnabled?: boolean;
 }
 
 export type RuntimePiToolProvider = AgentTool[] | ((context: RuntimePiToolContext) => AgentTool[] | Promise<AgentTool[]>);
