@@ -60,7 +60,6 @@ type SendMessageFlowArgs = {
     createThreadRecord: () => Promise<ThreadDto>;
     pendingNewThreadLoadingId: string;
     reconcileCompletedTurn: (threadId: string, preferredRunId: string | null, requestId: number) => Promise<void>;
-    refreshThreads: () => Promise<ThreadDto[]>;
     replaceCurrentPath: (pathname: string) => void;
   };
 };
@@ -361,10 +360,6 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
         actions.setPersistingTurn(true);
         void operations.reconcileCompletedTurn(threadId, preferredRunId, requestId);
       }
-
-      void operations.refreshThreads().catch((refreshError) => {
-        actions.setError(refreshError instanceof Error ? refreshError.message : 'Failed to refresh threads');
-      });
 
       if (terminalStreamError) {
         actions.setError(terminalStreamError);

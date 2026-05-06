@@ -156,7 +156,6 @@ describe('runSendMessageFlow', () => {
         createThreadRecord: () => createThreadDeferred.promise,
         pendingNewThreadLoadingId: 'pending-new-thread',
         reconcileCompletedTurn: vi.fn(),
-        refreshThreads: vi.fn().mockResolvedValue([]),
         replaceCurrentPath: vi.fn()
       }
     });
@@ -270,7 +269,6 @@ describe('runSendMessageFlow', () => {
         createThreadRecord: vi.fn(),
         pendingNewThreadLoadingId: 'pending-new-thread',
         reconcileCompletedTurn,
-        refreshThreads: vi.fn().mockResolvedValue([]),
         replaceCurrentPath: vi.fn()
       }
     });

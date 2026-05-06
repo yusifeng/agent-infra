@@ -661,7 +661,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         createThreadRecord,
         pendingNewThreadLoadingId: PENDING_NEW_THREAD_LOADING_ID,
         reconcileCompletedTurn,
-        refreshThreads,
         replaceCurrentPath
       }
     });
