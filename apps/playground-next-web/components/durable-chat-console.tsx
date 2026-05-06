@@ -93,7 +93,6 @@ export function DurableChatConsole() {
               isResponding={runtime.isChatResponding}
               sendDisabled={runtime.sendDisabled}
               inputLocked={runtime.inputLocked}
-              selectedModelKey={runtime.selectedModelKey}
               selectedThinkingEnabled={runtime.selectedThinkingEnabled}
               selectedReasoningEffort={runtime.selectedReasoningEffort}
               selectedModelOption={runtime.selectedModelOption}
@@ -103,7 +102,6 @@ export function DurableChatConsole() {
               textareaRef={runtime.textareaRef}
               sendAbortControllerRef={runtime.sendAbortControllerRef}
               onDraftChange={runtime.onDraftChange}
-              onSelectedModelKeyChange={runtime.onSelectedModelKeyChange}
               onSelectedThinkingEnabledChange={runtime.onSelectedThinkingEnabledChange}
               onSelectedReasoningEffortChange={runtime.onSelectedReasoningEffortChange}
               onSend={runtime.onSend}

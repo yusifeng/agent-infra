@@ -36,10 +36,8 @@ export const ui = {
   warningBanner: 'chat-warning-banner',
   infoBanner: 'chat-info-banner',
   errorBanner: 'chat-error-banner',
-  composerToggleButton:
-    'inline-flex h-9 items-center gap-2 rounded-full border px-3 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50',
   composerPrimaryButton:
-    'flex h-8 w-8 items-center justify-center rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-surface)] transition hover:border-[color:var(--chat-border-strong)] hover:bg-[var(--chat-hover)] disabled:cursor-default disabled:opacity-75',
+    'flex h-[34px] w-[34px] items-center justify-center rounded-full border transition disabled:cursor-default disabled:opacity-75',
   composerModelChip:
     'flex h-9 items-center gap-2 rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-surface)] px-2.5 text-xs text-[color:var(--chat-text-secondary)] transition hover:border-[color:var(--chat-border-strong)]'
 } as const;

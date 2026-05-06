@@ -25,6 +25,13 @@ export type PlaygroundMeta = {
   dbInfo: PlaygroundDbInfo;
 };
 
+function filterDemoModelOptions(
+  modelOptions: ReturnType<typeof listAvailableRuntimePiModelOptionsFromEnv>
+) {
+  const flashOption = modelOptions.find((option) => option.provider === 'deepseek' && option.model === 'deepseek-v4-flash');
+  return flashOption ? [flashOption] : modelOptions;
+}
+
 export function getPlaygroundDbInfo(): PlaygroundDbInfo {
   if (process.env.TURSO_DATABASE_URL) {
     return {
@@ -52,7 +59,7 @@ export function getPlaygroundMeta(
   preferred: RuntimeSelectionPreference = {},
   dbInfo: PlaygroundDbInfo = getPlaygroundDbInfo()
 ): PlaygroundMeta {
-  const modelOptions = listAvailableRuntimePiModelOptionsFromEnv();
+  const modelOptions = filterDemoModelOptions(listAvailableRuntimePiModelOptionsFromEnv());
 
   try {
     const runtime = resolveRuntimePiConfigFromEnv(preferred);

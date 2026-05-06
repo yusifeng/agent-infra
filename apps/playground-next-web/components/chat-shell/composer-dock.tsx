@@ -3,14 +3,17 @@
 import type { RuntimePiMetaDto } from '@agent-infra/contracts';
 import clsx from 'clsx';
 import {
+  ArrowUp,
   Atom,
   ChevronDown,
   CircleStop,
-  Send,
 } from 'lucide-react';
 import type { MutableRefObject, RefObject } from 'react';
 
-import { ProviderMonogram } from './shared';
+import { buttonVariants } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
+
 import { composerMaxWithTW, ui } from './ui';
 
 type ComposerDockProps = {
@@ -19,7 +22,6 @@ type ComposerDockProps = {
   isResponding: boolean;
   sendDisabled: boolean;
   inputLocked: boolean;
-  selectedModelKey: string;
   selectedThinkingEnabled: boolean;
   selectedReasoningEffort: 'high' | 'max';
   selectedModelOption: RuntimePiMetaDto['modelOptions'][number] | null;
@@ -29,7 +31,6 @@ type ComposerDockProps = {
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   sendAbortControllerRef: MutableRefObject<AbortController | null>;
   onDraftChange: (value: string) => void;
-  onSelectedModelKeyChange: (value: string) => void;
   onSelectedThinkingEnabledChange: (value: boolean) => void;
   onSelectedReasoningEffortChange: (value: 'high' | 'max') => void;
   onSend: () => void;
@@ -43,7 +44,6 @@ export function ComposerDock({
   isResponding,
   sendDisabled,
   inputLocked,
-  selectedModelKey,
   selectedThinkingEnabled,
   selectedReasoningEffort,
   selectedModelOption,
@@ -53,7 +53,6 @@ export function ComposerDock({
   textareaRef,
   sendAbortControllerRef,
   onDraftChange,
-  onSelectedModelKeyChange,
   onSelectedThinkingEnabledChange,
   onSelectedReasoningEffortChange,
   onSend,
@@ -62,6 +61,8 @@ export function ComposerDock({
 }: ComposerDockProps) {
   const hasDraftValue = Boolean(draft.trim());
   const isDeepseekModel = selectedModelOption?.provider === 'deepseek';
+  const thinkingToggleDisabled = inputLocked || !meta?.runtimeConfigured;
+  const reasoningSelectDisabled = thinkingToggleDisabled || !selectedThinkingEnabled;
 
   return (
     <div
@@ -124,38 +125,20 @@ export function ComposerDock({
               />
             </div>
 
-            <div className="flex items-center justify-between gap-3 px-3 py-1.5">
+            <div className="flex items-center justify-between gap-3 p-3">
               <div className="flex min-w-0 items-center gap-2">
-                <label className={ui.composerModelChip}>
-                  {selectedModelOption?.provider ? <ProviderMonogram provider={selectedModelOption.provider} /> : null}
-                  <div className="relative min-w-0">
-                    <select
-                      value={selectedModelKey}
-                      onChange={(event) => onSelectedModelKeyChange(event.target.value)}
-                      disabled={inputLocked || !meta || meta.modelOptions.length === 0}
-                      className="max-w-[172px] appearance-none bg-transparent pr-4 text-xs text-[color:var(--chat-text-secondary)] outline-none"
-                    >
-                      {meta?.modelOptions.map((option) => (
-                        <option key={option.key} value={option.key}>
-                          {option.provider} · {option.model}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-0 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[color:var(--chat-icon-muted)]" />
-                  </div>
-                </label>
-
                 {isDeepseekModel ? (
                   <>
                     <button
                       type="button"
                       onClick={() => onSelectedThinkingEnabledChange(!selectedThinkingEnabled)}
-                      disabled={inputLocked || !meta?.runtimeConfigured}
-                      className={clsx(
-                        ui.composerToggleButton,
+                      disabled={thinkingToggleDisabled}
+                      className={cn(
+                        buttonVariants({ variant: 'outline', size: 'sm' }),
+                        'h-9 shrink-0 rounded-full',
                         selectedThinkingEnabled
-                          ? 'border-[color:var(--chat-reasoning-divider)] bg-[var(--chat-surface-muted)] text-[color:var(--chat-reasoning-accent)]'
-                          : 'border-[color:var(--chat-border)] text-[color:var(--chat-text-secondary)]'
+                          ? 'border-[color:var(--chat-reasoning-divider)] bg-[var(--chat-surface-muted)] text-[color:var(--chat-reasoning-accent)] hover:text-[color:var(--chat-reasoning-accent)]'
+                          : 'border-[color:var(--chat-border)] bg-[var(--chat-surface)] text-[color:var(--chat-text-secondary)] hover:border-[color:var(--chat-border-strong)] hover:bg-[var(--chat-hover)] hover:text-[color:var(--chat-text-secondary)]'
                       )}
                       aria-pressed={selectedThinkingEnabled}
                     >
@@ -163,28 +146,28 @@ export function ComposerDock({
                       <span>深度思考</span>
                     </button>
 
-                    {selectedThinkingEnabled ? (
-                      <label
-                        className={clsx(
-                          ui.composerToggleButton,
-                          'border-[color:var(--chat-reasoning-divider)] bg-[var(--chat-surface-muted)] text-[color:var(--chat-reasoning-accent)]'
+                    <Select
+                      value={selectedReasoningEffort}
+                      onValueChange={(value) => onSelectedReasoningEffortChange(value as 'high' | 'max')}
+                      disabled={reasoningSelectDisabled}
+                    >
+                      <SelectTrigger
+                        className={cn(
+                          'h-9 w-[132px] shrink-0 rounded-full px-3',
+                          selectedThinkingEnabled
+                            ? 'border-[color:var(--chat-reasoning-divider)] bg-[var(--chat-surface-muted)] text-[color:var(--chat-reasoning-accent)] hover:text-[color:var(--chat-reasoning-accent)]'
+                            : 'border-[color:var(--chat-border)] bg-[var(--chat-surface)] text-[color:var(--chat-text-tertiary)] opacity-70 hover:text-[color:var(--chat-text-tertiary)]'
                         )}
+                        aria-label="思考程度"
                       >
-                        <span>思考程度</span>
-                        <div className="relative min-w-0">
-                          <select
-                            value={selectedReasoningEffort}
-                            onChange={(event) => onSelectedReasoningEffortChange(event.target.value as 'high' | 'max')}
-                            disabled={inputLocked || !meta?.runtimeConfigured}
-                            className="max-w-[96px] appearance-none bg-transparent pr-4 text-sm text-[color:var(--chat-reasoning-accent)] outline-none"
-                          >
-                            <option value="high">高</option>
-                            <option value="max">最高</option>
-                          </select>
-                          <ChevronDown className="pointer-events-none absolute right-0 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[color:var(--chat-reasoning-accent)]" />
-                        </div>
-                      </label>
-                    ) : null}
+                        <span className="mr-1">思考程度</span>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="high">高</SelectItem>
+                        <SelectItem value="max">最高</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </>
                 ) : null}
               </div>
@@ -203,16 +186,16 @@ export function ComposerDock({
                   className={clsx(
                     ui.composerPrimaryButton,
                     isResponding
-                      ? 'border-[color:var(--destructive)] text-[color:var(--destructive)]'
+                      ? 'border-[color:var(--destructive)] bg-[color:color-mix(in_srgb,var(--destructive)_12%,white)] text-[color:var(--destructive)] hover:bg-[color:color-mix(in_srgb,var(--destructive)_18%,white)]'
                       : hasDraftValue
-                        ? 'border-[color:var(--chat-border-strong)] text-[color:var(--chat-reasoning-accent)]'
-                        : 'text-[color:var(--chat-icon-muted)]',
+                        ? 'border-transparent bg-[var(--chat-reasoning-accent)] text-white hover:bg-[var(--chat-reasoning-accent)] hover:opacity-95'
+                        : 'border-transparent bg-[color:color-mix(in_srgb,var(--chat-reasoning-accent)_28%,white)] text-white',
                     !isResponding && sendDisabled && 'cursor-not-allowed opacity-60'
                   )}
                   title={isResponding ? '停止接收响应' : '发送 (Cmd/Ctrl + Enter)'}
                   aria-label={isResponding ? '停止接收响应' : '发送消息'}
                 >
-                  {isResponding ? <CircleStop className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+                  {isResponding ? <CircleStop className="h-4 w-4" /> : <ArrowUp className="h-5 w-5" />}
                 </button>
               </div>
             </div>
