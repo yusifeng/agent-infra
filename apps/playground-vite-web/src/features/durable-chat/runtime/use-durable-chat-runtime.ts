@@ -20,17 +20,14 @@ import { useNavigate } from 'react-router-dom';
 
 import {
   startRestoredLiveDraftRefreshLoop,
-  shouldClearPersistedLiveDraft,
-  shouldPersistActiveLiveDraft,
   shouldRefreshRestoredLiveDraft,
-  shouldRestorePersistedLiveDraft
 } from '@/features/durable-chat/runtime/live-draft-persistence';
-import { fetchRunTimeline, fetchThreadMessages } from '@/features/durable-chat/repo/chat-api';
 import {
-  clearStoredLiveAssistantDraft,
-  persistStoredLiveAssistantDraft,
-  readStoredLiveAssistantDraft
-} from '@/features/durable-chat/repo/live-draft-storage';
+  resolveRestoredRunRefreshId,
+  restoreStoredDraftForActiveRun,
+  syncStoredLiveDraft
+} from '@/features/durable-chat/runtime/live-draft-recovery';
+import { fetchRunTimeline, fetchThreadMessages } from '@/features/durable-chat/repo/chat-api';
 import { buildChatViewState } from '@/features/durable-chat/service/chat-view-state';
 import { buildSearchPanelData } from '@/features/durable-chat/service/search-panel';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
@@ -189,53 +186,30 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       return;
     }
 
-    if (
-      shouldPersistActiveLiveDraft({
-        activeThreadId,
-        activeResponseRun,
-        liveAssistantDraft
-      })
-    ) {
-      persistStoredLiveAssistantDraft(activeThreadId, liveAssistantDraft!);
-      return;
-    }
-
-    if (
-      shouldClearPersistedLiveDraft({
-        activeThreadId,
-        activeResponseRun,
-        hasHydratedThread: hasHydratedActiveThread,
-        liveAssistantDraft
-      })
-    ) {
-      clearStoredLiveAssistantDraft(activeThreadId);
-    }
+    syncStoredLiveDraft({
+      activeThreadId,
+      activeResponseRun,
+      hasHydratedThread: hasHydratedActiveThread,
+      liveAssistantDraft
+    });
   }, [activeResponseRun, activeThreadId, hasHydratedActiveThread, liveAssistantDraft]);
 
   useEffect(() => {
-    if (
-      typeof window === 'undefined' ||
-      !shouldRestorePersistedLiveDraft({
-        activeThreadId,
-        activeResponseRun,
-        liveAssistantDraft
-      })
-    ) {
+    if (typeof window === 'undefined') {
       return;
     }
 
-    const runId = activeResponseRun!.id;
-    const threadId = activeThreadId!;
-    const restoredDraft = readStoredLiveAssistantDraft(threadId);
-    if (!restoredDraft || restoredDraft.runId !== runId) {
-      return;
-    }
-
-    setRestoredRunRefreshId(runId);
-    setLiveAssistantDraft({
-      ...restoredDraft,
-      source: 'restored'
+    const restored = restoreStoredDraftForActiveRun({
+      activeThreadId,
+      activeResponseRun,
+      liveAssistantDraft
     });
+    if (!restored) {
+      return;
+    }
+
+    setRestoredRunRefreshId(restored.restoredRunId);
+    setLiveAssistantDraft(restored.draft);
   }, [activeResponseRun, activeThreadId, liveAssistantDraft, setLiveAssistantDraft]);
 
   useEffect(() => {
@@ -243,13 +217,13 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       return;
     }
 
-    if (!activeResponseRun || activeResponseRun.id !== restoredRunRefreshId || activeResponseRun.threadId !== activeThreadId) {
-      setRestoredRunRefreshId(null);
-      return;
-    }
-
-    if (!['queued', 'running'].includes(activeResponseRun.status)) {
-      setRestoredRunRefreshId(null);
+    const nextRefreshId = resolveRestoredRunRefreshId({
+      activeThreadId,
+      activeResponseRun,
+      restoredRunRefreshId
+    });
+    if (nextRefreshId !== restoredRunRefreshId) {
+      setRestoredRunRefreshId(nextRefreshId);
     }
   }, [activeResponseRun, activeThreadId, restoredRunRefreshId]);
 
