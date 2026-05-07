@@ -116,7 +116,7 @@
 - [x] 覆盖 restored live draft 恢复
 - [x] 覆盖 refresh loop 行为
 - [x] 覆盖 open search result 时 timeline -> panel data 链路
-- [ ] 覆盖 reconcile after run completed
+- [x] 覆盖 reconcile after run completed
 
 ### 3.4 UI tests
 

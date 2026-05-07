@@ -1,6 +1,6 @@
 import type { MessageDto, RunDto } from '@agent-infra/contracts';
 import type { LiveAssistantDraft } from '@agent-infra/durable-chat-client';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -107,6 +107,21 @@ function createRun(overrides: Partial<RunDto> = {}): RunDto {
   };
 }
 
+function createMessage(overrides: Partial<MessageDto> = {}): MessageDto {
+  return {
+    id: 'assistant-message-1',
+    threadId: 'thread-1',
+    runId: 'run-1',
+    role: 'assistant',
+    seq: 1,
+    status: 'completed',
+    metadata: null,
+    parts: [],
+    createdAt: '2026-01-01T00:00:00.000Z',
+    ...overrides
+  };
+}
+
 function createDraft(): LiveAssistantDraft {
   return {
     runId: 'run-1',
@@ -158,7 +173,11 @@ describe('useDurableChatRuntime', () => {
     liveDraftRecoveryMocks.syncStoredLiveDraft.mockReturnValue('noop');
     liveDraftRecoveryMocks.restoreStoredDraftForActiveRun.mockImplementation(
       ({ activeResponseRun, liveAssistantDraft }: { activeResponseRun: RunDto | null; liveAssistantDraft: LiveAssistantDraft | null }) => {
-        if (!activeResponseRun || liveAssistantDraft) {
+        if (
+          !activeResponseRun ||
+          liveAssistantDraft ||
+          !['queued', 'running'].includes(activeResponseRun.status)
+        ) {
           return null;
         }
 
@@ -218,5 +237,39 @@ describe('useDurableChatRuntime', () => {
         })
       })
     );
+  });
+
+  it('reconciles the completed turn after a send flow finishes', async () => {
+    durableChatClientMocks.runReconcileCompletedTurn.mockImplementation(async ({ actions }: any) => {
+      actions.setActiveResponseRun(createRun({ status: 'completed' }));
+      actions.setMessages([createMessage()]);
+      actions.setLiveAssistantDraft(null);
+    });
+    durableChatClientMocks.runSendMessageFlow.mockImplementation(async ({ actions, operations }: any) => {
+      actions.setLiveAssistantDraft(createDraft());
+      await operations.reconcileCompletedTurn('thread-1', 'run-1', 7);
+    });
+
+    const { result } = renderHook(() => useDurableChatRuntime({ initialThreadId: 'thread-1' }), {
+      wrapper
+    });
+
+    await waitFor(() => {
+      expect(result.current.activeThreadId).toBe('thread-1');
+    });
+
+    act(() => {
+      result.current.onDraftChange('Summarize this');
+    });
+
+    act(() => {
+      result.current.onSend();
+    });
+
+    await waitFor(() => {
+      expect(durableChatClientMocks.runReconcileCompletedTurn).toHaveBeenCalledTimes(1);
+      expect(result.current.liveAssistantDraft).toBeNull();
+      expect(result.current.displayedMessages).toEqual([expect.objectContaining({ id: 'assistant-message-1' })]);
+    });
   });
 });
