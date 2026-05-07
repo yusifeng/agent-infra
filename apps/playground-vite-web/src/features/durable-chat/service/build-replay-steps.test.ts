@@ -132,7 +132,11 @@ describe('buildReplaySteps', () => {
       kind: 'search-summary',
       query: 'Claude latest news',
       resultCount: 10,
-      sourceNames: ['The Verge', 'Ars Technica']
+      sourceNames: ['The Verge', 'Ars Technica'],
+      sources: [
+        { sourceName: 'The Verge', hostname: 'theverge.com' },
+        { sourceName: 'Ars Technica', hostname: 'arstechnica.com' }
+      ]
     });
     expect(steps[4]).toMatchObject({
       kind: 'text',

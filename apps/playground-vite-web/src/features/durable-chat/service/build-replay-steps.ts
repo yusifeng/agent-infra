@@ -176,6 +176,7 @@ function createSearchSummaryStep(params: {
     query: params.entry.query,
     resultCount: params.entry.resultCount,
     sourceNames: params.entry.sourceNames,
+    sources: params.entry.sources,
     delayMs: getReplayNodeDelayMs('search-summary')
   };
 }

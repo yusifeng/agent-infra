@@ -604,6 +604,7 @@ type ChatMessageListProps = {
   liveAssistantDraft: LiveAssistantDraft | null;
   showLoadingText: boolean;
   centeredEmptyState: boolean;
+  showWelcomeWhenEmpty?: boolean;
   onLoadOlderMessages: () => void;
   onOpenSearchResult: (runId: string, toolCallIds: string[]) => void;
 };
@@ -621,6 +622,7 @@ export const ChatMessageList = memo(function ChatMessageList({
   liveAssistantDraft,
   showLoadingText,
   centeredEmptyState,
+  showWelcomeWhenEmpty = true,
   onLoadOlderMessages,
   onOpenSearchResult
 }: ChatMessageListProps) {
@@ -669,10 +671,10 @@ export const ChatMessageList = memo(function ChatMessageList({
             </div>
           </div>
         </div>
-      ) : messages.length === 0 ? (
+      ) : messages.length === 0 && transcriptBlocks.length === 0 && liveAssistantDraft === null ? (
         <div className={`${maxWithTW} mx-auto w-full`} style={centeredEmptyState ? undefined : messageListMinHeight}>
           <div className={clsx('flex flex-col items-center gap-3', centeredEmptyState ? 'justify-end' : 'min-h-full justify-center')}>
-            <WelcomeMessage activeThreadId={activeThreadId} />
+            {showWelcomeWhenEmpty ? <WelcomeMessage activeThreadId={activeThreadId} /> : null}
             {showLoadingText ? <ThinkingIndicator /> : null}
           </div>
         </div>

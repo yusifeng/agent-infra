@@ -41,6 +41,7 @@ function createStep(overrides: Partial<ReplayStep> & Pick<ReplayStep, 'id' | 'ki
       query: 'Claude latest news',
       resultCount: 10,
       sourceNames: ['The Verge'],
+      sources: [{ sourceName: 'The Verge', hostname: 'theverge.com' }],
       ...overrides
     };
   }

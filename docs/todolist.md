@@ -14,7 +14,7 @@
 ### 0.1 功能目标
 
 - [x] 提供一个独立的 replay 路由，用于重放一条已有历史对话
-- [ ] 页面主体尽量复用 chat 布局与 transcript 渲染风格
+- [x] 页面主体尽量复用 chat 布局与 transcript 渲染风格
 - [ ] 底部不再使用 `ComposerDock`，改为 replay 控制面板
 - [x] replay 强调**过程节点**，不强调逐字或真实 token 流式复刻
 
@@ -23,7 +23,7 @@
 - [x] 第一版采用**节点驱动 replay**
 - [x] 第一版按现有 transcript item / block 粒度播放，不做逐字机
 - [x] 第一版支持搜索 fake loading：`text -> search-loading -> search-label -> text`
-- [ ] 第一版支持 `播放 / 暂停 / 继续 / 重播`
+- [x] 第一版支持 `播放 / 暂停 / 继续 / 重播`
 - [x] 第一版不要求真实还原当时的 SSE 节奏
 
 ### 0.3 明确非目标
@@ -43,17 +43,17 @@
 
 ### 1.2 页面结构
 
-- [ ] 新增 replay 页面入口组件
-- [ ] 复用 chat 主布局的 transcript 区域
-- [ ] 底部改为 `ReplayControlBar`
-- [ ] 评估 replay 页面是否沿用现有 sidebar / thread list
-- [ ] 评估 replay 页面是否沿用现有 search side panel
+- [x] 新增 replay 页面入口组件
+- [x] 复用 chat 主布局的 transcript 区域
+- [x] 底部改为 `ReplayControlBar`
+- [x] 评估 replay 页面是否沿用现有 sidebar / thread list
+- [x] 评估 replay 页面是否沿用现有 search side panel
 
 ### 1.3 页面状态边界
 
-- [ ] replay 页面和 chat 页面状态显式分离
-- [ ] replay 页面不复用 `draft` / `send` / `activeResponseRun` 语义
-- [ ] replay 页面不依赖 live SSE
+- [x] replay 页面和 chat 页面状态显式分离
+- [x] replay 页面不复用 `draft` / `send` / `activeResponseRun` 语义
+- [x] replay 页面不依赖 live SSE
 
 ## 2. 数据结构与接口优先
 
@@ -128,11 +128,11 @@
 
 ### 3.2 Repo 层
 
-- [ ] 为 replay 新增 feature-local repo facade
-- [ ] 复用现有 thread messages fetch
-- [ ] 复用现有 search panel timeline/toolInvocation fetch
-- [ ] 评估是否新增 `repo/replay-api.ts`
-- [ ] 如果新增 `repo/replay-api.ts`，由它组合：
+- [x] 为 replay 新增 feature-local repo facade
+- [x] 复用现有 thread messages fetch
+- [x] 复用现有 search panel timeline/toolInvocation fetch
+- [x] 评估是否新增 `repo/replay-api.ts`
+- [x] 如果新增 `repo/replay-api.ts`，由它组合：
   - thread messages
   - timeline
   - tool invocations
@@ -212,27 +212,27 @@
 
 ### 6.1 Replay 页面组件
 
-- [ ] 新建 replay 页面组件
-- [ ] 复用 chat transcript 容器
-- [ ] 区分 replay 页和 chat 页的底部区域
+- [x] 新建 replay 页面组件
+- [x] 复用 chat transcript 容器
+- [x] 区分 replay 页和 chat 页的底部区域
 
 ### 6.2 Replay transcript 渲染
 
-- [ ] 评估是复用 `ChatMessageList` 还是包一层 replay adapter
-- [ ] 优先复用 `TranscriptBlock` 渲染
-- [ ] 优先复用现有 search label 组件
-- [ ] 优先复用现有 search side panel
+- [x] 评估是复用 `ChatMessageList` 还是包一层 replay adapter
+- [x] 优先复用 `TranscriptBlock` 渲染
+- [x] 优先复用现有 search label 组件
+- [x] 优先复用现有 search side panel
 
 ### 6.3 Replay control bar
 
-- [ ] 新建 `ReplayControlBar`
-- [ ] 第一版提供：
+- [x] 新建 `ReplayControlBar`
+- [x] 第一版提供：
   - `播放`
   - `暂停`
   - `继续`
   - `重播`
-- [ ] 显示当前 replay 状态
-- [ ] 显示当前节点进度（如 `2 / 7`）
+- [x] 显示当前 replay 状态
+- [x] 显示当前节点进度（如 `2 / 7`）
 
 ## 7. 测试计划
 
@@ -258,7 +258,7 @@
 
 ### 7.3 UI tests
 
-- [ ] 为 replay 页面写最小组件测试
+- [x] 为 replay 页面写最小组件测试
 - [ ] 覆盖：
   - replay control bar 状态切换
   - search loading -> search label 过渡
@@ -298,9 +298,9 @@
 
 ### 第 3 轮
 
-- [ ] 接 replay route
-- [ ] 做 `ReplayControlBar`
-- [ ] 接 transcript 渲染
+- [x] 接 replay route
+- [x] 做 `ReplayControlBar`
+- [x] 接 transcript 渲染
 
 ### 第 4 轮
 

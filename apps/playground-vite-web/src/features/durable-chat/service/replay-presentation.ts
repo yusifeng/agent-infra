@@ -100,7 +100,7 @@ function buildReplaySearchSummaryBlock(step: Extract<ReplayStep, { kind: 'search
         query: step.query,
         resultCount: step.resultCount,
         sourceNames: step.sourceNames,
-        sources: []
+        sources: step.sources
       }
     ]
   };

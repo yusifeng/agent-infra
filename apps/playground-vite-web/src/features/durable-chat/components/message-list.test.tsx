@@ -55,6 +55,7 @@ function renderMessageList({
       liveAssistantDraft={liveAssistantDraft}
       showLoadingText={false}
       centeredEmptyState={false}
+      showWelcomeWhenEmpty
       onLoadOlderMessages={vi.fn()}
       onOpenSearchResult={vi.fn()}
     />

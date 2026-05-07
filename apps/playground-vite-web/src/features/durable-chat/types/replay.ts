@@ -45,6 +45,10 @@ export type ReplaySearchSummaryStep = ReplayBaseStep & {
   query: string;
   resultCount: number;
   sourceNames: string[];
+  sources: Array<{
+    sourceName: string;
+    hostname: string;
+  }>;
 };
 
 export type ReplayDoneStep = ReplayBaseStep & {
