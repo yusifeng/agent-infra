@@ -1,3 +1,4 @@
+import type { ToolInvocationDto } from '@agent-infra/contracts';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fetchRunTimelineResponse = vi.fn();
@@ -51,5 +52,56 @@ describe('chat api repo facade', () => {
 
     expect(fetchThreadRunsResponse).toHaveBeenCalledWith('thread-1', 10, signal);
     expect(result).toBe(expected);
+  });
+
+  it('filters search tool invocations for search panel loading', async () => {
+    const expected = {
+      ok: true,
+      status: 200,
+      data: {
+        toolInvocations: [
+          {
+            id: 'inv-1',
+            threadId: 'thread-1',
+            runId: 'run-1',
+            messageId: 'message-1',
+            toolCallId: 'call-1',
+            toolName: 'searchWeb'
+          },
+          {
+            id: 'inv-2',
+            threadId: 'thread-1',
+            runId: 'run-1',
+            messageId: 'message-1',
+            toolCallId: 'call-2',
+            toolName: 'otherTool'
+          },
+          {
+            id: 'inv-3',
+            threadId: 'thread-1',
+            runId: 'run-1',
+            messageId: 'message-1',
+            toolCallId: 'call-3',
+            toolName: 'searchWeb'
+          }
+        ] as ToolInvocationDto[]
+      },
+      error: null
+    };
+    fetchRunTimelineResponse.mockResolvedValue(expected);
+
+    const { fetchSearchToolInvocations } = await import('@/features/durable-chat/repo/chat-api');
+    const result = await fetchSearchToolInvocations('run-1', ['call-1', 'call-3']);
+
+    expect(fetchRunTimelineResponse).toHaveBeenCalledWith('run-1', undefined);
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        toolInvocations: [
+          expect.objectContaining({ toolCallId: 'call-1', toolName: 'searchWeb' }),
+          expect.objectContaining({ toolCallId: 'call-3', toolName: 'searchWeb' })
+        ]
+      }
+    });
   });
 });

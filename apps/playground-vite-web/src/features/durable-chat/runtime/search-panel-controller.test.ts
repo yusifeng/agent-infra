@@ -60,15 +60,12 @@ describe('search panel controller', () => {
     expect(loadTimeline).not.toHaveBeenCalled();
   });
 
-  it('loads, filters, builds, and caches search panel data', async () => {
+  it('loads, builds, and caches search panel data from repo-filtered invocations', async () => {
     const cache = new Map<string, ActiveSearchPanelData>();
     const loadTimeline = vi.fn().mockResolvedValue({
       ok: true,
       data: {
-        toolInvocations: [
-          createInvocation({ toolCallId: 'call-1' }),
-          createInvocation({ id: 'inv-2', toolCallId: 'call-2', toolName: 'otherTool' })
-        ]
+        toolInvocations: [createInvocation({ toolCallId: 'call-1' })]
       }
     });
     const buildPanelData = vi.fn().mockReturnValue(createPanelData());
@@ -86,6 +83,7 @@ describe('search panel controller', () => {
       panelData: createPanelData()
     });
 
+    expect(loadTimeline).toHaveBeenCalledWith('run-1', ['call-1']);
     expect(buildPanelData).toHaveBeenCalledWith([expect.objectContaining({ toolCallId: 'call-1' })]);
     expect(cache.get('run-1:call-1')).toEqual(createPanelData());
   });
@@ -95,7 +93,7 @@ describe('search panel controller', () => {
     const loadTimeline = vi.fn().mockResolvedValue({
       ok: true,
       data: {
-        toolInvocations: [createInvocation({ toolName: 'otherTool' })]
+        toolInvocations: []
       }
     });
 

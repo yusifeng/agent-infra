@@ -1,6 +1,4 @@
-import type { ToolInvocationDto } from '@agent-infra/contracts';
-
-import { fetchRunTimeline } from '@/features/durable-chat/repo/chat-api';
+import { fetchSearchToolInvocations } from '@/features/durable-chat/repo/chat-api';
 import { buildSearchPanelData } from '@/features/durable-chat/service/search-panel';
 import type { ActiveSearchPanelData } from '@/features/durable-chat/types/search';
 
@@ -16,14 +14,14 @@ export async function loadSearchPanelResult(args: {
   runId: string;
   toolCallIds: string[];
   cache: Map<string, ActiveSearchPanelData>;
-  loadTimeline?: typeof fetchRunTimeline;
+  loadTimeline?: typeof fetchSearchToolInvocations;
   buildPanelData?: typeof buildSearchPanelData;
 }) {
   const {
     runId,
     toolCallIds,
     cache,
-    loadTimeline = fetchRunTimeline,
+    loadTimeline = fetchSearchToolInvocations,
     buildPanelData = buildSearchPanelData
   } = args;
   const { normalizedToolCallIds, cacheKey } = createSearchResultCacheKey(runId, toolCallIds);
@@ -35,15 +33,11 @@ export async function loadSearchPanelResult(args: {
     };
   }
 
-  const result = await loadTimeline(runId);
+  const result = await loadTimeline(runId, normalizedToolCallIds);
   if (!result.ok) {
     throw new Error(result.error ?? `Failed to load search results (${result.status})`);
   }
-
-  const invocations = result.data.toolInvocations.filter(
-    (candidate: ToolInvocationDto) =>
-      candidate.toolName === 'searchWeb' && normalizedToolCallIds.includes(candidate.toolCallId)
-  );
+  const invocations = result.data.toolInvocations;
 
   if (invocations.length === 0) {
     throw new Error('Search results are no longer available for this conversation turn.');

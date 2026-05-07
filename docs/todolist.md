@@ -46,7 +46,7 @@
 - [x] 让 [apps/playground-vite-web/src/features/durable-chat/repo/chat-api.ts](/Users/david/Documents/github/agent-infra/apps/playground-vite-web/src/features/durable-chat/repo/chat-api.ts) 从空壳 re-export 变成真实 facade
 - [x] 将 timeline fetch 收口到 `repo/chat-api.ts`
 - [x] 将 thread messages fetch 收口到 `repo/chat-api.ts`
-- [ ] 评估是否将 search panel 相关数据抓取也统一收口到 repo
+- [x] 评估是否将 search panel 相关数据抓取也统一收口到 repo
 - [x] 新建 `repo/browser-clipboard.ts`，承接 `navigator.clipboard` 访问
 - [x] 将 `sessionStorage` 的 live draft 读写包装收口到 repo
 
