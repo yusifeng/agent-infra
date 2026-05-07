@@ -1,9 +1,29 @@
-import type { RunStreamAssistantSnapshotDto } from '@agent-infra/contracts';
+export type LiveAssistantToolState = {
+  toolCallId: string;
+  toolName: string;
+  phase: 'start' | 'completed' | 'failed';
+  input?: Record<string, unknown> | null;
+};
+
+export type LiveAssistantSegment = {
+  id: string;
+  messageId: string;
+  text: string;
+  reasoning: string | null;
+  tools: LiveAssistantToolState[];
+  eventType: 'start' | 'thinking' | 'streaming' | 'searching';
+};
 
 export type LiveAssistantDraft = {
   runId: string;
   messageId: string;
+  committedText: string;
   partialText: string;
+  segmentText: string;
+  segmentTextMessageId: string | null;
   partialReasoning: string | null;
-  eventType: RunStreamAssistantSnapshotDto['eventType'];
+  segmentReasoningMessageId: string | null;
+  activeTools: LiveAssistantToolState[];
+  eventType: 'start' | 'thinking' | 'streaming' | 'searching';
+  segments: LiveAssistantSegment[];
 };

@@ -1,6 +1,6 @@
 import type { MessageRepository, Run, RunEvent, RunEventRepository, RunRepository, ToolInvocation, ToolInvocationRepository } from '@agent-infra/core';
 import type { AgentTool } from '@mariozechner/pi-agent-core';
-import type { AssistantMessageEvent, Model } from '@mariozechner/pi-ai';
+import type { Model } from '@mariozechner/pi-ai';
 
 export type RuntimePiProvider = 'openai' | 'deepseek';
 
@@ -62,15 +62,47 @@ export interface RuntimePiPersistedUpdate {
   runEvent?: RunEvent | null;
   run?: Run | null;
   toolInvocation?: ToolInvocation | null;
-  assistantStream?: RuntimePiAssistantStreamUpdate | null;
 }
 
-export interface RuntimePiAssistantStreamUpdate {
+export interface RuntimePiAssistantDeltaUpdate {
   messageId: string;
-  eventType: Exclude<AssistantMessageEvent['type'], 'done' | 'error'>;
-  partialText: string;
-  partialReasoning: string | null;
+  kind: 'assistant_delta';
+  textDelta: string;
 }
+
+export interface RuntimePiAssistantReplaceUpdate {
+  messageId: string;
+  kind: 'assistant_replace';
+  textSnapshot: string;
+}
+
+export interface RuntimePiThinkingDeltaUpdate {
+  messageId: string;
+  kind: 'thinking_delta';
+  thinkingDelta: string;
+}
+
+export interface RuntimePiThinkingReplaceUpdate {
+  messageId: string;
+  kind: 'thinking_replace';
+  thinkingSnapshot: string;
+}
+
+export interface RuntimePiToolEventUpdate {
+  messageId: string;
+  kind: 'tool_event';
+  toolCallId: string;
+  toolName: string;
+  phase: 'start' | 'completed' | 'failed';
+  input?: Record<string, unknown> | null;
+}
+
+export type RuntimePiAssistantStreamUpdate =
+  | RuntimePiAssistantDeltaUpdate
+  | RuntimePiAssistantReplaceUpdate
+  | RuntimePiThinkingDeltaUpdate
+  | RuntimePiThinkingReplaceUpdate
+  | RuntimePiToolEventUpdate;
 
 export interface RuntimePiRunTurnOptions {
   onPersistedUpdate?: (update: RuntimePiPersistedUpdate) => void | Promise<void>;

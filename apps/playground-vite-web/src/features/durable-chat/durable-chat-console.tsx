@@ -27,6 +27,7 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
     historyLoading,
     loadingMessages,
     displayedMessages,
+    displayedTranscriptBlocks,
     liveAssistantDraft,
     onLoadOlderMessages,
     draft,
@@ -59,7 +60,9 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
     showResponseLoading &&
     liveAssistantDraft !== null &&
     liveAssistantDraft.eventType === 'start' &&
-    liveAssistantDraft.partialText.length === 0;
+    liveAssistantDraft.partialText.length === 0 &&
+    liveAssistantDraft.partialReasoning === null &&
+    liveAssistantDraft.activeTools.length === 0;
   const centeredEmptyState = !activeThreadId && displayedMessages.length === 0 && liveAssistantDraft === null && !loadingMessages;
 
   return (
@@ -99,6 +102,7 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
                 loadingMessages={loadingMessages}
                 activeThreadId={activeThreadId}
                 messages={displayedMessages}
+                transcriptBlocks={displayedTranscriptBlocks}
                 liveAssistantDraft={liveAssistantDraft}
                 showLoadingText={showLoadingText}
                 centeredEmptyState={centeredEmptyState}

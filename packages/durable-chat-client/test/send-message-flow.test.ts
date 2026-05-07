@@ -22,6 +22,10 @@ function resolveUpdater<T>(next: Updater<T> | undefined, current: T) {
   return typeof next === 'function' ? (next as (value: T) => T)(current) : next;
 }
 
+function replaySetterCalls<T>(calls: Array<[Updater<T>]>, initial: T) {
+  return calls.reduce((current, [next]) => resolveUpdater(next, current), initial);
+}
+
 function createSetterSpy<T>() {
   return vi.fn<(next: Updater<T>) => void>();
 }
@@ -74,6 +78,26 @@ function createRun(id: string, status: RunDto['status']): RunDto {
     startedAt: null,
     finishedAt: null,
     createdAt: '2026-01-01T00:00:00.000Z'
+  };
+}
+
+function createLiveSegment(
+  id: string,
+  messageId: string,
+  options: {
+    text?: string;
+    reasoning?: string | null;
+    tools?: LiveAssistantDraft['activeTools'];
+    eventType?: LiveAssistantDraft['eventType'];
+  } = {}
+) {
+  return {
+    id,
+    messageId,
+    text: options.text ?? '',
+    reasoning: options.reasoning ?? null,
+    tools: options.tools ?? [],
+    eventType: options.eventType ?? 'start'
   };
 }
 
@@ -174,9 +198,15 @@ describe('runSendMessageFlow', () => {
     expect(actions.setLiveAssistantDraft).toHaveBeenCalledWith({
       runId: 'pending-1',
       messageId: 'pending-assistant-1',
+      committedText: '',
       partialText: '',
+      segmentText: '',
+      segmentTextMessageId: null,
       partialReasoning: null,
-      eventType: 'start'
+      segmentReasoningMessageId: null,
+      activeTools: [],
+      eventType: 'start',
+      segments: [createLiveSegment('pending-assistant-1:0', 'pending-assistant-1')]
     });
 
     createThreadDeferred.resolve({
@@ -234,19 +264,8 @@ describe('runSendMessageFlow', () => {
           runId: 'run-1',
           assistant: {
             messageId: 'assistant-1',
-            eventType: 'text_delta',
-            partialText: '你好，有什么可以帮你？',
-            partialReasoning: null
-          }
-        },
-        {
-          type: 'run.assistant',
-          runId: 'run-1',
-          assistant: {
-            messageId: 'assistant-1',
-            eventType: 'text_end',
-            partialText: '你好，有什么可以帮你？',
-            partialReasoning: null
+            kind: 'assistant_delta',
+            textDelta: '你好，有什么可以帮你？'
           }
         },
         {
@@ -289,16 +308,806 @@ describe('runSendMessageFlow', () => {
     );
 
     expect(actions.setMessages).toHaveBeenCalledTimes(1);
-    const persistedUserMessage = resolveUpdater(actions.setMessages.mock.calls[0]?.[0], [createMessage('message-1', 1)]);
-    expect(persistedUserMessage[1]?.metadata).toEqual({ clientRenderKey: 'optimistic-user-1' });
+    const afterUserReady = resolveUpdater(actions.setMessages.mock.calls[0]?.[0], [createMessage('message-1', 1)]);
+    const persistedUserMessage = afterUserReady[1];
+    expect(persistedUserMessage?.metadata).toEqual({ clientRenderKey: 'optimistic-user-1' });
 
-    expect(actions.setLiveAssistantDraft).toHaveBeenLastCalledWith({
+    const finalLiveAssistantDraft = replaySetterCalls(actions.setLiveAssistantDraft.mock.calls as Array<[Updater<LiveAssistantDraft | null>]>, null);
+    expect(finalLiveAssistantDraft).toEqual({
       runId: 'run-1',
       messageId: 'assistant-1',
+      committedText: '',
       partialText: '你好，有什么可以帮你？',
+      segmentText: '你好，有什么可以帮你？',
+      segmentTextMessageId: 'assistant-1',
       partialReasoning: null,
-      eventType: 'text_end'
+      segmentReasoningMessageId: null,
+      activeTools: [],
+      eventType: 'streaming',
+      segments: [createLiveSegment('assistant-1:0', 'assistant-1', { text: '你好，有什么可以帮你？', eventType: 'streaming' })]
     });
     expect(reconcileCompletedTurn).toHaveBeenCalledWith('thread-existing', 'run-1', 1);
+  });
+
+  it('starts the next assistant message without concatenating prior persisted text into the live draft', async () => {
+    const refs = createRefs();
+    refs.activeThreadIdRef.current = 'thread-existing';
+    const actions = createActions();
+
+    openThreadRunStreamMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      requestId: 'req-2',
+      body: createTextStream([
+        {
+          type: 'run.ready',
+          runId: 'run-2',
+          run: createRun('run-2', 'queued'),
+          userMessage: {
+            id: 'message-user-2',
+            threadId: 'thread-existing',
+            runId: null,
+            role: 'user',
+            seq: 2,
+            status: 'completed',
+            metadata: null,
+            createdAt: '2026-01-01T00:00:00.000Z',
+            parts: [
+              {
+                id: 'part-user-2',
+                messageId: 'message-user-2',
+                partIndex: 0,
+                type: 'text',
+                textValue: '帮我查最新新闻',
+                jsonValue: null,
+                createdAt: '2026-01-01T00:00:00.000Z'
+              }
+            ]
+          }
+        },
+        {
+          type: 'run.assistant',
+          runId: 'run-2',
+          assistant: {
+            messageId: 'assistant-2a',
+            kind: 'assistant_delta',
+            textDelta: '我先搜索一下。'
+          }
+        },
+        {
+          type: 'run.assistant',
+          runId: 'run-2',
+          assistant: {
+            messageId: 'assistant-2b',
+            kind: 'tool_event',
+            toolCallId: 'call-search-1',
+            toolName: 'searchWeb',
+            phase: 'start',
+            input: { query: '最新新闻' }
+          }
+        },
+        {
+          type: 'run.assistant',
+          runId: 'run-2',
+          assistant: {
+            messageId: 'assistant-2b',
+            kind: 'assistant_delta',
+            textDelta: '再补充一点细节。'
+          }
+        },
+        {
+          type: 'run.completed',
+          runId: 'run-2',
+          run: createRun('run-2', 'completed')
+        }
+      ])
+    });
+
+    await runSendMessageFlow({
+      state: {
+        activeThreadId: 'thread-existing',
+        draft: '帮我查最新新闻',
+        isChatResponding: false,
+        messages: [createMessage('message-1', 1)],
+        selectedWebSearchEnabled: true,
+        selectedThinkingEnabled: false,
+        selectedReasoningEffort: 'high',
+        selectedModelOption: createSelectedModelOption()
+      },
+      refs,
+      actions,
+      operations: {
+        createThreadRecord: vi.fn(),
+        pendingNewThreadLoadingId: 'pending-new-thread',
+        reconcileCompletedTurn: vi.fn().mockResolvedValue(undefined),
+        replaceCurrentPath: vi.fn()
+      }
+    });
+
+    expect(actions.setMessages).toHaveBeenCalledTimes(1);
+    const afterUserReady = resolveUpdater(actions.setMessages.mock.calls[0]?.[0], [createMessage('message-1', 1)]);
+    expect(afterUserReady[1]?.parts[0]?.textValue).toBe('帮我查最新新闻');
+
+    const finalLiveAssistantDraft = replaySetterCalls(actions.setLiveAssistantDraft.mock.calls as Array<[Updater<LiveAssistantDraft | null>]>, null);
+    expect(finalLiveAssistantDraft).toEqual({
+      runId: 'run-2',
+      messageId: 'assistant-2b',
+      committedText: '',
+      partialText: '再补充一点细节。',
+      segmentText: '再补充一点细节。',
+      segmentTextMessageId: 'assistant-2b',
+      partialReasoning: null,
+      segmentReasoningMessageId: null,
+      activeTools: [],
+      eventType: 'streaming',
+      segments: [
+        createLiveSegment('assistant-2a:0', 'assistant-2a', { text: '我先搜索一下。', eventType: 'streaming' }),
+        createLiveSegment('assistant-2b:1', 'assistant-2b', {
+          tools: [
+            {
+              toolCallId: 'call-search-1',
+              toolName: 'searchWeb',
+              phase: 'start',
+              input: { query: '最新新闻' }
+            }
+          ],
+          eventType: 'searching'
+        }),
+        createLiveSegment('assistant-2b:2', 'assistant-2b', {
+          text: '再补充一点细节。',
+          eventType: 'streaming'
+        })
+      ]
+    });
+  });
+
+  it('keeps the completed search tool visible until the next assistant message starts', async () => {
+    const refs = createRefs();
+    refs.activeThreadIdRef.current = 'thread-existing';
+    const actions = createActions();
+
+    openThreadRunStreamMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      requestId: 'req-2b',
+      body: createTextStream([
+        {
+          type: 'run.ready',
+          runId: 'run-2b',
+          run: createRun('run-2b', 'queued'),
+          userMessage: {
+            id: 'message-user-2b',
+            threadId: 'thread-existing',
+            runId: null,
+            role: 'user',
+            seq: 2,
+            status: 'completed',
+            metadata: null,
+            createdAt: '2026-01-01T00:00:00.000Z',
+            parts: [
+              {
+                id: 'part-user-2b',
+                messageId: 'message-user-2b',
+                partIndex: 0,
+                type: 'text',
+                textValue: '帮我查 Claude 新闻',
+                jsonValue: null,
+                createdAt: '2026-01-01T00:00:00.000Z'
+              }
+            ]
+          }
+        },
+        {
+          type: 'run.assistant',
+          runId: 'run-2b',
+          assistant: {
+            messageId: 'assistant-2b-a',
+            kind: 'assistant_delta',
+            textDelta: '好的，我来帮你搜索一下。'
+          }
+        },
+        {
+          type: 'run.assistant',
+          runId: 'run-2b',
+          assistant: {
+            messageId: 'assistant-2b-a',
+            kind: 'tool_event',
+            toolCallId: 'call-search-2b',
+            toolName: 'searchWeb',
+            phase: 'start',
+            input: { query: 'Claude latest news' }
+          }
+        },
+        {
+          type: 'run.assistant',
+          runId: 'run-2b',
+          assistant: {
+            messageId: 'assistant-2b-a',
+            kind: 'tool_event',
+            toolCallId: 'call-search-2b',
+            toolName: 'searchWeb',
+            phase: 'completed',
+            input: null
+          }
+        },
+        {
+          type: 'run.completed',
+          runId: 'run-2b',
+          run: createRun('run-2b', 'completed')
+        }
+      ])
+    });
+
+    await runSendMessageFlow({
+      state: {
+        activeThreadId: 'thread-existing',
+        draft: '帮我查 Claude 新闻',
+        isChatResponding: false,
+        messages: [createMessage('message-1', 1)],
+        selectedWebSearchEnabled: true,
+        selectedThinkingEnabled: false,
+        selectedReasoningEffort: 'high',
+        selectedModelOption: createSelectedModelOption()
+      },
+      refs,
+      actions,
+      operations: {
+        createThreadRecord: vi.fn(),
+        pendingNewThreadLoadingId: 'pending-new-thread',
+        reconcileCompletedTurn: vi.fn().mockResolvedValue(undefined),
+        replaceCurrentPath: vi.fn()
+      }
+    });
+
+    const finalLiveAssistantDraft = replaySetterCalls(actions.setLiveAssistantDraft.mock.calls as Array<[Updater<LiveAssistantDraft | null>]>, null);
+    expect(finalLiveAssistantDraft).toEqual({
+      runId: 'run-2b',
+      messageId: 'assistant-2b-a',
+      committedText: '',
+      partialText: '好的，我来帮你搜索一下。',
+      segmentText: '好的，我来帮你搜索一下。',
+      segmentTextMessageId: 'assistant-2b-a',
+      partialReasoning: null,
+      segmentReasoningMessageId: null,
+      activeTools: [],
+      eventType: 'streaming',
+      segments: [
+        createLiveSegment('assistant-2b-a:0', 'assistant-2b-a', {
+          text: '好的，我来帮你搜索一下。',
+          tools: [
+            {
+              toolCallId: 'call-search-2b',
+              toolName: 'searchWeb',
+              phase: 'completed',
+              input: null
+            }
+          ],
+          eventType: 'streaming'
+        })
+      ]
+    });
+  });
+
+  it('does not re-show the committed sentence when toolcall events echo the same partialText', async () => {
+    const refs = createRefs();
+    refs.activeThreadIdRef.current = 'thread-existing';
+    const actions = createActions();
+
+    openThreadRunStreamMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      requestId: 'req-3',
+      body: createTextStream([
+        {
+          type: 'run.ready',
+          runId: 'run-3',
+          run: createRun('run-3', 'queued'),
+          userMessage: {
+            id: 'message-user-3',
+            threadId: 'thread-existing',
+            runId: null,
+            role: 'user',
+            seq: 2,
+            status: 'completed',
+            metadata: null,
+            createdAt: '2026-01-01T00:00:00.000Z',
+            parts: [
+              {
+                id: 'part-user-3',
+                messageId: 'message-user-3',
+                partIndex: 0,
+                type: 'text',
+                textValue: '帮我搜索 GPT-5.5 新闻',
+                jsonValue: null,
+                createdAt: '2026-01-01T00:00:00.000Z'
+              }
+            ]
+          }
+        },
+        {
+          type: 'run.assistant',
+          runId: 'run-3',
+          assistant: {
+            messageId: 'assistant-3',
+            kind: 'assistant_delta',
+            textDelta: '好的，我来搜索一下。'
+          }
+        },
+        {
+          type: 'run.assistant',
+          runId: 'run-3',
+          assistant: {
+            messageId: 'assistant-3',
+            kind: 'tool_event',
+            toolCallId: 'call-search-2',
+            toolName: 'searchWeb',
+            phase: 'start',
+            input: { query: 'GPT-5.5 新闻' }
+          }
+        },
+        {
+          type: 'run.completed',
+          runId: 'run-3',
+          run: createRun('run-3', 'completed')
+        }
+      ])
+    });
+
+    await runSendMessageFlow({
+      state: {
+        activeThreadId: 'thread-existing',
+        draft: '帮我搜索 GPT-5.5 新闻',
+        isChatResponding: false,
+        messages: [createMessage('message-1', 1)],
+        selectedWebSearchEnabled: true,
+        selectedThinkingEnabled: false,
+        selectedReasoningEffort: 'high',
+        selectedModelOption: createSelectedModelOption()
+      },
+      refs,
+      actions,
+      operations: {
+        createThreadRecord: vi.fn(),
+        pendingNewThreadLoadingId: 'pending-new-thread',
+        reconcileCompletedTurn: vi.fn().mockResolvedValue(undefined),
+        replaceCurrentPath: vi.fn()
+      }
+    });
+
+    const finalLiveAssistantDraft = replaySetterCalls(actions.setLiveAssistantDraft.mock.calls as Array<[Updater<LiveAssistantDraft | null>]>, null);
+    expect(finalLiveAssistantDraft).toEqual({
+      runId: 'run-3',
+      messageId: 'assistant-3',
+      committedText: '',
+      partialText: '好的，我来搜索一下。',
+      segmentText: '好的，我来搜索一下。',
+      segmentTextMessageId: 'assistant-3',
+      partialReasoning: null,
+      segmentReasoningMessageId: null,
+      activeTools: [
+        {
+          toolCallId: 'call-search-2',
+          toolName: 'searchWeb',
+          phase: 'start',
+          input: { query: 'GPT-5.5 新闻' }
+        }
+      ],
+      eventType: 'searching',
+      segments: [
+        createLiveSegment('assistant-3:0', 'assistant-3', {
+          text: '好的，我来搜索一下。',
+          tools: [
+            {
+              toolCallId: 'call-search-2',
+              toolName: 'searchWeb',
+              phase: 'start',
+              input: { query: 'GPT-5.5 新闻' }
+            }
+          ],
+          eventType: 'searching'
+        })
+      ]
+    });
+  });
+
+  it('replaces the live assistant text when the stream sends a non-prefix rewrite', async () => {
+    const refs = createRefs();
+    refs.activeThreadIdRef.current = 'thread-existing';
+    const actions = createActions();
+
+    openThreadRunStreamMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      requestId: 'req-4',
+      body: createTextStream([
+        {
+          type: 'run.ready',
+          runId: 'run-4',
+          run: createRun('run-4', 'queued'),
+          userMessage: {
+            id: 'message-user-4',
+            threadId: 'thread-existing',
+            runId: null,
+            role: 'user',
+            seq: 2,
+            status: 'completed',
+            metadata: null,
+            createdAt: '2026-01-01T00:00:00.000Z',
+            parts: [
+              {
+                id: 'part-user-4',
+                messageId: 'message-user-4',
+                partIndex: 0,
+                type: 'text',
+                textValue: '给我最新消息',
+                jsonValue: null,
+                createdAt: '2026-01-01T00:00:00.000Z'
+              }
+            ]
+          }
+        },
+        {
+          type: 'run.assistant',
+          runId: 'run-4',
+          assistant: {
+            messageId: 'assistant-4',
+            kind: 'assistant_delta',
+            textDelta: '好的，我来搜索一下。'
+          }
+        },
+        {
+          type: 'run.assistant',
+          runId: 'run-4',
+          assistant: {
+            messageId: 'assistant-4',
+            kind: 'assistant_replace',
+            textSnapshot: '我来搜索最新消息。'
+          }
+        },
+        {
+          type: 'run.completed',
+          runId: 'run-4',
+          run: createRun('run-4', 'completed')
+        }
+      ])
+    });
+
+    await runSendMessageFlow({
+      state: {
+        activeThreadId: 'thread-existing',
+        draft: '给我最新消息',
+        isChatResponding: false,
+        messages: [createMessage('message-1', 1)],
+        selectedWebSearchEnabled: true,
+        selectedThinkingEnabled: false,
+        selectedReasoningEffort: 'high',
+        selectedModelOption: createSelectedModelOption()
+      },
+      refs,
+      actions,
+      operations: {
+        createThreadRecord: vi.fn(),
+        pendingNewThreadLoadingId: 'pending-new-thread',
+        reconcileCompletedTurn: vi.fn().mockResolvedValue(undefined),
+        replaceCurrentPath: vi.fn()
+      }
+    });
+
+    const finalLiveAssistantDraft = replaySetterCalls(actions.setLiveAssistantDraft.mock.calls as Array<[Updater<LiveAssistantDraft | null>]>, null);
+    expect(finalLiveAssistantDraft).toEqual({
+      runId: 'run-4',
+      messageId: 'assistant-4',
+      committedText: '',
+      partialText: '我来搜索最新消息。',
+      segmentText: '我来搜索最新消息。',
+      segmentTextMessageId: 'assistant-4',
+      partialReasoning: null,
+      segmentReasoningMessageId: null,
+      activeTools: [],
+      eventType: 'streaming',
+      segments: [createLiveSegment('assistant-4:0', 'assistant-4', { text: '我来搜索最新消息。', eventType: 'streaming' })]
+    });
+  });
+
+  it('replaces only the current segment when a later assistant segment rewrites its text', async () => {
+    const refs = createRefs();
+    refs.activeThreadIdRef.current = 'thread-existing';
+    const actions = createActions();
+
+    openThreadRunStreamMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      requestId: 'req-4b',
+      body: createTextStream([
+        {
+          type: 'run.ready',
+          runId: 'run-4b',
+          run: createRun('run-4b', 'queued'),
+          userMessage: {
+            id: 'message-user-4b',
+            threadId: 'thread-existing',
+            runId: null,
+            role: 'user',
+            seq: 2,
+            status: 'completed',
+            metadata: null,
+            createdAt: '2026-01-01T00:00:00.000Z',
+            parts: [
+              {
+                id: 'part-user-4b',
+                messageId: 'message-user-4b',
+                partIndex: 0,
+                type: 'text',
+                textValue: '两次搜索',
+                jsonValue: null,
+                createdAt: '2026-01-01T00:00:00.000Z'
+              }
+            ]
+          }
+        },
+        {
+          type: 'run.assistant',
+          runId: 'run-4b',
+          assistant: {
+            messageId: 'assistant-4b-a',
+            kind: 'assistant_delta',
+            textDelta: '第一段。'
+          }
+        },
+        {
+          type: 'run.assistant',
+          runId: 'run-4b',
+          assistant: {
+            messageId: 'assistant-4b-b',
+            kind: 'assistant_delta',
+            textDelta: '第二段旧文案。'
+          }
+        },
+        {
+          type: 'run.assistant',
+          runId: 'run-4b',
+          assistant: {
+            messageId: 'assistant-4b-b',
+            kind: 'assistant_replace',
+            textSnapshot: '第二段新文案。'
+          }
+        },
+        {
+          type: 'run.completed',
+          runId: 'run-4b',
+          run: createRun('run-4b', 'completed')
+        }
+      ])
+    });
+
+    await runSendMessageFlow({
+      state: {
+        activeThreadId: 'thread-existing',
+        draft: '两次搜索',
+        isChatResponding: false,
+        messages: [createMessage('message-1', 1)],
+        selectedWebSearchEnabled: true,
+        selectedThinkingEnabled: false,
+        selectedReasoningEffort: 'high',
+        selectedModelOption: createSelectedModelOption()
+      },
+      refs,
+      actions,
+      operations: {
+        createThreadRecord: vi.fn(),
+        pendingNewThreadLoadingId: 'pending-new-thread',
+        reconcileCompletedTurn: vi.fn().mockResolvedValue(undefined),
+        replaceCurrentPath: vi.fn()
+      }
+    });
+
+    const finalLiveAssistantDraft = replaySetterCalls(actions.setLiveAssistantDraft.mock.calls as Array<[Updater<LiveAssistantDraft | null>]>, null);
+    expect(finalLiveAssistantDraft).toEqual({
+      runId: 'run-4b',
+      messageId: 'assistant-4b-b',
+      committedText: '',
+      partialText: '第二段新文案。',
+      segmentText: '第二段新文案。',
+      segmentTextMessageId: 'assistant-4b-b',
+      partialReasoning: null,
+      segmentReasoningMessageId: null,
+      activeTools: [],
+      eventType: 'streaming',
+      segments: [
+        createLiveSegment('assistant-4b-a:0', 'assistant-4b-a', { text: '第一段。', eventType: 'streaming' }),
+        createLiveSegment('assistant-4b-b:1', 'assistant-4b-b', { text: '第二段新文案。', eventType: 'streaming' })
+      ]
+    });
+  });
+
+  it('does not carry reasoning text across assistant message segments in the same run', async () => {
+    const refs = createRefs();
+    refs.activeThreadIdRef.current = 'thread-existing';
+    const actions = createActions();
+
+    openThreadRunStreamMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      requestId: 'req-4c',
+      body: createTextStream([
+        {
+          type: 'run.ready',
+          runId: 'run-4c',
+          run: createRun('run-4c', 'queued'),
+          userMessage: {
+            id: 'message-user-4c',
+            threadId: 'thread-existing',
+            runId: null,
+            role: 'user',
+            seq: 2,
+            status: 'completed',
+            metadata: null,
+            createdAt: '2026-01-01T00:00:00.000Z',
+            parts: [
+              {
+                id: 'part-user-4c',
+                messageId: 'message-user-4c',
+                partIndex: 0,
+                type: 'text',
+                textValue: '跨段思考',
+                jsonValue: null,
+                createdAt: '2026-01-01T00:00:00.000Z'
+              }
+            ]
+          }
+        },
+        {
+          type: 'run.assistant',
+          runId: 'run-4c',
+          assistant: {
+            messageId: 'assistant-4c-a',
+            kind: 'thinking_delta',
+            thinkingDelta: '第一段思考'
+          }
+        },
+        {
+          type: 'run.assistant',
+          runId: 'run-4c',
+          assistant: {
+            messageId: 'assistant-4c-b',
+            kind: 'thinking_delta',
+            thinkingDelta: '第二段思考'
+          }
+        },
+        {
+          type: 'run.completed',
+          runId: 'run-4c',
+          run: createRun('run-4c', 'completed')
+        }
+      ])
+    });
+
+    await runSendMessageFlow({
+      state: {
+        activeThreadId: 'thread-existing',
+        draft: '跨段思考',
+        isChatResponding: false,
+        messages: [createMessage('message-1', 1)],
+        selectedWebSearchEnabled: false,
+        selectedThinkingEnabled: true,
+        selectedReasoningEffort: 'high',
+        selectedModelOption: createSelectedModelOption()
+      },
+      refs,
+      actions,
+      operations: {
+        createThreadRecord: vi.fn(),
+        pendingNewThreadLoadingId: 'pending-new-thread',
+        reconcileCompletedTurn: vi.fn().mockResolvedValue(undefined),
+        replaceCurrentPath: vi.fn()
+      }
+    });
+
+    const finalLiveAssistantDraft = replaySetterCalls(actions.setLiveAssistantDraft.mock.calls as Array<[Updater<LiveAssistantDraft | null>]>, null);
+    expect(finalLiveAssistantDraft).toEqual({
+      runId: 'run-4c',
+      messageId: 'assistant-4c-b',
+      committedText: '',
+      partialText: '',
+      segmentText: '',
+      segmentTextMessageId: null,
+      partialReasoning: '第二段思考',
+      segmentReasoningMessageId: 'assistant-4c-b',
+      activeTools: [],
+      eventType: 'thinking',
+      segments: [
+        createLiveSegment('assistant-4c-a:0', 'assistant-4c-a', { reasoning: '第一段思考', eventType: 'thinking' }),
+        createLiveSegment('assistant-4c-b:1', 'assistant-4c-b', { reasoning: '第二段思考', eventType: 'thinking' })
+      ]
+    });
+  });
+
+  it('recovers the transcript after any tool event, not just searchWeb', async () => {
+    const refs = createRefs();
+    refs.activeThreadIdRef.current = 'thread-existing';
+    const actions = createActions();
+    const reconcileCompletedTurn = vi.fn().mockResolvedValue(undefined);
+
+    openThreadRunStreamMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      requestId: 'req-5',
+      body: createTextStream([
+        {
+          type: 'run.ready',
+          runId: 'run-5',
+          run: createRun('run-5', 'queued'),
+          userMessage: {
+            id: 'message-user-5',
+            threadId: 'thread-existing',
+            runId: null,
+            role: 'user',
+            seq: 2,
+            status: 'completed',
+            metadata: null,
+            createdAt: '2026-01-01T00:00:00.000Z',
+            parts: [
+              {
+                id: 'part-user-5',
+                messageId: 'message-user-5',
+                partIndex: 0,
+                type: 'text',
+                textValue: '运行一个工具',
+                jsonValue: null,
+                createdAt: '2026-01-01T00:00:00.000Z'
+              }
+            ]
+          }
+        },
+        {
+          type: 'run.assistant',
+          runId: 'run-5',
+          assistant: {
+            messageId: 'assistant-5',
+            kind: 'tool_event',
+            toolCallId: 'call-echo',
+            toolName: 'echoText',
+            phase: 'start',
+            input: { text: 'hello' }
+          }
+        },
+        {
+          type: 'run.completed',
+          runId: 'run-5',
+          run: createRun('run-5', 'completed')
+        }
+      ])
+    });
+
+    await runSendMessageFlow({
+      state: {
+        activeThreadId: 'thread-existing',
+        draft: '运行一个工具',
+        isChatResponding: false,
+        messages: [createMessage('message-1', 1)],
+        selectedWebSearchEnabled: false,
+        selectedThinkingEnabled: false,
+        selectedReasoningEffort: 'high',
+        selectedModelOption: createSelectedModelOption()
+      },
+      refs,
+      actions,
+      operations: {
+        createThreadRecord: vi.fn(),
+        pendingNewThreadLoadingId: 'pending-new-thread',
+        reconcileCompletedTurn,
+        replaceCurrentPath: vi.fn()
+      }
+    });
+
+    expect(reconcileCompletedTurn).toHaveBeenCalledWith('thread-existing', 'run-5', 1);
+    expect(actions.setChatPhase).toHaveBeenCalledWith('streaming');
   });
 });

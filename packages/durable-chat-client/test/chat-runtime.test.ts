@@ -4,13 +4,11 @@ import { describe, expect, it } from 'vitest';
 import {
   attachMessageRenderKey,
   applyRunStateToTimeline,
-  buildAssistantMessageFromSnapshot,
   buildOptimisticUserMessage,
   chooseInitialRunId,
   deriveDurableResponseStatus,
   deriveMainChatResponseStatus,
   getMessageRenderKey,
-  getChatPhaseForAssistantSnapshot,
   mergeMessageWindow,
   mergeThreadMessagesPageInfo,
   normalizeRuntimeMeta,
@@ -221,25 +219,6 @@ describe('durable-chat-client service', () => {
     ).toEqual(currentPageInfo);
   });
 
-  it('buildAssistantMessageFromSnapshot creates reasoning and text parts in order', () => {
-    const message = buildAssistantMessageFromSnapshot(
-      [createMessage('message-1', 1, null)],
-      'thread-1',
-      'run-1',
-      {
-        messageId: 'assistant-1',
-        eventType: 'text_end',
-        partialText: 'final answer',
-        partialReasoning: 'work'
-      }
-    );
-
-    expect(message.seq).toBe(2);
-    expect(message.parts).toHaveLength(2);
-    expect(message.parts[0]?.type).toBe('reasoning');
-    expect(message.parts[1]?.type).toBe('text');
-  });
-
   it('buildOptimisticUserMessage appends a user draft with optimistic metadata', () => {
     const message = buildOptimisticUserMessage('thread-1', 3, 'hello', [createMessage('message-1', 1, null)]);
 
@@ -321,34 +300,7 @@ describe('durable-chat-client service', () => {
     expect(parsed.remainder).toMatch(/run\.failed/);
   });
 
-  it('resolves chat phases for live assistant and completion transitions', () => {
-    expect(
-      getChatPhaseForAssistantSnapshot({
-        messageId: 'assistant-1',
-        eventType: 'start',
-        partialText: '',
-        partialReasoning: null
-      })
-    ).toBe('thinking');
-
-    expect(
-      getChatPhaseForAssistantSnapshot({
-        messageId: 'assistant-1',
-        eventType: 'text_delta',
-        partialText: 'hello',
-        partialReasoning: null
-      })
-    ).toBe('streaming');
-
-    expect(
-      getChatPhaseForAssistantSnapshot({
-        messageId: 'assistant-1',
-        eventType: 'text_end',
-        partialText: 'done',
-        partialReasoning: null
-      })
-    ).toBe('transcript-final');
-
+  it('resolves settled and post-reconcile chat phases', () => {
     expect(resolveSettledChatPhase('thinking')).toBe('idle');
     expect(resolveSettledChatPhase('transcript-final')).toBe('transcript-final');
     expect(resolveSettledChatPhase('failed')).toBe('failed');

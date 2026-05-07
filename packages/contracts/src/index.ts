@@ -189,29 +189,58 @@ export interface RunStreamStateEventDto {
   run: RunDto;
 }
 
-export type RunAssistantStreamEventType =
-  | 'start'
-  | 'text_start'
-  | 'text_delta'
-  | 'text_end'
-  | 'thinking_start'
-  | 'thinking_delta'
-  | 'thinking_end'
-  | 'toolcall_start'
-  | 'toolcall_delta'
-  | 'toolcall_end';
-
-export interface RunStreamAssistantSnapshotDto {
+export interface RunStreamAssistantDeltaDto {
   messageId: string;
-  eventType: RunAssistantStreamEventType;
-  partialText: string;
-  partialReasoning: string | null;
+  kind: 'assistant_delta';
+  // The newly appended assistant text for the current message segment.
+  textDelta: string;
 }
+
+export interface RunStreamAssistantReplaceDto {
+  messageId: string;
+  kind: 'assistant_replace';
+  // A full replacement for the current visible assistant text when the upstream
+  // partial message is no longer a simple prefix extension.
+  textSnapshot: string;
+}
+
+export interface RunStreamThinkingDeltaDto {
+  messageId: string;
+  kind: 'thinking_delta';
+  // The newly appended assistant thinking text for the current message segment.
+  thinkingDelta: string;
+}
+
+export interface RunStreamThinkingReplaceDto {
+  messageId: string;
+  kind: 'thinking_replace';
+  // A full replacement for the current visible thinking text when the upstream
+  // partial message is no longer a simple prefix extension.
+  thinkingSnapshot: string;
+}
+
+export interface RunStreamToolEventDto {
+  messageId: string;
+  kind: 'tool_event';
+  toolCallId: string;
+  toolName: string;
+  phase: 'start' | 'completed' | 'failed';
+  // Tool lifecycle is streamed separately from assistant text to avoid
+  // back-writing already visible commentary during tool execution.
+  input?: Record<string, unknown> | null;
+}
+
+export type RunStreamAssistantPayloadDto =
+  | RunStreamAssistantDeltaDto
+  | RunStreamAssistantReplaceDto
+  | RunStreamThinkingDeltaDto
+  | RunStreamThinkingReplaceDto
+  | RunStreamToolEventDto;
 
 export interface RunStreamAssistantEventDto {
   type: 'run.assistant';
   runId: string;
-  assistant: RunStreamAssistantSnapshotDto;
+  assistant: RunStreamAssistantPayloadDto;
 }
 
 export interface RunStreamCompletedEventDto {

@@ -1,7 +1,6 @@
 import type {
   MessageDto,
   RunDto,
-  RunStreamAssistantSnapshotDto,
   RunStreamEventDto,
   ThreadMessagesPageInfoDto,
   RunTimelineResponseDto,
@@ -243,50 +242,6 @@ export function mergeThreadMessagesPageInfo(
   } satisfies ThreadMessagesPageInfoDto;
 }
 
-export function buildAssistantMessageFromSnapshot(
-  currentMessages: MessageDto[],
-  threadId: string,
-  runId: string,
-  assistant: RunStreamAssistantSnapshotDto
-): MessageDto {
-  const textParts = [
-    assistant.partialReasoning
-      ? {
-          id: `${assistant.messageId}:reasoning`,
-          messageId: assistant.messageId,
-          partIndex: 0,
-          type: 'reasoning' as const,
-          textValue: assistant.partialReasoning,
-          jsonValue: null,
-          createdAt: new Date().toISOString()
-        }
-      : null,
-    assistant.partialText
-      ? {
-          id: `${assistant.messageId}:text`,
-          messageId: assistant.messageId,
-          partIndex: assistant.partialReasoning ? 1 : 0,
-          type: 'text' as const,
-          textValue: assistant.partialText,
-          jsonValue: null,
-          createdAt: new Date().toISOString()
-        }
-      : null
-  ].filter((part): part is NonNullable<typeof part> => part !== null);
-
-  return {
-    id: assistant.messageId,
-    threadId,
-    runId,
-    role: 'assistant',
-    seq: (currentMessages[currentMessages.length - 1]?.seq ?? 0) + 1,
-    status: 'completed',
-    metadata: null,
-    createdAt: new Date().toISOString(),
-    parts: textParts
-  };
-}
-
 export function buildOptimisticUserMessage(threadId: string, requestId: number, text: string, currentMessages: MessageDto[]): MessageDto {
   return {
     id: `optimistic-user-${requestId}`,
@@ -354,22 +309,6 @@ export function includeSelectedRun(runs: RunDto[], selectedRun: RunDto | null) {
   }
 
   return [...runs, selectedRun].sort(compareRunsByCreatedAt);
-}
-
-export function isPrimaryChatAssistantEventType(eventType: RunStreamAssistantSnapshotDto['eventType']) {
-  return eventType === 'start' || eventType === 'text_delta' || eventType === 'text_end';
-}
-
-export function getChatPhaseForAssistantSnapshot(assistant: RunStreamAssistantSnapshotDto): ChatPhase {
-  if (assistant.eventType === 'text_end') {
-    return 'transcript-final';
-  }
-
-  if (assistant.partialText) {
-    return 'streaming';
-  }
-
-  return 'thinking';
 }
 
 export function resolveSettledChatPhase(current: ChatPhase): ChatPhase {

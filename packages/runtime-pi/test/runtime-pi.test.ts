@@ -13,11 +13,22 @@ import type {
   ToolInvocationRepository
 } from '@agent-infra/core';
 import type { AgentTool } from '@mariozechner/pi-agent-core';
-import { fauxAssistantMessage, fauxToolCall, registerFauxProvider, Type } from '@mariozechner/pi-ai';
+import {
+  createAssistantMessageEventStream,
+  fauxAssistantMessage,
+  fauxToolCall,
+  registerApiProvider,
+  registerFauxProvider,
+  Type,
+  unregisterApiProviders,
+  type AssistantMessage,
+  type Context,
+  type Model
+} from '@mariozechner/pi-ai';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { resolveRuntimePiConfigFromEnv } from '../src/config';
-import { createPiRuntime, runAssistantTurnWithPiInternal } from '../src/runtime';
+import { computeStreamTextChange, createPiRuntime, runAssistantTurnWithPiInternal } from '../src/runtime';
 
 type StoredMessage = Message & { parts: MessagePart[] };
 
@@ -240,6 +251,215 @@ async function createContextWithOverrides(overrides: Partial<typeof createContex
   };
 }
 
+function createAssistantMessage(input: {
+  content: AssistantMessage['content'];
+  stopReason?: AssistantMessage['stopReason'];
+}): AssistantMessage {
+  return {
+    role: 'assistant',
+    content: input.content,
+    api: 'scripted-test-api',
+    provider: 'scripted-test-provider',
+    model: 'scripted-test-model',
+    usage: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      totalTokens: 0,
+      cost: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        total: 0
+      }
+    },
+    stopReason: input.stopReason ?? 'stop',
+    timestamp: Date.now()
+  };
+}
+
+function registerScriptedToolUseProvider(steps: Array<(context: Context) => ReturnType<typeof createAssistantMessageEventStream>>) {
+  const api = `scripted-test-api-${crypto.randomUUID()}`;
+  const sourceId = `scripted-provider-${crypto.randomUUID()}`;
+  let index = 0;
+
+  registerApiProvider(
+    {
+      api,
+      stream(_model, context) {
+        const step = steps[index++];
+        if (!step) {
+          throw new Error('No scripted provider step left');
+        }
+
+        return step(context);
+      },
+      streamSimple(_model, context) {
+        const step = steps[index++];
+        if (!step) {
+          throw new Error('No scripted provider step left');
+        }
+
+        return step(context);
+      }
+    },
+    sourceId
+  );
+
+  const model: Model<any> = {
+    id: 'scripted-test-model',
+    name: 'Scripted Test Model',
+    api,
+    provider: 'scripted-test-provider',
+    baseUrl: 'http://localhost:0',
+    reasoning: false,
+    input: ['text'],
+    cost: {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0
+    },
+    contextWindow: 128000,
+    maxTokens: 16384
+  };
+
+  return {
+    model,
+    unregister() {
+      unregisterApiProviders(sourceId);
+    }
+  };
+}
+
+function createToolUseTextThenToolOnlyStep(text: string, toolCallId: string, query: string) {
+  return (_context: Context) => {
+    const stream = createAssistantMessageEventStream();
+
+    queueMicrotask(() => {
+      stream.push({
+        type: 'start',
+        partial: createAssistantMessage({ content: [] })
+      });
+      stream.push({
+        type: 'text_start',
+        contentIndex: 0,
+        partial: createAssistantMessage({
+          content: [{ type: 'text', text: '' }]
+        })
+      });
+      stream.push({
+        type: 'text_delta',
+        contentIndex: 0,
+        delta: text,
+        partial: createAssistantMessage({
+          content: [{ type: 'text', text }]
+        })
+      });
+      stream.push({
+        type: 'text_end',
+        contentIndex: 0,
+        content: text,
+        partial: createAssistantMessage({
+          content: [{ type: 'text', text }]
+        })
+      });
+      stream.push({
+        type: 'toolcall_start',
+        contentIndex: 1,
+        partial: createAssistantMessage({
+          content: [{ type: 'toolCall', id: toolCallId, name: 'searchWeb', arguments: {} }]
+        })
+      });
+      stream.push({
+        type: 'toolcall_end',
+        contentIndex: 1,
+        toolCall: { type: 'toolCall', id: toolCallId, name: 'searchWeb', arguments: { query } },
+        partial: createAssistantMessage({
+          content: [{ type: 'toolCall', id: toolCallId, name: 'searchWeb', arguments: { query } }]
+        })
+      });
+
+      const finalMessage = createAssistantMessage({
+        content: [{ type: 'toolCall', id: toolCallId, name: 'searchWeb', arguments: { query } }],
+        stopReason: 'toolUse'
+      });
+
+      stream.push({
+        type: 'done',
+        reason: 'toolUse',
+        message: finalMessage
+      });
+      stream.end(finalMessage);
+    });
+
+    return stream;
+  };
+}
+
+function createFinalTextStep(text: string) {
+  return (_context: Context) => {
+    const stream = createAssistantMessageEventStream();
+
+    queueMicrotask(() => {
+      stream.push({
+        type: 'start',
+        partial: createAssistantMessage({ content: [] })
+      });
+      stream.push({
+        type: 'text_start',
+        contentIndex: 0,
+        partial: createAssistantMessage({
+          content: [{ type: 'text', text: '' }]
+        })
+      });
+      stream.push({
+        type: 'text_delta',
+        contentIndex: 0,
+        delta: text,
+        partial: createAssistantMessage({
+          content: [{ type: 'text', text }]
+        })
+      });
+      stream.push({
+        type: 'text_end',
+        contentIndex: 0,
+        content: text,
+        partial: createAssistantMessage({
+          content: [{ type: 'text', text }]
+        })
+      });
+
+      const finalMessage = createAssistantMessage({
+        content: [{ type: 'text', text }]
+      });
+
+      stream.push({
+        type: 'done',
+        reason: 'stop',
+        message: finalMessage
+      });
+      stream.end(finalMessage);
+    });
+
+    return stream;
+  };
+}
+
+describe('computeStreamTextChange', () => {
+  it('returns deltas for prefix growth and replace for rewrites', () => {
+    expect(computeStreamTextChange('', '好的')).toEqual({ kind: 'delta', value: '好的' });
+    expect(computeStreamTextChange('好的', '好的，我来')).toEqual({ kind: 'delta', value: '，我来' });
+    expect(computeStreamTextChange('好的，我来搜索', '我来搜索最新新闻')).toEqual({
+      kind: 'replace',
+      value: '我来搜索最新新闻'
+    });
+    expect(computeStreamTextChange('旧的思考', '')).toEqual({ kind: 'replace', value: '' });
+  });
+});
+
 describe('runAssistantTurnWithPiInternal', () => {
   const unregisterCallbacks: Array<() => void> = [];
   const originalDeepseekKey = process.env.DEEPSEEK_API_KEY;
@@ -382,7 +602,7 @@ describe('runAssistantTurnWithPiInternal', () => {
       getApiKey: async () => 'faux-key'
     });
 
-    const updates: Array<{ type: string; hasRun: boolean; assistantText: string | null }> = [];
+    const updates: Array<{ type: string; hasRun: boolean }> = [];
     const liveAssistantTexts: string[] = [];
 
     await runtime.runTurn(
@@ -396,12 +616,13 @@ describe('runAssistantTurnWithPiInternal', () => {
 
           updates.push({
             type: update.runEvent.type,
-            hasRun: Boolean(update.run),
-            assistantText: update.assistantStream?.partialText ?? null
+            hasRun: Boolean(update.run)
           });
         },
         onLiveAssistantUpdate(update) {
-          liveAssistantTexts.push(update.partialText);
+          if (update.kind === 'assistant_delta') {
+            liveAssistantTexts.push(update.textDelta);
+          }
         }
       }
     );
@@ -412,9 +633,235 @@ describe('runAssistantTurnWithPiInternal', () => {
     expect(updates.map((update) => update.type)).toContain('message_end');
     expect(updates.at(-1)).toEqual({
       type: 'agent_end',
-      hasRun: true,
-      assistantText: null
+      hasRun: true
     });
+  });
+
+  it('does not back-write assistant text across tool lifecycle updates', async () => {
+    const { ctx, thread, run } = await createContext();
+    await createSeedThread(ctx.messageRepo, thread.id, 'search GPT-5.5 news');
+
+    const faux = registerFauxProvider({
+      models: [{ id: 'faux-tool-stream-model' }]
+    });
+    unregisterCallbacks.push(faux.unregister);
+    faux.setResponses([
+      fauxAssistantMessage([fauxToolCall('searchWeb', { query: 'GPT-5.5 news' }, { id: 'call-search' })], {
+        text: '好的，我来搜索一下。',
+        stopReason: 'toolUse'
+      }),
+      fauxAssistantMessage('根据搜索结果，这是最新摘要。')
+    ]);
+
+    const runtime = createPiRuntime({
+      model: faux.getModel('faux-tool-stream-model'),
+      getApiKey: async () => 'faux-key',
+      tools: [
+        {
+          name: 'searchWeb',
+          description: 'Search the web',
+          parameters: Type.Object({
+            query: Type.String()
+          }),
+          execute: async () => ({
+            content: [{ type: 'text', text: 'result' }]
+          })
+        }
+      ]
+    });
+
+    const liveUpdates: Array<{ kind: string; value: string }> = [];
+
+    await runtime.runTurn(
+      ctx,
+      { threadId: thread.id, runId: run.id },
+      {
+        onLiveAssistantUpdate(update) {
+          if (update.kind === 'assistant_delta') {
+            liveUpdates.push({ kind: update.kind, value: update.textDelta });
+            return;
+          }
+
+          if (update.kind === 'tool_event') {
+            liveUpdates.push({ kind: update.kind, value: `${update.toolName}:${update.phase}` });
+          }
+        }
+      }
+    );
+
+    expect(liveUpdates).toContainEqual({ kind: 'tool_event', value: 'searchWeb:start' });
+    expect(liveUpdates).toContainEqual({ kind: 'tool_event', value: 'searchWeb:completed' });
+    expect(
+      liveUpdates.filter((update) => update.kind === 'assistant_delta').map((update) => update.value)
+    ).toEqual(['根据搜索结果，这是最新摘要。']);
+  });
+
+  it('starts a fresh live assistant segment for each tool cycle in the same run', async () => {
+    const { ctx, thread, run } = await createContext();
+    await createSeedThread(ctx.messageRepo, thread.id, 'search GPT-5.5 news twice');
+
+    const faux = registerFauxProvider({
+      models: [{ id: 'faux-multi-search-model' }]
+    });
+    unregisterCallbacks.push(faux.unregister);
+    faux.setResponses([
+      fauxAssistantMessage([fauxToolCall('searchWeb', { query: 'GPT-5.5 latest news' }, { id: 'call-search-1' })], {
+        text: '好的，我来搜索一下关于GPT-5.5的最新新闻。',
+        stopReason: 'toolUse'
+      }),
+      fauxAssistantMessage([fauxToolCall('searchWeb', { query: 'GPT-5.5 more details' }, { id: 'call-search-2' })], {
+        text: '我来进一步搜索一下更多细节。',
+        stopReason: 'toolUse'
+      }),
+      fauxAssistantMessage('以下是关于 GPT-5.5 的最新消息汇总：')
+    ]);
+
+    const runtime = createPiRuntime({
+      model: faux.getModel('faux-multi-search-model'),
+      getApiKey: async () => 'faux-key',
+      tools: [
+        {
+          name: 'searchWeb',
+          description: 'Search the web',
+          parameters: Type.Object({
+            query: Type.String()
+          }),
+          execute: async () => ({
+            content: [{ type: 'text', text: 'result' }]
+          })
+        }
+      ]
+    });
+
+    const assistantTextUpdates: Array<{ messageId: string; value: string }> = [];
+    const toolEvents: Array<{ messageId: string; value: string }> = [];
+
+    await runtime.runTurn(
+      ctx,
+      { threadId: thread.id, runId: run.id },
+      {
+        onLiveAssistantUpdate(update) {
+          if (update.kind === 'assistant_delta') {
+            assistantTextUpdates.push({ messageId: update.messageId, value: update.textDelta });
+            return;
+          }
+
+          if (update.kind === 'tool_event') {
+            toolEvents.push({ messageId: update.messageId, value: `${update.toolName}:${update.phase}` });
+          }
+        }
+      }
+    );
+
+    expect(assistantTextUpdates.map((update) => update.value)).toEqual(['以下是关于 GPT-5.5 的最新消息汇总：']);
+    expect(new Set(toolEvents.map((update) => update.messageId)).size).toBe(2);
+    expect(toolEvents).toEqual([
+      { messageId: toolEvents[0]!.messageId, value: 'searchWeb:start' },
+      { messageId: toolEvents[0]!.messageId, value: 'searchWeb:completed' },
+      { messageId: toolEvents[2]!.messageId, value: 'searchWeb:start' },
+      { messageId: toolEvents[2]!.messageId, value: 'searchWeb:completed' }
+    ]);
+    expect(toolEvents[0]!.messageId).not.toBe(toolEvents[2]!.messageId);
+    expect(assistantTextUpdates[0]!.messageId).not.toBe(toolEvents[1]!.messageId);
+  });
+
+  it('persists assistant pre-tool text when a tool-use message finishes without text blocks', async () => {
+    const { ctx, thread, run } = await createContext();
+    await createSeedThread(ctx.messageRepo, thread.id, 'search GPT-5.5 news');
+
+    const scripted = registerScriptedToolUseProvider([
+      createToolUseTextThenToolOnlyStep('让我搜索一下关于 GPT-5.5 的最新新闻。', 'call-search-1', 'GPT-5.5 latest news'),
+      createFinalTextStep('以下是整理后的结果。')
+    ]);
+    unregisterCallbacks.push(scripted.unregister);
+
+    const runtime = createPiRuntime({
+      model: scripted.model,
+      getApiKey: async () => 'faux-key',
+      tools: [
+        {
+          name: 'searchWeb',
+          description: 'Search the web',
+          parameters: Type.Object({
+            query: Type.String()
+          }),
+          execute: async () => ({
+            content: [{ type: 'text', text: 'result' }]
+          })
+        }
+      ]
+    });
+
+    await runtime.runTurn(ctx, { threadId: thread.id, runId: run.id });
+
+    const messages = await ctx.messageRepo.listByThread(thread.id);
+    const firstAssistant = messages.find((message) => message.role === 'assistant' && message.seq === 2);
+    expect(firstAssistant?.parts.map((part) => ({ type: part.type, textValue: part.textValue }))).toEqual([
+      {
+        type: 'text',
+        textValue: '让我搜索一下关于 GPT-5.5 的最新新闻。'
+      },
+      {
+        type: 'tool-call',
+        textValue: null
+      }
+    ]);
+  });
+
+  it('persists pre-tool assistant text for each tool-use message in a multi-search run', async () => {
+    const { ctx, thread, run } = await createContext();
+    await createSeedThread(ctx.messageRepo, thread.id, 'search GPT-5.5 news twice');
+
+    const scripted = registerScriptedToolUseProvider([
+      createToolUseTextThenToolOnlyStep('先搜索一下 GPT-5.5 的最新新闻。', 'call-search-1', 'GPT-5.5 latest news'),
+      createToolUseTextThenToolOnlyStep('我再补充搜索一些更详细的信息。', 'call-search-2', 'GPT-5.5 more details'),
+      createFinalTextStep('以下是整理后的结果。')
+    ]);
+    unregisterCallbacks.push(scripted.unregister);
+
+    const runtime = createPiRuntime({
+      model: scripted.model,
+      getApiKey: async () => 'faux-key',
+      tools: [
+        {
+          name: 'searchWeb',
+          description: 'Search the web',
+          parameters: Type.Object({
+            query: Type.String()
+          }),
+          execute: async () => ({
+            content: [{ type: 'text', text: 'result' }]
+          })
+        }
+      ]
+    });
+
+    await runtime.runTurn(ctx, { threadId: thread.id, runId: run.id });
+
+    const messages = await ctx.messageRepo.listByThread(thread.id);
+    const assistantMessages = messages.filter((message) => message.role === 'assistant');
+
+    expect(assistantMessages).toHaveLength(3);
+    expect(assistantMessages[0]?.parts.map((part) => ({ type: part.type, textValue: part.textValue }))).toEqual([
+      {
+        type: 'text',
+        textValue: '先搜索一下 GPT-5.5 的最新新闻。'
+      },
+      {
+        type: 'tool-call',
+        textValue: null
+      }
+    ]);
+    expect(assistantMessages[1]?.parts.map((part) => ({ type: part.type, textValue: part.textValue }))).toEqual([
+      {
+        type: 'text',
+        textValue: '我再补充搜索一些更详细的信息。'
+      },
+      {
+        type: 'tool-call',
+        textValue: null
+      }
+    ]);
   });
 
   it('does not fail a run when the persisted-update observer throws', async () => {

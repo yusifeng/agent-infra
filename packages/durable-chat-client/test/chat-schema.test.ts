@@ -118,9 +118,8 @@ describe('durable-chat-client schema', () => {
         runId: 'run-1',
         assistant: {
           messageId: 'assistant-1',
-          eventType: 'text_delta',
-          partialText: 'hello',
-          partialReasoning: null
+          kind: 'assistant_delta',
+          textDelta: 'hello'
         }
       })
     ).toEqual({
@@ -128,10 +127,43 @@ describe('durable-chat-client schema', () => {
       runId: 'run-1',
       assistant: {
         messageId: 'assistant-1',
-        eventType: 'text_delta',
-        partialText: 'hello',
-        partialReasoning: null
+        kind: 'assistant_delta',
+        textDelta: 'hello'
       }
     });
+
+    expect(
+      normalizeRunStreamEvent({
+        type: 'run.assistant',
+        runId: 'run-1',
+        assistant: {
+          messageId: 'assistant-1',
+          kind: 'assistant_replace',
+          textSnapshot: 'hello world'
+        }
+      })
+    ).toEqual({
+      type: 'run.assistant',
+      runId: 'run-1',
+      assistant: {
+        messageId: 'assistant-1',
+        kind: 'assistant_replace',
+        textSnapshot: 'hello world'
+      }
+    });
+
+    expect(
+      normalizeRunStreamEvent({
+        type: 'run.assistant',
+        runId: 'run-1',
+        assistant: {
+          messageId: 'assistant-1',
+          kind: 'tool_event',
+          toolCallId: 'call-1',
+          toolName: 'searchWeb',
+          phase: 'unexpected'
+        }
+      })
+    ).toBeNull();
   });
 });

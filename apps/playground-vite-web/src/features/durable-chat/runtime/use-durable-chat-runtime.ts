@@ -23,15 +23,25 @@ import type { LoadThreadMessagesResult } from '@agent-infra/durable-chat-client'
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { buildTranscriptBlocks, filterTranscriptBlocksForLiveRun } from '@/features/durable-chat/runtime/build-transcript-blocks';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
-import type { ActiveSearchPanelData, SearchPanelResultItem } from '@/features/durable-chat/types/search';
+import type { ActiveSearchPanelData, SearchPanelResultItem, SearchPanelSection } from '@/features/durable-chat/types/search';
+import type { TranscriptBlock } from '@/features/durable-chat/types/transcript-blocks';
 import type { DurableChatRuntimeOptions } from '@/features/durable-chat/types/runtime';
 
 const PENDING_NEW_THREAD_LOADING_ID = '__pending-new-thread__';
 
 function asRecord(value: unknown) {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function deriveHostname(rawUrl: string) {
+  try {
+    return new URL(rawUrl).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
 }
 
 function parseSearchResultItem(value: unknown): SearchPanelResultItem | null {
@@ -55,11 +65,15 @@ function parseSearchResultItem(value: unknown): SearchPanelResultItem | null {
     url,
     snippet,
     sourceName,
+    hostname:
+      typeof record.hostname === 'string' && record.hostname.trim().length > 0
+        ? record.hostname.trim().toLowerCase()
+        : deriveHostname(url),
     publishedAt: typeof record.publishedAt === 'string' ? record.publishedAt : null
   };
 }
 
-function buildSearchPanelData(invocation: ToolInvocationDto): ActiveSearchPanelData | null {
+function buildSearchPanelSection(invocation: ToolInvocationDto): SearchPanelSection | null {
   const output = asRecord(invocation.output);
   const artifact = asRecord(output?.artifact);
   if (!artifact) {
@@ -80,13 +94,39 @@ function buildSearchPanelData(invocation: ToolInvocationDto): ActiveSearchPanelD
   }
 
   return {
-    runId: invocation.runId,
     toolCallId: invocation.toolCallId,
     query,
-    provider: typeof artifact.provider === 'string' ? artifact.provider : 'unknown',
     resultCount: typeof artifact.resultCount === 'number' ? artifact.resultCount : results.length,
     retrievedAt: typeof artifact.retrievedAt === 'string' ? artifact.retrievedAt : null,
     results
+  };
+}
+
+function buildSearchPanelData(invocations: ToolInvocationDto[]): ActiveSearchPanelData | null {
+  const sectionsWithInvocation = invocations
+    .filter((invocation) => invocation.toolName === 'searchWeb')
+    .map((invocation) => {
+      const section = buildSearchPanelSection(invocation);
+      return section ? { invocation, section } : null;
+    })
+    .filter((entry): entry is { invocation: ToolInvocationDto; section: SearchPanelSection } => entry !== null);
+
+  if (sectionsWithInvocation.length === 0) {
+    return null;
+  }
+
+  const sections = sectionsWithInvocation.map((entry) => entry.section);
+  const firstInvocation = sectionsWithInvocation[0]!.invocation;
+  const firstArtifact = asRecord(asRecord(firstInvocation.output)?.artifact);
+  const sourceNames = [...new Set(sections.flatMap((section) => section.results.map((result) => result.sourceName).filter(Boolean)))].slice(0, 6);
+
+  return {
+    runId: firstInvocation.runId,
+    toolCallIds: sections.map((section) => section.toolCallId),
+    provider: typeof firstArtifact?.provider === 'string' ? firstArtifact.provider : 'unknown',
+    resultCount: sections.reduce((total, section) => total + section.resultCount, 0),
+    sourceNames,
+    sections
   };
 }
 
@@ -198,6 +238,10 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const displayedMessages = useMemo(
     () => (optimisticUserMessage ? upsertMessage(messages, optimisticUserMessage) : messages),
     [messages, optimisticUserMessage]
+  );
+  const displayedTranscriptBlocks = useMemo<TranscriptBlock[]>(
+    () => filterTranscriptBlocksForLiveRun(buildTranscriptBlocks(displayedMessages), liveAssistantDraft?.runId ?? null),
+    [displayedMessages, liveAssistantDraft?.runId]
   );
   const hasOlderMessages = messagePageInfo?.hasOlder === true;
 
@@ -630,8 +674,9 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     });
   }
 
-  async function openSearchResult(runId: string, toolCallId: string) {
-    const cacheKey = `${runId}:${toolCallId}`;
+  async function openSearchResult(runId: string, toolCallIds: string[]) {
+    const normalizedToolCallIds = [...new Set(toolCallIds)].sort();
+    const cacheKey = `${runId}:${normalizedToolCallIds.join(',')}`;
     const cached = searchResultCacheRef.current.get(cacheKey);
     if (cached) {
       setActiveSearchResult(cached);
@@ -649,15 +694,15 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         throw new Error(result.error ?? `Failed to load search results (${result.status})`);
       }
 
-      const invocation = result.data.toolInvocations.find(
-        (candidate) => candidate.toolName === 'searchWeb' && candidate.toolCallId === toolCallId
+      const invocations = result.data.toolInvocations.filter(
+        (candidate) => candidate.toolName === 'searchWeb' && normalizedToolCallIds.includes(candidate.toolCallId)
       );
 
-      if (!invocation) {
+      if (invocations.length === 0) {
         throw new Error('Search results are no longer available for this conversation turn.');
       }
 
-      const panelData = buildSearchPanelData(invocation);
+      const panelData = buildSearchPanelData(invocations);
       if (!panelData) {
         throw new Error('Search results are present but could not be parsed.');
       }
@@ -762,6 +807,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
 
   return {
     activeThreadId,
+    displayedTranscriptBlocks,
     currentThreadTitle,
     displayedMessages,
     draft,
@@ -788,8 +834,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     onSelectedWebSearchEnabledChange: setSelectedWebSearchEnabled,
     onSelectedThinkingEnabledChange: setSelectedThinkingEnabled,
     onSelectedReasoningEffortChange: setSelectedReasoningEffort,
-    onOpenSearchResult: (runId: string, toolCallId: string) => {
-      void openSearchResult(runId, toolCallId);
+    onOpenSearchResult: (runId: string, toolCallIds: string[]) => {
+      void openSearchResult(runId, toolCallIds);
     },
     onCloseSearchPanel: () => setSearchPanelOpen(false),
     onSend: () => {

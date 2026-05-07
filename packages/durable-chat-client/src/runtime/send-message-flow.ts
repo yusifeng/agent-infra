@@ -5,15 +5,13 @@ import {
   applyRunStateToTimeline,
   attachMessageRenderKey,
   buildOptimisticUserMessage,
-  getChatPhaseForAssistantSnapshot,
-  isPrimaryChatAssistantEventType,
   parseSseChunk,
   resolveSettledChatPhase,
   upsertMessage,
   upsertRun
 } from '../service/chat-runtime.js';
 import { emitApiDiagnostic } from '../service/api-diagnostics.js';
-import type { LiveAssistantDraft } from '../types/live-assistant-draft.js';
+import type { LiveAssistantDraft, LiveAssistantSegment, LiveAssistantToolState } from '../types/live-assistant-draft.js';
 import type { ChatPhase } from '../types/runtime.js';
 
 type Updater<T> = T | ((current: T) => T);
@@ -93,43 +91,247 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
     streamOpenedAtMs: 0
   };
 
-  const applyAssistantSnapshot = (event: Extract<RunStreamEventDto, { type: 'run.assistant' }>) => {
-    if (event.assistant.eventType.startsWith('toolcall')) {
+  const createSegment = (messageId: string, index = 0): LiveAssistantSegment => ({
+    id: `${messageId}:${index}`,
+    messageId,
+    text: '',
+    reasoning: null,
+    tools: [],
+    eventType: 'start'
+  });
+
+  const createEmptyLiveDraft = (runId: string, messageId: string): LiveAssistantDraft => ({
+    runId,
+    messageId,
+    committedText: '',
+    partialText: '',
+    segmentText: '',
+    segmentTextMessageId: null,
+    partialReasoning: null,
+    segmentReasoningMessageId: null,
+    activeTools: [],
+    eventType: 'start',
+    segments: [createSegment(messageId)]
+  });
+
+  const deriveSegmentEventType = (segment: LiveAssistantSegment): LiveAssistantSegment['eventType'] => {
+    if (segment.tools.some((tool) => tool.toolName === 'searchWeb' && tool.phase === 'start')) {
+      return 'searching';
+    }
+
+    if (segment.reasoning) {
+      return 'thinking';
+    }
+
+    if (segment.text) {
+      return 'streaming';
+    }
+
+    return 'start';
+  };
+
+  const syncDraftFromSegments = (draft: LiveAssistantDraft, segments: LiveAssistantSegment[]): LiveAssistantDraft => {
+    const currentSegment = segments.at(-1) ?? createSegment(draft.messageId);
+    const activeTools = currentSegment.tools.filter((tool) => tool.phase === 'start');
+
+    return {
+      ...draft,
+      messageId: currentSegment.messageId,
+      partialText: currentSegment.text,
+      segmentText: currentSegment.text,
+      segmentTextMessageId: currentSegment.text ? currentSegment.messageId : null,
+      partialReasoning: currentSegment.reasoning,
+      segmentReasoningMessageId: currentSegment.reasoning ? currentSegment.messageId : null,
+      activeTools,
+      eventType: currentSegment.eventType,
+      segments
+    };
+  };
+
+  const ensureCurrentSegment = (
+    draft: LiveAssistantDraft,
+    messageId: string,
+    options: { startNewOnToolBoundary?: boolean } = {}
+  ) => {
+    const segments = [...draft.segments];
+    const currentSegment = segments.at(-1);
+    const shouldCreateNewSegment =
+      !currentSegment ||
+      currentSegment.messageId !== messageId ||
+      (options.startNewOnToolBoundary === true && currentSegment.tools.length > 0);
+
+    if (
+      currentSegment &&
+      currentSegment.messageId !== messageId &&
+      !currentSegment.text &&
+      !currentSegment.reasoning &&
+      currentSegment.tools.length === 0
+    ) {
+      const replacementSegment = createSegment(messageId, Math.max(segments.length - 1, 0));
+      segments[segments.length - 1] = replacementSegment;
+      return {
+        segments,
+        segment: replacementSegment
+      };
+    }
+
+    if (shouldCreateNewSegment) {
+      const nextSegment = createSegment(messageId, segments.length);
+      segments.push(nextSegment);
+      return {
+        segments,
+        segment: nextSegment
+      };
+    }
+
+    return {
+      segments,
+      segment: { ...currentSegment }
+    };
+  };
+
+  const replaceCurrentSegment = (segments: LiveAssistantSegment[], segment: LiveAssistantSegment) => {
+    const nextSegments = [...segments];
+    nextSegments[nextSegments.length - 1] = segment;
+    return nextSegments;
+  };
+
+  const applyTextDelta = (current: LiveAssistantDraft | null, runId: string, messageId: string, delta: string): LiveAssistantDraft => {
+    const base = current?.runId === runId ? current : createEmptyLiveDraft(runId, messageId);
+    const { segments, segment } = ensureCurrentSegment(base, messageId, { startNewOnToolBoundary: true });
+    const nextSegment: LiveAssistantSegment = {
+      ...segment,
+      text: `${segment.text}${delta}`
+    };
+    nextSegment.eventType = deriveSegmentEventType(nextSegment);
+
+    return syncDraftFromSegments(
+      {
+        ...base,
+        runId,
+        committedText: ''
+      },
+      replaceCurrentSegment(segments, nextSegment)
+    );
+  };
+
+  const applyTextReplace = (current: LiveAssistantDraft | null, runId: string, messageId: string, snapshot: string): LiveAssistantDraft => {
+    const base = current?.runId === runId ? current : createEmptyLiveDraft(runId, messageId);
+    const { segments, segment } = ensureCurrentSegment(base, messageId);
+    const nextSegment: LiveAssistantSegment = {
+      ...segment,
+      text: snapshot
+    };
+    nextSegment.eventType = deriveSegmentEventType(nextSegment);
+
+    return syncDraftFromSegments(
+      {
+        ...base,
+        runId,
+        committedText: ''
+      },
+      replaceCurrentSegment(segments, nextSegment)
+    );
+  };
+
+  const applyThinkingDelta = (current: LiveAssistantDraft | null, runId: string, messageId: string, delta: string): LiveAssistantDraft => {
+    const base = current?.runId === runId ? current : createEmptyLiveDraft(runId, messageId);
+    const { segments, segment } = ensureCurrentSegment(base, messageId);
+    const nextSegment: LiveAssistantSegment = {
+      ...segment,
+      reasoning: `${segment.reasoning ?? ''}${delta}`
+    };
+    nextSegment.eventType = deriveSegmentEventType(nextSegment);
+
+    return syncDraftFromSegments(
+      {
+        ...base,
+        runId
+      },
+      replaceCurrentSegment(segments, nextSegment)
+    );
+  };
+
+  const applyThinkingReplace = (current: LiveAssistantDraft | null, runId: string, messageId: string, snapshot: string): LiveAssistantDraft => {
+    const base = current?.runId === runId ? current : createEmptyLiveDraft(runId, messageId);
+    const { segments, segment } = ensureCurrentSegment(base, messageId);
+    const nextSegment: LiveAssistantSegment = {
+      ...segment,
+      reasoning: snapshot
+    };
+    nextSegment.eventType = deriveSegmentEventType(nextSegment);
+
+    return syncDraftFromSegments(
+      {
+        ...base,
+        runId
+      },
+      replaceCurrentSegment(segments, nextSegment)
+    );
+  };
+
+  const applyToolEvent = (
+    current: LiveAssistantDraft | null,
+    runId: string,
+    messageId: string,
+    tool: LiveAssistantToolState
+  ): LiveAssistantDraft => {
+    const base = current?.runId === runId ? current : createEmptyLiveDraft(runId, messageId);
+    const { segments, segment } = ensureCurrentSegment(base, messageId);
+    const nextSegment: LiveAssistantSegment = {
+      ...segment,
+      tools: [...segment.tools.filter((entry) => entry.toolCallId !== tool.toolCallId), tool]
+    };
+    nextSegment.eventType = deriveSegmentEventType(nextSegment);
+
+    return syncDraftFromSegments(
+      {
+        ...base,
+        runId
+      },
+      replaceCurrentSegment(segments, nextSegment)
+    );
+  };
+
+  const applyAssistantStreamEvent = (event: Extract<RunStreamEventDto, { type: 'run.assistant' }>) => {
+    const assistant = event.assistant;
+
+    if (assistant.kind === 'assistant_delta') {
+      actions.setChatPhase('streaming');
+      actions.setLiveAssistantDraft((current) => applyTextDelta(current, event.runId, assistant.messageId, assistant.textDelta));
+      return;
+    }
+
+    if (assistant.kind === 'assistant_replace') {
+      actions.setChatPhase('streaming');
+      actions.setLiveAssistantDraft((current) => applyTextReplace(current, event.runId, assistant.messageId, assistant.textSnapshot));
+      return;
+    }
+
+    if (assistant.kind === 'thinking_delta') {
+      actions.setChatPhase('thinking');
+      actions.setLiveAssistantDraft((current) => applyThinkingDelta(current, event.runId, assistant.messageId, assistant.thinkingDelta));
+      return;
+    }
+
+    if (assistant.kind === 'thinking_replace') {
+      actions.setChatPhase('thinking');
+      actions.setLiveAssistantDraft((current) => applyThinkingReplace(current, event.runId, assistant.messageId, assistant.thinkingSnapshot));
+      return;
+    }
+
+    if (assistant.kind === 'tool_event') {
       requiresTranscriptRecovery = true;
+      actions.setChatPhase('streaming');
+      actions.setLiveAssistantDraft((current) =>
+        applyToolEvent(current, event.runId, assistant.messageId, {
+          toolCallId: assistant.toolCallId,
+          toolName: assistant.toolName,
+          phase: assistant.phase,
+          input: assistant.input ?? null
+        })
+      );
     }
-
-    if (!isPrimaryChatAssistantEventType(event.assistant.eventType)) {
-      actions.setLiveAssistantDraft({
-        runId: event.runId,
-        messageId: event.assistant.messageId,
-        partialText: event.assistant.partialText,
-        partialReasoning: event.assistant.partialReasoning,
-        eventType: event.assistant.eventType
-      });
-      return;
-    }
-
-    if (event.assistant.eventType === 'text_end') {
-      actions.setLiveStreamRunId(null);
-      actions.setChatPhase(getChatPhaseForAssistantSnapshot(event.assistant));
-      actions.setLiveAssistantDraft({
-        runId: event.runId,
-        messageId: event.assistant.messageId,
-        partialText: event.assistant.partialText,
-        partialReasoning: event.assistant.partialReasoning,
-        eventType: event.assistant.eventType
-      });
-      return;
-    }
-
-    actions.setChatPhase(getChatPhaseForAssistantSnapshot(event.assistant));
-    actions.setLiveAssistantDraft({
-      runId: event.runId,
-      messageId: event.assistant.messageId,
-      partialText: event.assistant.partialText,
-      partialReasoning: event.assistant.partialReasoning,
-      eventType: event.assistant.eventType
-    });
   };
 
   const processStreamEvent = (event: RunStreamEventDto) => {
@@ -184,12 +386,12 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
           durationMs: elapsedMs,
           kind: 'stream-first-assistant',
           method: 'POST',
-          note: event.assistant.eventType,
+          note: event.assistant.kind,
           requestId: streamDiagnostics.requestId,
           url: `/api/threads/${threadId}/runs/stream`
         });
       }
-      applyAssistantSnapshot(event);
+      applyAssistantStreamEvent(event);
       return;
     }
 
@@ -259,13 +461,7 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
   actions.setTimelineError(null);
   refs.shouldAutoScrollRef.current = true;
   actions.setOptimisticUserMessage(buildOptimisticUserMessage(optimisticThreadId, requestId, text, state.messages));
-  actions.setLiveAssistantDraft({
-    runId: `pending-${requestId}`,
-    messageId: `pending-assistant-${requestId}`,
-    partialText: '',
-    partialReasoning: null,
-    eventType: 'start'
-  });
+  actions.setLiveAssistantDraft(createEmptyLiveDraft(`pending-${requestId}`, `pending-assistant-${requestId}`));
 
   try {
     if (!threadId) {

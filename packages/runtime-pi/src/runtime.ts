@@ -15,6 +15,7 @@ import { resolveRuntimePiConfigFromEnv } from './config.js';
 import { buildInitialAgentState, convertToLlm } from './messages.js';
 import { createDemoTools } from './tools.js';
 import type {
+  RuntimePiAssistantStreamUpdate,
   RuntimePiConfig,
   RuntimePiContext,
   RuntimePiInput,
@@ -34,9 +35,21 @@ type RuntimePiState = {
   nextRunEventSeq: number;
   currentAssistantMessageId: string | null;
   openAssistantMessageId: string | null;
+  liveAssistantMessageId: string | null;
+  liveAssistantTextSnapshot: string;
+  liveAssistantReasoningSnapshot: string;
+  persistedAssistantTextSnapshot: string;
+  persistedAssistantReasoningSnapshot: string;
+  persistedAssistantTextFlushed: boolean;
+  persistedAssistantReasoningFlushed: boolean;
   nextPartIndexByMessageId: Map<string, number>;
   toolInvocationByCallId: Map<string, { id: string; messageId: string; status: 'running' | 'completed' | 'failed' }>;
   persistedToolCallIds: Set<string>;
+};
+
+type CapturedAssistantSnapshots = {
+  text: string;
+  reasoning: string;
 };
 
 export type RuntimePiInternalOptions = RuntimePiRuntimeOptions & {
@@ -335,26 +348,162 @@ function extractAssistantReasoning(message: AssistantMessage) {
   return reasoning || null;
 }
 
-function createAssistantStreamSnapshot(messageId: string, assistantMessageEvent: AssistantMessageEvent) {
+function updatePersistedAssistantSnapshots(state: RuntimePiState, assistantMessageEvent: AssistantMessageEvent) {
   if (assistantMessageEvent.type === 'done' || assistantMessageEvent.type === 'error') {
+    return;
+  }
+
+  const nextTextSnapshot = extractAssistantText(assistantMessageEvent.partial);
+  const nextReasoningSnapshot = extractAssistantReasoning(assistantMessageEvent.partial) ?? '';
+
+  if (assistantMessageEvent.type.startsWith('text_')) {
+    state.persistedAssistantTextSnapshot = nextTextSnapshot;
+  } else if (nextTextSnapshot) {
+    state.persistedAssistantTextSnapshot = nextTextSnapshot;
+  }
+
+  if (assistantMessageEvent.type.startsWith('thinking_')) {
+    state.persistedAssistantReasoningSnapshot = nextReasoningSnapshot;
+  } else if (nextReasoningSnapshot) {
+    state.persistedAssistantReasoningSnapshot = nextReasoningSnapshot;
+  }
+}
+
+export function computeStreamTextChange(previous: string, next: string) {
+  if (previous === next) {
     return null;
   }
 
+  if (!previous) {
+    return {
+      kind: 'delta' as const,
+      value: next
+    };
+  }
+
+  if (!next) {
+    return {
+      kind: 'replace' as const,
+      value: ''
+    };
+  }
+
+  if (next.startsWith(previous)) {
+    return {
+      kind: 'delta' as const,
+      value: next.slice(previous.length)
+    };
+  }
+
   return {
-    messageId,
-    eventType: assistantMessageEvent.type,
-    partialText: extractAssistantText(assistantMessageEvent.partial),
-    partialReasoning: extractAssistantReasoning(assistantMessageEvent.partial)
+    kind: 'replace' as const,
+    value: next
   };
 }
 
-function createAssistantCompletionSnapshot(messageId: string, assistantMessage: AssistantMessage) {
-  return {
-    messageId,
-    eventType: 'text_end' as const,
-    partialText: extractAssistantText(assistantMessage),
-    partialReasoning: extractAssistantReasoning(assistantMessage)
-  };
+function createAssistantStreamUpdates(
+  state: RuntimePiState,
+  messageId: string,
+  assistantMessageEvent: AssistantMessageEvent
+) {
+  if (assistantMessageEvent.type === 'done' || assistantMessageEvent.type === 'error') {
+    return [];
+  }
+
+  const updates: RuntimePiAssistantStreamUpdate[] = [];
+  // pi-ai streams both event-local deltas and a mutable partial AssistantMessage.
+  // We treat the partial message as the source of truth, then derive delta-first
+  // updates for consumers. This lets us preserve correctness when a provider
+  // finalizes text or tool arguments with a non-prefix rewrite.
+  const nextTextSnapshot = extractAssistantText(assistantMessageEvent.partial);
+  const nextReasoningSnapshot = extractAssistantReasoning(assistantMessageEvent.partial) ?? '';
+  const textChange = computeStreamTextChange(state.liveAssistantTextSnapshot, nextTextSnapshot);
+  const thinkingChange = computeStreamTextChange(state.liveAssistantReasoningSnapshot, nextReasoningSnapshot);
+
+  state.liveAssistantTextSnapshot = nextTextSnapshot;
+  state.liveAssistantReasoningSnapshot = nextReasoningSnapshot;
+
+  if (textChange?.kind === 'delta') {
+    updates.push({
+      messageId,
+      kind: 'assistant_delta',
+      textDelta: textChange.value
+    });
+  }
+
+  if (textChange?.kind === 'replace') {
+    updates.push({
+      messageId,
+      kind: 'assistant_replace',
+      textSnapshot: textChange.value
+    });
+  }
+
+  if (thinkingChange?.kind === 'delta') {
+    updates.push({
+      messageId,
+      kind: 'thinking_delta',
+      thinkingDelta: thinkingChange.value
+    });
+  }
+
+  if (thinkingChange?.kind === 'replace') {
+    updates.push({
+      messageId,
+      kind: 'thinking_replace',
+      thinkingSnapshot: thinkingChange.value
+    });
+  }
+
+  return updates;
+}
+
+function createAssistantCompletionUpdates(
+  state: RuntimePiState,
+  messageId: string,
+  assistantMessage: AssistantMessage
+) {
+  const updates: RuntimePiAssistantStreamUpdate[] = [];
+  const finalTextSnapshot = extractAssistantText(assistantMessage);
+  const finalReasoningSnapshot = extractAssistantReasoning(assistantMessage) ?? '';
+  const textChange = computeStreamTextChange(state.liveAssistantTextSnapshot, finalTextSnapshot);
+  const thinkingChange = computeStreamTextChange(state.liveAssistantReasoningSnapshot, finalReasoningSnapshot);
+
+  if (textChange?.kind === 'delta') {
+    updates.push({
+      messageId,
+      kind: 'assistant_delta',
+      textDelta: textChange.value
+    });
+  }
+
+  if (textChange?.kind === 'replace') {
+    updates.push({
+      messageId,
+      kind: 'assistant_replace',
+      textSnapshot: textChange.value
+    });
+  }
+
+  if (thinkingChange?.kind === 'delta') {
+    updates.push({
+      messageId,
+      kind: 'thinking_delta',
+      thinkingDelta: thinkingChange.value
+    });
+  }
+
+  if (thinkingChange?.kind === 'replace') {
+    updates.push({
+      messageId,
+      kind: 'thinking_replace',
+      thinkingSnapshot: thinkingChange.value
+    });
+  }
+
+  state.liveAssistantTextSnapshot = '';
+  state.liveAssistantReasoningSnapshot = '';
+  return updates;
 }
 
 async function appendRunEvent(ctx: RuntimePiContext, state: RuntimePiState, input: RuntimePiInput, event: AgentEvent) {
@@ -414,10 +563,29 @@ async function appendMessagePart(
   state.nextPartIndexByMessageId.set(messageId, nextPartIndex + 1);
 }
 
+async function persistPendingAssistantSnapshots(ctx: RuntimePiContext, state: RuntimePiState, messageId: string) {
+  if (!state.persistedAssistantReasoningFlushed && state.persistedAssistantReasoningSnapshot.trim()) {
+    await appendMessagePart(ctx, state, messageId, 'reasoning', {
+      textValue: state.persistedAssistantReasoningSnapshot
+    });
+    state.persistedAssistantReasoningSnapshot = '';
+    state.persistedAssistantReasoningFlushed = true;
+  }
+
+  if (!state.persistedAssistantTextFlushed && state.persistedAssistantTextSnapshot.trim()) {
+    await appendMessagePart(ctx, state, messageId, 'text', {
+      textValue: state.persistedAssistantTextSnapshot
+    });
+    state.persistedAssistantTextSnapshot = '';
+    state.persistedAssistantTextFlushed = true;
+  }
+}
+
 async function persistAssistantMessage(
   ctx: RuntimePiContext,
   state: RuntimePiState,
-  assistantMessage: AssistantMessage
+  assistantMessage: AssistantMessage,
+  capturedSnapshots: CapturedAssistantSnapshots | null = null
 ) {
   const messageId = state.currentAssistantMessageId;
   if (!messageId) {
@@ -425,10 +593,29 @@ async function persistAssistantMessage(
   }
 
   let wroteContent = false;
+  const finalTextSnapshot = extractAssistantText(assistantMessage);
+  const finalReasoningSnapshot = extractAssistantReasoning(assistantMessage) ?? '';
+
+  if (finalTextSnapshot && !state.persistedAssistantTextFlushed) {
+    state.persistedAssistantTextSnapshot = finalTextSnapshot;
+  } else if (capturedSnapshots?.text) {
+    if (!state.persistedAssistantTextFlushed) {
+      state.persistedAssistantTextSnapshot = capturedSnapshots.text;
+    }
+  }
+
+  if (finalReasoningSnapshot && !state.persistedAssistantReasoningFlushed) {
+    state.persistedAssistantReasoningSnapshot = finalReasoningSnapshot;
+  } else if (capturedSnapshots?.reasoning) {
+    if (!state.persistedAssistantReasoningFlushed) {
+      state.persistedAssistantReasoningSnapshot = capturedSnapshots.reasoning;
+    }
+  }
 
   for (const block of assistantMessage.content) {
     if (block.type === 'text') {
       wroteContent = true;
+      state.persistedAssistantTextFlushed = true;
       await appendMessagePart(ctx, state, messageId, 'text', {
         textValue: block.text
       });
@@ -437,12 +624,17 @@ async function persistAssistantMessage(
 
     if (block.type === 'thinking') {
       wroteContent = true;
+      state.persistedAssistantReasoningFlushed = true;
       await appendMessagePart(ctx, state, messageId, 'reasoning', {
         textValue: block.thinking
       });
       continue;
     }
+  }
 
+  if (!wroteContent) {
+    wroteContent = Boolean(state.persistedAssistantReasoningSnapshot.trim() || state.persistedAssistantTextSnapshot.trim());
+    await persistPendingAssistantSnapshots(ctx, state, messageId);
   }
 
   if (!wroteContent && assistantMessage.stopReason === 'error' && assistantMessage.errorMessage) {
@@ -453,6 +645,8 @@ async function persistAssistantMessage(
 
   await ctx.messageRepo.updateStatus(messageId, assistantMessage.stopReason === 'error' || assistantMessage.stopReason === 'aborted' ? 'failed' : 'completed');
   state.openAssistantMessageId = null;
+  state.persistedAssistantTextSnapshot = '';
+  state.persistedAssistantReasoningSnapshot = '';
 }
 
 async function persistToolResultMessage(
@@ -493,7 +687,7 @@ async function emitPersistedUpdate(options: RuntimePiRunTurnOptions | undefined,
 
 async function emitLiveAssistantUpdate(
   options: RuntimePiRunTurnOptions | undefined,
-  update: RuntimePiPersistedUpdate['assistantStream']
+  update: RuntimePiAssistantStreamUpdate | null
 ) {
   if (!options?.onLiveAssistantUpdate || !update) {
     return;
@@ -511,7 +705,8 @@ async function handleAgentEvent(
   state: RuntimePiState,
   input: RuntimePiInput,
   model: Model<any>,
-  event: AgentEvent
+  event: AgentEvent,
+  capturedAssistantSnapshots: CapturedAssistantSnapshots | null = null
 ): Promise<RuntimePiPersistedUpdate | null> {
   if (event.type === 'agent_start') {
     const run = await ctx.runRepo.updateStatus(input.runId, 'running', { startedAt: new Date() });
@@ -538,6 +733,12 @@ async function handleAgentEvent(
     state.nextPartIndexByMessageId.set(message.id, 0);
     state.currentAssistantMessageId = message.id;
     state.openAssistantMessageId = message.id;
+    state.liveAssistantTextSnapshot = '';
+    state.liveAssistantReasoningSnapshot = '';
+    state.persistedAssistantTextSnapshot = '';
+    state.persistedAssistantReasoningSnapshot = '';
+    state.persistedAssistantTextFlushed = false;
+    state.persistedAssistantReasoningFlushed = false;
     const runEvent = await appendRunEvent(ctx, state, input, event);
     return { runEvent };
   }
@@ -547,7 +748,7 @@ async function handleAgentEvent(
   }
 
   if (event.type === 'message_end' && event.message.role === 'assistant') {
-    await persistAssistantMessage(ctx, state, event.message);
+    await persistAssistantMessage(ctx, state, event.message, capturedAssistantSnapshots);
     const runEvent = await appendRunEvent(ctx, state, input, event);
     return { runEvent };
   }
@@ -557,6 +758,12 @@ async function handleAgentEvent(
     if (!assistantMessageId) {
       throw new Error('Tool execution started before an assistant message was persisted.');
     }
+
+    if (capturedAssistantSnapshots) {
+      state.persistedAssistantTextSnapshot = capturedAssistantSnapshots.text;
+      state.persistedAssistantReasoningSnapshot = capturedAssistantSnapshots.reasoning;
+    }
+    await persistPendingAssistantSnapshots(ctx, state, assistantMessageId);
 
     const invocation = await ctx.toolRepo.create({
       id: crypto.randomUUID(),
@@ -743,6 +950,13 @@ export async function runAssistantTurnWithPiInternal(
     nextRunEventSeq: await ctx.runEventRepo.nextSeq(input.runId),
     currentAssistantMessageId: null,
     openAssistantMessageId: null,
+    liveAssistantMessageId: null,
+    liveAssistantTextSnapshot: '',
+    liveAssistantReasoningSnapshot: '',
+    persistedAssistantTextSnapshot: '',
+    persistedAssistantReasoningSnapshot: '',
+    persistedAssistantTextFlushed: false,
+    persistedAssistantReasoningFlushed: false,
     nextPartIndexByMessageId: new Map(),
     toolInvocationByCallId: new Map(),
     persistedToolCallIds: new Set()
@@ -787,29 +1001,82 @@ export async function runAssistantTurnWithPiInternal(
   let subscriberFailure: unknown = null;
 
   const unsubscribe = agent.subscribe((event) => {
-    if (event.type === 'message_start' && event.message.role === 'assistant' && !state.openAssistantMessageId) {
-      state.currentAssistantMessageId = crypto.randomUUID();
-      state.openAssistantMessageId = state.currentAssistantMessageId;
+    const capturedAssistantSnapshots: CapturedAssistantSnapshots | null =
+      event.type === 'message_end' && event.message.role === 'assistant'
+        ? {
+            text: state.persistedAssistantTextSnapshot,
+            reasoning: state.persistedAssistantReasoningSnapshot
+          }
+        : event.type === 'tool_execution_start'
+          ? {
+              text: state.persistedAssistantTextSnapshot,
+              reasoning: state.persistedAssistantReasoningSnapshot
+            }
+          : null;
+
+    if (event.type === 'message_start' && event.message.role === 'assistant') {
+      const liveMessageId = state.openAssistantMessageId ?? crypto.randomUUID();
+      state.openAssistantMessageId = liveMessageId;
+      state.liveAssistantMessageId = liveMessageId;
+      state.liveAssistantTextSnapshot = '';
+      state.liveAssistantReasoningSnapshot = '';
     }
 
     if (event.type === 'message_update' && event.message.role === 'assistant') {
-      const assistantStream = state.currentAssistantMessageId
-        ? createAssistantStreamSnapshot(state.currentAssistantMessageId, event.assistantMessageEvent)
-        : null;
+      updatePersistedAssistantSnapshots(state, event.assistantMessageEvent);
+      const assistantStreamUpdates = state.liveAssistantMessageId
+        ? createAssistantStreamUpdates(state, state.liveAssistantMessageId, event.assistantMessageEvent)
+        : [];
 
       liveEventChain = liveEventChain.then(async () => {
-        await emitLiveAssistantUpdate(runOptions, assistantStream);
+        for (const update of assistantStreamUpdates) {
+          await emitLiveAssistantUpdate(runOptions, update);
+        }
       });
     }
 
     if (event.type === 'message_end' && event.message.role === 'assistant') {
-      const assistantStream = state.currentAssistantMessageId
-        ? createAssistantCompletionSnapshot(state.currentAssistantMessageId, event.message)
-        : null;
+      const assistantStreamUpdates = state.liveAssistantMessageId
+        ? createAssistantCompletionUpdates(state, state.liveAssistantMessageId, event.message)
+        : [];
 
       liveEventChain = liveEventChain.then(async () => {
-        await emitLiveAssistantUpdate(runOptions, assistantStream);
+        for (const update of assistantStreamUpdates) {
+          await emitLiveAssistantUpdate(runOptions, update);
+        }
       });
+    }
+
+    if (event.type === 'tool_execution_start') {
+      const messageId = state.liveAssistantMessageId;
+      if (messageId) {
+        liveEventChain = liveEventChain.then(async () => {
+          await emitLiveAssistantUpdate(runOptions, {
+            messageId,
+            kind: 'tool_event',
+            toolCallId: event.toolCallId,
+            toolName: event.toolName,
+            phase: 'start',
+            input: asRecordOrNull(event.args)
+          });
+        });
+      }
+    }
+
+    if (event.type === 'tool_execution_end') {
+      const messageId = state.liveAssistantMessageId;
+      if (messageId) {
+        liveEventChain = liveEventChain.then(async () => {
+          await emitLiveAssistantUpdate(runOptions, {
+            messageId,
+            kind: 'tool_event',
+            toolCallId: event.toolCallId,
+            toolName: event.toolName,
+            phase: event.isError ? 'failed' : 'completed',
+            input: null
+          });
+        });
+      }
     }
 
     eventChain = eventChain.then(async () => {
@@ -817,7 +1084,7 @@ export async function runAssistantTurnWithPiInternal(
         return;
       }
 
-      const update = await handleAgentEvent(ctx, state, input, model, event);
+      const update = await handleAgentEvent(ctx, state, input, model, event, capturedAssistantSnapshots);
       await emitPersistedUpdate(runOptions, update);
     }).catch((error) => {
       subscriberFailure = error;

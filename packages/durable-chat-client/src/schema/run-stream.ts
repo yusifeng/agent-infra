@@ -1,6 +1,6 @@
 import type {
   RunStreamAssistantEventDto,
-  RunStreamAssistantSnapshotDto,
+  RunStreamAssistantPayloadDto,
   RunStreamCompletedEventDto,
   RunStreamEventDto,
   RunStreamFailedEventDto,
@@ -32,27 +32,95 @@ function asNullableString(value: unknown) {
   return typeof value === 'string' ? value : null;
 }
 
-function normalizeAssistantSnapshot(value: unknown): RunStreamAssistantSnapshotDto | null {
+function isToolEventPhase(value: string): value is 'start' | 'completed' | 'failed' {
+  return value === 'start' || value === 'completed' || value === 'failed';
+}
+
+function normalizeAssistantPayload(value: unknown): RunStreamAssistantPayloadDto | null {
   const record = asRecord(value);
   if (!record) {
     return null;
   }
 
   const messageId = asString(record.messageId);
-  const eventType = asString(record.eventType) as RunStreamAssistantSnapshotDto['eventType'] | null;
-  const partialText = asString(record.partialText);
-  const partialReasoning = asNullableString(record.partialReasoning);
-
-  if (!messageId || !eventType || partialText === null) {
+  const kind = asString(record.kind) as RunStreamAssistantPayloadDto['kind'] | null;
+  if (!messageId || !kind) {
     return null;
   }
 
-  return {
-    messageId,
-    eventType,
-    partialText,
-    partialReasoning
-  };
+  if (kind === 'assistant_delta') {
+    const textDelta = asString(record.textDelta);
+    if (textDelta === null) {
+      return null;
+    }
+
+    return {
+      messageId,
+      kind,
+      textDelta
+    };
+  }
+
+  if (kind === 'assistant_replace') {
+    const textSnapshot = asString(record.textSnapshot);
+    if (textSnapshot === null) {
+      return null;
+    }
+
+    return {
+      messageId,
+      kind,
+      textSnapshot
+    };
+  }
+
+  if (kind === 'thinking_delta') {
+    const thinkingDelta = asString(record.thinkingDelta);
+    if (thinkingDelta === null) {
+      return null;
+    }
+
+    return {
+      messageId,
+      kind,
+      thinkingDelta
+    };
+  }
+
+  if (kind === 'thinking_replace') {
+    const thinkingSnapshot = asString(record.thinkingSnapshot);
+    if (thinkingSnapshot === null) {
+      return null;
+    }
+
+    return {
+      messageId,
+      kind,
+      thinkingSnapshot
+    };
+  }
+
+  if (kind === 'tool_event') {
+    const toolCallId = asString(record.toolCallId);
+    const toolName = asString(record.toolName);
+    const phase = asString(record.phase);
+    const input = record.input === undefined ? undefined : asRecord(record.input);
+
+    if (!toolCallId || !toolName || !phase || !isToolEventPhase(phase)) {
+      return null;
+    }
+
+    return {
+      messageId,
+      kind,
+      toolCallId,
+      toolName,
+      phase,
+      input
+    };
+  }
+
+  return null;
 }
 
 export function normalizeRunStreamEvent(value: unknown): RunStreamEventDto | null {
@@ -97,7 +165,7 @@ export function normalizeRunStreamEvent(value: unknown): RunStreamEventDto | nul
       return event;
     }
     case 'run.assistant': {
-      const assistant = normalizeAssistantSnapshot(record.assistant);
+      const assistant = normalizeAssistantPayload(record.assistant);
       if (!assistant) {
         return null;
       }

@@ -323,7 +323,7 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
         }
   );
 
-  const isCompleted = props.type === 'persisted' ? true : props.liveAssistantDraft.eventType === 'text_end';
+  const isCompleted = props.type === 'persisted';
   const hasVisibleContent =
     props.type === 'persisted'
       ? props.message.parts.some(messagePartHasVisibleContent)
@@ -355,7 +355,7 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
       : (
         <>
           {props.liveAssistantDraft.partialReasoning ? (
-            <ReasoningPanel content={props.liveAssistantDraft.partialReasoning} thinking={props.liveAssistantDraft.eventType !== 'text_end'} />
+            <ReasoningPanel content={props.liveAssistantDraft.partialReasoning} thinking />
           ) : null}
 
           {props.liveAssistantDraft.partialText ? (
