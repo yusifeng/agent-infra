@@ -2,7 +2,6 @@ import type { MessageDto } from '@agent-infra/contracts';
 import {
   applyHydratedTranscriptState,
   clearPersistedLiveAssistantDraft,
-  deriveMainChatResponseStatus,
   persistLiveAssistantDraft,
   readPersistedLiveAssistantDraft,
   runActivateThread,
@@ -16,9 +15,7 @@ import {
   runRefreshThreads,
   runResetDraftThreadState,
   runSendMessageFlow,
-  shouldShowMainChatLoading,
-  runStopViewingLiveResponse,
-  upsertMessage
+  runStopViewingLiveResponse
 } from '@agent-infra/durable-chat-client';
 import type { LoadThreadMessagesResult } from '@agent-infra/durable-chat-client';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -32,12 +29,11 @@ import {
   shouldRestorePersistedLiveDraft
 } from '@/features/durable-chat/runtime/live-draft-persistence';
 import { fetchRunTimeline, fetchThreadMessages } from '@/features/durable-chat/repo/chat-api';
-import { buildTranscriptBlocks, filterTranscriptBlocksForLiveRun } from '@/features/durable-chat/service/build-transcript-blocks';
+import { buildChatViewState } from '@/features/durable-chat/service/chat-view-state';
 import { buildSearchPanelData } from '@/features/durable-chat/service/search-panel';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
 import type { ActiveSearchPanelData } from '@/features/durable-chat/types/search';
-import type { TranscriptBlock } from '@/features/durable-chat/types/transcript-blocks';
 import type { DurableChatRuntimeOptions } from '@/features/durable-chat/types/runtime';
 
 const PENDING_NEW_THREAD_LOADING_ID = '__pending-new-thread__';
@@ -131,33 +127,51 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const [searchPanelLoading, setSearchPanelLoading] = useState(false);
   const [searchPanelError, setSearchPanelError] = useState<string | null>(null);
   const [restoredRunRefreshId, setRestoredRunRefreshId] = useState<string | null>(null);
-  const activeThread = useMemo(() => threads.find((thread) => thread.id === activeThreadId) ?? null, [threads, activeThreadId]);
-  const selectedModelOption = useMemo(
-    () => meta?.modelOptions.find((option) => option.key === selectedModelKey) ?? meta?.modelOptions[0] ?? null,
-    [meta, selectedModelKey]
+  const {
+    selectedModelOption,
+    currentThreadTitle,
+    responseStatus,
+    isChatResponding,
+    showResponseLoading,
+    sendDisabled,
+    inputLocked,
+    displayedMessages,
+    displayedTranscriptBlocks,
+    hasOlderMessages
+  } = useMemo(
+    () =>
+      buildChatViewState({
+        threads,
+        activeThreadId,
+        messages,
+        draft,
+        optimisticUserMessage,
+        meta,
+        selectedModelKey,
+        activeResponseRun,
+        chatPhase,
+        persistingTurn,
+        loadingThreadId,
+        messagePageInfo,
+        liveAssistantDraft,
+        pendingNewThreadLoadingId: PENDING_NEW_THREAD_LOADING_ID
+      }),
+    [
+      threads,
+      activeThreadId,
+      messages,
+      draft,
+      optimisticUserMessage,
+      meta,
+      selectedModelKey,
+      activeResponseRun,
+      chatPhase,
+      persistingTurn,
+      loadingThreadId,
+      messagePageInfo,
+      liveAssistantDraft
+    ]
   );
-  const currentThreadTitle = activeThread?.title?.trim() || activeThreadId || 'New chat';
-  const responseStatus = deriveMainChatResponseStatus({
-    activeResponseRun,
-    activeThreadId,
-    loadingThreadId,
-    chatPhase,
-    persistingTurn,
-    pendingNewThreadLoadingId: PENDING_NEW_THREAD_LOADING_ID
-  });
-  const isChatResponding = shouldShowMainChatLoading(responseStatus);
-  const showResponseLoading = shouldShowMainChatLoading(responseStatus);
-  const sendDisabled = !draft.trim() || isChatResponding || !meta?.runtimeConfigured || !selectedModelOption;
-  const inputLocked = isChatResponding;
-  const displayedMessages = useMemo(
-    () => (optimisticUserMessage ? upsertMessage(messages, optimisticUserMessage) : messages),
-    [messages, optimisticUserMessage]
-  );
-  const displayedTranscriptBlocks = useMemo<TranscriptBlock[]>(
-    () => filterTranscriptBlocksForLiveRun(buildTranscriptBlocks(displayedMessages), liveAssistantDraft?.runId ?? null),
-    [displayedMessages, liveAssistantDraft?.runId]
-  );
-  const hasOlderMessages = messagePageInfo?.hasOlder === true;
   const hasHydratedActiveThread = activeThreadId ? hydratedThreadIdsRef.current.has(activeThreadId) : false;
 
   function markThreadHydrated(threadId: string) {
