@@ -298,6 +298,7 @@ describe('applyHydratedTranscriptState', () => {
       {
         runId: 'run-active',
         messageId: 'assistant-live',
+        source: 'restored',
         committedText: '',
         partialText: '正在搜索 Claude',
         segmentText: '正在搜索 Claude',
@@ -322,6 +323,7 @@ describe('applyHydratedTranscriptState', () => {
     expect(restoredDraft).toEqual({
       runId: 'run-active',
       messageId: 'assistant-live',
+      source: 'restored',
       committedText: '',
       partialText: '正在搜索 Claude',
       segmentText: '正在搜索 Claude',
@@ -341,6 +343,88 @@ describe('applyHydratedTranscriptState', () => {
         }
       ]
     });
+  });
+
+  it('drops a restored live draft when durable assistant content for the active run is already present', () => {
+    const setLiveAssistantDraft = createSetterSpy<any>();
+    const actions = {
+      setActiveResponseRun: createSetterSpy<RunDto | null>(),
+      setChatPhase: createSetterSpy<'idle' | 'thinking' | 'streaming' | 'transcript-final' | 'failed'>(),
+      setError: createSetterSpy<string | null>(),
+      setLiveAssistantDraft,
+      setMessages: createSetterSpy<MessageDto[]>(),
+      setMessagePageInfo: createSetterSpy<ThreadMessagesPageInfoDto | null>(),
+      setOptimisticUserMessage: createSetterSpy<MessageDto | null>(),
+      setRecentRuns: createSetterSpy<RunDto[]>(),
+      setRecentRunsError: createSetterSpy<string | null>(),
+      setSelectedRunId: createSetterSpy<string | null>()
+    };
+
+    applyHydratedTranscriptState({
+      messages: [
+        {
+          ...createMessage('assistant-message-1', 1),
+          role: 'assistant',
+          runId: 'run-active',
+          parts: [
+            {
+              id: 'part-1',
+              messageId: 'assistant-message-1',
+              partIndex: 0,
+              type: 'text',
+              textValue: '根据搜索结果，这里有一些关于 Claude 的最新新闻摘要：',
+              jsonValue: null
+            }
+          ]
+        }
+      ],
+      pageInfo: null,
+      activeResponseRun: {
+        id: 'run-active',
+        threadId: 'thread-1',
+        triggerMessageId: null,
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+        status: 'running',
+        usage: null,
+        error: null,
+        startedAt: '2026-01-01T00:00:00.000Z',
+        finishedAt: null,
+        createdAt: '2026-01-01T00:00:00.000Z'
+      },
+      selectedRunId: null,
+      runs: [],
+      actions
+    });
+
+    const nextDraft = resolveUpdater(
+      setLiveAssistantDraft.mock.calls[0]?.[0],
+      {
+        runId: 'run-active',
+        messageId: 'assistant-live',
+        source: 'restored',
+        committedText: '',
+        partialText: '好的，我来帮你搜索一下关于 Claude 的最新新闻！',
+        segmentText: '好的，我来帮你搜索一下关于 Claude 的最新新闻！',
+        segmentTextMessageId: 'assistant-live',
+        partialReasoning: null,
+        segmentReasoningMessageId: null,
+        activeTools: [],
+        eventType: 'streaming',
+        segments: [
+          {
+            id: 'assistant-live:0',
+            messageId: 'assistant-live',
+            text: '好的，我来帮你搜索一下关于 Claude 的最新新闻！',
+            reasoning: null,
+            tools: [],
+            eventType: 'streaming'
+          }
+        ]
+      }
+    );
+
+    expect(nextDraft).toBeNull();
   });
 });
 

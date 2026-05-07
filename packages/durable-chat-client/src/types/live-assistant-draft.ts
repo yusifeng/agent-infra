@@ -17,6 +17,7 @@ export type LiveAssistantSegment = {
 export type LiveAssistantDraft = {
   runId: string;
   messageId: string;
+  source?: 'live' | 'restored';
   committedText: string;
   partialText: string;
   segmentText: string;

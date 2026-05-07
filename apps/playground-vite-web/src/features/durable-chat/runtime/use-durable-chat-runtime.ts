@@ -28,8 +28,10 @@ import { useNavigate } from 'react-router-dom';
 
 import { buildTranscriptBlocks, filterTranscriptBlocksForLiveRun } from '@/features/durable-chat/runtime/build-transcript-blocks';
 import {
+  startRestoredLiveDraftRefreshLoop,
   shouldClearPersistedLiveDraft,
   shouldPersistActiveLiveDraft,
+  shouldRefreshRestoredLiveDraft,
   shouldRestorePersistedLiveDraft
 } from '@/features/durable-chat/runtime/live-draft-persistence';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
@@ -226,6 +228,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const [activeSearchResult, setActiveSearchResult] = useState<ActiveSearchPanelData | null>(null);
   const [searchPanelLoading, setSearchPanelLoading] = useState(false);
   const [searchPanelError, setSearchPanelError] = useState<string | null>(null);
+  const [restoredRunRefreshId, setRestoredRunRefreshId] = useState<string | null>(null);
   const activeThread = useMemo(() => threads.find((thread) => thread.id === activeThreadId) ?? null, [threads, activeThreadId]);
   const selectedModelOption = useMemo(
     () => meta?.modelOptions.find((option) => option.key === selectedModelKey) ?? meta?.modelOptions[0] ?? null,
@@ -310,8 +313,51 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       return;
     }
 
-    setLiveAssistantDraft(restoredDraft);
+    setRestoredRunRefreshId(runId);
+    setLiveAssistantDraft({
+      ...restoredDraft,
+      source: 'restored'
+    });
   }, [activeResponseRun, activeThreadId, liveAssistantDraft, setLiveAssistantDraft]);
+
+  useEffect(() => {
+    if (!restoredRunRefreshId) {
+      return;
+    }
+
+    if (!activeResponseRun || activeResponseRun.id !== restoredRunRefreshId || activeResponseRun.threadId !== activeThreadId) {
+      setRestoredRunRefreshId(null);
+      return;
+    }
+
+    if (!['queued', 'running'].includes(activeResponseRun.status)) {
+      setRestoredRunRefreshId(null);
+    }
+  }, [activeResponseRun, activeThreadId, restoredRunRefreshId]);
+
+  useEffect(() => {
+    if (
+      !shouldRefreshRestoredLiveDraft({
+        activeThreadId,
+        activeResponseRun,
+        liveAssistantDraft,
+        restoredRunId: restoredRunRefreshId
+      })
+    ) {
+      return;
+    }
+
+    const threadId = activeThreadId!;
+    return startRestoredLiveDraftRefreshLoop({
+      refresh: async () => {
+        await loadThreadMessages(threadId, {
+          background: true,
+          skipTimelineReload: true,
+          preserveExistingTimeline: true
+        });
+      }
+    });
+  }, [activeResponseRun, activeThreadId, liveAssistantDraft]);
 
   useEffect(() => {
     setSearchPanelOpen(false);

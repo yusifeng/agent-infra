@@ -103,6 +103,7 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
   const createEmptyLiveDraft = (runId: string, messageId: string): LiveAssistantDraft => ({
     runId,
     messageId,
+    source: 'live',
     committedText: '',
     partialText: '',
     segmentText: '',
@@ -136,6 +137,7 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
 
     return {
       ...draft,
+      source: 'live',
       messageId: currentSegment.messageId,
       partialText: currentSegment.text,
       segmentText: currentSegment.text,

@@ -131,6 +131,8 @@ export function applyHydratedTranscriptState(args: {
   const { messages, pageInfo, activeResponseRun, selectedRunId, runs, actions } = args;
   const hasPersistedAssistantForSelectedRun =
     selectedRunId !== null && messages.some((message) => message.runId === selectedRunId && assistantMessageHasVisibleContent(message));
+  const hasPersistedAssistantForActiveRun =
+    activeResponseRun !== null && messages.some((message) => message.runId === activeResponseRun.id && assistantMessageHasVisibleContent(message));
 
   actions.setMessages(messages);
   actions.setMessagePageInfo(pageInfo);
@@ -145,6 +147,10 @@ export function applyHydratedTranscriptState(args: {
 
     const liveDraftMatchesActiveRun = activeResponseRun !== null && current.runId === activeResponseRun.id;
     if (liveDraftMatchesActiveRun && (activeResponseRun.status === 'queued' || activeResponseRun.status === 'running')) {
+      if (current.source === 'restored' && hasPersistedAssistantForActiveRun) {
+        return null;
+      }
+
       return current;
     }
 

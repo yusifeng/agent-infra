@@ -25,6 +25,7 @@ function createStorage(): StorageLike {
 const draft = {
   runId: 'run-1',
   messageId: 'message-1',
+  source: 'live' as const,
   committedText: '',
   partialText: '正在搜索 Claude 新闻',
   segmentText: '正在搜索 Claude 新闻',

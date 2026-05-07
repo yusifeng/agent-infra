@@ -37,6 +37,9 @@ function isLiveAssistantDraft(value: unknown): value is LiveAssistantDraft {
       !Array.isArray(value) &&
       typeof (value as LiveAssistantDraft).runId === 'string' &&
       typeof (value as LiveAssistantDraft).messageId === 'string' &&
+      (((value as LiveAssistantDraft).source === undefined) ||
+        (value as LiveAssistantDraft).source === 'live' ||
+        (value as LiveAssistantDraft).source === 'restored') &&
       typeof (value as LiveAssistantDraft).committedText === 'string' &&
       typeof (value as LiveAssistantDraft).partialText === 'string' &&
       typeof (value as LiveAssistantDraft).segmentText === 'string' &&

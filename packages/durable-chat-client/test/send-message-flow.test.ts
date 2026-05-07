@@ -198,6 +198,7 @@ describe('runSendMessageFlow', () => {
     expect(actions.setLiveAssistantDraft).toHaveBeenCalledWith({
       runId: 'pending-1',
       messageId: 'pending-assistant-1',
+      source: 'live',
       committedText: '',
       partialText: '',
       segmentText: '',
@@ -316,6 +317,7 @@ describe('runSendMessageFlow', () => {
     expect(finalLiveAssistantDraft).toEqual({
       runId: 'run-1',
       messageId: 'assistant-1',
+      source: 'live',
       committedText: '',
       partialText: '你好，有什么可以帮你？',
       segmentText: '你好，有什么可以帮你？',
@@ -433,6 +435,7 @@ describe('runSendMessageFlow', () => {
     expect(finalLiveAssistantDraft).toEqual({
       runId: 'run-2',
       messageId: 'assistant-2b',
+      source: 'live',
       committedText: '',
       partialText: '再补充一点细节。',
       segmentText: '再补充一点细节。',
@@ -565,6 +568,7 @@ describe('runSendMessageFlow', () => {
     expect(finalLiveAssistantDraft).toEqual({
       runId: 'run-2b',
       messageId: 'assistant-2b-a',
+      source: 'live',
       committedText: '',
       partialText: '好的，我来帮你搜索一下。',
       segmentText: '好的，我来帮你搜索一下。',
@@ -681,6 +685,7 @@ describe('runSendMessageFlow', () => {
     expect(finalLiveAssistantDraft).toEqual({
       runId: 'run-3',
       messageId: 'assistant-3',
+      source: 'live',
       committedText: '',
       partialText: '好的，我来搜索一下。',
       segmentText: '好的，我来搜索一下。',
@@ -801,6 +806,7 @@ describe('runSendMessageFlow', () => {
     expect(finalLiveAssistantDraft).toEqual({
       runId: 'run-4',
       messageId: 'assistant-4',
+      source: 'live',
       committedText: '',
       partialText: '我来搜索最新消息。',
       segmentText: '我来搜索最新消息。',
@@ -910,6 +916,7 @@ describe('runSendMessageFlow', () => {
     expect(finalLiveAssistantDraft).toEqual({
       runId: 'run-4b',
       messageId: 'assistant-4b-b',
+      source: 'live',
       committedText: '',
       partialText: '第二段新文案。',
       segmentText: '第二段新文案。',
@@ -1025,6 +1032,7 @@ describe('runSendMessageFlow', () => {
     expect(finalLiveAssistantDraft).toEqual({
       runId: 'run-4c',
       messageId: 'assistant-4c',
+      source: 'live',
       committedText: '',
       partialText: '以下是关于 Claude 的最新新闻摘要：',
       segmentText: '以下是关于 Claude 的最新新闻摘要：',
@@ -1142,6 +1150,7 @@ describe('runSendMessageFlow', () => {
     expect(finalLiveAssistantDraft).toEqual({
       runId: 'run-4c',
       messageId: 'assistant-4c-b',
+      source: 'live',
       committedText: '',
       partialText: '',
       segmentText: '',

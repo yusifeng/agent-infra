@@ -44,3 +44,57 @@ export function shouldRestorePersistedLiveDraft(args: {
 
   return true;
 }
+
+export function shouldRefreshRestoredLiveDraft(args: {
+  activeThreadId: string | null;
+  activeResponseRun: RunDto | null;
+  liveAssistantDraft: LiveAssistantDraft | null;
+  restoredRunId: string | null;
+}) {
+  const { activeThreadId, activeResponseRun, liveAssistantDraft, restoredRunId } = args;
+  const trackedRunId = restoredRunId ?? (liveAssistantDraft?.source === 'restored' ? liveAssistantDraft.runId : null);
+  if (
+    !activeThreadId ||
+    !activeResponseRun ||
+    !trackedRunId ||
+    !isActiveStreamingRun(activeResponseRun)
+  ) {
+    return false;
+  }
+
+  return activeResponseRun.threadId === activeThreadId && activeResponseRun.id === trackedRunId;
+}
+
+export function startRestoredLiveDraftRefreshLoop(args: {
+  intervalMs?: number;
+  refresh: () => Promise<void>;
+}) {
+  const { refresh, intervalMs = 2000 } = args;
+  let cancelled = false;
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+  const run = async () => {
+    try {
+      await refresh();
+    } catch {
+      // Ignore transient refresh failures; the next scheduled pass will retry.
+    } finally {
+      if (cancelled) {
+        return;
+      }
+
+      timeoutId = setTimeout(() => {
+        void run();
+      }, intervalMs);
+    }
+  };
+
+  void run();
+
+  return () => {
+    cancelled = true;
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+    }
+  };
+}
