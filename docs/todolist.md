@@ -34,12 +34,12 @@
 
 ### 1.3 `schema` 层缺位
 
-- [ ] 新建 `apps/playground-vite-web/src/features/durable-chat/schema/`
-- [ ] 抽出 `asRecord` 到 `schema/search-panel.ts`
-- [ ] 抽出 `deriveHostname` 到 `schema/search-panel.ts`
-- [ ] 抽出 `parseSearchResultItem` 到 `schema/search-panel.ts`
-- [ ] 抽出 `buildSearchPanelSection` 中的外部 shape 解析部分到 `schema/search-panel.ts`
-- [ ] 让 runtime 只消费已解析的 search-panel shape，不直接解析未知 `artifact`
+- [x] 新建 `apps/playground-vite-web/src/features/durable-chat/schema/`
+- [x] 抽出 `asRecord` 到 `schema/search-panel.ts`
+- [x] 抽出 `deriveHostname` 到 `schema/search-panel.ts`
+- [x] 抽出 `parseSearchResultItem` 到 `schema/search-panel.ts`
+- [x] 抽出 `buildSearchPanelSection` 中的外部 shape 解析部分到 `schema/search-panel.ts`
+- [x] 让 runtime 只消费已解析的 search-panel shape，不直接解析未知 `artifact`
 
 ### 1.4 `repo` 层过薄
 
@@ -75,9 +75,9 @@
 
 ### 第 2 轮：补 `schema/search-panel.ts`
 
-- [ ] 从 `use-durable-chat-runtime.ts` 中移出 search panel 的 shape 解析
-- [ ] 在 `schema/search-panel.ts` 中为未知 shape 的解析写 focused tests
-- [ ] 在 `service/search-panel.ts` 中收口 `buildSearchPanelData`
+- [x] 从 `use-durable-chat-runtime.ts` 中移出 search panel 的 shape 解析
+- [x] 在 `schema/search-panel.ts` 中为未知 shape 的解析写 focused tests
+- [x] 在 `service/search-panel.ts` 中收口 `buildSearchPanelData`
 
 ### 第 3 轮：收口 `repo`
 
@@ -105,7 +105,7 @@
 - [ ] 将 transcript block 的纯函数测试迁移为 service 语义
 - [ ] 将 assistant turn action scope 的纯函数测试迁移为 service 语义
 - [ ] 将 live search entry derivation 的纯函数测试迁移为 service 语义
-- [ ] 为 search panel 的 parse/build 逻辑新增 schema/service tests
+- [x] 为 search panel 的 parse/build 逻辑新增 schema/service tests
 - [ ] 后续新增功能优先要求：每个新展示规则先有 service test
 - [ ] 后续新增功能优先要求：每个新 copy/merge/derive/parse 先有 service test
 

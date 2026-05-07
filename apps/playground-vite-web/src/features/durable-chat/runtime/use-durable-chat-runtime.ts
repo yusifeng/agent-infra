@@ -1,4 +1,4 @@
-import type { MessageDto, ToolInvocationDto } from '@agent-infra/contracts';
+import type { MessageDto } from '@agent-infra/contracts';
 import {
   applyHydratedTranscriptState,
   clearPersistedLiveAssistantDraft,
@@ -34,111 +34,14 @@ import {
   shouldRestorePersistedLiveDraft
 } from '@/features/durable-chat/runtime/live-draft-persistence';
 import { buildTranscriptBlocks, filterTranscriptBlocksForLiveRun } from '@/features/durable-chat/service/build-transcript-blocks';
+import { buildSearchPanelData } from '@/features/durable-chat/service/search-panel';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
-import type { ActiveSearchPanelData, SearchPanelResultItem, SearchPanelSection } from '@/features/durable-chat/types/search';
+import type { ActiveSearchPanelData } from '@/features/durable-chat/types/search';
 import type { TranscriptBlock } from '@/features/durable-chat/types/transcript-blocks';
 import type { DurableChatRuntimeOptions } from '@/features/durable-chat/types/runtime';
 
 const PENDING_NEW_THREAD_LOADING_ID = '__pending-new-thread__';
-
-function asRecord(value: unknown) {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
-}
-
-function deriveHostname(rawUrl: string) {
-  try {
-    return new URL(rawUrl).hostname.replace(/^www\./, '');
-  } catch {
-    return '';
-  }
-}
-
-function parseSearchResultItem(value: unknown): SearchPanelResultItem | null {
-  const record = asRecord(value);
-  if (!record) {
-    return null;
-  }
-
-  const title = typeof record.title === 'string' ? record.title.trim() : '';
-  const url = typeof record.url === 'string' ? record.url.trim() : '';
-  const snippet = typeof record.snippet === 'string' ? record.snippet.trim() : '';
-  const sourceName = typeof record.sourceName === 'string' ? record.sourceName.trim() : '';
-
-  if (!title || !url) {
-    return null;
-  }
-
-  return {
-    rank: typeof record.rank === 'number' && Number.isFinite(record.rank) ? record.rank : 0,
-    title,
-    url,
-    snippet,
-    sourceName,
-    hostname:
-      typeof record.hostname === 'string' && record.hostname.trim().length > 0
-        ? record.hostname.trim().toLowerCase()
-        : deriveHostname(url),
-    publishedAt: typeof record.publishedAt === 'string' ? record.publishedAt : null
-  };
-}
-
-function buildSearchPanelSection(invocation: ToolInvocationDto): SearchPanelSection | null {
-  const output = asRecord(invocation.output);
-  const artifact = asRecord(output?.artifact);
-  if (!artifact) {
-    return null;
-  }
-
-  const rawResults = Array.isArray(artifact.results) ? artifact.results : [];
-  const results = rawResults.map(parseSearchResultItem).filter((item): item is SearchPanelResultItem => item !== null);
-  const query =
-    typeof artifact.query === 'string'
-      ? artifact.query
-      : typeof invocation.input?.query === 'string'
-        ? invocation.input.query
-        : '';
-
-  if (!query) {
-    return null;
-  }
-
-  return {
-    toolCallId: invocation.toolCallId,
-    query,
-    resultCount: typeof artifact.resultCount === 'number' ? artifact.resultCount : results.length,
-    retrievedAt: typeof artifact.retrievedAt === 'string' ? artifact.retrievedAt : null,
-    results
-  };
-}
-
-function buildSearchPanelData(invocations: ToolInvocationDto[]): ActiveSearchPanelData | null {
-  const sectionsWithInvocation = invocations
-    .filter((invocation) => invocation.toolName === 'searchWeb')
-    .map((invocation) => {
-      const section = buildSearchPanelSection(invocation);
-      return section ? { invocation, section } : null;
-    })
-    .filter((entry): entry is { invocation: ToolInvocationDto; section: SearchPanelSection } => entry !== null);
-
-  if (sectionsWithInvocation.length === 0) {
-    return null;
-  }
-
-  const sections = sectionsWithInvocation.map((entry) => entry.section);
-  const firstInvocation = sectionsWithInvocation[0]!.invocation;
-  const firstArtifact = asRecord(asRecord(firstInvocation.output)?.artifact);
-  const sourceNames = [...new Set(sections.flatMap((section) => section.results.map((result) => result.sourceName).filter(Boolean)))].slice(0, 6);
-
-  return {
-    runId: firstInvocation.runId,
-    toolCallIds: sections.map((section) => section.toolCallId),
-    provider: typeof firstArtifact?.provider === 'string' ? firstArtifact.provider : 'unknown',
-    resultCount: sections.reduce((total, section) => total + section.resultCount, 0),
-    sourceNames,
-    sections
-  };
-}
 
 export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRuntimeOptions) {
   const navigate = useNavigate();
