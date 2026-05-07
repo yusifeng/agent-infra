@@ -2,12 +2,13 @@ import type { MessageDto, MessagePartDto, RuntimePiMetaDto } from '@agent-infra/
 import { emitChatRenderDiagnostic, getMessageRenderKey } from '@agent-infra/durable-chat-client';
 import clsx from 'clsx';
 import { Atom, ChevronDown, ChevronRight, Copy, Loader2, RotateCw, Search, Trash2 } from 'lucide-react';
-import { memo, useEffect, useRef, useState, type ComponentType, type CSSProperties } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties } from 'react';
 
 import { copyMessageToClipboard, copyTextToClipboard } from './helpers';
 import { MarkdownRenderer } from './markdown-renderer';
 import { AnimatedEmoji } from './shared';
 import { SiteIconBadge } from './site-icon-badge';
+import { buildAssistantTurnActionContexts } from '@/features/durable-chat/runtime/assistant-turn-actions';
 import { collectLiveSearchEntries } from '@/features/durable-chat/runtime/live-search-tools';
 import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
 import type { DurableRecoveryState } from '@/features/durable-chat/types/runtime';
@@ -333,19 +334,6 @@ const assistantActions = [
   }
 ];
 
-function collectAssistantTurnCopyText(items: AssistantTurnItem[]) {
-  return items
-    .flatMap((item) => {
-      if (item.type === 'text' || item.type === 'reasoning') {
-        return item.part.textValue ? [item.part.textValue] : [];
-      }
-
-      return [];
-    })
-    .join('\n\n')
-    .trim();
-}
-
 function collectLiveDraftCopyText(liveAssistantDraft: LiveAssistantDraft) {
   return liveAssistantDraft.segments
     .flatMap((segment) => [segment.reasoning, segment.text].filter((value): value is string => Boolean(value)))
@@ -439,6 +427,10 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
     | {
       type: 'persisted-turn';
       block: Extract<TranscriptBlock, { type: 'assistant-turn' }>;
+      actionContext: {
+        copyText: string;
+        showActions: boolean;
+      };
       onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
       }
     | {
@@ -467,6 +459,11 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
   );
 
   const isCompleted = props.type === 'persisted-turn';
+  const copyText =
+    props.type === 'persisted-turn'
+      ? props.actionContext.copyText
+      : collectLiveDraftCopyText(props.liveAssistantDraft);
+  const showActions = props.type === 'persisted-turn' ? props.actionContext.showActions : isCompleted && copyText.length > 0;
   const hasVisibleContent =
     props.type === 'persisted-turn'
       ? props.block.items.length > 0
@@ -477,12 +474,7 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
   }
 
   const handleCopy = () => {
-    if (props.type === 'persisted-turn') {
-      void copyTextToClipboard(collectAssistantTurnCopyText(props.block.items));
-      return;
-    }
-
-    void copyTextToClipboard(collectLiveDraftCopyText(props.liveAssistantDraft));
+    void copyTextToClipboard(copyText);
   };
 
   const content =
@@ -494,7 +486,7 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
 
   return (
     <div
-      className="group relative w-[90%] max-w-screen px-4 pb-8"
+      className={clsx('group relative w-[90%] max-w-screen px-4', showActions ? 'pb-8' : 'pb-2')}
       data-message-role="assistant"
       data-message-id={props.type === 'persisted-turn' ? props.block.id : props.liveAssistantDraft.messageId}
       data-render-key={assistantDiagnosticKey}
@@ -502,7 +494,7 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
     >
       <div className={clsx('relative flex flex-col gap-2 pt-1.5', ui.assistantBubble)}>{content}</div>
       <MessageActions
-        available={isCompleted}
+        available={props.type === 'persisted-turn' ? showActions : false}
         items={assistantActions}
         onActionClick={(key) => {
           if (key === 'copy') {
@@ -575,16 +567,28 @@ const UserMessageBlockCard = memo(function UserMessageBlockCard({
 
 const TranscriptBlockCard = memo(function TranscriptBlockCard({
   block,
+  actionContext,
   onOpenSearchResult
 }: {
   block: TranscriptBlock;
+  actionContext?: {
+    copyText: string;
+    showActions: boolean;
+  };
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
 }) {
   if (block.type === 'user-message') {
     return <UserMessageBlockCard message={block.message} />;
   }
 
-  return <AssistantTranscriptCard block={block} onOpenSearchResult={onOpenSearchResult} type="persisted-turn" />;
+  return (
+    <AssistantTranscriptCard
+      actionContext={actionContext ?? { copyText: '', showActions: false }}
+      block={block}
+      onOpenSearchResult={onOpenSearchResult}
+      type="persisted-turn"
+    />
+  );
 });
 
 const LiveAssistantCard = memo(function LiveAssistantCard({
@@ -639,6 +643,8 @@ export const ChatMessageList = memo(function ChatMessageList({
   onLoadOlderMessages,
   onOpenSearchResult
 }: ChatMessageListProps) {
+  const assistantTurnActionContexts = useMemo(() => buildAssistantTurnActionContexts(transcriptBlocks), [transcriptBlocks]);
+
   useRenderDiagnostic('ChatMessageList', activeThreadId ?? 'new-thread', {
     hasOlderMessages,
     historyLoading,
@@ -711,7 +717,12 @@ export const ChatMessageList = memo(function ChatMessageList({
               </div>
             ) : null}
             {transcriptBlocks.map((block) => (
-              <TranscriptBlockCard key={block.id} block={block} onOpenSearchResult={onOpenSearchResult} />
+              <TranscriptBlockCard
+                key={block.id}
+                actionContext={assistantTurnActionContexts.get(block.id)}
+                block={block}
+                onOpenSearchResult={onOpenSearchResult}
+              />
             ))}
             {liveAssistantDraft ? <LiveAssistantCard liveAssistantDraft={liveAssistantDraft} /> : null}
             {showLoadingText ? <ThinkingIndicator /> : null}
