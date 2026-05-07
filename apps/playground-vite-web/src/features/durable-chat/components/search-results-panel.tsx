@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import { ExternalLink, X } from 'lucide-react';
 
+import { buildSearchResultsPanelViewModel } from '@/features/durable-chat/service/search-panel-presentation';
 import type { ActiveSearchPanelData } from '@/features/durable-chat/types/search';
 import { SiteIconBadge } from './site-icon-badge';
 
@@ -12,23 +13,9 @@ type SearchResultsPanelProps = {
   onClose: () => void;
 };
 
-function formatDateLabel(value?: string | null) {
-  if (!value) {
-    return null;
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  return new Intl.DateTimeFormat('zh-CN', {
-    month: '2-digit',
-    day: '2-digit'
-  }).format(date);
-}
-
 export function SearchResultsPanel({ open, loading, error, result, onClose }: SearchResultsPanelProps) {
+  const viewModel = buildSearchResultsPanelViewModel(result);
+
   return (
     <aside
       className={clsx(
@@ -42,9 +29,9 @@ export function SearchResultsPanel({ open, loading, error, result, onClose }: Se
           <div className="flex items-center justify-between border-b border-[color:var(--chat-border)] px-4 py-3">
             <div className="min-w-0">
               <div className="text-sm font-semibold text-[color:var(--chat-text)]">搜索结果</div>
-              {result ? (
+              {viewModel?.subtitle ? (
                 <div className="truncate pt-1 text-xs text-[color:var(--chat-text-tertiary)]">
-                  已阅读 {result.resultCount} 个网页{result.sourceNames.length > 0 ? ` · ${result.sourceNames.join(' · ')}` : ''}
+                  {viewModel.subtitle}
                 </div>
               ) : null}
             </div>
@@ -61,16 +48,16 @@ export function SearchResultsPanel({ open, loading, error, result, onClose }: Se
           <div className="min-h-0 flex-1 overflow-y-auto">
             {loading ? <div className="px-4 py-4 text-sm text-[color:var(--chat-text-secondary)]">正在加载搜索结果...</div> : null}
             {!loading && error ? <div className="px-4 py-4 text-sm text-[color:var(--destructive)]">{error}</div> : null}
-            {!loading && !error && result ? (
+            {!loading && !error && viewModel ? (
               <div className="flex flex-col gap-1 p-2">
-                {result.sections.map((section) => (
+                {viewModel.sections.map((section) => (
                   <div key={section.toolCallId} className="space-y-1 pb-2">
                     <div className="px-3 pb-1 pt-2">
                       <div className="text-xs font-medium text-[color:var(--chat-text-tertiary)]">{section.query}</div>
                     </div>
                     {section.results.map((item) => (
                       <a
-                        key={`${section.toolCallId}:${item.rank}:${item.url}`}
+                        key={item.key}
                         href={item.url}
                         target="_blank"
                         rel="noreferrer"
@@ -84,7 +71,7 @@ export function SearchResultsPanel({ open, loading, error, result, onClose }: Se
                             fallbackClassName="bg-indigo-100 text-indigo-700"
                           />
                           <span className="font-medium text-[color:var(--chat-text-secondary)]">{item.sourceName}</span>
-                          {formatDateLabel(item.publishedAt) ? <span>{formatDateLabel(item.publishedAt)}</span> : null}
+                          {item.publishedAtLabel ? <span>{item.publishedAtLabel}</span> : null}
                           <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--chat-surface-muted)] px-1.5 text-[11px] text-[color:var(--chat-text-tertiary)]">
                             {item.rank}
                           </span>

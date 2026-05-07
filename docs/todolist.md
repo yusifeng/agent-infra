@@ -57,7 +57,7 @@
 - [x] 把 search label 是否显示、copy scope、action visibility 等规则下沉到 `service`
 - [x] 把 `SearchStatusLabel` 的文案 / 状态映射规则从组件中抽离
 - [x] 把 `LiveAssistantContent` 的 segment 组合顺序、可见性判定抽离成纯函数
-- [ ] 评估 [apps/playground-vite-web/src/features/durable-chat/components/search-results-panel.tsx](/Users/david/Documents/github/agent-infra/apps/playground-vite-web/src/features/durable-chat/components/search-results-panel.tsx) 中的轻量展示规则是否需要单独下沉
+- [x] 把 [apps/playground-vite-web/src/features/durable-chat/components/search-results-panel.tsx](/Users/david/Documents/github/agent-infra/apps/playground-vite-web/src/features/durable-chat/components/search-results-panel.tsx) 的轻量展示规则下沉到 `service/search-panel-presentation.ts`
 - [x] 把 [apps/playground-vite-web/src/features/durable-chat/components/composer-dock.tsx](/Users/david/Documents/github/agent-infra/apps/playground-vite-web/src/features/durable-chat/components/composer-dock.tsx) 的 toggle / send-button policy 抽成 `service/composer-state.ts`
 
 ### 1.6 markdown 相关目录混杂
