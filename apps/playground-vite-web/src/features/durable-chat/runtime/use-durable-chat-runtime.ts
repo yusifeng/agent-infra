@@ -26,7 +26,6 @@ import type { LoadThreadMessagesResult } from '@agent-infra/durable-chat-client'
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { buildTranscriptBlocks, filterTranscriptBlocksForLiveRun } from '@/features/durable-chat/runtime/build-transcript-blocks';
 import {
   startRestoredLiveDraftRefreshLoop,
   shouldClearPersistedLiveDraft,
@@ -34,6 +33,7 @@ import {
   shouldRefreshRestoredLiveDraft,
   shouldRestorePersistedLiveDraft
 } from '@/features/durable-chat/runtime/live-draft-persistence';
+import { buildTranscriptBlocks, filterTranscriptBlocksForLiveRun } from '@/features/durable-chat/service/build-transcript-blocks';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
 import type { ActiveSearchPanelData, SearchPanelResultItem, SearchPanelSection } from '@/features/durable-chat/types/search';
