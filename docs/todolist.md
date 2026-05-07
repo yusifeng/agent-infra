@@ -48,7 +48,7 @@
 - [x] 将 thread messages fetch 收口到 `repo/chat-api.ts`
 - [ ] 评估是否将 search panel 相关数据抓取也统一收口到 repo
 - [x] 新建 `repo/browser-clipboard.ts`，承接 `navigator.clipboard` 访问
-- [ ] 评估是否将 `sessionStorage` 的 live draft 读写包装也收口到 repo
+- [x] 将 `sessionStorage` 的 live draft 读写包装收口到 repo
 
 ### 1.5 `ui` 组件里埋了过多展示规则
 
@@ -83,7 +83,7 @@
 
 - [x] 完成 `repo/chat-api.ts` facade 化
 - [x] 将 clipboard 封装挪到 `repo/browser-clipboard.ts`
-- [ ] 视需要把 `sessionStorage` 读写也纳入 repo
+- [x] 把 `sessionStorage` 读写纳入 repo
 
 ### 第 4 轮：runtime 变薄
 
@@ -97,7 +97,7 @@
 
 - [ ] 为 `repo/chat-api.ts` 增加边界测试
 - [ ] 覆盖 HTTP 成功/失败路径
-- [ ] 覆盖 storage read/write 解析失败路径
+- [x] 覆盖 storage read/write 解析失败路径
 - [x] 覆盖 clipboard repo 的浏览器边界行为
 
 ### 3.2 service tests

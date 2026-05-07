@@ -1,9 +1,6 @@
 import type { MessageDto } from '@agent-infra/contracts';
 import {
   applyHydratedTranscriptState,
-  clearPersistedLiveAssistantDraft,
-  persistLiveAssistantDraft,
-  readPersistedLiveAssistantDraft,
   runActivateThread,
   runCreateThreadRecord,
   runInitializeRuntime,
@@ -29,6 +26,11 @@ import {
   shouldRestorePersistedLiveDraft
 } from '@/features/durable-chat/runtime/live-draft-persistence';
 import { fetchRunTimeline, fetchThreadMessages } from '@/features/durable-chat/repo/chat-api';
+import {
+  clearStoredLiveAssistantDraft,
+  persistStoredLiveAssistantDraft,
+  readStoredLiveAssistantDraft
+} from '@/features/durable-chat/repo/live-draft-storage';
 import { buildChatViewState } from '@/features/durable-chat/service/chat-view-state';
 import { buildSearchPanelData } from '@/features/durable-chat/service/search-panel';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
@@ -194,7 +196,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         liveAssistantDraft
       })
     ) {
-      persistLiveAssistantDraft(activeThreadId, liveAssistantDraft!, window.sessionStorage);
+      persistStoredLiveAssistantDraft(activeThreadId, liveAssistantDraft!);
       return;
     }
 
@@ -206,7 +208,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         liveAssistantDraft
       })
     ) {
-      clearPersistedLiveAssistantDraft(activeThreadId, window.sessionStorage);
+      clearStoredLiveAssistantDraft(activeThreadId);
     }
   }, [activeResponseRun, activeThreadId, hasHydratedActiveThread, liveAssistantDraft]);
 
@@ -224,7 +226,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
 
     const runId = activeResponseRun!.id;
     const threadId = activeThreadId!;
-    const restoredDraft = readPersistedLiveAssistantDraft(threadId, window.sessionStorage);
+    const restoredDraft = readStoredLiveAssistantDraft(threadId);
     if (!restoredDraft || restoredDraft.runId !== runId) {
       return;
     }
