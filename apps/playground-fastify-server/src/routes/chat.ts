@@ -34,7 +34,11 @@ import { APP_ID } from '../constants.js';
 import { getPlaygroundAppServices, getPlaygroundAppServicesState } from '../playground-app-services.js';
 import { getPlaygroundBaseServicesState } from '../playground-base-services.js';
 import { getPlaygroundDbInfo, getPlaygroundMeta } from '../playground-meta.js';
-import { getPlaygroundRuntimeServices, getPlaygroundRuntimeServicesState } from '../playground-services.js';
+import {
+  getPlaygroundRuntimeServices,
+  getPlaygroundRuntimeServicesState,
+  isPlaygroundWebSearchConfigured
+} from '../playground-services.js';
 
 type ChatAppServices = {
   app: AgentInfraApp;
@@ -270,6 +274,15 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
     let runtimeServices: ChatRuntimeServices;
 
     try {
+      if (turnInput.webSearchEnabled && !isPlaygroundWebSearchConfigured()) {
+        return reply.code(503).send(
+          buildRunTextTurnErrorResponse(
+            new Error('Web search is unavailable because TAVILY_API_KEY is not configured.'),
+            'failed to stream thread turn'
+          )
+        );
+      }
+
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('runtime_services_state', describeServiceState(getPlaygroundRuntimeServicesState()));
       runtimeServices = await request.requestTiming.measureAsync('services.runtime', () => getRuntimeServices());

@@ -18,6 +18,10 @@ type PlaygroundRuntimeServices = PlaygroundAppServices & {
   durableRuntime: RuntimePiRuntime;
 };
 
+export function isPlaygroundWebSearchConfigured() {
+  return Boolean(process.env.TAVILY_API_KEY?.trim());
+}
+
 let playgroundRuntimeServicesPromise: Promise<PlaygroundRuntimeServices> | null = null;
 const playgroundRuntimeServicesState = {
   initialized: false,

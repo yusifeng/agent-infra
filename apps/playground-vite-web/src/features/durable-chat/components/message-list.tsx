@@ -8,6 +8,7 @@ import { copyMessageToClipboard, copyTextToClipboard } from './helpers';
 import { MarkdownRenderer } from './markdown-renderer';
 import { AnimatedEmoji } from './shared';
 import { SiteIconBadge } from './site-icon-badge';
+import { collectLiveSearchEntries } from '@/features/durable-chat/runtime/live-search-tools';
 import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
 import type { DurableRecoveryState } from '@/features/durable-chat/types/runtime';
 import type { AssistantTurnItem, SearchSummaryBlock, TranscriptBlock } from '@/features/durable-chat/types/transcript-blocks';
@@ -401,8 +402,8 @@ const LiveAssistantContent = memo(function LiveAssistantContent({ liveAssistantD
   return (
     <div className="space-y-3">
       {liveAssistantDraft.segments.map((segment) => {
-        const searchTool = [...segment.tools].reverse().find((tool) => tool.toolName === 'searchWeb');
-        const hasVisibleContent = Boolean(segment.reasoning || segment.text || searchTool);
+        const searchEntries = collectLiveSearchEntries(segment);
+        const hasVisibleContent = Boolean(segment.reasoning || segment.text || searchEntries.length > 0);
         if (!hasVisibleContent) {
           return null;
         }
@@ -419,12 +420,13 @@ const LiveAssistantContent = memo(function LiveAssistantContent({ liveAssistantD
                 text={segment.text}
               />
             ) : null}
-            {searchTool ? (
+            {searchEntries.map((searchEntry) => (
               <SearchStatusLabel
-                query={typeof searchTool.input?.query === 'string' ? searchTool.input.query : ''}
-                state={searchTool.phase === 'start' ? 'searching' : searchTool.phase}
+                key={searchEntry.toolCallId}
+                query={searchEntry.query}
+                state={searchEntry.state === 'start' ? 'searching' : searchEntry.state}
               />
-            ) : null}
+            ))}
           </div>
         );
       })}

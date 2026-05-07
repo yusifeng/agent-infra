@@ -1,7 +1,7 @@
 import type { MessageDto, RunDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { runActivateThread, runLoadOlderMessages, runLoadThreadMessages } from '../src/runtime/load-thread-flow';
+import { applyHydratedTranscriptState, runActivateThread, runLoadOlderMessages, runLoadThreadMessages } from '../src/runtime/load-thread-flow';
 import { INITIAL_MESSAGE_PAGE_LIMIT } from '../src/service/chat-runtime';
 import type { DurableRecoveryState } from '../src/types/runtime';
 
@@ -253,6 +253,94 @@ describe('runLoadThreadMessages', () => {
       runs: []
     });
     expect(setActiveResponseRun).not.toHaveBeenCalledWith(null);
+  });
+});
+
+describe('applyHydratedTranscriptState', () => {
+  it('keeps a restored live draft for the active running run even when selectedRunId is null', () => {
+    const setLiveAssistantDraft = createSetterSpy<any>();
+    const actions = {
+      setActiveResponseRun: createSetterSpy<RunDto | null>(),
+      setChatPhase: createSetterSpy<'idle' | 'thinking' | 'streaming' | 'transcript-final' | 'failed'>(),
+      setError: createSetterSpy<string | null>(),
+      setLiveAssistantDraft,
+      setMessages: createSetterSpy<MessageDto[]>(),
+      setMessagePageInfo: createSetterSpy<ThreadMessagesPageInfoDto | null>(),
+      setOptimisticUserMessage: createSetterSpy<MessageDto | null>(),
+      setRecentRuns: createSetterSpy<RunDto[]>(),
+      setRecentRunsError: createSetterSpy<string | null>(),
+      setSelectedRunId: createSetterSpy<string | null>()
+    };
+
+    applyHydratedTranscriptState({
+      messages: [createMessage('message-1', 1)],
+      pageInfo: null,
+      activeResponseRun: {
+        id: 'run-active',
+        threadId: 'thread-1',
+        triggerMessageId: null,
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+        status: 'running',
+        usage: null,
+        error: null,
+        startedAt: '2026-01-01T00:00:00.000Z',
+        finishedAt: null,
+        createdAt: '2026-01-01T00:00:00.000Z'
+      },
+      selectedRunId: null,
+      runs: [],
+      actions
+    });
+
+    const restoredDraft = resolveUpdater(
+      setLiveAssistantDraft.mock.calls[0]?.[0],
+      {
+        runId: 'run-active',
+        messageId: 'assistant-live',
+        committedText: '',
+        partialText: '正在搜索 Claude',
+        segmentText: '正在搜索 Claude',
+        segmentTextMessageId: 'assistant-live',
+        partialReasoning: null,
+        segmentReasoningMessageId: null,
+        activeTools: [],
+        eventType: 'streaming',
+        segments: [
+          {
+            id: 'assistant-live:0',
+            messageId: 'assistant-live',
+            text: '正在搜索 Claude',
+            reasoning: null,
+            tools: [],
+            eventType: 'streaming'
+          }
+        ]
+      }
+    );
+
+    expect(restoredDraft).toEqual({
+      runId: 'run-active',
+      messageId: 'assistant-live',
+      committedText: '',
+      partialText: '正在搜索 Claude',
+      segmentText: '正在搜索 Claude',
+      segmentTextMessageId: 'assistant-live',
+      partialReasoning: null,
+      segmentReasoningMessageId: null,
+      activeTools: [],
+      eventType: 'streaming',
+      segments: [
+        {
+          id: 'assistant-live:0',
+          messageId: 'assistant-live',
+          text: '正在搜索 Claude',
+          reasoning: null,
+          tools: [],
+          eventType: 'streaming'
+        }
+      ]
+    });
   });
 });
 

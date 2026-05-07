@@ -212,6 +212,10 @@ export async function runReconcileCompletedTurn({
       return;
     }
 
+    if (isCurrentSend()) {
+      actions.setLiveAssistantDraft(null);
+    }
+
     actions.setError(reconcileError instanceof Error ? reconcileError.message : 'Failed to reconcile thread messages');
 
     if (inspectorEnabled) {

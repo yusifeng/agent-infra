@@ -419,4 +419,43 @@ describe('playground-fastify-server', () => {
       error: 'fake runtime failure'
     });
   });
+
+  it('rejects web-search turns when Tavily is unavailable', async () => {
+    const previousTavilyApiKey = process.env.TAVILY_API_KEY;
+    delete process.env.TAVILY_API_KEY;
+
+    try {
+      const server = await createTestServer({});
+      activeServers.push(server);
+
+      const created = await server.app.inject({
+        method: 'POST',
+        url: '/api/threads',
+        payload: {
+          title: 'Web Search Unavailable'
+        }
+      });
+      const threadId = created.json().thread.id as string;
+
+      const stream = await server.app.inject({
+        method: 'POST',
+        url: `/api/threads/${threadId}/runs/stream`,
+        payload: {
+          text: '搜索 Claude 新闻',
+          webSearchEnabled: true
+        }
+      });
+
+      expect(stream.statusCode).toBe(503);
+      expect(stream.json()).toMatchObject({
+        error: 'Web search is unavailable because TAVILY_API_KEY is not configured.'
+      });
+    } finally {
+      if (previousTavilyApiKey === undefined) {
+        delete process.env.TAVILY_API_KEY;
+      } else {
+        process.env.TAVILY_API_KEY = previousTavilyApiKey;
+      }
+    }
+  });
 });

@@ -43,7 +43,16 @@ type RuntimePiState = {
   persistedAssistantTextFlushed: boolean;
   persistedAssistantReasoningFlushed: boolean;
   nextPartIndexByMessageId: Map<string, number>;
-  toolInvocationByCallId: Map<string, { id: string; messageId: string; status: 'running' | 'completed' | 'failed' }>;
+  toolInvocationByCallId: Map<
+    string,
+    {
+      id: string;
+      messageId: string;
+      status: 'running' | 'completed' | 'failed';
+      input: Record<string, unknown> | null;
+    }
+  >;
+  liveToolInputByCallId: Map<string, Record<string, unknown> | null>;
   persistedToolCallIds: Set<string>;
 };
 
@@ -415,8 +424,21 @@ function createAssistantStreamUpdates(
   // We treat the partial message as the source of truth, then derive delta-first
   // updates for consumers. This lets us preserve correctness when a provider
   // finalizes text or tool arguments with a non-prefix rewrite.
-  const nextTextSnapshot = extractAssistantText(assistantMessageEvent.partial);
-  const nextReasoningSnapshot = extractAssistantReasoning(assistantMessageEvent.partial) ?? '';
+  let nextTextSnapshot = extractAssistantText(assistantMessageEvent.partial);
+  let nextReasoningSnapshot = extractAssistantReasoning(assistantMessageEvent.partial) ?? '';
+
+  // Tool lifecycle updates can arrive with a partial assistant message that only
+  // contains tool-call blocks. Those partials must not blank already streamed
+  // assistant text/thinking; the tool lifecycle itself is emitted separately as
+  // `tool_event`.
+  if (!assistantMessageEvent.type.startsWith('text_') && !nextTextSnapshot) {
+    nextTextSnapshot = state.liveAssistantTextSnapshot;
+  }
+
+  if (!assistantMessageEvent.type.startsWith('thinking_') && !nextReasoningSnapshot) {
+    nextReasoningSnapshot = state.liveAssistantReasoningSnapshot;
+  }
+
   const textChange = computeStreamTextChange(state.liveAssistantTextSnapshot, nextTextSnapshot);
   const thinkingChange = computeStreamTextChange(state.liveAssistantReasoningSnapshot, nextReasoningSnapshot);
 
@@ -464,8 +486,24 @@ function createAssistantCompletionUpdates(
   assistantMessage: AssistantMessage
 ) {
   const updates: RuntimePiAssistantStreamUpdate[] = [];
-  const finalTextSnapshot = extractAssistantText(assistantMessage);
-  const finalReasoningSnapshot = extractAssistantReasoning(assistantMessage) ?? '';
+  let finalTextSnapshot = extractAssistantText(assistantMessage);
+  let finalReasoningSnapshot = extractAssistantReasoning(assistantMessage) ?? '';
+
+  // `toolUse` completions often finalize to tool-call-only content even though
+  // the provider already streamed a visible preamble sentence. Keep the live
+  // text/thinking snapshots stable through the tool boundary; the next
+  // assistant message (or durable transcript after reconcile) will advance the
+  // visible content.
+  if (assistantMessage.stopReason === 'toolUse') {
+    if (!finalTextSnapshot) {
+      finalTextSnapshot = state.liveAssistantTextSnapshot;
+    }
+
+    if (!finalReasoningSnapshot) {
+      finalReasoningSnapshot = state.liveAssistantReasoningSnapshot;
+    }
+  }
+
   const textChange = computeStreamTextChange(state.liveAssistantTextSnapshot, finalTextSnapshot);
   const thinkingChange = computeStreamTextChange(state.liveAssistantReasoningSnapshot, finalReasoningSnapshot);
 
@@ -780,7 +818,12 @@ async function handleAgentEvent(
       finishedAt: null
     });
 
-    state.toolInvocationByCallId.set(event.toolCallId, { id: invocation.id, messageId: assistantMessageId, status: 'running' });
+    state.toolInvocationByCallId.set(event.toolCallId, {
+      id: invocation.id,
+      messageId: assistantMessageId,
+      status: 'running',
+      input: asRecordOrNull(event.args)
+    });
     state.persistedToolCallIds.add(event.toolCallId);
 
     await appendMessagePart(ctx, state, assistantMessageId, 'tool-call', {
@@ -816,6 +859,7 @@ async function handleAgentEvent(
       ...invocation,
       status: nextStatus
     });
+    state.liveToolInputByCallId.delete(event.toolCallId);
 
     await persistToolResultMessage(ctx, state, input, event);
     const runEvent = await appendRunEvent(ctx, state, input, event);
@@ -959,6 +1003,7 @@ export async function runAssistantTurnWithPiInternal(
     persistedAssistantReasoningFlushed: false,
     nextPartIndexByMessageId: new Map(),
     toolInvocationByCallId: new Map(),
+    liveToolInputByCallId: new Map(),
     persistedToolCallIds: new Set()
   };
 
@@ -1015,9 +1060,13 @@ export async function runAssistantTurnWithPiInternal(
           : null;
 
     if (event.type === 'message_start' && event.message.role === 'assistant') {
-      const liveMessageId = state.openAssistantMessageId ?? crypto.randomUUID();
-      state.openAssistantMessageId = liveMessageId;
-      state.liveAssistantMessageId = liveMessageId;
+      // Live assistant segments must not reuse the persisted assistant message
+      // identity. Persisted assistant messages are opened/closed on the async
+      // durable event chain, while live rendering needs a fresh identity as
+      // soon as the provider starts a new assistant message. Reusing
+      // `openAssistantMessageId` here lets adjacent assistant messages collapse
+      // into one live segment when persistence lags behind streaming.
+      state.liveAssistantMessageId = crypto.randomUUID();
       state.liveAssistantTextSnapshot = '';
       state.liveAssistantReasoningSnapshot = '';
     }
@@ -1049,6 +1098,8 @@ export async function runAssistantTurnWithPiInternal(
 
     if (event.type === 'tool_execution_start') {
       const messageId = state.liveAssistantMessageId;
+      const liveToolInput = asRecordOrNull(event.args);
+      state.liveToolInputByCallId.set(event.toolCallId, liveToolInput);
       if (messageId) {
         liveEventChain = liveEventChain.then(async () => {
           await emitLiveAssistantUpdate(runOptions, {
@@ -1057,7 +1108,7 @@ export async function runAssistantTurnWithPiInternal(
             toolCallId: event.toolCallId,
             toolName: event.toolName,
             phase: 'start',
-            input: asRecordOrNull(event.args)
+            input: liveToolInput
           });
         });
       }
@@ -1073,7 +1124,7 @@ export async function runAssistantTurnWithPiInternal(
             toolCallId: event.toolCallId,
             toolName: event.toolName,
             phase: event.isError ? 'failed' : 'completed',
-            input: null
+            input: state.liveToolInputByCallId.get(event.toolCallId) ?? state.toolInvocationByCallId.get(event.toolCallId)?.input ?? null
           });
         });
       }

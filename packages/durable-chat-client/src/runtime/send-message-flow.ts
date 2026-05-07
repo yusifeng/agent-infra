@@ -217,7 +217,7 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
 
   const applyTextReplace = (current: LiveAssistantDraft | null, runId: string, messageId: string, snapshot: string): LiveAssistantDraft => {
     const base = current?.runId === runId ? current : createEmptyLiveDraft(runId, messageId);
-    const { segments, segment } = ensureCurrentSegment(base, messageId);
+    const { segments, segment } = ensureCurrentSegment(base, messageId, { startNewOnToolBoundary: true });
     const nextSegment: LiveAssistantSegment = {
       ...segment,
       text: snapshot
@@ -254,7 +254,7 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
 
   const applyThinkingReplace = (current: LiveAssistantDraft | null, runId: string, messageId: string, snapshot: string): LiveAssistantDraft => {
     const base = current?.runId === runId ? current : createEmptyLiveDraft(runId, messageId);
-    const { segments, segment } = ensureCurrentSegment(base, messageId);
+    const { segments, segment } = ensureCurrentSegment(base, messageId, { startNewOnToolBoundary: true });
     const nextSegment: LiveAssistantSegment = {
       ...segment,
       reasoning: snapshot
@@ -278,9 +278,14 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
   ): LiveAssistantDraft => {
     const base = current?.runId === runId ? current : createEmptyLiveDraft(runId, messageId);
     const { segments, segment } = ensureCurrentSegment(base, messageId);
+    const existingToolIndex = segment.tools.findIndex((entry) => entry.toolCallId === tool.toolCallId);
+    const nextTools =
+      existingToolIndex >= 0
+        ? segment.tools.map((entry, index) => (index === existingToolIndex ? tool : entry))
+        : [...segment.tools, tool];
     const nextSegment: LiveAssistantSegment = {
       ...segment,
-      tools: [...segment.tools.filter((entry) => entry.toolCallId !== tool.toolCallId), tool]
+      tools: nextTools
     };
     nextSegment.eventType = deriveSegmentEventType(nextSegment);
 

@@ -143,6 +143,17 @@ class FailOnceAssistantMessageRepository extends InMemoryMessageRepository {
   }
 }
 
+class SlowAssistantPersistenceMessageRepository extends InMemoryMessageRepository {
+  override async createPart(input: Omit<MessagePart, 'createdAt'>): Promise<MessagePart> {
+    const message = this.messages.get(input.messageId);
+    if (message?.role === 'assistant' && (input.type === 'text' || input.type === 'reasoning')) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+
+    return super.createPart(input);
+  }
+}
+
 class FailOnceToolInvocationRepository extends InMemoryToolInvocationRepository {
   private failed = false;
   override async updateStatus(id: string, status: ToolInvocation['status'], patch: Partial<ToolInvocation> = {}): Promise<ToolInvocation> {
@@ -765,6 +776,126 @@ describe('runAssistantTurnWithPiInternal', () => {
     expect(assistantTextUpdates[0]!.messageId).not.toBe(toolEvents[1]!.messageId);
   });
 
+  it('does not reuse live assistant message ids when durable persistence lags behind streaming', async () => {
+    const slowMessageRepo = new SlowAssistantPersistenceMessageRepository();
+    const { ctx, thread, run } = await createContextWithOverrides({
+      messageRepo: slowMessageRepo
+    });
+    await createSeedThread(slowMessageRepo, thread.id, 'search Claude news twice');
+
+    const scripted = registerScriptedToolUseProvider([
+      createToolUseTextThenToolOnlyStep('好的，我来帮你搜索一下关于 Claude 的最新新闻！', 'call-search-1', 'Claude latest news'),
+      createToolUseTextThenToolOnlyStep('我来进一步搜索一下更多细节。', 'call-search-2', 'Claude more details'),
+      createFinalTextStep('以下是关于 Claude 的最新新闻摘要：')
+    ]);
+    unregisterCallbacks.push(scripted.unregister);
+
+    const runtime = createPiRuntime({
+      model: scripted.model,
+      getApiKey: async () => 'scripted-key',
+      tools: [
+        {
+          name: 'searchWeb',
+          description: 'Search the web',
+          parameters: Type.Object({
+            query: Type.String()
+          }),
+          execute: async () => ({
+            content: [{ type: 'text', text: 'result' }]
+          })
+        }
+      ]
+    });
+
+    const assistantTextUpdates: Array<{ messageId: string; value: string }> = [];
+    const toolEvents: Array<{ messageId: string; value: string }> = [];
+
+    await runtime.runTurn(
+      ctx,
+      { threadId: thread.id, runId: run.id },
+      {
+        onLiveAssistantUpdate(update) {
+          if (update.kind === 'assistant_delta') {
+            assistantTextUpdates.push({ messageId: update.messageId, value: update.textDelta });
+            return;
+          }
+
+          if (update.kind === 'tool_event') {
+            toolEvents.push({ messageId: update.messageId, value: `${update.toolName}:${update.phase}` });
+          }
+        }
+      }
+    );
+
+    expect(assistantTextUpdates).toEqual([
+      { messageId: assistantTextUpdates[0]!.messageId, value: '好的，我来帮你搜索一下关于 Claude 的最新新闻！' },
+      { messageId: assistantTextUpdates[1]!.messageId, value: '我来进一步搜索一下更多细节。' },
+      { messageId: assistantTextUpdates[2]!.messageId, value: '以下是关于 Claude 的最新新闻摘要：' }
+    ]);
+    expect(new Set(assistantTextUpdates.map((update) => update.messageId)).size).toBe(3);
+    expect(toolEvents).toEqual([
+      { messageId: assistantTextUpdates[0]!.messageId, value: 'searchWeb:start' },
+      { messageId: assistantTextUpdates[0]!.messageId, value: 'searchWeb:completed' },
+      { messageId: assistantTextUpdates[1]!.messageId, value: 'searchWeb:start' },
+      { messageId: assistantTextUpdates[1]!.messageId, value: 'searchWeb:completed' }
+    ]);
+  });
+
+  it('preserves live tool input on completion even when tool start persistence lags behind', async () => {
+    const slowMessageRepo = new SlowAssistantPersistenceMessageRepository();
+    const { ctx, thread, run } = await createContextWithOverrides({
+      messageRepo: slowMessageRepo
+    });
+    await createSeedThread(slowMessageRepo, thread.id, 'search Claude news');
+
+    const scripted = registerScriptedToolUseProvider([
+      createToolUseTextThenToolOnlyStep('好的，我来帮你搜索一下关于 Claude 的最新新闻！', 'call-search-lag', 'Claude latest news'),
+      createFinalTextStep('以下是关于 Claude 的最新新闻摘要：')
+    ]);
+    unregisterCallbacks.push(scripted.unregister);
+
+    const runtime = createPiRuntime({
+      model: scripted.model,
+      getApiKey: async () => 'scripted-key',
+      tools: [
+        {
+          name: 'searchWeb',
+          description: 'Search the web',
+          parameters: Type.Object({
+            query: Type.String()
+          }),
+          execute: async () => ({
+            content: [{ type: 'text', text: 'result' }]
+          })
+        }
+      ]
+    });
+
+    const toolEvents: Array<{ phase: string; query: string | null }> = [];
+
+    await runtime.runTurn(
+      ctx,
+      { threadId: thread.id, runId: run.id },
+      {
+        onLiveAssistantUpdate(update) {
+          if (update.kind !== 'tool_event') {
+            return;
+          }
+
+          toolEvents.push({
+            phase: update.phase,
+            query: typeof update.input?.query === 'string' ? update.input.query : null
+          });
+        }
+      }
+    );
+
+    expect(toolEvents).toEqual([
+      { phase: 'start', query: 'Claude latest news' },
+      { phase: 'completed', query: 'Claude latest news' }
+    ]);
+  });
+
   it('persists assistant pre-tool text when a tool-use message finishes without text blocks', async () => {
     const { ctx, thread, run } = await createContext();
     await createSeedThread(ctx.messageRepo, thread.id, 'search GPT-5.5 news');
@@ -805,6 +936,70 @@ describe('runAssistantTurnWithPiInternal', () => {
         type: 'tool-call',
         textValue: null
       }
+    ]);
+  });
+
+  it('does not emit empty assistant/thinking replace updates when toolcall partials omit prior text', async () => {
+    const { ctx, thread, run } = await createContext();
+    await createSeedThread(ctx.messageRepo, thread.id, 'search GPT-5.5 news');
+
+    const scripted = registerScriptedToolUseProvider([
+      createToolUseTextThenToolOnlyStep('好的，我来搜索一下关于 GPT-5.5 的最新新闻。', 'call-search-1', 'GPT-5.5 latest news'),
+      createFinalTextStep('以下是整理后的结果。')
+    ]);
+    unregisterCallbacks.push(scripted.unregister);
+
+    const runtime = createPiRuntime({
+      model: scripted.model,
+      getApiKey: async () => 'faux-key',
+      tools: [
+        {
+          name: 'searchWeb',
+          description: 'Search the web',
+          parameters: Type.Object({
+            query: Type.String()
+          }),
+          execute: async () => ({
+            content: [{ type: 'text', text: 'result' }]
+          })
+        }
+      ]
+    });
+
+    const liveUpdates: Array<{ kind: string; value: string }> = [];
+
+    await runtime.runTurn(
+      ctx,
+      { threadId: thread.id, runId: run.id },
+      {
+        onLiveAssistantUpdate(update) {
+          if (update.kind === 'assistant_delta') {
+            liveUpdates.push({ kind: update.kind, value: update.textDelta });
+            return;
+          }
+
+          if (update.kind === 'assistant_replace') {
+            liveUpdates.push({ kind: update.kind, value: update.textSnapshot });
+            return;
+          }
+
+          if (update.kind === 'thinking_replace') {
+            liveUpdates.push({ kind: update.kind, value: update.thinkingSnapshot });
+            return;
+          }
+
+          if (update.kind === 'tool_event') {
+            liveUpdates.push({ kind: update.kind, value: `${update.toolName}:${update.phase}` });
+          }
+        }
+      }
+    );
+
+    expect(liveUpdates).toEqual([
+      { kind: 'assistant_delta', value: '好的，我来搜索一下关于 GPT-5.5 的最新新闻。' },
+      { kind: 'tool_event', value: 'searchWeb:start' },
+      { kind: 'tool_event', value: 'searchWeb:completed' },
+      { kind: 'assistant_delta', value: '以下是整理后的结果。' }
     ]);
   });
 

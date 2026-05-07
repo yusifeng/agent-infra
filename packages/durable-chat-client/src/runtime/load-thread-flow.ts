@@ -143,6 +143,11 @@ export function applyHydratedTranscriptState(args: {
       return null;
     }
 
+    const liveDraftMatchesActiveRun = activeResponseRun !== null && current.runId === activeResponseRun.id;
+    if (liveDraftMatchesActiveRun && (activeResponseRun.status === 'queued' || activeResponseRun.status === 'running')) {
+      return current;
+    }
+
     if (current.runId !== selectedRunId) {
       return null;
     }

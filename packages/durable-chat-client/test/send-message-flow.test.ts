@@ -529,7 +529,7 @@ describe('runSendMessageFlow', () => {
             toolCallId: 'call-search-2b',
             toolName: 'searchWeb',
             phase: 'completed',
-            input: null
+            input: { query: 'Claude latest news' }
           }
         },
         {
@@ -581,7 +581,7 @@ describe('runSendMessageFlow', () => {
               toolCallId: 'call-search-2b',
               toolName: 'searchWeb',
               phase: 'completed',
-              input: null
+              input: { query: 'Claude latest news' }
             }
           ],
           eventType: 'streaming'
@@ -921,6 +921,135 @@ describe('runSendMessageFlow', () => {
       segments: [
         createLiveSegment('assistant-4b-a:0', 'assistant-4b-a', { text: '第一段。', eventType: 'streaming' }),
         createLiveSegment('assistant-4b-b:1', 'assistant-4b-b', { text: '第二段新文案。', eventType: 'streaming' })
+      ]
+    });
+  });
+
+  it('starts a new live segment when an assistant replace follows a completed search tool', async () => {
+    const refs = createRefs();
+    refs.activeThreadIdRef.current = 'thread-existing';
+    const actions = createActions();
+
+    openThreadRunStreamMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      requestId: 'req-4c',
+      body: createTextStream([
+        {
+          type: 'run.ready',
+          runId: 'run-4c',
+          run: createRun('run-4c', 'queued'),
+          userMessage: {
+            id: 'message-user-4c',
+            threadId: 'thread-existing',
+            runId: null,
+            role: 'user',
+            seq: 2,
+            status: 'completed',
+            metadata: null,
+            createdAt: '2026-01-01T00:00:00.000Z',
+            parts: [
+              {
+                id: 'part-user-4c',
+                messageId: 'message-user-4c',
+                partIndex: 0,
+                type: 'text',
+                textValue: '搜 Claude 新闻',
+                jsonValue: null,
+                createdAt: '2026-01-01T00:00:00.000Z'
+              }
+            ]
+          }
+        },
+        {
+          type: 'run.assistant',
+          runId: 'run-4c',
+          assistant: {
+            messageId: 'assistant-4c',
+            kind: 'assistant_delta',
+            textDelta: '好的，我来帮你搜索一下关于 Claude 的最新新闻！'
+          }
+        },
+        {
+          type: 'run.assistant',
+          runId: 'run-4c',
+          assistant: {
+            messageId: 'assistant-4c',
+            kind: 'tool_event',
+            toolCallId: 'call-search-4c',
+            toolName: 'searchWeb',
+            phase: 'completed',
+            input: { query: 'Claude latest news' }
+          }
+        },
+        {
+          type: 'run.assistant',
+          runId: 'run-4c',
+          assistant: {
+            messageId: 'assistant-4c',
+            kind: 'assistant_replace',
+            textSnapshot: '以下是关于 Claude 的最新新闻摘要：'
+          }
+        },
+        {
+          type: 'run.completed',
+          runId: 'run-4c',
+          run: createRun('run-4c', 'completed')
+        }
+      ])
+    });
+
+    await runSendMessageFlow({
+      state: {
+        activeThreadId: 'thread-existing',
+        draft: '搜 Claude 新闻',
+        isChatResponding: false,
+        messages: [createMessage('message-1', 1)],
+        selectedWebSearchEnabled: true,
+        selectedThinkingEnabled: false,
+        selectedReasoningEffort: 'high',
+        selectedModelOption: createSelectedModelOption()
+      },
+      refs,
+      actions,
+      operations: {
+        createThreadRecord: vi.fn(),
+        pendingNewThreadLoadingId: 'pending-new-thread',
+        reconcileCompletedTurn: vi.fn().mockResolvedValue(undefined),
+        replaceCurrentPath: vi.fn()
+      }
+    });
+
+    const finalLiveAssistantDraft = replaySetterCalls(actions.setLiveAssistantDraft.mock.calls as Array<[Updater<LiveAssistantDraft | null>]>, null);
+    expect(finalLiveAssistantDraft).toEqual({
+      runId: 'run-4c',
+      messageId: 'assistant-4c',
+      committedText: '',
+      partialText: '以下是关于 Claude 的最新新闻摘要：',
+      segmentText: '以下是关于 Claude 的最新新闻摘要：',
+      segmentTextMessageId: 'assistant-4c',
+      partialReasoning: null,
+      segmentReasoningMessageId: null,
+      activeTools: [],
+      eventType: 'streaming',
+      segments: [
+        createLiveSegment('assistant-4c:0', 'assistant-4c', {
+          text: '好的，我来帮你搜索一下关于 Claude 的最新新闻！',
+          tools: [
+            {
+              toolCallId: 'call-search-4c',
+              toolName: 'searchWeb',
+              phase: 'completed',
+              input: { query: 'Claude latest news' }
+            }
+          ],
+          eventType: 'streaming'
+        }),
+        createLiveSegment('assistant-4c:1', 'assistant-4c', {
+          text: '以下是关于 Claude 的最新新闻摘要：',
+          eventType: 'streaming'
+        })
       ]
     });
   });

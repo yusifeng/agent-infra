@@ -217,4 +217,57 @@ describe('runReconcileCompletedTurn', () => {
       endCursor: 'cursor-3'
     });
   });
+
+  it('clears the live assistant draft when the first reconcile message fetch fails', async () => {
+    fetchThreadMessagesResponseMock.mockResolvedValue({
+      ok: false,
+      status: 500,
+      error: 'messages exploded'
+    });
+
+    const actions = {
+      setActiveResponseRun: createSetterSpy<RunDto | null>(),
+      setChatPhase: createSetterSpy<'idle' | 'thinking' | 'streaming' | 'transcript-final' | 'failed'>(),
+      setError: createSetterSpy<string | null>(),
+      setLiveAssistantDraft: createSetterSpy<null>(),
+      setLoadingThreadId: createSetterSpy<string | null>(),
+      setMessages: createSetterSpy<MessageDto[]>(),
+      setMessagePageInfo: createSetterSpy<{
+        hasOlder: boolean;
+        hasNewer: boolean;
+        startCursor: string | null;
+        endCursor: string | null;
+      } | null>(),
+      setOptimisticUserMessage: createSetterSpy<MessageDto | null>(),
+      setPersistingTurn: createSetterSpy<boolean>(),
+      setRecentRuns: createSetterSpy<never[]>(),
+      setRecentRunsError: createSetterSpy<string | null>(),
+      setRecentRunsLoading: createSetterSpy<boolean>(),
+      setSelectedRunId: createSetterSpy<string | null>(),
+      setTimeline: createSetterSpy<null>(),
+      setTimelineError: createSetterSpy<string | null>(),
+      setTimelineLoading: createSetterSpy<boolean>()
+    };
+
+    await runReconcileCompletedTurn({
+      threadId: 'thread-1',
+      preferredRunId: 'run-1',
+      requestId: 4,
+      state: {
+        messages: [createMessage('message-1', 1), createMessage('message-2', 2)],
+        pageInfo: null
+      },
+      refs: {
+        activeThreadIdRef: { current: 'thread-1' },
+        logOpenRef: { current: false },
+        reconcileRequestIdRef: { current: 0 },
+        selectedRunIdRef: { current: null },
+        sendRequestIdRef: { current: 4 }
+      },
+      actions
+    });
+
+    expect(actions.setLiveAssistantDraft).toHaveBeenCalledWith(null);
+    expect(actions.setError).toHaveBeenCalledWith('messages exploded');
+  });
 });

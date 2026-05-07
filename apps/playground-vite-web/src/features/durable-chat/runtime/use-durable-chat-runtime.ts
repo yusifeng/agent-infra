@@ -1,9 +1,12 @@
 import type { MessageDto, ToolInvocationDto } from '@agent-infra/contracts';
 import {
   applyHydratedTranscriptState,
+  clearPersistedLiveAssistantDraft,
   deriveMainChatResponseStatus,
   fetchRunTimelineResponse,
   fetchThreadMessagesResponse,
+  persistLiveAssistantDraft,
+  readPersistedLiveAssistantDraft,
   runActivateThread,
   runCreateThreadRecord,
   runInitializeRuntime,
@@ -24,6 +27,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { buildTranscriptBlocks, filterTranscriptBlocksForLiveRun } from '@/features/durable-chat/runtime/build-transcript-blocks';
+import {
+  shouldClearPersistedLiveDraft,
+  shouldPersistActiveLiveDraft,
+  shouldRestorePersistedLiveDraft
+} from '@/features/durable-chat/runtime/live-draft-persistence';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
 import type { ActiveSearchPanelData, SearchPanelResultItem, SearchPanelSection } from '@/features/durable-chat/types/search';
@@ -194,6 +202,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const runtimeBootstrappedRef = useRef(false);
   const routeChangeRequestIdRef = useRef(0);
   const runSelectionPersistenceReadyRef = useRef(false);
+  const hydratedThreadIdsRef = useRef<Set<string>>(new Set());
   const activeThreadIdRef = useRef<string | null>(null);
   const logOpenRef = useRef(false);
   const messagePageInfoRef = useRef<typeof messagePageInfo>(null);
@@ -244,10 +253,65 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     [displayedMessages, liveAssistantDraft?.runId]
   );
   const hasOlderMessages = messagePageInfo?.hasOlder === true;
+  const hasHydratedActiveThread = activeThreadId ? hydratedThreadIdsRef.current.has(activeThreadId) : false;
+
+  function markThreadHydrated(threadId: string) {
+    hydratedThreadIdsRef.current.add(threadId);
+  }
 
   useEffect(() => {
     activeThreadIdRef.current = activeThreadId;
   }, [activeThreadId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !activeThreadId) {
+      return;
+    }
+
+    if (
+      shouldPersistActiveLiveDraft({
+        activeThreadId,
+        activeResponseRun,
+        liveAssistantDraft
+      })
+    ) {
+      persistLiveAssistantDraft(activeThreadId, liveAssistantDraft!, window.sessionStorage);
+      return;
+    }
+
+    if (
+      shouldClearPersistedLiveDraft({
+        activeThreadId,
+        activeResponseRun,
+        hasHydratedThread: hasHydratedActiveThread,
+        liveAssistantDraft
+      })
+    ) {
+      clearPersistedLiveAssistantDraft(activeThreadId, window.sessionStorage);
+    }
+  }, [activeResponseRun, activeThreadId, hasHydratedActiveThread, liveAssistantDraft]);
+
+  useEffect(() => {
+    if (
+      typeof window === 'undefined' ||
+      !shouldRestorePersistedLiveDraft({
+        activeThreadId,
+        activeResponseRun,
+        liveAssistantDraft
+      })
+    ) {
+      return;
+    }
+
+    const runId = activeResponseRun!.id;
+    const threadId = activeThreadId!;
+    const restoredDraft = readPersistedLiveAssistantDraft(threadId, window.sessionStorage);
+    if (!restoredDraft || restoredDraft.runId !== runId) {
+      return;
+    }
+
+    setLiveAssistantDraft(restoredDraft);
+  }, [activeResponseRun, activeThreadId, liveAssistantDraft, setLiveAssistantDraft]);
 
   useEffect(() => {
     setSearchPanelOpen(false);
@@ -511,7 +575,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         setRecentRunsLoading
       },
       operations: {
-        applyHydratedTranscript: ({ messages: hydratedMessages, pageInfo, activeResponseRun, selectedRunId, runs }) =>
+        applyHydratedTranscript: ({ messages: hydratedMessages, pageInfo, activeResponseRun, selectedRunId, runs }) => {
+          markThreadHydrated(threadId);
           applyHydratedTranscriptState({
             messages: hydratedMessages,
             pageInfo,
@@ -530,7 +595,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
               setRecentRunsError,
               setSelectedRunId
             }
-          }),
+          });
+        },
         hydrateTranscript,
         loadLogInspector: async () => null,
         resetLogInspectorState
@@ -615,6 +681,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         setTimelineLoading
       }
     });
+    markThreadHydrated(threadId);
   }
 
   async function createThreadRecord() {

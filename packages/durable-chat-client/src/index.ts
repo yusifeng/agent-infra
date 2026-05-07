@@ -11,6 +11,7 @@ export * from './service/render-diagnostics.js';
 export * from './service/message-visibility.js';
 export * from './runtime/chat-session-flow.js';
 export * from './runtime/load-thread-flow.js';
+export * from './runtime/live-draft-storage.js';
 export * from './runtime/reconcile-completed-turn.js';
 export * from './runtime/send-message-flow.js';
 export * from './types/live-assistant-draft.js';
