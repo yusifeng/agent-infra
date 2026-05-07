@@ -15,24 +15,16 @@ import {
   runStopViewingLiveResponse
 } from '@agent-infra/durable-chat-client';
 import type { LoadThreadMessagesResult } from '@agent-infra/durable-chat-client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import {
-  startRestoredLiveDraftRefreshLoop,
-  shouldRefreshRestoredLiveDraft,
-} from '@/features/durable-chat/runtime/live-draft-persistence';
-import {
-  resolveRestoredRunRefreshId,
-  restoreStoredDraftForActiveRun,
-  syncStoredLiveDraft
-} from '@/features/durable-chat/runtime/live-draft-recovery';
 import { useSearchPanelState } from '@/features/durable-chat/runtime/use-search-panel-state';
 import { fetchThreadMessages } from '@/features/durable-chat/repo/chat-api';
 import { buildChatViewState } from '@/features/durable-chat/service/chat-view-state';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
 import type { DurableChatRuntimeOptions } from '@/features/durable-chat/types/runtime';
+import { useLiveDraftOrchestration } from '@/features/durable-chat/runtime/use-live-draft-orchestration';
 
 const PENDING_NEW_THREAD_LOADING_ID = '__pending-new-thread__';
 
@@ -119,7 +111,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const pendingPrependAnchorRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
   const shouldAutoScrollRef = useRef(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [restoredRunRefreshId, setRestoredRunRefreshId] = useState<string | null>(null);
   const {
     activeSearchResult,
     searchPanelError,
@@ -182,76 +173,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   useEffect(() => {
     activeThreadIdRef.current = activeThreadId;
   }, [activeThreadId]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !activeThreadId) {
-      return;
-    }
-
-    syncStoredLiveDraft({
-      activeThreadId,
-      activeResponseRun,
-      hasHydratedThread: hasHydratedActiveThread,
-      liveAssistantDraft
-    });
-  }, [activeResponseRun, activeThreadId, hasHydratedActiveThread, liveAssistantDraft]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    const restored = restoreStoredDraftForActiveRun({
-      activeThreadId,
-      activeResponseRun,
-      liveAssistantDraft
-    });
-    if (!restored) {
-      return;
-    }
-
-    setRestoredRunRefreshId(restored.restoredRunId);
-    setLiveAssistantDraft(restored.draft);
-  }, [activeResponseRun, activeThreadId, liveAssistantDraft, setLiveAssistantDraft]);
-
-  useEffect(() => {
-    if (!restoredRunRefreshId) {
-      return;
-    }
-
-    const nextRefreshId = resolveRestoredRunRefreshId({
-      activeThreadId,
-      activeResponseRun,
-      restoredRunRefreshId
-    });
-    if (nextRefreshId !== restoredRunRefreshId) {
-      setRestoredRunRefreshId(nextRefreshId);
-    }
-  }, [activeResponseRun, activeThreadId, restoredRunRefreshId]);
-
-  useEffect(() => {
-    if (
-      !shouldRefreshRestoredLiveDraft({
-        activeThreadId,
-        activeResponseRun,
-        liveAssistantDraft,
-        restoredRunId: restoredRunRefreshId
-      })
-    ) {
-      return;
-    }
-
-    const threadId = activeThreadId!;
-    return startRestoredLiveDraftRefreshLoop({
-      refresh: async () => {
-        await loadThreadMessages(threadId, {
-          background: true,
-          skipTimelineReload: true,
-          preserveExistingTimeline: true
-        });
-      }
-    });
-  }, [activeResponseRun, activeThreadId, liveAssistantDraft]);
 
   useEffect(() => {
     selectedRunIdRef.current = selectedRunId;
@@ -538,6 +459,15 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
 
     return result ?? { ok: false, restoredRunId: null };
   }
+
+  useLiveDraftOrchestration({
+    activeThreadId,
+    activeResponseRun,
+    hasHydratedActiveThread,
+    liveAssistantDraft,
+    setLiveAssistantDraft,
+    loadThreadMessages
+  });
 
   async function loadOlderMessages() {
     const threadId = activeThreadIdRef.current;
