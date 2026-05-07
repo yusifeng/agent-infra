@@ -124,7 +124,7 @@
 - [ ] 覆盖 persisted transcript + live draft 同时存在时的展示
 - [ ] 覆盖 search label / search status / actions 的正确出现与隐藏
 - [x] 为 `SearchResultsPanel` 增加 loading / error / populated 三态测试
-- [ ] 为 `ComposerDock` 增加 toggle disabled/enabled 与 send button 状态测试
+- [x] 为 `ComposerDock` 增加 toggle disabled/enabled 与 send button 状态测试
 - [ ] 为 `site-icon-badge` 增加 hostname / fallback 测试
 
 ## 4. 需要持续遵守的新增功能规则
