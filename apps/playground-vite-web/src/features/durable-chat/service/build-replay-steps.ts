@@ -309,10 +309,14 @@ export function buildReplaySteps(blocks: TranscriptBlock[]): ReplayStep[] {
 }
 
 export function buildReplaySession(blocks: TranscriptBlock[]): ReplaySession {
+  const steps = buildReplaySteps(blocks);
+  const threadId = resolveThreadId(blocks);
+
   return {
-    threadId: resolveThreadId(blocks),
+    id: `replay:${threadId}:${steps.map((step) => step.id).join('|')}`,
+    threadId,
     mode: 'thread',
-    steps: buildReplaySteps(blocks),
+    steps,
     initialTranscriptBlocks: [],
     startedAt: null
   };

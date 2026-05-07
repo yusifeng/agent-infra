@@ -227,6 +227,7 @@ describe('buildReplaySteps', () => {
 
     const session = buildReplaySession(blocks);
 
+    expect(session.id).toContain('replay:thread-1:');
     expect(session.threadId).toBe('thread-1');
     expect(session.mode).toBe('thread');
     expect(session.initialTranscriptBlocks).toEqual([]);

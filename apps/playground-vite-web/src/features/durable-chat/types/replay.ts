@@ -58,6 +58,7 @@ export type ReplayStep =
   | ReplayDoneStep;
 
 export type ReplaySession = {
+  id: string;
   threadId: string;
   mode: ReplayMode;
   steps: ReplayStep[];

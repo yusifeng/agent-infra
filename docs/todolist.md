@@ -175,32 +175,32 @@
 ### 4.4 Service：回放中的展示派生
 
 - [ ] 新建 `service/replay-presentation.ts`
-- [ ] 从 `ReplaySession + ReplayCursor` 派生当前可见 transcript
-- [ ] 派生当前可见 search label / loading
-- [ ] 派生当前控制条状态
+- [x] 从 `ReplaySession + ReplayCursor` 派生当前可见 transcript
+- [x] 派生当前可见 search label / loading
+- [x] 派生当前控制条状态
 
 ## 5. Runtime：播放控制与状态推进
 
 ### 5.1 Replay runtime
 
-- [ ] 新建 `runtime/use-replay-runtime.ts`
-- [ ] runtime 只做：
+- [x] 新建 `runtime/use-replay-runtime.ts`
+- [x] runtime 只做：
   - 播放循环
   - step 推进
   - pause/resume
   - restart
-- [ ] runtime 不直接解析 raw durable payload
+- [x] runtime 不直接解析 raw durable payload
 
 ### 5.2 Replay state machine
 
-- [ ] 定义最小状态：
+- [x] 定义最小状态：
   - `idle`
   - `playing`
   - `paused`
   - `completed`
-- [ ] 明确 `restart` 会回到 step `0`
-- [ ] 明确 route 切换时会清理定时器
-- [ ] 明确 thread 变更时会重建 replay session
+- [x] 明确 `restart` 会回到 step `0`
+- [x] 明确 route 切换时会清理定时器
+- [x] 明确 thread 变更时会重建 replay session
 
 ### 5.3 Search panel 联动
 
@@ -248,13 +248,13 @@
 
 ### 7.2 Runtime tests
 
-- [ ] 为 `use-replay-runtime.ts` 写 hook 测试
-- [ ] 覆盖：
+- [x] 为 `use-replay-runtime.ts` 写 hook 测试
+- [x] 覆盖：
   - 播放推进
   - 暂停
   - 继续
   - 重播
-- [ ] 验证 route/thread 切换时定时器清理
+- [x] 验证 route/thread 切换时定时器清理
 
 ### 7.3 UI tests
 
@@ -293,8 +293,8 @@
 
 ### 第 2 轮
 
-- [ ] 做 `use-replay-runtime.ts`
-- [ ] 补 runtime tests
+- [x] 做 `use-replay-runtime.ts`
+- [x] 补 runtime tests
 
 ### 第 3 轮
 
