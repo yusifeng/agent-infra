@@ -5,7 +5,7 @@ import { Atom, ChevronDown, ChevronRight, Copy, Loader2, RotateCw, Search, Trash
 import { memo, useEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties } from 'react';
 
 import { copyMessageToClipboard, copyTextToClipboard } from './helpers';
-import { MarkdownRenderer } from './markdown-renderer';
+import { MarkdownRenderer } from './markdown/markdown-renderer';
 import { AnimatedEmoji } from './shared';
 import { SiteIconBadge } from './site-icon-badge';
 import { buildAssistantTurnActionContexts } from '@/features/durable-chat/service/assistant-turn-actions';

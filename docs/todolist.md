@@ -62,8 +62,8 @@
 
 ### 1.6 markdown 相关目录混杂
 
-- [ ] 评估是否将 markdown 相关文件从 `components/` 收口到 `components/markdown/*` 或 `ui/markdown/*`
-- [ ] 梳理 [apps/playground-vite-web/src/features/durable-chat/components/markdown-service.ts](/Users/david/Documents/github/agent-infra/apps/playground-vite-web/src/features/durable-chat/components/markdown-service.ts) 的职责，确认哪些属于 UI 支撑基础设施，哪些值得单独抽层
+- [x] 评估是否将 markdown 相关文件从 `components/` 收口到 `components/markdown/*` 或 `ui/markdown/*`
+- [x] 梳理 [apps/playground-vite-web/src/features/durable-chat/components/markdown/markdown-service.ts](/Users/david/Documents/github/agent-infra/apps/playground-vite-web/src/features/durable-chat/components/markdown/markdown-service.ts) 的职责，确认哪些属于 UI 支撑基础设施，哪些值得单独抽层
 
 ## 2. 推荐的渐进式重构顺序
 

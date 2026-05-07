@@ -3,6 +3,8 @@ import DOMPurify, { type Config as DOMPurifyConfig } from 'dompurify';
 import { CODE_BLOCK_PATTERN, escapeHtml, highlightCodeBlocks, parseMarkdown } from './markdown-core';
 import type { MarkdownShikiRuntime } from './markdown-shiki-runtime';
 
+// Markdown service is UI support infrastructure: it owns caching, worker orchestration,
+// syntax-highlighting bootstrap, and HTML sanitization for markdown rendering.
 export type MarkdownCacheEntry = {
   hash: string;
   baseHtml: string;
