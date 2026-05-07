@@ -4,7 +4,6 @@ import {
   type AgentInfraRuntimePort
 } from '@agent-infra/app';
 import { createLazyPiRuntime } from '@agent-infra/runtime-pi/lazy';
-import { createDemoTools } from '@agent-infra/runtime-pi/tools';
 import type { RuntimePiRuntime } from '@agent-infra/runtime-pi/types';
 
 import { createPlaygroundAppServices, getPlaygroundBaseServices, type PlaygroundAppServices } from './playground-base-services';
@@ -34,9 +33,8 @@ async function buildPlaygroundRuntimeServices(): Promise<PlaygroundRuntimeServic
   const base = await getPlaygroundBaseServices();
 
   const durableRuntime = createLazyPiRuntime(async () => {
-
     return {
-      tools: (context) => createDemoTools(context)
+      tools: () => []
     };
   });
 

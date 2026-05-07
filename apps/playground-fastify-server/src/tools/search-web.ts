@@ -26,7 +26,19 @@ function normalizeSearchRequest(input: {
 }
 
 function buildSummary(response: WebSearchResponse) {
-  const sourceNames = [...new Set(response.results.map((result) => result.sourceName).filter(Boolean))].slice(0, 4);
+  const sources = Array.from(
+    new Map(
+      response.results
+        .filter((result) => result.sourceName && result.hostname)
+        .map((result) => [
+          `${result.hostname}:${result.sourceName}`,
+          {
+            sourceName: result.sourceName,
+            hostname: result.hostname
+          }
+        ])
+    ).values()
+  ).slice(0, 4);
   const summaryText =
     response.answer?.trim() ||
     `已阅读 ${response.results.length} 个网页，查询“${response.query}”并提取了可用于回答的网页信息。`;
@@ -37,7 +49,8 @@ function buildSummary(response: WebSearchResponse) {
     query: response.query,
     provider: response.provider,
     resultCount: response.results.length,
-    sourceNames,
+    sourceNames: sources.map((source) => source.sourceName),
+    sources,
     summaryText,
     memory: {
       query: response.query,

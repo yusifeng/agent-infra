@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "test": "vitest run",
     "typecheck": "tsc -b --pretty false",
     "smoke:phase1": "node scripts/phase1-smoke.mjs",
     "smoke:phase1:db": "node scripts/phase1-db-smoke.mjs",
@@ -49,6 +50,7 @@
     "tailwindcss": "^4.1.4",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.58.0",
-    "vite": "^8.0.4"
+    "vite": "^8.0.4",
+    "vitest": "^3.2.4"
   }
 }

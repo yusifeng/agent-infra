@@ -41,6 +41,14 @@ function deriveSourceName(rawUrl: string) {
   }
 }
 
+function deriveHostname(rawUrl: string) {
+  try {
+    return new URL(rawUrl).hostname.replace(/^www\./, '');
+  } catch {
+    return 'unknown';
+  }
+}
+
 function normalizeResult(result: TavilySearchResult, index: number): WebSearchResultItem | null {
   const title = result.title?.trim();
   const url = result.url?.trim();
@@ -55,6 +63,7 @@ function normalizeResult(result: TavilySearchResult, index: number): WebSearchRe
     url,
     snippet: trimSnippet(result.content ?? ''),
     sourceName: deriveSourceName(url),
+    hostname: deriveHostname(url),
     publishedAt: result.published_date?.trim() || null
   };
 }

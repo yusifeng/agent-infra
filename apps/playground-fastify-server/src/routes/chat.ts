@@ -28,7 +28,7 @@ import {
   toRunDto
 } from '@agent-infra/durable-chat-server';
 import type { RuntimePiRuntime } from '@agent-infra/runtime-pi/types';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 
 import { APP_ID } from '../constants.js';
 import { getPlaygroundAppServices, getPlaygroundAppServicesState } from '../playground-app-services.js';
@@ -90,6 +90,44 @@ function describeServiceState(state: { initialized: boolean; initializing: boole
   return state.initialized ? 'warm' : state.initializing ? 'warming' : 'cold';
 }
 
+function isValidSiteIconHostname(hostname: string) {
+  return /^[a-z0-9.-]+$/i.test(hostname) && hostname.includes('.') && !hostname.includes('..');
+}
+
+function buildFallbackSiteIconSvg(hostname: string) {
+  const label = hostname.replace(/^www\./, '').slice(0, 1).toUpperCase() || '?';
+  const escapedLabel = label.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="16" fill="#eef2ff"/>
+  <text x="32" y="38" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="700" fill="#4f46e5">${escapedLabel}</text>
+</svg>`;
+}
+
+async function sendSiteIcon(reply: FastifyReply, hostname: string) {
+  const googleUrl = `https://www.google.com/s2/favicons?sz=64&domain=${encodeURIComponent(hostname)}`;
+  const timeoutSignal = AbortSignal.timeout(2000);
+
+  try {
+    const response = await fetch(googleUrl, {
+      signal: timeoutSignal
+    });
+    if (response.ok) {
+      const arrayBuffer = await response.arrayBuffer();
+      const contentType = response.headers.get('content-type') || 'image/png';
+      reply.header('cache-control', 'public, max-age=86400');
+      reply.type(contentType);
+      return reply.send(Buffer.from(arrayBuffer));
+    }
+  } catch {
+    // fall through to svg fallback
+  }
+
+  reply.header('cache-control', 'public, max-age=3600');
+  reply.type('image/svg+xml');
+  return reply.send(buildFallbackSiteIconSvg(hostname));
+}
+
 export async function registerChatRoutes(app: FastifyInstance, dependencies: ChatRouteDependencies = {}) {
   const getAppServices = dependencies.getAppServices ?? getPlaygroundAppServices;
   const getRuntimeServices = dependencies.getRuntimeServices ?? getPlaygroundRuntimeServices;
@@ -129,6 +167,15 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
 
       return reply.code(503).send(response);
     }
+  });
+
+  app.get<{ Params: { hostname: string } }>('/site-icons/:hostname', async (request, reply) => {
+    const hostname = request.params.hostname.trim().toLowerCase();
+    if (!isValidSiteIconHostname(hostname)) {
+      return reply.code(400).type('text/plain').send('Invalid hostname');
+    }
+
+    return sendSiteIcon(reply, hostname);
   });
 
   app.get('/api/threads', async (request, reply) => {

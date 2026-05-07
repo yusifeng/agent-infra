@@ -5,7 +5,7 @@ import path from 'node:path';
 import type { AgentInfraRuntimePort } from '@agent-infra/app';
 import { createDbConfigFromEnv } from '@agent-infra/db';
 import type { RuntimePiRuntime } from '@agent-infra/runtime-pi/types';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { buildPlaygroundServer } from '../src/app.js';
 import { createPlaygroundAppServices } from '../src/playground-base-services.js';
@@ -80,9 +80,8 @@ function createFakeDurableRuntime(mode: 'success' | 'failure' = 'success'): Runt
 
       await options?.onLiveAssistantUpdate?.({
         messageId: assistantMessage.id,
-        eventType: 'text_delta',
-        partialText: mode === 'success' ? 'Hello from fake runtime' : '',
-        partialReasoning: null
+        kind: 'assistant_delta',
+        textDelta: mode === 'success' ? 'Hello from fake runtime' : ''
       });
 
       if (mode === 'success') {
@@ -95,12 +94,6 @@ function createFakeDurableRuntime(mode: 'success' | 'failure' = 'success'): Runt
           jsonValue: null
         });
         await ctx.messageRepo.updateStatus(assistantMessage.id, 'completed');
-        await options?.onLiveAssistantUpdate?.({
-          messageId: assistantMessage.id,
-          eventType: 'text_end',
-          partialText: 'Hello from fake runtime',
-          partialReasoning: null
-        });
 
         const completedRun = await ctx.runRepo.updateStatus(input.runId, 'completed', {
           finishedAt: new Date('2026-04-10T01:00:05.000Z')
@@ -186,6 +179,51 @@ afterEach(async () => {
 });
 
 describe('playground-fastify-server', () => {
+  it('serves site icons via the consumer resource route', async () => {
+    const originalFetch = global.fetch;
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: new Headers({ 'content-type': 'image/png' }),
+      arrayBuffer: async () => Uint8Array.from([137, 80, 78, 71]).buffer
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      const server = await createTestServer({});
+      activeServers.push(server);
+
+      const response = await server.app.inject({
+        method: 'GET',
+        url: '/site-icons/example.com'
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.headers['content-type']).toContain('image/png');
+      expect(response.headers['cache-control']).toContain('max-age=');
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://www.google.com/s2/favicons?sz=64&domain=example.com',
+        expect.objectContaining({
+          signal: expect.any(AbortSignal)
+        })
+      );
+    } finally {
+      vi.stubGlobal('fetch', originalFetch);
+    }
+  });
+
+  it('rejects invalid site icon hostnames', async () => {
+    const server = await createTestServer({});
+    activeServers.push(server);
+
+    const response = await server.app.inject({
+      method: 'GET',
+      url: '/site-icons/not-a-host'
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body).toContain('Invalid hostname');
+  });
+
   it('serves health and meta with injected config', async () => {
     const server = await createTestServer({
       metaOverride: {
@@ -337,7 +375,6 @@ describe('playground-fastify-server', () => {
     expect(events.map((event) => event.type)).toEqual([
       'run.ready',
       'run.state',
-      'run.assistant',
       'run.assistant',
       'run.state',
       'run.completed'

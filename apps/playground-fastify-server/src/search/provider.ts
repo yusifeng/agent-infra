@@ -11,6 +11,7 @@ export type WebSearchResultItem = {
   url: string;
   snippet: string;
   sourceName: string;
+  hostname: string;
   publishedAt?: string | null;
 };
 

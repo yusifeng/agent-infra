@@ -20,12 +20,20 @@ export default defineConfig(({ mode }) => {
         '/api': {
           target: apiProxyTarget,
           changeOrigin: true
+        },
+        '/site-icons': {
+          target: apiProxyTarget,
+          changeOrigin: true
         }
       }
     },
     preview: {
       proxy: {
         '/api': {
+          target: apiProxyTarget,
+          changeOrigin: true
+        },
+        '/site-icons': {
           target: apiProxyTarget,
           changeOrigin: true
         }

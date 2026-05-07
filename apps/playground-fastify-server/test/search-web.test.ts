@@ -18,6 +18,7 @@ describe('createSearchWebTool', () => {
             url: 'https://example.com/amd',
             snippet: 'AMD stock climbed after earnings.',
             sourceName: 'example',
+            hostname: 'example.com',
             publishedAt: '2026-05-07'
           }
         ]
@@ -43,7 +44,8 @@ describe('createSearchWebTool', () => {
       query: 'amd latest news',
       provider: 'tavily',
       resultCount: 1,
-      sourceNames: ['example']
+      sourceNames: ['example'],
+      sources: [{ sourceName: 'example', hostname: 'example.com' }]
     });
     expect(result.artifact).toMatchObject({
       kind: 'web-search-results',

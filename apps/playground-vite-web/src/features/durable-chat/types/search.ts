@@ -4,15 +4,23 @@ export type SearchPanelResultItem = {
   url: string;
   snippet: string;
   sourceName: string;
+  hostname: string;
   publishedAt?: string | null;
+};
+
+export type SearchPanelSection = {
+  toolCallId: string;
+  query: string;
+  resultCount: number;
+  retrievedAt?: string | null;
+  results: SearchPanelResultItem[];
 };
 
 export type ActiveSearchPanelData = {
   runId: string;
-  toolCallId: string;
-  query: string;
+  toolCallIds: string[];
   provider: string;
   resultCount: number;
-  retrievedAt?: string | null;
-  results: SearchPanelResultItem[];
+  sourceNames: string[];
+  sections: SearchPanelSection[];
 };

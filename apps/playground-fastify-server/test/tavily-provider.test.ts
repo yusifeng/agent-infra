@@ -48,6 +48,7 @@ describe('TavilySearchProvider', () => {
           url: 'https://www.example.com/news/amd',
           snippet: 'AMD climbed sharply after its latest earnings report.',
           sourceName: 'example',
+          hostname: 'example.com',
           publishedAt: '2026-05-07'
         }
       ]
