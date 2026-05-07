@@ -14,6 +14,10 @@ import {
   collectLiveDraftCopyText,
   hasVisibleLiveAssistantContent
 } from '@/features/durable-chat/service/live-assistant-presentation';
+import {
+  buildSearchResultLabelViewModel,
+  buildSearchStatusLabelViewModel
+} from '@/features/durable-chat/service/search-label-presentation';
 import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
 import type { DurableRecoveryState } from '@/features/durable-chat/types/runtime';
 import type { AssistantTurnItem, SearchSummaryBlock, TranscriptBlock } from '@/features/durable-chat/types/transcript-blocks';
@@ -226,15 +230,7 @@ const SearchResultLabel = memo(function SearchResultLabel({
   summary: SearchSummaryBlock;
   onOpen: () => void;
 }) {
-  const totalResults = summary.entries.reduce((total, entry) => total + entry.resultCount, 0);
-  const sources = Array.from(
-    new Map(
-      summary.entries
-        .flatMap((entry) => entry.sources)
-        .filter((source) => source.sourceName && source.hostname)
-        .map((source) => [`${source.hostname}:${source.sourceName}`, source])
-    ).values()
-  ).slice(0, 4);
+  const viewModel = buildSearchResultLabelViewModel(summary);
 
   return (
     <button
@@ -244,10 +240,10 @@ const SearchResultLabel = memo(function SearchResultLabel({
       title="打开搜索结果"
     >
       <Search className="h-4 w-4 shrink-0 text-[color:var(--chat-text-tertiary)]" />
-      <span className="truncate font-normal">已阅读 {totalResults} 个网页</span>
-      {sources.length > 0 ? (
+      <span className="truncate font-normal">{viewModel.text}</span>
+      {viewModel.sources.length > 0 ? (
         <span className="flex shrink-0 items-center pl-0.5">
-          {sources.map((source, index) => (
+          {viewModel.sources.map((source, index) => (
             <SiteIconBadge
               key={`${source.hostname}:${source.sourceName}`}
               hostname={source.hostname}
@@ -269,25 +265,17 @@ const SearchStatusLabel = memo(function SearchStatusLabel({
   query?: string;
   state?: 'searching' | 'completed' | 'failed';
 }) {
-  const isSearching = state === 'searching';
-  const icon = isSearching ? (
+  const viewModel = buildSearchStatusLabelViewModel(query, state);
+  const icon = viewModel.isSearching ? (
     <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[color:var(--chat-text-tertiary)]" />
   ) : (
     <Search className="h-4 w-4 shrink-0 text-[color:var(--chat-text-tertiary)]" />
   );
-  const text =
-    state === 'searching'
-      ? query
-        ? `正在搜索网页 · ${query}`
-        : '正在搜索网页...'
-      : state === 'failed'
-        ? '网页搜索失败'
-        : '网页搜索完成';
 
   return (
     <div className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 text-left text-[13px] text-[color:var(--chat-text-tertiary)]">
       {icon}
-      <span className="truncate font-normal">{text}</span>
+      <span className="truncate font-normal">{viewModel.text}</span>
     </div>
   );
 });
