@@ -22,7 +22,7 @@
 - [ ] 从 `use-durable-chat-runtime.ts` 中移出 search panel 的未知 shape 解析逻辑
 - [ ] 从 `use-durable-chat-runtime.ts` 中移出 search panel 的 view-model 构建逻辑
 - [ ] 从 `use-durable-chat-runtime.ts` 中移出纯选择器 / 纯派生逻辑，只保留 orchestration
-- [ ] 评估是否需要把 `use-durable-chat-runtime.ts` 进一步拆成多个 runtime 子模块
+- [x] 评估是否需要把 `use-durable-chat-runtime.ts` 进一步拆成多个 runtime 子模块
 
 ### 1.2 `service` 层缺位
 

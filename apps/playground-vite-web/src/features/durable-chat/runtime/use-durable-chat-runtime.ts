@@ -27,12 +27,11 @@ import {
   restoreStoredDraftForActiveRun,
   syncStoredLiveDraft
 } from '@/features/durable-chat/runtime/live-draft-recovery';
-import { loadSearchPanelResult } from '@/features/durable-chat/runtime/search-panel-controller';
+import { useSearchPanelState } from '@/features/durable-chat/runtime/use-search-panel-state';
 import { fetchThreadMessages } from '@/features/durable-chat/repo/chat-api';
 import { buildChatViewState } from '@/features/durable-chat/service/chat-view-state';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
-import type { ActiveSearchPanelData } from '@/features/durable-chat/types/search';
 import type { DurableChatRuntimeOptions } from '@/features/durable-chat/types/runtime';
 
 const PENDING_NEW_THREAD_LOADING_ID = '__pending-new-thread__';
@@ -120,12 +119,15 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const pendingPrependAnchorRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
   const shouldAutoScrollRef = useRef(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const searchResultCacheRef = useRef<Map<string, ActiveSearchPanelData>>(new Map());
-  const [searchPanelOpen, setSearchPanelOpen] = useState(false);
-  const [activeSearchResult, setActiveSearchResult] = useState<ActiveSearchPanelData | null>(null);
-  const [searchPanelLoading, setSearchPanelLoading] = useState(false);
-  const [searchPanelError, setSearchPanelError] = useState<string | null>(null);
   const [restoredRunRefreshId, setRestoredRunRefreshId] = useState<string | null>(null);
+  const {
+    activeSearchResult,
+    searchPanelError,
+    searchPanelLoading,
+    searchPanelOpen,
+    onCloseSearchPanel,
+    onOpenSearchResult
+  } = useSearchPanelState(activeThreadId);
   const {
     selectedModelOption,
     currentThreadTitle,
@@ -250,13 +252,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       }
     });
   }, [activeResponseRun, activeThreadId, liveAssistantDraft]);
-
-  useEffect(() => {
-    setSearchPanelOpen(false);
-    setActiveSearchResult(null);
-    setSearchPanelLoading(false);
-    setSearchPanelError(null);
-  }, [activeThreadId]);
 
   useEffect(() => {
     selectedRunIdRef.current = selectedRunId;
@@ -679,29 +674,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     });
   }
 
-  async function openSearchResult(runId: string, toolCallIds: string[]) {
-    const cache = searchResultCacheRef.current;
-    setSearchPanelLoading(true);
-    setSearchPanelError(null);
-
-    try {
-      const result = await loadSearchPanelResult({
-        runId,
-        toolCallIds,
-        cache
-      });
-      setActiveSearchResult(result.panelData);
-      setSearchPanelError(null);
-      setSearchPanelOpen(true);
-    } catch (nextError) {
-      setSearchPanelOpen(true);
-      setActiveSearchResult(null);
-      setSearchPanelError(nextError instanceof Error ? nextError.message : 'Failed to load search results.');
-    } finally {
-      setSearchPanelLoading(false);
-    }
-  }
-
   function startNewChat() {
     stopViewingLiveResponse();
     setDurableRecoveryState({
@@ -817,10 +789,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     onSelectedWebSearchEnabledChange: setSelectedWebSearchEnabled,
     onSelectedThinkingEnabledChange: setSelectedThinkingEnabled,
     onSelectedReasoningEffortChange: setSelectedReasoningEffort,
-    onOpenSearchResult: (runId: string, toolCallIds: string[]) => {
-      void openSearchResult(runId, toolCallIds);
-    },
-    onCloseSearchPanel: () => setSearchPanelOpen(false),
+    onOpenSearchResult,
+    onCloseSearchPanel,
     onSend: () => {
       void sendMessage();
     },
