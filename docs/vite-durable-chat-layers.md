@@ -116,6 +116,20 @@ UI 不应继续吸收的内容：
 - copy scope / action policy
 - provider/model feature gating
 
+`message-list.tsx` 当前保留在 UI 层的 feature-specific 规则：
+
+- assistant / user block 的视觉布局
+- search label / search status 的插入位置
+- `MessageActions` 的 hover 显示方式
+- reasoning panel 的展开/收起交互
+- live card 与 persisted block 的最终组合顺序
+
+这些规则仍然留在 UI 的原因是：
+
+- 它们已经偏向“怎么摆”和“怎么交互”
+- 对应的 copy scope、label 文案、segment 可见性等纯规则已经下沉到 `service`
+- 后续如果继续抽离，优先应抽纯 view-model，而不是把 JSX 结构继续碎片化
+
 ## 对 `use-durable-chat-runtime.ts` 的当前判断
 
 当前已经移出的内容：

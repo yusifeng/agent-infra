@@ -52,7 +52,7 @@
 
 ### 1.5 `ui` 组件里埋了过多展示规则
 
-- [ ] 从 [apps/playground-vite-web/src/features/durable-chat/components/message-list.tsx](/Users/david/Documents/github/agent-infra/apps/playground-vite-web/src/features/durable-chat/components/message-list.tsx) 中梳理所有 feature-specific 展示规则
+- [x] 从 [apps/playground-vite-web/src/features/durable-chat/components/message-list.tsx](/Users/david/Documents/github/agent-infra/apps/playground-vite-web/src/features/durable-chat/components/message-list.tsx) 中梳理所有 feature-specific 展示规则
 - [x] 把 live assistant 的可复制文本聚合逻辑下沉到 `service`
 - [x] 把 search label 是否显示、copy scope、action visibility 等规则下沉到 `service`
 - [x] 把 `SearchStatusLabel` 的文案 / 状态映射规则从组件中抽离
