@@ -95,8 +95,8 @@
 
 ### 3.1 repo tests
 
-- [ ] 为 `repo/chat-api.ts` 增加边界测试
-- [ ] 覆盖 HTTP 成功/失败路径
+- [x] 为 `repo/chat-api.ts` 增加边界测试
+- [x] 覆盖 HTTP 成功/失败路径
 - [x] 覆盖 storage read/write 解析失败路径
 - [x] 覆盖 clipboard repo 的浏览器边界行为
 
