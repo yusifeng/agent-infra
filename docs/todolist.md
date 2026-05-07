@@ -112,10 +112,10 @@
 ### 3.3 runtime tests
 
 - [ ] 为 `useDurableChatRuntime` 增加 hook 级行为测试
-- [ ] 覆盖 active thread 切换
+- [x] 覆盖 active thread 切换
 - [ ] 覆盖 restored live draft 恢复
 - [ ] 覆盖 refresh loop 行为
-- [ ] 覆盖 open search result 时 timeline -> panel data 链路
+- [x] 覆盖 open search result 时 timeline -> panel data 链路
 - [ ] 覆盖 reconcile after run completed
 
 ### 3.4 UI tests
