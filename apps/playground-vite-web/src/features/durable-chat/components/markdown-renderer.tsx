@@ -7,6 +7,7 @@ import {
   scheduleLowPriorityMarkdownTask,
   touchMarkdownCache
 } from './markdown-service';
+import { writeClipboardText } from '@/features/durable-chat/repo/browser-clipboard';
 
 type MarkdownRendererProps = Omit<HTMLAttributes<HTMLDivElement>, 'dangerouslySetInnerHTML' | 'children'> & {
   text: string;
@@ -115,10 +116,13 @@ export function MarkdownRenderer({
       if (!(button instanceof HTMLButtonElement)) return;
 
       const code = button.closest('[data-component="markdown-code"]')?.querySelector('pre code')?.textContent ?? '';
-      if (!code || !navigator.clipboard) return;
+      if (!code) return;
 
       try {
-        await navigator.clipboard.writeText(code);
+        const copied = await writeClipboardText(code, { trim: false });
+        if (!copied) {
+          return;
+        }
       } catch {
         return;
       }

@@ -3,8 +3,6 @@ import {
   applyHydratedTranscriptState,
   clearPersistedLiveAssistantDraft,
   deriveMainChatResponseStatus,
-  fetchRunTimelineResponse,
-  fetchThreadMessagesResponse,
   persistLiveAssistantDraft,
   readPersistedLiveAssistantDraft,
   runActivateThread,
@@ -33,6 +31,7 @@ import {
   shouldRefreshRestoredLiveDraft,
   shouldRestorePersistedLiveDraft
 } from '@/features/durable-chat/runtime/live-draft-persistence';
+import { fetchRunTimeline, fetchThreadMessages } from '@/features/durable-chat/repo/chat-api';
 import { buildTranscriptBlocks, filterTranscriptBlocksForLiveRun } from '@/features/durable-chat/service/build-transcript-blocks';
 import { buildSearchPanelData } from '@/features/durable-chat/service/search-panel';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
@@ -479,7 +478,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }
 
   async function hydrateTranscript(threadId: string, signal: AbortSignal) {
-    const result = await fetchThreadMessagesResponse(threadId, {
+    const result = await fetchThreadMessages(threadId, {
       limit: INITIAL_MESSAGE_PAGE_LIMIT,
       signal
     });
@@ -705,7 +704,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     setSearchPanelError(null);
 
     try {
-      const result = await fetchRunTimelineResponse(runId);
+      const result = await fetchRunTimeline(runId);
       if (!result.ok) {
         throw new Error(result.error ?? `Failed to load search results (${result.status})`);
       }

@@ -1,13 +1,10 @@
 export { assistantMessageHasVisibleContent, messagePartHasVisibleContent } from '@agent-infra/durable-chat-client';
 import type { MessageDto } from '@agent-infra/contracts';
 
-export async function copyTextToClipboard(text: string) {
-  const normalizedText = text.trim();
-  if (!normalizedText || typeof navigator === 'undefined' || !navigator.clipboard) {
-    return;
-  }
+import { writeClipboardText } from '@/features/durable-chat/repo/browser-clipboard';
 
-  await navigator.clipboard.writeText(normalizedText);
+export async function copyTextToClipboard(text: string) {
+  await writeClipboardText(text);
 }
 
 export async function copyMessageToClipboard(message: MessageDto) {
