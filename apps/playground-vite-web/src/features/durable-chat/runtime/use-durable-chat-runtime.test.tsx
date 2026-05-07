@@ -239,6 +239,28 @@ describe('useDurableChatRuntime', () => {
     );
   });
 
+  it('runs runtime lifecycle boot effects only once across rerenders', async () => {
+    const { rerender } = renderHook(
+      ({ initialThreadId }) => useDurableChatRuntime({ initialThreadId }),
+      {
+        initialProps: { initialThreadId: 'thread-1' as string | null },
+        wrapper
+      }
+    );
+
+    await waitFor(() => {
+      expect(durableChatClientMocks.runRefreshMeta).toHaveBeenCalledTimes(1);
+      expect(durableChatClientMocks.runInitializeRuntime).toHaveBeenCalledTimes(1);
+    });
+
+    rerender({ initialThreadId: 'thread-1' });
+
+    await waitFor(() => {
+      expect(durableChatClientMocks.runRefreshMeta).toHaveBeenCalledTimes(1);
+      expect(durableChatClientMocks.runInitializeRuntime).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('reconciles the completed turn after a send flow finishes', async () => {
     durableChatClientMocks.runReconcileCompletedTurn.mockImplementation(async ({ actions }: any) => {
       actions.setActiveResponseRun(createRun({ status: 'completed' }));

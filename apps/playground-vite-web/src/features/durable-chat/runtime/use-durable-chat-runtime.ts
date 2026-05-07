@@ -25,6 +25,7 @@ import { useChatSessionController } from '@/features/durable-chat/runtime/use-ch
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
 import type { DurableChatRuntimeOptions } from '@/features/durable-chat/types/runtime';
 import { useLiveDraftOrchestration } from '@/features/durable-chat/runtime/use-live-draft-orchestration';
+import { useChatRuntimeLifecycle } from '@/features/durable-chat/runtime/use-chat-runtime-lifecycle';
 
 const PENDING_NEW_THREAD_LOADING_ID = '__pending-new-thread__';
 
@@ -469,6 +470,51 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     loadThreadMessages
   });
 
+  useChatRuntimeLifecycle({
+    deps: {
+      activeThreadId,
+      chatPhase,
+      initialThreadId,
+      liveAssistantDraft,
+      loadingThreadId,
+      optimisticUserMessage
+    },
+    actions: {
+      activateThread,
+      refreshMeta,
+      resetDraftThreadState,
+      setDurableRecoveryState,
+      setError,
+      stopViewingLiveResponse,
+      initializeRuntime: async (requestId: number) =>
+        runInitializeRuntime({
+          initialThreadId,
+          refs: {
+            runSelectionPersistenceReadyRef
+          },
+          actions: {
+            setDurableRecoveryState,
+            setError
+          },
+          operations: {
+            activateThread,
+            getPreferredRunId: () => null,
+            isCurrentRequest: () => routeChangeRequestIdRef.current === requestId,
+            refreshThreads,
+            resetDraftThreadState
+          }
+        })
+    },
+    refs: {
+      routeChangeRequestIdRef,
+      runtimeBootstrappedRef,
+      sendAbortControllerRef,
+      messagesAbortControllerRef,
+      logInspectorAbortControllerRef,
+      timelineAbortControllerRef
+    }
+  });
+
   async function loadOlderMessages() {
     const threadId = activeThreadIdRef.current;
     const beforeCursor = messagePageInfoRef.current?.startCursor;
@@ -627,68 +673,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     }
     navigateToThread(threadId);
   }
-
-  useEffect(() => {
-    void refreshMeta();
-  }, []);
-
-  useEffect(() => {
-    const requestId = routeChangeRequestIdRef.current + 1;
-    routeChangeRequestIdRef.current = requestId;
-
-    if (!runtimeBootstrappedRef.current) {
-      runtimeBootstrappedRef.current = true;
-      void runInitializeRuntime({
-        initialThreadId,
-        refs: {
-          runSelectionPersistenceReadyRef
-        },
-        actions: {
-          setDurableRecoveryState,
-          setError
-        },
-        operations: {
-          activateThread,
-          getPreferredRunId: () => null,
-          isCurrentRequest: () => routeChangeRequestIdRef.current === requestId,
-          refreshThreads,
-          resetDraftThreadState
-        }
-      });
-      return;
-    }
-
-    if (
-      initialThreadId &&
-      activeThreadId === initialThreadId &&
-      (loadingThreadId === initialThreadId || chatPhase !== 'idle' || optimisticUserMessage !== null || liveAssistantDraft !== null)
-    ) {
-      return;
-    }
-
-    if (initialThreadId) {
-      void activateThread(initialThreadId);
-      return;
-    }
-
-    resetDraftThreadState();
-    setDurableRecoveryState({
-      phase: 'idle',
-      message: null
-    });
-    setError(null);
-  }, [initialThreadId]);
-
-  useEffect(
-    () => () => {
-      stopViewingLiveResponse();
-      sendAbortControllerRef.current?.abort();
-      messagesAbortControllerRef.current?.abort();
-      logInspectorAbortControllerRef.current?.abort();
-      timelineAbortControllerRef.current?.abort();
-    },
-    []
-  );
 
   return {
     activeThreadId,
