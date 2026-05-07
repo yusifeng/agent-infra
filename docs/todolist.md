@@ -102,9 +102,9 @@
 
 ### 3.2 service tests
 
-- [ ] 将 transcript block 的纯函数测试迁移为 service 语义
-- [ ] 将 assistant turn action scope 的纯函数测试迁移为 service 语义
-- [ ] 将 live search entry derivation 的纯函数测试迁移为 service 语义
+- [x] 将 transcript block 的纯函数测试迁移为 service 语义
+- [x] 将 assistant turn action scope 的纯函数测试迁移为 service 语义
+- [x] 将 live search entry derivation 的纯函数测试迁移为 service 语义
 - [x] 为 search panel 的 parse/build 逻辑新增 schema/service tests
 - [ ] 后续新增功能优先要求：每个新展示规则先有 service test
 - [ ] 后续新增功能优先要求：每个新 copy/merge/derive/parse 先有 service test
