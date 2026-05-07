@@ -9,7 +9,11 @@ import { MarkdownRenderer } from './markdown-renderer';
 import { AnimatedEmoji } from './shared';
 import { SiteIconBadge } from './site-icon-badge';
 import { buildAssistantTurnActionContexts } from '@/features/durable-chat/service/assistant-turn-actions';
-import { collectLiveSearchEntries } from '@/features/durable-chat/service/live-search-tools';
+import {
+  buildVisibleLiveAssistantSegments,
+  collectLiveDraftCopyText,
+  hasVisibleLiveAssistantContent
+} from '@/features/durable-chat/service/live-assistant-presentation';
 import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
 import type { DurableRecoveryState } from '@/features/durable-chat/types/runtime';
 import type { AssistantTurnItem, SearchSummaryBlock, TranscriptBlock } from '@/features/durable-chat/types/transcript-blocks';
@@ -334,13 +338,6 @@ const assistantActions = [
   }
 ];
 
-function collectLiveDraftCopyText(liveAssistantDraft: LiveAssistantDraft) {
-  return liveAssistantDraft.segments
-    .flatMap((segment) => [segment.reasoning, segment.text].filter((value): value is string => Boolean(value)))
-    .join('\n\n')
-    .trim();
-}
-
 const AssistantTurnContent = memo(function AssistantTurnContent({
   items,
   runId,
@@ -387,15 +384,11 @@ const AssistantTurnContent = memo(function AssistantTurnContent({
 });
 
 const LiveAssistantContent = memo(function LiveAssistantContent({ liveAssistantDraft }: { liveAssistantDraft: LiveAssistantDraft }) {
+  const visibleSegments = buildVisibleLiveAssistantSegments(liveAssistantDraft);
+
   return (
     <div className="space-y-3">
-      {liveAssistantDraft.segments.map((segment) => {
-        const searchEntries = collectLiveSearchEntries(segment);
-        const hasVisibleContent = Boolean(segment.reasoning || segment.text || searchEntries.length > 0);
-        if (!hasVisibleContent) {
-          return null;
-        }
-
+      {visibleSegments.map(({ segment, searchEntries }) => {
         return (
           <div key={segment.id} className="space-y-1.5">
             {segment.reasoning ? <ReasoningPanel content={segment.reasoning} thinking /> : null}
@@ -467,7 +460,7 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
   const hasVisibleContent =
     props.type === 'persisted-turn'
       ? props.block.items.length > 0
-      : props.liveAssistantDraft.segments.some((segment) => Boolean(segment.text || segment.reasoning || segment.tools.length > 0));
+      : hasVisibleLiveAssistantContent(props.liveAssistantDraft);
 
   if (!hasVisibleContent) {
     return null;
