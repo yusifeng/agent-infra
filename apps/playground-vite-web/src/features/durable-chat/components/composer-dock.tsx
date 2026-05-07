@@ -5,6 +5,7 @@ import type { MutableRefObject, RefObject } from 'react';
 
 import { buttonVariants } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { buildComposerState } from '@/features/durable-chat/service/composer-state';
 import { cn } from '@/lib/utils';
 
 import { composerMaxWithTW, ui } from './ui';
@@ -56,11 +57,15 @@ export function ComposerDock({
   onStop,
   onScrollToBottom
 }: ComposerDockProps) {
-  const hasDraftValue = Boolean(draft.trim());
-  const isDeepseekModel = selectedModelOption?.provider === 'deepseek';
-  const searchToggleDisabled = inputLocked || !meta?.runtimeConfigured || !selectedModelOption;
-  const thinkingToggleDisabled = inputLocked || !meta?.runtimeConfigured;
-  const reasoningSelectDisabled = thinkingToggleDisabled || !selectedThinkingEnabled;
+  const composerState = buildComposerState({
+    draft,
+    isResponding,
+    sendDisabled,
+    inputLocked,
+    selectedThinkingEnabled,
+    selectedModelOption,
+    meta
+  });
 
   return (
     <div
@@ -112,7 +117,7 @@ export function ComposerDock({
                 }}
                 rows={3}
                 placeholder={activeThreadId ? '继续这个 durable thread...' : '给 durable chat 发送消息'}
-                disabled={!meta?.runtimeConfigured || inputLocked || !selectedModelOption}
+                disabled={composerState.textareaDisabled}
                 className={clsx('w-full resize-none overflow-y-auto text-sm leading-relaxed', ui.textarea)}
                 style={{
                   minHeight: '60px',
@@ -126,7 +131,7 @@ export function ComposerDock({
                 <button
                   type="button"
                   onClick={() => onSelectedWebSearchEnabledChange(!selectedWebSearchEnabled)}
-                  disabled={searchToggleDisabled}
+                  disabled={composerState.searchToggleDisabled}
                   className={cn(
                     buttonVariants({ variant: 'outline', size: 'sm' }),
                     'h-9 shrink-0 rounded-full',
@@ -140,12 +145,12 @@ export function ComposerDock({
                   <span>网页搜索</span>
                 </button>
 
-                {isDeepseekModel ? (
+                {composerState.isDeepseekModel ? (
                   <>
                     <button
                       type="button"
                       onClick={() => onSelectedThinkingEnabledChange(!selectedThinkingEnabled)}
-                      disabled={thinkingToggleDisabled}
+                      disabled={composerState.thinkingToggleDisabled}
                       className={cn(
                         buttonVariants({ variant: 'outline', size: 'sm' }),
                         'h-9 shrink-0 rounded-full',
@@ -162,7 +167,7 @@ export function ComposerDock({
                     <Select
                       value={selectedReasoningEffort}
                       onValueChange={(value) => onSelectedReasoningEffortChange(value as 'high' | 'max')}
-                      disabled={reasoningSelectDisabled}
+                      disabled={composerState.reasoningSelectDisabled}
                     >
                       <SelectTrigger
                         className={cn(
@@ -188,7 +193,7 @@ export function ComposerDock({
               <div className="flex items-center">
                 <button
                   type="submit"
-                  disabled={!isResponding && sendDisabled}
+                  disabled={!composerState.canSubmit}
                   onClick={(event) => {
                     if (isResponding) {
                       event.preventDefault();
@@ -200,10 +205,10 @@ export function ComposerDock({
                     ui.composerPrimaryButton,
                     isResponding
                       ? 'border-[color:var(--destructive)] bg-[color:color-mix(in_srgb,var(--destructive)_12%,white)] text-[color:var(--destructive)] hover:bg-[color:color-mix(in_srgb,var(--destructive)_18%,white)]'
-                      : hasDraftValue
+                      : composerState.hasDraftValue
                         ? 'border-transparent bg-[var(--chat-reasoning-accent)] text-white hover:bg-[var(--chat-reasoning-accent)] hover:opacity-95'
                         : 'border-transparent bg-[color:color-mix(in_srgb,var(--chat-reasoning-accent)_28%,white)] text-white',
-                    !isResponding && sendDisabled && 'cursor-not-allowed opacity-60'
+                    !composerState.canSubmit && 'cursor-not-allowed opacity-60'
                   )}
                   title={isResponding ? '停止接收响应' : '发送 (Cmd/Ctrl + Enter)'}
                   aria-label={isResponding ? '停止接收响应' : '发送消息'}
