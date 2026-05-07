@@ -1,10 +1,9 @@
 import type { MessageDto, RunDto, RuntimePiMetaDto, ThreadDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
-import { deriveMainChatResponseStatus, shouldShowMainChatLoading, upsertMessage } from '@agent-infra/durable-chat-client';
+import { deriveMainChatResponseStatus, shouldShowMainChatLoading } from '@agent-infra/durable-chat-client';
 
-import { buildTranscriptBlocks, filterTranscriptBlocksForLiveRun } from '@/features/durable-chat/service/build-transcript-blocks';
+import { buildTranscriptPresentation } from '@/features/durable-chat/service/transcript-presentation';
 import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
 import type { ChatPhase } from '@/features/durable-chat/types/runtime';
-import type { TranscriptBlock } from '@/features/durable-chat/types/transcript-blocks';
 
 type BuildChatViewStateArgs = {
   threads: ThreadDto[];
@@ -56,11 +55,11 @@ export function buildChatViewState(args: BuildChatViewStateArgs) {
   const showResponseLoading = shouldShowMainChatLoading(responseStatus);
   const sendDisabled = !draft.trim() || isChatResponding || !meta?.runtimeConfigured || !selectedModelOption;
   const inputLocked = isChatResponding;
-  const displayedMessages = optimisticUserMessage ? upsertMessage(messages, optimisticUserMessage) : messages;
-  const displayedTranscriptBlocks: TranscriptBlock[] = filterTranscriptBlocksForLiveRun(
-    buildTranscriptBlocks(displayedMessages),
-    liveAssistantDraft?.runId ?? null
-  );
+  const { displayedMessages, displayedTranscriptBlocks } = buildTranscriptPresentation({
+    messages,
+    optimisticUserMessage,
+    liveAssistantDraft
+  });
   const hasOlderMessages = messagePageInfo?.hasOlder === true;
 
   return {

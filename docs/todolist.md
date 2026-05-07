@@ -30,7 +30,7 @@
 - [x] 将 [apps/playground-vite-web/src/features/durable-chat/runtime/build-transcript-blocks.ts](/Users/david/Documents/github/agent-infra/apps/playground-vite-web/src/features/durable-chat/runtime/build-transcript-blocks.ts) 迁移到 `service/`
 - [x] 将 [apps/playground-vite-web/src/features/durable-chat/runtime/assistant-turn-actions.ts](/Users/david/Documents/github/agent-infra/apps/playground-vite-web/src/features/durable-chat/runtime/assistant-turn-actions.ts) 迁移到 `service/`
 - [x] 将 [apps/playground-vite-web/src/features/durable-chat/runtime/live-search-tools.ts](/Users/david/Documents/github/agent-infra/apps/playground-vite-web/src/features/durable-chat/runtime/live-search-tools.ts) 迁移到 `service/`
-- [ ] 评估是否新增统一的 `service/transcript-presentation.ts`，用于收口 persisted transcript + live draft 的展示派生逻辑
+- [x] 评估是否新增统一的 `service/transcript-presentation.ts`，用于收口 persisted transcript + live draft 的展示派生逻辑
 
 ### 1.3 `schema` 层缺位
 
