@@ -18,10 +18,10 @@
 
 ### 1.1 `runtime` 过胖
 
-- [ ] 拆解 [apps/playground-vite-web/src/features/durable-chat/runtime/use-durable-chat-runtime.ts](/Users/david/Documents/github/agent-infra/apps/playground-vite-web/src/features/durable-chat/runtime/use-durable-chat-runtime.ts) 的职责清单，按 `schema / repo / service / runtime / ui` 重新归类
-- [ ] 从 `use-durable-chat-runtime.ts` 中移出 search panel 的未知 shape 解析逻辑
-- [ ] 从 `use-durable-chat-runtime.ts` 中移出 search panel 的 view-model 构建逻辑
-- [ ] 从 `use-durable-chat-runtime.ts` 中移出纯选择器 / 纯派生逻辑，只保留 orchestration
+- [x] 拆解 [apps/playground-vite-web/src/features/durable-chat/runtime/use-durable-chat-runtime.ts](/Users/david/Documents/github/agent-infra/apps/playground-vite-web/src/features/durable-chat/runtime/use-durable-chat-runtime.ts) 的职责清单，按 `schema / repo / service / runtime / ui` 重新归类
+- [x] 从 `use-durable-chat-runtime.ts` 中移出 search panel 的未知 shape 解析逻辑
+- [x] 从 `use-durable-chat-runtime.ts` 中移出 search panel 的 view-model 构建逻辑
+- [x] 从 `use-durable-chat-runtime.ts` 中移出纯选择器 / 纯派生逻辑，只保留 orchestration
 - [x] 评估是否需要把 `use-durable-chat-runtime.ts` 进一步拆成多个 runtime 子模块
 
 ### 1.2 `service` 层缺位
