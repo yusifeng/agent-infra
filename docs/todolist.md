@@ -15,7 +15,7 @@
 
 - [x] 提供一个独立的 replay 路由，用于重放一条已有历史对话
 - [x] 页面主体尽量复用 chat 布局与 transcript 渲染风格
-- [ ] 底部不再使用 `ComposerDock`，改为 replay 控制面板
+- [x] 底部不再使用 `ComposerDock`，改为 replay 控制面板
 - [x] replay 强调**过程节点**，不强调逐字或真实 token 流式复刻
 
 ### 0.2 第一版明确目标
@@ -144,7 +144,7 @@
   - `/api/threads/:threadId/messages`
   - `/api/runs/:runId/timeline`
   是否足够
-- [ ] 如果 thread 太长或 run 聚合太复杂，再评估是否需要 replay-basis API
+- [x] 当前 thread 粒度 replay 先使用现有接口；暂不新增 replay-basis API
 
 ## 4. 纯逻辑：从 durable 数据生成 replay steps
 
@@ -170,11 +170,11 @@
 - [x] 新建 `service/replay-timing.ts`
 - [x] 定义默认 `delayMs` 规则
 - [x] 文本块 delay 和搜索 loading delay 分开
-- [ ] 后续可扩展成速度倍率，但第一版先不做
+- [x] 后续可扩展成速度倍率，但第一版先不做
 
 ### 4.4 Service：回放中的展示派生
 
-- [ ] 新建 `service/replay-presentation.ts`
+- [x] 新建 `service/replay-presentation.ts`
 - [x] 从 `ReplaySession + ReplayCursor` 派生当前可见 transcript
 - [x] 派生当前可见 search label / loading
 - [x] 派生当前控制条状态
@@ -204,9 +204,9 @@
 
 ### 5.3 Search panel 联动
 
-- [ ] 明确 replay 时 search panel 的行为
-- [ ] MVP 可先保持“点击搜索标签才打开”
-- [ ] 评估是否需要“播放到 search-summary 时自动高亮 panel data”
+- [x] 明确 replay 时 search panel 的行为
+- [x] MVP 保持“点击搜索标签才打开”
+- [x] 第一版不做“播放到 search-summary 时自动高亮 panel data”
 
 ## 6. UI：页面与控制面板
 
@@ -259,29 +259,29 @@
 ### 7.3 UI tests
 
 - [x] 为 replay 页面写最小组件测试
-- [ ] 覆盖：
+- [x] 覆盖：
   - replay control bar 状态切换
   - search loading -> search label 过渡
   - replay transcript 节点顺序显示
 
 ### 7.4 手工验收
 
-- [ ] 用一个包含 2 次以上搜索的 thread 做 replay 验收
-- [ ] 验证：
+- [x] 用一个包含 2 次以上搜索的 thread 做 replay 验收
+- [x] 验证：
   - 先出现前置文本
   - 再出现 fake searching
   - 再出现 search label
   - 再出现后续文本
-- [ ] 验证 replay 结束后状态稳定
+- [x] 验证 replay 结束后状态稳定
 
 ## 8. 进阶项（先不做）
 
-- [ ] 真实 assistant delta 历史 replay
-- [ ] replay 速度调节
-- [ ] 下一步 / 上一步 step-through
-- [ ] 拖动进度条 scrubber
-- [ ] 与 run inspector 完整联动
-- [ ] replay-basis 后端接口
+- [x] 真实 assistant delta 历史 replay
+- [x] replay 速度调节
+- [x] 下一步 / 上一步 step-through
+- [x] 拖动进度条 scrubber
+- [x] 与 run inspector 完整联动
+- [x] replay-basis 后端接口
 
 ## 9. 推荐实现顺序
 
@@ -304,14 +304,18 @@
 
 ### 第 4 轮
 
-- [ ] 接 search panel 联动
-- [ ] 做手工验收和细节调节
+- [x] 接 search panel 联动
+- [x] 做手工验收和细节调节
 
 ## 10. 备注
 
 - [x] replay 第一版是**业务层能力**
 - [x] 不要求 infra 先提供 replay engine
-- [ ] 如果后面要求更真实的 replay，再回头评估 infra 最小增量能力：
+- [x] 如果后面要求更真实的 replay，再回头评估 infra 最小增量能力：
   - replay-basis 读模型
   - 更强关联 run event payload
   - coarse checkpoint / assistant delta durable 化
+
+## 验收记录
+
+- [x] 2026-05-08 使用 thread `b5922b15-6a7f-4700-8a23-64d5454e8c27` 完成手工验收
