@@ -27,9 +27,9 @@ import {
   restoreStoredDraftForActiveRun,
   syncStoredLiveDraft
 } from '@/features/durable-chat/runtime/live-draft-recovery';
-import { fetchRunTimeline, fetchThreadMessages } from '@/features/durable-chat/repo/chat-api';
+import { loadSearchPanelResult } from '@/features/durable-chat/runtime/search-panel-controller';
+import { fetchThreadMessages } from '@/features/durable-chat/repo/chat-api';
 import { buildChatViewState } from '@/features/durable-chat/service/chat-view-state';
-import { buildSearchPanelData } from '@/features/durable-chat/service/search-panel';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
 import type { ActiveSearchPanelData } from '@/features/durable-chat/types/search';
@@ -680,40 +680,18 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }
 
   async function openSearchResult(runId: string, toolCallIds: string[]) {
-    const normalizedToolCallIds = [...new Set(toolCallIds)].sort();
-    const cacheKey = `${runId}:${normalizedToolCallIds.join(',')}`;
-    const cached = searchResultCacheRef.current.get(cacheKey);
-    if (cached) {
-      setActiveSearchResult(cached);
-      setSearchPanelError(null);
-      setSearchPanelOpen(true);
-      return;
-    }
-
+    const cache = searchResultCacheRef.current;
     setSearchPanelLoading(true);
     setSearchPanelError(null);
 
     try {
-      const result = await fetchRunTimeline(runId);
-      if (!result.ok) {
-        throw new Error(result.error ?? `Failed to load search results (${result.status})`);
-      }
-
-      const invocations = result.data.toolInvocations.filter(
-        (candidate) => candidate.toolName === 'searchWeb' && normalizedToolCallIds.includes(candidate.toolCallId)
-      );
-
-      if (invocations.length === 0) {
-        throw new Error('Search results are no longer available for this conversation turn.');
-      }
-
-      const panelData = buildSearchPanelData(invocations);
-      if (!panelData) {
-        throw new Error('Search results are present but could not be parsed.');
-      }
-
-      searchResultCacheRef.current.set(cacheKey, panelData);
-      setActiveSearchResult(panelData);
+      const result = await loadSearchPanelResult({
+        runId,
+        toolCallIds,
+        cache
+      });
+      setActiveSearchResult(result.panelData);
+      setSearchPanelError(null);
       setSearchPanelOpen(true);
     } catch (nextError) {
       setSearchPanelOpen(true);

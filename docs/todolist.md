@@ -89,7 +89,7 @@
 
 - [ ] 在 `use-durable-chat-runtime.ts` 中只保留 orchestration / side effects
 - [x] 评估是否将 live draft 恢复与轮询拆成 `runtime/live-draft-recovery.ts`
-- [ ] 评估是否将 transcript / search panel 的状态协调拆成更窄的 runtime 模块
+- [x] 评估是否将 transcript / search panel 的状态协调拆成更窄的 runtime 模块
 
 ## 3. 测试补强待办
 
