@@ -120,16 +120,16 @@
 
 ### 4.1 projector 纯逻辑
 
-- [ ] 新建 `service/project-normal-transcript-blocks.ts`
-- [ ] 从 `ContentNode[]` 产出 `TranscriptBlock[]`
-- [ ] 保留当前 normal chat 的阅读语义：
+- [x] 新建 `service/project-normal-transcript-blocks.ts`
+- [x] 从 `ContentNode[]` 产出 `TranscriptBlock[]`
+- [x] 保留当前 normal chat 的阅读语义：
   - assistant message 边界
   - 连续 tool/search 的合理聚合
 
 ### 4.2 接入 normal chat
 
 - [ ] 让 `chat-view-state.ts` 改从 `ContentNode[]` 走 projector
-- [ ] 保持 `AnswerContainer` 构建逻辑继续复用
+- [x] 保持 `AnswerContainer` 构建逻辑继续复用
 - [ ] 不动 live draft / recover / reconcile
 
 ## 5. replay projector
@@ -160,7 +160,7 @@
 
 ### 6.2 normal chat tests
 
-- [ ] projector 测试覆盖当前 normal chat 的 block 语义
+- [x] projector 测试覆盖当前 normal chat 的 block 语义
 - [ ] `AnswerContainer` 相关 UI 测试继续保持通过
 
 ### 6.3 replay tests
@@ -184,8 +184,8 @@
 
 ### 第三轮：接 normal chat projector
 
-- [ ] 接 `project-normal-transcript-blocks.ts`
-- [ ] 保持 normal chat 行为不变
+- [x] 接 `project-normal-transcript-blocks.ts`
+- [x] 保持 normal chat 行为不变
 - [ ] 跑 Vite targeted tests / typecheck / review
 
 ### 第四轮：接 replay projector
