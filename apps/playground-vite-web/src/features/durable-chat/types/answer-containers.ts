@@ -2,6 +2,8 @@ import type { MessagePartDto } from '@agent-infra/contracts';
 
 import type { TranscriptBlock } from '@/features/durable-chat/types/transcript-blocks';
 
+export type AnswerContainerBlock = Extract<TranscriptBlock, { type: 'assistant-turn' }>;
+
 export type AnswerContainerKind = 'assistant-answer';
 
 export type AnswerContainerItemRef = {
@@ -21,7 +23,7 @@ export type AnswerContainer = {
   kind: AnswerContainerKind;
   runId: string | null;
   transcriptBlockIds: string[];
-  blocks: TranscriptBlock[];
+  blocks: AnswerContainerBlock[];
   actionHostId: string;
 };
 

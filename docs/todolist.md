@@ -199,9 +199,9 @@
 
 ### 第二轮：补纯逻辑
 
-- [ ] 新建 `build-answer-containers.ts`
-- [ ] 新建 `build-answer-container-actions.ts`
-- [ ] 补 service tests
+- [x] 新建 `build-answer-containers.ts`
+- [x] 新建 `build-answer-container-actions.ts`
+- [x] 补 service tests
 
 ### 第三轮：接 normal chat
 
