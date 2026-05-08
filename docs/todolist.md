@@ -167,17 +167,17 @@
 
 ### 5.1 schema
 
-- [ ] 新增 `schema/share-snapshot.ts`
-- [ ] 解析 public share payload
-- [ ] 校验 share-local ids / search bundle / snapshot meta
+- [x] 新增 `schema/share-snapshot.ts`
+- [x] 解析 public share payload
+- [x] 校验 share-local ids / search bundle / snapshot meta
 
 ### 5.2 repo
 
-- [ ] 新增 `repo/share-api.ts`
-- [ ] `createThreadSnapshotShare(threadId)`
-- [ ] `fetchThreadSnapshotShare(publicId)`
-- [ ] 如第一版需要，再补 `revokeThreadSnapshotShare(publicId)`
-- [ ] 如第一版需要，再补 `fetchCurrentThreadShare(threadId)`
+- [x] 新增 `repo/share-api.ts`
+- [x] `createThreadSnapshotShare(threadId)`
+- [x] `fetchThreadSnapshotShare(publicId)`
+- [x] 如第一版需要，再补 `revokeThreadSnapshotShare(publicId)`
+- [x] 如第一版需要，再补 `fetchCurrentThreadShare(threadId)`
 
 ### 5.3 service
 
@@ -248,9 +248,9 @@
 
 ### 8.2 Vite schema / repo
 
-- [ ] schema：share payload 解析测试
-- [ ] repo：create share 成功/失败/abort
-- [ ] repo：fetch public share 成功/404/revoked
+- [x] schema：share payload 解析测试
+- [x] repo：create share 成功/失败/abort
+- [x] repo：fetch public share 成功/404/revoked
 
 ### 8.3 Vite service / runtime / ui
 
