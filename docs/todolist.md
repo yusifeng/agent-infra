@@ -19,7 +19,7 @@
 ### 0.2 本次改造想解决的问题
 
 - [x] 在前端显式补出 `ContentNode` 概念。
-- [ ] 把 text / reasoning / search-loading / search-summary 的原子内容语义统一到一层。
+- [x] 把 text / reasoning / search-loading / search-summary 的原子内容语义统一到一层。
 - [ ] 让 normal chat 和 replay 共享节点来源，而不是共享 runtime。
 - [ ] 保持 `AnswerContainer`、`TranscriptBlock`、`ReplayStep` 的职责分离。
 
@@ -98,17 +98,17 @@
 
 ### 3.1 抽共享 search 解析
 
-- [ ] 新建 `service/content-node-search.ts`
-- [ ] 抽出 search tool-call 解析
-- [ ] 抽出 search tool-result 解析
-- [ ] 让 normal chat 和 replay 复用这层解析
+- [x] 新建 `service/content-node-search.ts`
+- [x] 抽出 search tool-call 解析
+- [x] 抽出 search tool-result 解析
+- [x] 让 normal chat 和 replay 复用这层解析
 
 ### 3.2 构建 `ContentNode[]`
 
-- [ ] 新建 `service/build-content-nodes.ts`
-- [ ] 输入先支持现有 `MessageDto[]`
-- [ ] 输出共享 `ContentNode[]`
-- [ ] 第一版保证能覆盖：
+- [x] 新建 `service/build-content-nodes.ts`
+- [x] 输入先支持现有 `MessageDto[]`
+- [x] 输出共享 `ContentNode[]`
+- [x] 第一版保证能覆盖：
   - user text
   - assistant text
   - assistant reasoning
@@ -150,13 +150,13 @@
 
 ### 6.1 type / service tests
 
-- [ ] 为 `build-content-nodes.ts` 写纯函数测试
-- [ ] 覆盖：
+- [x] 为 `build-content-nodes.ts` 写纯函数测试
+- [x] 覆盖：
   - text / reasoning 提取
   - search-loading 提取
   - search-summary 提取
   - tool-part 保留
-- [ ] 为共享 search 解析层写纯函数测试
+- [x] 为共享 search 解析层写纯函数测试
 
 ### 6.2 normal chat tests
 
@@ -178,9 +178,9 @@
 
 ### 第二轮：补共享解析与 `build-content-nodes.ts`
 
-- [ ] 抽共享 search 解析
-- [ ] 抽 `build-content-nodes.ts`
-- [ ] 补 service tests
+- [x] 抽共享 search 解析
+- [x] 抽 `build-content-nodes.ts`
+- [x] 补 service tests
 
 ### 第三轮：接 normal chat projector
 
