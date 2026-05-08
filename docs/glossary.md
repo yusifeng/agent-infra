@@ -87,6 +87,29 @@ assistant turn 内部的子项。当前 item 类型包括：
 
 assistant turn item 是渲染层概念，不是后端 durable 记录本身。
 
+### 回答容器（AnswerContainer）
+
+前端新的“回答宿主”概念，用来承载一整条 assistant 回答及其操作条。它是
+比 `TranscriptBlock` 更高一层的前端概念，通常绑定一个 `runId`，但不等于
+后端 run 的所有事实原样投影。
+
+### 操作宿主（OperationHost）
+
+操作条在 UI 中挂载的宿主层级。`OperationHost` 解决的是“按钮显示在谁下面”，
+不直接决定某个按钮实际操作哪些内容。
+
+### 操作内容范围（ActionPayloadScope）
+
+某个 action 实际作用的内容范围，例如是否包含：
+
+- `text`
+- `reasoning`
+- `search`
+- `tool`
+
+它和 `OperationHost` 分开定义，避免出现“按钮挂在回答容器下面，就必须作用于
+整个容器所有内容”的隐式耦合。
+
 ## 搜索相关 UI
 
 ### 搜索状态标签（Search status label）

@@ -1,321 +1,216 @@
-# Replay 功能待办
+# AnswerContainer 改造待办
 
-这份待办只针对 **Vite consumer** 的 replay 功能。
+这份待办针对 `apps/playground-vite-web/src/features/durable-chat` 的
+`AnswerContainer` 改造。
 
-目标不是精确复刻历史 SSE delta，而是基于已有 durable 数据，重新演出一个**节点驱动的拟态流式重放**：
+目标不是立刻改 UI 细节，而是先把 **后端执行概念**、**前端渲染概念** 和
+**前端操作宿主概念** 拆清楚，再按最小 loop 逐步改 normal chat，最后再把
+同一套模型移植到 replay。
 
-- 文本节点出现
-- 搜索开始时出现 fake loading
-- 搜索完成后切成搜索标签
-- 再继续后续文本
+## 0. 背景与问题定义
 
-## 0. PRD / 范围定义
+### 0.1 当前已知事实
 
-### 0.1 功能目标
+- [x] `run` 是后端 / runtime 的执行概念。
+- [x] `TranscriptBlock` 是前端 transcript 的顶层展示概念，不只是 operation 宿主。
+- [x] 当前 normal chat 的 `TranscriptBlock` 不是严格按整个 `run` 分组。
+- [x] 当前 replay 的主要问题之一，是把 `ReplayStep` 直接映射成 `TranscriptBlock`。
+- [x] 当前 operation 的宿主和具体 action 的内容作用范围，还没有被清晰分层表达。
 
-- [x] 提供一个独立的 replay 路由，用于重放一条已有历史对话
-- [x] 页面主体尽量复用 chat 布局与 transcript 渲染风格
-- [x] 底部不再使用 `ComposerDock`，改为 replay 控制面板
-- [x] replay 强调**过程节点**，不强调逐字或真实 token 流式复刻
+### 0.2 本次改造想解决的问题
 
-### 0.2 第一版明确目标
+- [ ] 在前端显式补出 `AnswerContainer` 概念。
+- [ ] 让 operation 的宿主从“当前实现切出来的 block”提升到更稳定的回答宿主层。
+- [ ] 让 `action host` 和 `action payload scope` 解耦。
+- [ ] 先在 normal chat 中收正概念，再让 replay 复用，而不是各自发明规则。
 
-- [x] 第一版采用**节点驱动 replay**
-- [x] 第一版按现有 transcript item / block 粒度播放，不做逐字机
-- [x] 第一版支持搜索 fake loading：`text -> search-loading -> search-label -> text`
-- [x] 第一版支持 `播放 / 暂停 / 继续 / 重播`
-- [x] 第一版不要求真实还原当时的 SSE 节奏
+### 0.3 非目标
 
-### 0.3 明确非目标
+- [ ] 不重写后端 `run` / `message` / `tool invocation` 的 durable 结构。
+- [ ] 不在第一轮改 operation 的具体行为细节，例如 copy 是否包含 reasoning。
+- [ ] 不在第一轮重做 replay 整体动画或 fake loading 策略。
+- [ ] 不为了这一轮引入新的状态管理库。
 
-- [x] 不做 deterministic rerun
-- [x] 不做 token 级 replay
-- [x] 不先要求 infra 增加 replay engine
-- [x] 不做复杂 scrubber / 任意拖动进度条
-- [x] 不把 replay 和 chat 挤进同一个 route mode
+## 1. 概念模型
 
-## 1. 路由与页面骨架
+### 1.1 目标术语
 
-### 1.1 路由命名
+- [ ] `Run`
+  - 后端执行边界。
+  - 一次 run 可能包含多段 assistant 文本与多次 tool 调用。
+- [ ] `TranscriptBlock`
+  - 前端现有渲染单元。
+  - 继续保留为前端概念。
+- [ ] `AnswerContainer`
+  - 前端新的“回答宿主”概念。
+  - 通常绑定一个 `runId`，但不等于“后端 run 的所有事实原样投影”。
+- [ ] `OperationHost`
+  - 操作条挂载的宿主。
+  - 第一版目标是：`AnswerContainer` 作为 operation host。
+- [ ] `ActionPayloadScope`
+  - 某个 action 实际作用的内容范围。
+  - 不由 host 自动决定。
 
-- [x] 新增 replay route：`/replay/:threadId`
-- [x] 保持 replay 为独立页面，不做 `/chat/:threadId?mode=replay`
+### 1.2 关系约束
 
-### 1.2 页面结构
+- [ ] 一个 `AnswerContainer` 至少对应一个 `runId`。
+- [ ] 一个 `AnswerContainer` 可以包含一个或多个 `TranscriptBlock`。
+- [ ] `TranscriptBlock` 继续承载 `text / reasoning / search-status / search-summary / tool-part`。
+- [ ] operation 挂在 `AnswerContainer`，而不是直接挂在单个 `TranscriptBlock`。
+- [ ] 具体 action scope 由独立的派生逻辑决定，而不是默认取整个 container 全量内容。
 
-- [x] 新增 replay 页面入口组件
-- [x] 复用 chat 主布局的 transcript 区域
-- [x] 底部改为 `ReplayControlBar`
-- [x] 评估 replay 页面是否沿用现有 sidebar / thread list
-- [x] 评估 replay 页面是否沿用现有 search side panel
+### 1.3 推荐的前端层次
 
-### 1.3 页面状态边界
+- [ ] Thread
+  - `User message block`
+  - `AnswerContainer`
+    - `TranscriptBlock`
+      - `AssistantTurnItem`
+    - `OperationBar`
 
-- [x] replay 页面和 chat 页面状态显式分离
-- [x] replay 页面不复用 `draft` / `send` / `activeResponseRun` 语义
-- [x] replay 页面不依赖 live SSE
+## 2. 类型优先
 
-## 2. 数据结构与接口优先
+### 2.1 新增 types
 
-### 2.1 类型层（types）
+- [ ] 新增 `types/answer-containers.ts`
+- [ ] 定义 `AnswerContainer`
+- [ ] 定义 `AnswerContainerKind`
+- [ ] 定义 `AnswerContainerItemRef`
+- [ ] 定义 `AnswerContainerActionContext`
+- [ ] 定义 `ActionPayloadScope`
 
-- [x] 新建 replay feature-local `types/`
-- [x] 定义 `ReplayRouteParams`
-- [x] 定义 `ReplayMode`
-- [x] 定义 `ReplayStatus`
-- [x] 定义 `ReplayStep`
-- [x] 定义 `ReplaySession`
-- [x] 定义 `ReplayCursor`
-- [x] 定义 `ReplayControlState`
-- [x] 定义 `ReplayViewState`
+### 2.2 第一版建议字段
 
-### 2.2 建议的核心类型
-
-- [x] 定义 `ReplayStepKind`
-  - `text`
-  - `search-loading`
-  - `search-summary`
-  - `done`
-- [x] `ReplayStep` 至少包含：
+- [ ] `AnswerContainer`
   - `id`
-  - `kind`
-  - `threadId`
-  - `runId?`
-  - `messageId?`
-  - `delayMs`
-- [x] `text` step 至少包含：
-  - `content`
-  - `sourceMessageIds`
-  - `blockId?`
-- [x] `search-loading` step 至少包含：
-  - `toolCallIds`
-  - `query?`
-  - `sourceNames?`
-- [x] `search-summary` step 至少包含：
-  - `toolCallIds`
-  - `query`
-  - `resultCount`
-  - `sourceNames`
   - `runId`
-- [x] `ReplaySession` 至少包含：
-  - `threadId`
-  - `steps`
-  - `initialTranscriptBlocks`
-  - `startedAt?`
-- [x] `ReplayCursor` 至少包含：
-  - `stepIndex`
-  - `status`
-  - `startedAt`
-  - `lastAdvancedAt`
+  - `transcriptBlockIds`
+  - `blocks`
+  - `actionHostId`
+- [ ] `AnswerContainerActionContext`
+  - `hostId`
+  - `copyableTextParts`
+  - `copyableReasoningParts`
+  - `hasVisibleOperation`
+- [ ] `ActionPayloadScope`
+  - `text`
+  - `reasoning`
+  - `search`
+  - `tool`
 
-### 2.3 设计原则
+### 2.3 类型约束
 
-- [x] replay 类型优先表达**节点**，不是 token
-- [x] replay 类型优先和现有 `TranscriptBlock` / `AssistantTurnItem` 对齐
-- [x] 搜索节点显式区分 `loading` 和 `summary`
-- [x] 让 replay state 能直接喂给现有 `ChatMessageList` 或其轻微扩展版本
+- [ ] `TranscriptBlock` 不直接知道 operation host 的 UI 细节。
+- [ ] `AnswerContainer` 不直接暴露组件级表现属性。
+- [ ] `ActionPayloadScope` 保持纯数据定义，不混入浏览器行为。
 
-## 3. 数据来源与边界
+## 3. Service 设计
 
-### 3.1 MVP 数据来源
+### 3.1 新建纯逻辑
 
-- [x] MVP 仅依赖现有 durable 数据：
-  - `messages`
-  - `toolInvocations`
-  - 必要时 `run timeline`
-- [x] 明确：MVP 不依赖历史 `assistant_delta`
-- [x] 明确：MVP 不依赖历史 live draft
+- [ ] 新建 `service/build-answer-containers.ts`
+- [ ] 输入为现有 `TranscriptBlock[]`
+- [ ] 输出为 `AnswerContainer[]`
+- [ ] 第一版只做 normal chat 的 container 构建
 
-### 3.2 Repo 层
+### 3.2 normal chat 的 grouping 原则
 
-- [x] 为 replay 新增 feature-local repo facade
-- [x] 复用现有 thread messages fetch
-- [x] 复用现有 search panel timeline/toolInvocation fetch
-- [x] 评估是否新增 `repo/replay-api.ts`
-- [x] 如果新增 `repo/replay-api.ts`，由它组合：
-  - thread messages
-  - timeline
-  - tool invocations
+- [ ] 明确第一版 normal chat 的 `AnswerContainer` 如何从现有 `TranscriptBlock[]` 生成。
+- [ ] 避免直接把“整个 run 的所有 block”无条件聚成一个 container，除非规则先被定义清楚。
+- [ ] 明确与当前 `buildTranscriptBlocks()` 的关系：
+  - `buildTranscriptBlocks()` 继续负责 block 级投影
+  - `buildAnswerContainers()` 在其之上再组织回答宿主
 
-### 3.3 是否需要后端新接口
+### 3.3 action context 纯逻辑
 
-- [x] 第一版先不新增后端 replay 专用接口
-- [x] 先验证现有：
-  - `/api/threads/:threadId/messages`
-  - `/api/runs/:runId/timeline`
-  是否足够
-- [x] 当前 thread 粒度 replay 先使用现有接口；暂不新增 replay-basis API
+- [ ] 新建 `service/build-answer-container-actions.ts`
+- [ ] 从 `AnswerContainer` 派生 operation visibility
+- [ ] 从 `AnswerContainer` 派生 copyable 内容集合
+- [ ] 明确：这里先只定义数据范围，不定义最终 copy 行为
 
-## 4. 纯逻辑：从 durable 数据生成 replay steps
+## 4. Runtime / UI 接入（normal chat 优先）
 
-### 4.1 Schema / parsing
+### 4.1 runtime
 
-- [x] 明确 replay 需要消费哪些现有 shape
-- [x] 如果 search artifact 还需解析，复用现有 `schema/search-panel.ts`
-- [x] 不在 UI 中直接解析未知 payload
+- [ ] 在 normal chat 的 view-state 构建链路中，加入 `AnswerContainer[]`
+- [ ] 保持 `TranscriptBlock[]` 继续可用，避免第一轮大面积替换
+- [ ] 不在第一轮改变 live draft / SSE / run 恢复逻辑
 
-### 4.2 Service：step 构建
+### 4.2 UI
 
-- [x] 新建 `service/build-replay-steps.ts`
-- [x] 从历史 transcript / source messages 生成 replay steps
-- [x] 文本节点按现有 item/block 粒度切分
-- [x] 遇到历史 `search-summary` 时，合成为：
-  - `search-loading`
-  - `search-summary`
-- [x] 为 fake loading 设默认时长策略
-- [x] 允许以后按 step kind 调整 delay
+- [ ] 让 normal chat 的 operation 从 `TranscriptBlock` 迁移到 `AnswerContainer`
+- [ ] 第一版允许 `TranscriptBlock` 仍负责渲染内容，但由 `AnswerContainer` 决定 operation 出现位置
+- [ ] 先不改具体按钮内容，只改宿主边界
 
-### 4.3 Service：播放策略
+### 4.3 验收目标
 
-- [x] 新建 `service/replay-timing.ts`
-- [x] 定义默认 `delayMs` 规则
-- [x] 文本块 delay 和搜索 loading delay 分开
-- [x] 后续可扩展成速度倍率，但第一版先不做
+- [ ] normal chat 中，一个用户感知上的回答只出现一套 operation
+- [ ] operation 不再被中间 search label “截断”
+- [ ] `TranscriptBlock` 仍然保留为前端显示概念，不被推翻
 
-### 4.4 Service：回放中的展示派生
+## 5. Replay 迁移（在 normal chat 收正之后）
 
-- [x] 新建 `service/replay-presentation.ts`
-- [x] 从 `ReplaySession + ReplayCursor` 派生当前可见 transcript
-- [x] 派生当前可见 search label / loading
-- [x] 派生当前控制条状态
+### 5.1 replay 的前提
 
-## 5. Runtime：播放控制与状态推进
+- [ ] replay 不单独定义另一套 operation host 语义
+- [ ] replay 尽量复用 normal chat 的 `AnswerContainer` 概念
 
-### 5.1 Replay runtime
+### 5.2 replay 改造目标
 
-- [x] 新建 `runtime/use-replay-runtime.ts`
-- [x] runtime 只做：
-  - 播放循环
-  - step 推进
-  - pause/resume
-  - restart
-- [x] runtime 不直接解析 raw durable payload
+- [ ] replay 不再简单执行 `ReplayStep -> TranscriptBlock`
+- [ ] replay 最终应产出可映射到 `AnswerContainer[]` 的展示结构
+- [ ] replay 中 operation 的宿主与 normal chat 保持一致
 
-### 5.2 Replay state machine
+### 5.3 replay 非目标
 
-- [x] 定义最小状态：
-  - `idle`
-  - `playing`
-  - `paused`
-  - `completed`
-- [x] 明确 `restart` 会回到 step `0`
-- [x] 明确 route 切换时会清理定时器
-- [x] 明确 thread 变更时会重建 replay session
+- [ ] 不要求 replay 第一轮就彻底重写 step 模型
+- [ ] 不在这一轮同时优化 fake loading 的所有细节
 
-### 5.3 Search panel 联动
+## 6. 测试计划
 
-- [x] 明确 replay 时 search panel 的行为
-- [x] MVP 保持“点击搜索标签才打开”
-- [x] 第一版不做“播放到 search-summary 时自动高亮 panel data”
+### 6.1 service tests
 
-## 6. UI：页面与控制面板
+- [ ] 为 `build-answer-containers.ts` 写纯函数测试
+- [ ] 覆盖：
+  - 单个 assistant block -> 单个 container
+  - 多个相关 block -> 一个 container
+  - search-only block 不单独成为操作宿主
+- [ ] 为 `build-answer-container-actions.ts` 写纯函数测试
+- [ ] 验证 operation visibility 和 action payload scope 派生正确
 
-### 6.1 Replay 页面组件
+### 6.2 UI tests
 
-- [x] 新建 replay 页面组件
-- [x] 复用 chat transcript 容器
-- [x] 区分 replay 页和 chat 页的底部区域
+- [ ] normal chat 页面中 operation 挂在 `AnswerContainer` 下，而不是中间 block 下
+- [ ] `text | search-label | text` 结构只出现一套 operation
+- [ ] search-only container 不显示 operation
 
-### 6.2 Replay transcript 渲染
+### 6.3 replay tests
 
-- [x] 评估是复用 `ChatMessageList` 还是包一层 replay adapter
-- [x] 优先复用 `TranscriptBlock` 渲染
-- [x] 优先复用现有 search label 组件
-- [x] 优先复用现有 search side panel
+- [ ] 在 normal chat 收正后，为 replay 增加 container-level 测试
+- [ ] 验证 replay 中间节点不会各自冒出一套 operation
 
-### 6.3 Replay control bar
+## 7. 推荐执行顺序
 
-- [x] 新建 `ReplayControlBar`
-- [x] 第一版提供：
-  - `播放`
-  - `暂停`
-  - `继续`
-  - `重播`
-- [x] 显示当前 replay 状态
-- [x] 显示当前节点进度（如 `2 / 7`）
+### 第一轮：只做定义和类型
 
-## 7. 测试计划
+- [x] 补术语和设计说明
+- [x] 新增 `AnswerContainer` 相关 types
+- [x] 不改 UI 行为
 
-### 7.1 Service tests
+### 第二轮：补纯逻辑
 
-- [x] 为 `build-replay-steps.ts` 写纯函数测试
-- [x] 覆盖：
-  - `text -> search-summary -> text`
-  - 多次搜索
-  - 无搜索的纯文本回答
-- [x] 验证 search-summary 会被合成为 `loading + summary`
-- [x] 验证 block/item 粒度切分正确
+- [ ] 新建 `build-answer-containers.ts`
+- [ ] 新建 `build-answer-container-actions.ts`
+- [ ] 补 service tests
 
-### 7.2 Runtime tests
+### 第三轮：接 normal chat
 
-- [x] 为 `use-replay-runtime.ts` 写 hook 测试
-- [x] 覆盖：
-  - 播放推进
-  - 暂停
-  - 继续
-  - 重播
-- [x] 验证 route/thread 切换时定时器清理
+- [ ] 在 normal chat view-state 中接入 `AnswerContainer[]`
+- [ ] 调整 operation host
+- [ ] 跑 Vite targeted tests / typecheck / review
 
-### 7.3 UI tests
+### 第四轮：迁 replay
 
-- [x] 为 replay 页面写最小组件测试
-- [x] 覆盖：
-  - replay control bar 状态切换
-  - search loading -> search label 过渡
-  - replay transcript 节点顺序显示
-
-### 7.4 手工验收
-
-- [x] 用一个包含 2 次以上搜索的 thread 做 replay 验收
-- [x] 验证：
-  - 先出现前置文本
-  - 再出现 fake searching
-  - 再出现 search label
-  - 再出现后续文本
-- [x] 验证 replay 结束后状态稳定
-
-## 8. 进阶项（先不做）
-
-- [x] 真实 assistant delta 历史 replay
-- [x] replay 速度调节
-- [x] 下一步 / 上一步 step-through
-- [x] 拖动进度条 scrubber
-- [x] 与 run inspector 完整联动
-- [x] replay-basis 后端接口
-
-## 9. 推荐实现顺序
-
-### 第 1 轮
-
-- [x] 先定 `types`
-- [x] 先做 `build-replay-steps.ts`
-- [x] 先补 service tests
-
-### 第 2 轮
-
-- [x] 做 `use-replay-runtime.ts`
-- [x] 补 runtime tests
-
-### 第 3 轮
-
-- [x] 接 replay route
-- [x] 做 `ReplayControlBar`
-- [x] 接 transcript 渲染
-
-### 第 4 轮
-
-- [x] 接 search panel 联动
-- [x] 做手工验收和细节调节
-
-## 10. 备注
-
-- [x] replay 第一版是**业务层能力**
-- [x] 不要求 infra 先提供 replay engine
-- [x] 如果后面要求更真实的 replay，再回头评估 infra 最小增量能力：
-  - replay-basis 读模型
-  - 更强关联 run event payload
-  - coarse checkpoint / assistant delta durable 化
-
-## 验收记录
-
-- [x] 2026-05-08 使用 thread `b5922b15-6a7f-4700-8a23-64d5454e8c27` 完成手工验收
+- [ ] 让 replay 复用 `AnswerContainer` 概念
+- [ ] 调整 replay operation host
+- [ ] 跑 replay focused tests / typecheck / review
