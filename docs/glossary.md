@@ -93,6 +93,20 @@ assistant turn item 是渲染层概念，不是后端 durable 记录本身。
 比 `TranscriptBlock` 更高一层的前端概念，通常绑定一个 `runId`，但不等于
 后端 run 的所有事实原样投影。
 
+### 内容节点（ContentNode）
+
+前端共享内容节点概念，位于原始 `MessageDto/MessagePartDto` 与
+`TranscriptBlock` / `ReplayStep` 之间。它用于表达：
+
+- 一段 `text`
+- 一段 `reasoning`
+- 一次 `search-loading`
+- 一次 `search-summary`
+- 一次 `tool-part`
+
+`ContentNode` 是内容事实层，不直接承担播放时序，也不直接承担 operation host
+语义。
+
 ### 操作宿主（OperationHost）
 
 操作条在 UI 中挂载的宿主层级。`OperationHost` 解决的是“按钮显示在谁下面”，
