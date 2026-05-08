@@ -6,6 +6,12 @@ export type ToolInvocationStatus = 'pending' | 'running' | 'completed' | 'failed
 
 export type MessagePartType = 'text' | 'tool-call' | 'tool-result' | 'reasoning' | 'data';
 
+export type ChatShareScopeType = 'thread';
+
+export type ChatShareStatus = 'active' | 'revoked';
+
+export type ChatShareSnapshotPayloadFormat = 'messages_v1';
+
 export interface Thread {
   id: string;
   appId: string;
@@ -86,5 +92,28 @@ export interface Artifact {
   kind: string;
   uri?: string | null;
   metadata?: Record<string, unknown> | null;
+  createdAt: Date;
+}
+
+export interface ChatShare {
+  id: string;
+  publicId: string;
+  sourceThreadId: string;
+  scopeType: ChatShareScopeType;
+  status: ChatShareStatus;
+  snapshotId: string;
+  createdAt: Date;
+  revokedAt?: Date | null;
+}
+
+export interface ChatShareSnapshot {
+  id: string;
+  shareId: string;
+  payloadFormat: ChatShareSnapshotPayloadFormat;
+  payloadVersion: number;
+  payloadJson?: Record<string, unknown> | null;
+  messageCount: number;
+  startSeq?: number | null;
+  endSeq?: number | null;
   createdAt: Date;
 }

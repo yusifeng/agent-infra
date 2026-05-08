@@ -1,4 +1,12 @@
-import type { MessagePartType, MessageRole, RunStatus, ToolInvocationStatus } from '@agent-infra/core';
+import type {
+  ChatShareScopeType,
+  ChatShareSnapshotPayloadFormat,
+  ChatShareStatus,
+  MessagePartType,
+  MessageRole,
+  RunStatus,
+  ToolInvocationStatus
+} from '@agent-infra/core';
 
 export type IsoDateString = string;
 
@@ -154,8 +162,86 @@ export interface ThreadMessagesPageInfoDto {
   endCursor: string | null;
 }
 
+export interface ChatShareDto {
+  id: string;
+  publicId: string;
+  sourceThreadId: string;
+  scopeType: ChatShareScopeType;
+  status: ChatShareStatus;
+  snapshotId: string;
+  createdAt: IsoDateString;
+  revokedAt?: IsoDateString | null;
+}
+
+export interface ChatShareSnapshotDto {
+  id: string;
+  shareId: string;
+  payloadFormat: ChatShareSnapshotPayloadFormat;
+  payloadVersion: number;
+  payloadJson?: Record<string, unknown> | null;
+  messageCount: number;
+  startSeq?: number | null;
+  endSeq?: number | null;
+  createdAt: IsoDateString;
+}
+
+export interface SharedMessagePartDto {
+  id: string;
+  messageId: string;
+  partIndex: number;
+  type: MessagePartType;
+  textValue?: string | null;
+  jsonValue?: Record<string, unknown> | null;
+  createdAt: IsoDateString;
+}
+
+export interface SharedMessageDto {
+  id: string;
+  runId?: string | null;
+  role: MessageRole;
+  seq: number;
+  createdAt: IsoDateString;
+  parts: SharedMessagePartDto[];
+}
+
+export interface SharedThreadSnapshotDto {
+  payloadFormat: ChatShareSnapshotPayloadFormat;
+  payloadVersion: number;
+  title?: string | null;
+  messages: SharedMessageDto[];
+  searchBundles?: Record<string, unknown> | null;
+}
+
 export interface ThreadRunsResponseDto {
   runs: RunDto[];
+  error?: string;
+}
+
+export interface CreateThreadShareResponseDto {
+  share?: ChatShareDto;
+  error?: string;
+}
+
+export interface ThreadShareStateResponseDto {
+  share?: ChatShareDto | null;
+  error?: string;
+}
+
+export interface PublicChatShareDto {
+  publicId: string;
+  scopeType: ChatShareScopeType;
+  status: Extract<ChatShareStatus, 'active'>;
+  createdAt: IsoDateString;
+  snapshot: SharedThreadSnapshotDto;
+}
+
+export interface PublicChatShareResponseDto {
+  share?: PublicChatShareDto;
+  error?: string;
+}
+
+export interface RevokeChatShareResponseDto {
+  share?: ChatShareDto;
   error?: string;
 }
 

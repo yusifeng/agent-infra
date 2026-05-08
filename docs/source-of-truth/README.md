@@ -17,6 +17,9 @@
 - `content-node-model.md`
   - durable chat 前端中 `ContentNode` 作为 normal chat 与 replay 共享内容来源的定义，
     以及它与 `TranscriptBlock`、`AnswerContainer`、`ReplayStep` 的职责边界
+- `share-model.md`
+  - thread-level snapshot share 的持久化实体、public id、snapshot payload、
+    internal/public contracts，以及 Vite 只读分享页应复用的内容边界
 
 ## 不适合放在这里的内容
 

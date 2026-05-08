@@ -1,4 +1,14 @@
-import type { Artifact, Message, MessagePart, Run, RunEvent, Thread, ToolInvocation } from './types.js';
+import type {
+  Artifact,
+  ChatShare,
+  ChatShareSnapshot,
+  Message,
+  MessagePart,
+  Run,
+  RunEvent,
+  Thread,
+  ToolInvocation
+} from './types.js';
 
 export interface MessagePageInfo {
   hasOlder: boolean;
@@ -50,4 +60,17 @@ export interface ToolInvocationRepository {
 export interface ArtifactRepository {
   create(input: Omit<Artifact, 'createdAt'>): Promise<Artifact>;
   findByThread(threadId: string): Promise<Artifact[]>;
+}
+
+export interface ChatShareRepository {
+  create(input: Omit<ChatShare, 'createdAt'>): Promise<ChatShare>;
+  findById(id: string): Promise<ChatShare | null>;
+  findByPublicId(publicId: string): Promise<ChatShare | null>;
+  findActiveByThread(threadId: string): Promise<ChatShare | null>;
+  updateStatus(id: string, status: ChatShare['status'], patch?: Partial<ChatShare>): Promise<ChatShare>;
+}
+
+export interface ChatShareSnapshotRepository {
+  create(input: Omit<ChatShareSnapshot, 'createdAt'>): Promise<ChatShareSnapshot>;
+  findById(id: string): Promise<ChatShareSnapshot | null>;
 }
