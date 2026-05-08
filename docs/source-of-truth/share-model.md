@@ -8,6 +8,21 @@
 - 冻结并持久化一份 immutable snapshot
 - 通过 `/share/:shareId` 暴露一个只读分享页
 
+## 当前状态
+
+share v1 当前已经落地，范围固定为：
+
+- thread-level snapshot share
+- 独立 `shareId` / `publicId`
+- immutable snapshot 持久化
+- public read API
+- revoke API
+- Vite 分享弹窗
+- `/share/:shareId` 只读分享页
+- 分享页搜索结果侧栏联动
+
+这份文档记录的是 **长期事实和边界**，不是执行步骤。
+
 ## 目标
 
 在当前 durable chat 结构里，已经有：
@@ -55,6 +70,18 @@ v1 只支持：
 - segment-level share
 - message-range share
 - replay share
+
+### 3.1 第一版非目标
+
+第一版明确不做：
+
+- 暴露原始 `threadId`
+- 暴露 live run / live thread 状态
+- segment-level share
+- replay share
+- 真正的“继续聊 / fork new thread”能力
+- 将 `TranscriptBlock[]` / `AnswerContainer[]` 直接作为 infra 持久化 payload
+- 要求分享页与 normal chat runtime 完全统一
 
 ### 4. 前端不直接持久化 `TranscriptBlock` / `AnswerContainer`
 
@@ -140,6 +167,16 @@ public payload 不应暴露：
 
 它应使用 share-local id，或者 share-safe 的重新编码 id。
 
+### 搜索相关数据
+
+snapshot payload 需要包含分享页打开搜索结果侧栏所需的数据。
+
+也就是说：
+
+- 分享页的 search panel 应使用 snapshot 自带的数据
+- 不应依赖 live thread timeline
+- 不应回退到原 thread 的内部搜索状态
+
 ## internal / public 边界
 
 ### internal
@@ -159,6 +196,28 @@ public read 接口只需要暴露：
 - share-safe 的 message payload
 
 不应暴露内部 durable 主键。
+
+## 前端模型复用边界
+
+### 应复用
+
+分享页应复用现有前端内容投影链中的这些概念：
+
+- `ContentNode`
+- `TranscriptBlock`
+- `AnswerContainer`
+- `ChatMessageList`
+- `SearchResultsPanel`
+
+### 不应直接复用
+
+分享页不应直接复用这些 live / replay 特定概念：
+
+- `ReplayStep`
+- `ReplaySession`
+- `LiveAssistantDraft`
+- `useDurableChatRuntime`
+- 直接面向 live thread 的 message fetch 路径
 
 ## 路由边界
 
@@ -192,6 +251,12 @@ public read 接口只需要暴露：
 - 只读 runtime
 - 复用现有 transcript / answer container 渲染
 
+分享页本质上是：
+
+- 一个新的只读数据源
+- 不是一套新的聊天渲染体系
+- 也不是对原 thread 的 live public view
+
 ## 第一版限制
 
 第一版建议保持这些限制：
@@ -200,6 +265,15 @@ public read 接口只需要暴露：
 - 每个 thread 最多一个 active share
 - 分享页先只读
 - 不做真正的“继续聊 / fork new thread”能力
+
+### “继续聊” 边界
+
+如果未来需要在分享页加入 CTA：
+
+- 第一版仍应保持只读
+- 未来只应定义为 **fork 新 thread** 的能力
+- 不允许回到原 thread 继续写
+- 不允许前端本地伪造 live thread 恢复
 
 ## 后续扩展点
 
