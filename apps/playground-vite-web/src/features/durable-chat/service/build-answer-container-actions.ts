@@ -11,6 +11,13 @@ function collectCopyableParts(items: AssistantTurnItem[], type: 'text' | 'reason
   });
 }
 
+function stringifyCopyableParts(parts: Array<{ textValue?: string | null }>) {
+  return parts
+    .flatMap((part) => (part.textValue?.trim() ? [part.textValue.trim()] : []))
+    .join('\n\n')
+    .trim();
+}
+
 export function buildAnswerContainerActionContexts(containers: AnswerContainer[]) {
   const contexts = new Map<string, AnswerContainerActionContext>();
 
@@ -25,6 +32,7 @@ export function buildAnswerContainerActionContexts(containers: AnswerContainer[]
       hostId: container.actionHostId,
       copyableTextParts,
       copyableReasoningParts,
+      copyText: stringifyCopyableParts([...copyableTextParts, ...copyableReasoningParts]),
       hasVisibleOperation: copyableTextParts.length > 0 || copyableReasoningParts.length > 0,
       payloadScope: {
         text: copyableTextParts.length > 0,

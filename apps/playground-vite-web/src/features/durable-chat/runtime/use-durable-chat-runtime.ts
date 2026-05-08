@@ -130,6 +130,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     inputLocked,
     displayedMessages,
     displayedTranscriptBlocks,
+    displayedAnswerContainers,
     hasOlderMessages
   } = useMemo(
     () =>
@@ -141,13 +142,13 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         optimisticUserMessage,
         meta,
         selectedModelKey,
-        activeResponseRun,
-        chatPhase,
+    activeResponseRun,
+    chatPhase,
         persistingTurn,
         loadingThreadId,
-        messagePageInfo,
-        liveAssistantDraft,
-        pendingNewThreadLoadingId: PENDING_NEW_THREAD_LOADING_ID
+      messagePageInfo,
+      liveAssistantDraft,
+      pendingNewThreadLoadingId: PENDING_NEW_THREAD_LOADING_ID
       }),
     [
       threads,
@@ -676,6 +677,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
 
   return {
     activeThreadId,
+    displayedAnswerContainers,
     displayedTranscriptBlocks,
     currentThreadTitle,
     displayedMessages,

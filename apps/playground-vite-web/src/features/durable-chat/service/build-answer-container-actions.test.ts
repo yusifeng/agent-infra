@@ -104,6 +104,7 @@ describe('buildAnswerContainerActionContexts', () => {
 
     expect(context?.copyableTextParts.map((part) => part.textValue)).toEqual(['text1', 'text2']);
     expect(context?.copyableReasoningParts.map((part) => part.textValue)).toEqual(['reasoning1']);
+    expect(context?.copyText).toBe('text1\n\ntext2\n\nreasoning1');
     expect(context?.hasVisibleOperation).toBe(true);
   });
 
@@ -127,6 +128,7 @@ describe('buildAnswerContainerActionContexts', () => {
 
     expect(context?.copyableTextParts).toEqual([]);
     expect(context?.copyableReasoningParts).toEqual([]);
+    expect(context?.copyText).toBe('');
     expect(context?.hasVisibleOperation).toBe(false);
   });
 });

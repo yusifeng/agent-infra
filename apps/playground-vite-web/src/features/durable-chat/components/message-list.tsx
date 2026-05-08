@@ -4,6 +4,8 @@ import clsx from 'clsx';
 import { Atom, ChevronDown, ChevronRight, Copy, Loader2, RotateCw, Search, Trash2 } from 'lucide-react';
 import { memo, useEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties } from 'react';
 
+import type { AnswerContainer } from '@/features/durable-chat/types/answer-containers';
+import { buildAnswerContainerActionContexts } from '@/features/durable-chat/service/build-answer-container-actions';
 import { copyMessageToClipboard, copyTextToClipboard } from './helpers';
 import { MarkdownRenderer } from './markdown/markdown-renderer';
 import { AnimatedEmoji } from './shared';
@@ -487,6 +489,48 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
   );
 });
 
+const AnswerContainerCard = memo(function AnswerContainerCard({
+  container,
+  actionContext,
+  onOpenSearchResult
+}: {
+  container: AnswerContainer;
+  actionContext: {
+    copyText: string;
+    hasVisibleOperation: boolean;
+  };
+  onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
+}) {
+  const hasVisibleContent = container.blocks.some((block) => block.items.length > 0);
+  if (!hasVisibleContent) {
+    return null;
+  }
+
+  return (
+    <div
+      className={clsx('group relative w-[90%] max-w-screen px-4', actionContext.hasVisibleOperation ? 'pb-8' : 'pb-2')}
+      data-answer-container-id={container.id}
+      data-message-role="assistant"
+      style={transcriptRowPerformanceStyle}
+    >
+      <div className={clsx('relative flex flex-col gap-3 pt-1.5', ui.assistantBubble)}>
+        {container.blocks.map((block) => (
+          <AssistantTurnContent key={block.id} items={block.items} onOpenSearchResult={onOpenSearchResult} runId={block.runId} />
+        ))}
+      </div>
+      <MessageActions
+        available={actionContext.hasVisibleOperation}
+        items={assistantActions}
+        onActionClick={(key) => {
+          if (key === 'copy') {
+            void copyTextToClipboard(actionContext.copyText);
+          }
+        }}
+      />
+    </div>
+  );
+});
+
 const UserMessageBlockCard = memo(function UserMessageBlockCard({
   message
 }: {
@@ -600,6 +644,7 @@ type ChatMessageListProps = {
   loadingMessages: boolean;
   activeThreadId: string | null;
   messages: MessageDto[];
+  answerContainers?: AnswerContainer[];
   transcriptBlocks: TranscriptBlock[];
   liveAssistantDraft: LiveAssistantDraft | null;
   showLoadingText: boolean;
@@ -618,6 +663,7 @@ export const ChatMessageList = memo(function ChatMessageList({
   loadingMessages,
   activeThreadId,
   messages,
+  answerContainers = [],
   transcriptBlocks,
   liveAssistantDraft,
   showLoadingText,
@@ -627,6 +673,20 @@ export const ChatMessageList = memo(function ChatMessageList({
   onOpenSearchResult
 }: ChatMessageListProps) {
   const assistantTurnActionContexts = useMemo(() => buildAssistantTurnActionContexts(transcriptBlocks), [transcriptBlocks]);
+  const answerContainerActionContexts = useMemo(() => buildAnswerContainerActionContexts(answerContainers), [answerContainers]);
+  const answerContainerStartByBlockId = useMemo(
+    () =>
+      new Map(
+        answerContainers
+          .map((container) => [container.transcriptBlockIds[0], container] as const)
+          .filter((entry): entry is readonly [string, AnswerContainer] => typeof entry[0] === 'string')
+      ),
+    [answerContainers]
+  );
+  const answerContainerBlockIds = useMemo(
+    () => new Set(answerContainers.flatMap((container) => container.transcriptBlockIds)),
+    [answerContainers]
+  );
 
   useRenderDiagnostic('ChatMessageList', activeThreadId ?? 'new-thread', {
     hasOlderMessages,
@@ -700,12 +760,28 @@ export const ChatMessageList = memo(function ChatMessageList({
               </div>
             ) : null}
             {transcriptBlocks.map((block) => (
-              <TranscriptBlockCard
-                key={block.id}
-                actionContext={assistantTurnActionContexts.get(block.id)}
-                block={block}
-                onOpenSearchResult={onOpenSearchResult}
-              />
+              block.type === 'assistant-turn' && answerContainerBlockIds.has(block.id) ? (
+                answerContainerStartByBlockId.has(block.id) ? (
+                  <AnswerContainerCard
+                    key={block.id}
+                    actionContext={
+                      answerContainerActionContexts.get(answerContainerStartByBlockId.get(block.id)!.actionHostId) ?? {
+                        copyText: '',
+                        hasVisibleOperation: false
+                      }
+                    }
+                    container={answerContainerStartByBlockId.get(block.id)!}
+                    onOpenSearchResult={onOpenSearchResult}
+                  />
+                ) : null
+              ) : (
+                <TranscriptBlockCard
+                  key={block.id}
+                  actionContext={assistantTurnActionContexts.get(block.id)}
+                  block={block}
+                  onOpenSearchResult={onOpenSearchResult}
+                />
+              )
             ))}
             {liveAssistantDraft ? <LiveAssistantCard liveAssistantDraft={liveAssistantDraft} /> : null}
             {showLoadingText ? <ThinkingIndicator /> : null}

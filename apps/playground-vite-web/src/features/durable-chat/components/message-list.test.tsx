@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ChatMessageList } from './message-list';
+import type { AnswerContainer } from '@/features/durable-chat/types/answer-containers';
 import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
 import type { TranscriptBlock } from '@/features/durable-chat/types/transcript-blocks';
 
@@ -35,11 +36,13 @@ function createMessage(overrides: Partial<MessageDto> & Pick<MessageDto, 'id' | 
 function renderMessageList({
   messages,
   transcriptBlocks,
-  liveAssistantDraft
+  liveAssistantDraft,
+  answerContainers = []
 }: {
   messages: MessageDto[];
   transcriptBlocks: TranscriptBlock[];
   liveAssistantDraft: LiveAssistantDraft | null;
+  answerContainers?: AnswerContainer[];
 }) {
   return renderToStaticMarkup(
     <ChatMessageList
@@ -51,6 +54,7 @@ function renderMessageList({
       loadingMessages={false}
       activeThreadId="thread-1"
       messages={messages}
+      answerContainers={answerContainers}
       transcriptBlocks={transcriptBlocks}
       liveAssistantDraft={liveAssistantDraft}
       showLoadingText={false}
@@ -127,6 +131,95 @@ describe('ChatMessageList', () => {
     expect(markup).toContain('data-message-actions-available="true"');
   });
 
+  it('renders a single operation host for multiple assistant-turn blocks in one answer container', () => {
+    const assistantMessageA = createMessage({
+      id: 'assistant-1',
+      role: 'assistant',
+      runId: 'run-1',
+      seq: 1,
+      parts: [createPart({ id: 'assistant-1:text-1', type: 'text', messageId: 'assistant-1', textValue: '前置说明。' })]
+    });
+    const assistantMessageB = createMessage({
+      id: 'assistant-2',
+      role: 'assistant',
+      runId: 'run-1',
+      seq: 2,
+      parts: [createPart({ id: 'assistant-2:text-1', type: 'text', messageId: 'assistant-2', textValue: '最终总结。' })]
+    });
+
+    const transcriptBlocks: TranscriptBlock[] = [
+      {
+        type: 'assistant-turn',
+        id: 'assistant-turn-1',
+        runId: 'run-1',
+        sourceMessages: [assistantMessageA],
+        items: [
+          {
+            type: 'text',
+            id: 'assistant-turn-1:text-1',
+            cacheKey: 'assistant-turn-1:text-1',
+            part: assistantMessageA.parts[0]!
+          },
+          {
+            type: 'search-summary',
+            id: 'assistant-turn-1:search',
+            summary: {
+              runId: 'run-1',
+              entries: [
+                {
+                  toolCallId: 'call-1',
+                  query: 'Claude latest news',
+                  resultCount: 10,
+                  sourceNames: ['The Verge'],
+                  sources: [{ sourceName: 'The Verge', hostname: 'theverge.com' }]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        type: 'assistant-turn',
+        id: 'assistant-turn-2',
+        runId: 'run-1',
+        sourceMessages: [assistantMessageB],
+        items: [
+          {
+            type: 'text',
+            id: 'assistant-turn-2:text-1',
+            cacheKey: 'assistant-turn-2:text-1',
+            part: assistantMessageB.parts[0]!
+          }
+        ]
+      }
+    ];
+
+    const answerContainer: AnswerContainer = {
+      id: 'answer-container:run-1:assistant-turn-1',
+      kind: 'assistant-answer',
+      runId: 'run-1',
+      transcriptBlockIds: ['assistant-turn-1', 'assistant-turn-2'],
+      blocks: [
+        transcriptBlocks[0] as Extract<TranscriptBlock, { type: 'assistant-turn' }>,
+        transcriptBlocks[1] as Extract<TranscriptBlock, { type: 'assistant-turn' }>
+      ],
+      actionHostId: 'answer-container:run-1:assistant-turn-1'
+    };
+
+    const markup = renderMessageList({
+      messages: [assistantMessageA, assistantMessageB],
+      transcriptBlocks,
+      answerContainers: [answerContainer],
+      liveAssistantDraft: null
+    });
+
+    expect(markup).toContain('前置说明。');
+    expect(markup).toContain('最终总结。');
+    expect(markup).toContain('已阅读 10 个网页');
+    expect(markup).toContain('data-answer-container-id="answer-container:run-1:assistant-turn-1"');
+    expect(markup.match(/data-message-actions-available="true"/g)).toHaveLength(1);
+  });
+
   it('hides actions for search-only assistant blocks', () => {
     const toolMessage = createMessage({
       id: 'tool-1',
@@ -161,6 +254,41 @@ describe('ChatMessageList', () => {
               }
             }
           ]
+        }
+      ],
+      answerContainers: [
+        {
+          id: 'answer-container:run-1:assistant-turn-search-only',
+          kind: 'assistant-answer',
+          runId: 'run-1',
+          transcriptBlockIds: ['assistant-turn-search-only'],
+          blocks: [
+            {
+              type: 'assistant-turn',
+              id: 'assistant-turn-search-only',
+              runId: 'run-1',
+              sourceMessages: [toolMessage],
+              items: [
+                {
+                  type: 'search-summary',
+                  id: 'assistant-turn-search-only:search',
+                  summary: {
+                    runId: 'run-1',
+                    entries: [
+                      {
+                        toolCallId: 'call-1',
+                        query: 'Claude latest news',
+                        resultCount: 8,
+                        sourceNames: ['The Verge'],
+                        sources: [{ sourceName: 'The Verge', hostname: 'theverge.com' }]
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ],
+          actionHostId: 'answer-container:run-1:assistant-turn-search-only'
         }
       ],
       liveAssistantDraft: null

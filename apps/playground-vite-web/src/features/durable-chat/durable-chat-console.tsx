@@ -27,6 +27,7 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
     historyLoading,
     loadingMessages,
     displayedMessages,
+    displayedAnswerContainers,
     displayedTranscriptBlocks,
     liveAssistantDraft,
     onLoadOlderMessages,
@@ -102,6 +103,7 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
                 loadingMessages={loadingMessages}
                 activeThreadId={activeThreadId}
                 messages={displayedMessages}
+                answerContainers={displayedAnswerContainers}
                 transcriptBlocks={displayedTranscriptBlocks}
                 liveAssistantDraft={liveAssistantDraft}
                 showLoadingText={showLoadingText}

@@ -31,6 +31,7 @@ export type AnswerContainerActionContext = {
   hostId: string;
   copyableTextParts: MessagePartDto[];
   copyableReasoningParts: MessagePartDto[];
+  copyText: string;
   hasVisibleOperation: boolean;
   payloadScope: ActionPayloadScope;
 };

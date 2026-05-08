@@ -1,6 +1,7 @@
 import type { MessageDto, RunDto, RuntimePiMetaDto, ThreadDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
 import { deriveMainChatResponseStatus, shouldShowMainChatLoading } from '@agent-infra/durable-chat-client';
 
+import { buildAnswerContainers } from '@/features/durable-chat/service/build-answer-containers';
 import { buildTranscriptPresentation } from '@/features/durable-chat/service/transcript-presentation';
 import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
 import type { ChatPhase } from '@/features/durable-chat/types/runtime';
@@ -60,6 +61,7 @@ export function buildChatViewState(args: BuildChatViewStateArgs) {
     optimisticUserMessage,
     liveAssistantDraft
   });
+  const displayedAnswerContainers = buildAnswerContainers(displayedTranscriptBlocks);
   const hasOlderMessages = messagePageInfo?.hasOlder === true;
 
   return {
@@ -73,6 +75,7 @@ export function buildChatViewState(args: BuildChatViewStateArgs) {
     inputLocked,
     displayedMessages,
     displayedTranscriptBlocks,
+    displayedAnswerContainers,
     hasOlderMessages
   };
 }

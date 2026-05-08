@@ -116,6 +116,7 @@ describe('buildChatViewState', () => {
     expect(result.inputLocked).toBe(false);
     expect(result.displayedMessages).toHaveLength(1);
     expect(result.displayedTranscriptBlocks).toHaveLength(1);
+    expect(result.displayedAnswerContainers).toHaveLength(1);
     expect(result.hasOlderMessages).toBe(true);
   });
 
@@ -144,5 +145,6 @@ describe('buildChatViewState', () => {
     expect(result.sendDisabled).toBe(true);
     expect(result.inputLocked).toBe(true);
     expect(result.displayedMessages).toHaveLength(1);
+    expect(result.displayedAnswerContainers).toHaveLength(0);
   });
 });
