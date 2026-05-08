@@ -7,6 +7,7 @@ import {
   AgentInfraAppError,
   ChatShareNotFoundError,
   ChatShareRevokedError,
+  InvalidThreadTitleError,
   InvalidTurnTextError,
   RunNotFoundError,
   RuntimeUnavailableError,
@@ -65,6 +66,15 @@ function trimTurnText(text: string) {
   const trimmed = text.trim();
   if (!trimmed) {
     throw new InvalidTurnTextError();
+  }
+
+  return trimmed;
+}
+
+function trimThreadTitle(title: string) {
+  const trimmed = title.trim();
+  if (!trimmed) {
+    throw new InvalidThreadTitleError();
   }
 
   return trimmed;
@@ -384,6 +394,24 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
       },
       async list(input) {
         return dependencies.repositories.threadRepo.listByApp(input.appId);
+      },
+      async rename(input) {
+        const thread = await loadThreadOrThrow(dependencies.repositories, input.threadId);
+        const title = trimThreadTitle(input.title);
+        return dependencies.repositories.threadRepo.rename(thread.id, title, now());
+      },
+      async archive(input) {
+        const thread = await loadThreadOrThrow(dependencies.repositories, input.threadId);
+        if (thread.status === 'archived') {
+          return thread;
+        }
+
+        const activeRun = await dependencies.repositories.runRepo.findLatestActiveByThread(thread.id);
+        if (activeRun) {
+          throw new ThreadHasActiveRunError(thread.id, activeRun.id);
+        }
+
+        return dependencies.repositories.threadRepo.archive(thread.id, now());
       },
       async getMessages(input) {
         await loadThreadOrThrow(dependencies.repositories, input.threadId);

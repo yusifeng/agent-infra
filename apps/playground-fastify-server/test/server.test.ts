@@ -369,6 +369,87 @@ describe('playground-fastify-server', () => {
     });
   });
 
+  it('renames threads and rejects blank titles', async () => {
+    const server = await createTestServer({});
+    activeServers.push(server);
+
+    const threadId = await createThread(server, 'Original Thread');
+
+    const renamed = await server.app.inject({
+      method: 'PATCH',
+      url: `/api/threads/${threadId}`,
+      payload: {
+        title: '  Renamed Thread  '
+      }
+    });
+    expect(renamed.statusCode).toBe(200);
+    expect(renamed.headers['server-timing']).toContain('threads_rename;dur=');
+    expect(renamed.json().thread).toMatchObject({
+      id: threadId,
+      title: 'Renamed Thread'
+    });
+
+    const threads = await server.app.inject({
+      method: 'GET',
+      url: '/api/threads'
+    });
+    expect(threads.json().threads[0]).toMatchObject({
+      id: threadId,
+      title: 'Renamed Thread'
+    });
+
+    const invalid = await server.app.inject({
+      method: 'PATCH',
+      url: `/api/threads/${threadId}`,
+      payload: {
+        title: '   '
+      }
+    });
+    expect(invalid.statusCode).toBe(400);
+    expect(invalid.json()).toMatchObject({
+      error: 'thread title is required'
+    });
+  });
+
+  it('archives threads, removes them from list reads, and keeps active shares readable', async () => {
+    const server = await createTestServer({});
+    activeServers.push(server);
+
+    const threadId = await createThread(server, 'Archive me');
+    await streamSuccessfulTurn(server, threadId, 'hello');
+
+    const createdShare = await server.app.inject({
+      method: 'POST',
+      url: `/api/threads/${threadId}/shares`
+    });
+    const publicId = createdShare.json().share.publicId as string;
+
+    const archived = await server.app.inject({
+      method: 'POST',
+      url: `/api/threads/${threadId}/archive`
+    });
+    expect(archived.statusCode).toBe(200);
+    expect(archived.headers['server-timing']).toContain('threads_archive;dur=');
+    expect(archived.json().thread).toMatchObject({
+      id: threadId,
+      status: 'archived'
+    });
+    expect(archived.json().thread.archivedAt).toBeTruthy();
+
+    const threads = await server.app.inject({
+      method: 'GET',
+      url: '/api/threads'
+    });
+    expect(threads.json().threads).toEqual([]);
+
+    const publicShare = await server.app.inject({
+      method: 'GET',
+      url: `/api/shares/${publicId}`
+    });
+    expect(publicShare.statusCode).toBe(200);
+    expect(publicShare.json().share.publicId).toBe(publicId);
+  });
+
   it('streams a successful turn and persists the assistant reply', async () => {
     const server = await createTestServer({});
     activeServers.push(server);

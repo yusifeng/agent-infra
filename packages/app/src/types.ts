@@ -64,6 +64,15 @@ export interface ListThreadsInput {
   appId: string;
 }
 
+export interface RenameThreadInput {
+  threadId: string;
+  title: string;
+}
+
+export interface ArchiveThreadInput {
+  threadId: string;
+}
+
 export interface GetThreadMessagesInput {
   threadId: string;
   limit?: number;
@@ -187,6 +196,8 @@ export interface AgentInfraApp {
   threads: {
     create(input: CreateThreadInput): Promise<Thread>;
     list(input: ListThreadsInput): Promise<Thread[]>;
+    rename(input: RenameThreadInput): Promise<Thread>;
+    archive(input: ArchiveThreadInput): Promise<Thread>;
     getMessages(input: GetThreadMessagesInput): Promise<Array<Message & { parts: MessagePart[] }>>;
     getMessagesPage(input: GetThreadMessagesInput): Promise<MessagePageResult>;
   };

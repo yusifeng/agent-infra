@@ -35,7 +35,28 @@ export class DrizzleThreadRepository implements ThreadRepository {
   }
 
   async listByApp(appId: string): Promise<Thread[]> {
-    return this.db.select().from(threads).where(eq(threads.appId, appId)).orderBy(asc(threads.createdAt));
+    return this.db
+      .select()
+      .from(threads)
+      .where(and(eq(threads.appId, appId), eq(threads.status, 'active')))
+      .orderBy(asc(threads.createdAt));
+  }
+
+  async rename(id: string, title: string | null, updatedAt: Date): Promise<Thread> {
+    await this.db.update(threads).set({ title, updatedAt }).where(eq(threads.id, id));
+    const row = await this.findById(id);
+    if (!row) throw new Error(`thread ${id} not found`);
+    return row;
+  }
+
+  async archive(id: string, archivedAt: Date): Promise<Thread> {
+    await this.db
+      .update(threads)
+      .set({ status: 'archived', archivedAt, updatedAt: archivedAt })
+      .where(eq(threads.id, id));
+    const row = await this.findById(id);
+    if (!row) throw new Error(`thread ${id} not found`);
+    return row;
   }
 
   async touch(id: string, updatedAt: Date): Promise<Thread> {

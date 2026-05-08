@@ -4,6 +4,8 @@ import type { AgentInfraRepositoryBundle } from '@agent-infra/db';
 import {
   buildCreateThreadShareErrorResponse,
   buildCreateThreadShareResponse,
+  buildUpdateThreadErrorResponse,
+  buildUpdateThreadResponse,
   buildPublicChatShareErrorResponse,
   buildPublicChatShareResponse,
   buildRevokeChatShareErrorResponse,
@@ -31,6 +33,7 @@ import {
   getRouteErrorMessage,
   getRouteErrorStatus,
   parseCreateThreadTitle,
+  parseRenameThreadTitle,
   parseThreadRunsLimit,
   parseRunTextTurnInput,
   toRunDto
@@ -224,6 +227,43 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
       return reply.send(buildCreateThreadResponse(thread));
     } catch (error) {
       return reply.code(getRouteErrorStatus(error)).send(buildCreateThreadErrorResponse(error, 'failed to create thread'));
+    }
+  });
+
+  app.patch<{ Params: { threadId: string } }>('/api/threads/:threadId', async (request, reply) => {
+    const title = parseRenameThreadTitle(request.body);
+
+    try {
+      request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
+      request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
+      const { app: services } = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      const thread = await request.requestTiming.measureAsync('threads.rename', () =>
+        services.threads.rename({
+          threadId: request.params.threadId,
+          title
+        })
+      );
+
+      return reply.send(buildUpdateThreadResponse(thread));
+    } catch (error) {
+      return reply.code(getRouteErrorStatus(error)).send(buildUpdateThreadErrorResponse(error, 'failed to rename thread'));
+    }
+  });
+
+  app.post<{ Params: { threadId: string } }>('/api/threads/:threadId/archive', async (request, reply) => {
+    try {
+      request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
+      request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
+      const { app: services } = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      const thread = await request.requestTiming.measureAsync('threads.archive', () =>
+        services.threads.archive({
+          threadId: request.params.threadId
+        })
+      );
+
+      return reply.send(buildUpdateThreadResponse(thread));
+    } catch (error) {
+      return reply.code(getRouteErrorStatus(error)).send(buildUpdateThreadErrorResponse(error, 'failed to archive thread'));
     }
   });
 

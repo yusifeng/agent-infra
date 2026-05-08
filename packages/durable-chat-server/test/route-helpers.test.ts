@@ -14,6 +14,7 @@ import {
   decodeThreadMessageCursor,
   encodeSseEvent,
   parseCreateThreadTitle,
+  parseRenameThreadTitle,
   parseThreadMessagesQuery,
   parseThreadRunsLimit,
   parseRunTextTurnInput
@@ -66,6 +67,9 @@ describe('durable chat server route helpers', () => {
     expect(parseCreateThreadTitle({ title: '  Demo thread  ' })).toBe('Demo thread');
     expect(parseCreateThreadTitle({ title: '   ' })).toBe('New Thread');
     expect(parseCreateThreadTitle(null)).toBe('New Thread');
+    expect(parseRenameThreadTitle({ title: '  Demo thread  ' })).toBe('Demo thread');
+    expect(parseRenameThreadTitle({ title: '   ' })).toBe('');
+    expect(parseRenameThreadTitle(null)).toBe('');
 
     expect(
       parseRunTextTurnInput({

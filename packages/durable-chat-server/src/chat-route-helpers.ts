@@ -5,6 +5,7 @@ import type {
   PublicChatShareResponseDto,
   RevokeChatShareResponseDto,
   CreateThreadResponseDto,
+  RenameThreadRequestDto,
   RunStreamAssistantEventDto,
   RunStreamCompletedEventDto,
   RunStreamEventDto,
@@ -19,6 +20,7 @@ import type {
   ThreadMessagesResponseDto,
   ThreadMessagesPageInfoDto,
   ThreadRunsResponseDto,
+  UpdateThreadResponseDto,
   ThreadsResponseDto
 } from '@agent-infra/contracts';
 
@@ -81,6 +83,23 @@ export function buildCreateThreadResponse(thread: Thread): CreateThreadResponseD
 }
 
 export function buildCreateThreadErrorResponse(error: unknown, fallbackMessage: string): CreateThreadResponseDto {
+  return {
+    error: getRouteErrorMessage(error, fallbackMessage)
+  };
+}
+
+export function parseRenameThreadTitle(body: unknown) {
+  const record = asObject(body) as Partial<RenameThreadRequestDto>;
+  return typeof record.title === 'string' ? record.title.trim() : '';
+}
+
+export function buildUpdateThreadResponse(thread: Thread): UpdateThreadResponseDto {
+  return {
+    thread: toThreadDto(thread)
+  };
+}
+
+export function buildUpdateThreadErrorResponse(error: unknown, fallbackMessage: string): UpdateThreadResponseDto {
   return {
     error: getRouteErrorMessage(error, fallbackMessage)
   };

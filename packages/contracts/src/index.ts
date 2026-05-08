@@ -113,6 +113,10 @@ export interface CreateThreadRequestDto {
   title?: string;
 }
 
+export interface RenameThreadRequestDto {
+  title: string;
+}
+
 export interface GetThreadMessagesRequestDto {
   threadId: string;
   limit?: number;
@@ -144,6 +148,11 @@ export interface ThreadsResponseDto {
 }
 
 export interface CreateThreadResponseDto {
+  thread?: ThreadDto;
+  error?: string;
+}
+
+export interface UpdateThreadResponseDto {
   thread?: ThreadDto;
   error?: string;
 }

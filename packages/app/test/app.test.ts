@@ -14,6 +14,7 @@ import { createAgentInfraApp } from '../src/app';
 import {
   ActiveChatShareExistsError,
   ChatShareRevokedError,
+  InvalidThreadTitleError,
   InvalidTurnTextError,
   RunNotFoundError,
   ThreadHasActiveRunError,
@@ -68,7 +69,27 @@ function createRepositories(stateRef: { current: InMemoryState }, snapshot?: InM
         return getState().threads.get(id) ?? null;
       },
       async listByApp(appId) {
-        return [...getState().threads.values()].filter((thread) => thread.appId === appId);
+        return [...getState().threads.values()].filter((thread) => thread.appId === appId && thread.status === 'active');
+      },
+      async rename(id, title, updatedAt) {
+        const current = getState().threads.get(id);
+        if (!current) {
+          throw new Error(`thread ${id} not found`);
+        }
+
+        const next = { ...current, title, updatedAt };
+        getState().threads.set(id, next);
+        return next;
+      },
+      async archive(id, archivedAt) {
+        const current = getState().threads.get(id);
+        if (!current) {
+          throw new Error(`thread ${id} not found`);
+        }
+
+        const next = { ...current, status: 'archived' as const, archivedAt, updatedAt: archivedAt };
+        getState().threads.set(id, next);
+        return next;
       },
       async touch(id, updatedAt) {
         const current = getState().threads.get(id);
@@ -418,6 +439,85 @@ describe('createAgentInfraApp', () => {
     expect(threads).toHaveLength(1);
     expect(threads[0]?.title).toBe('Main thread');
     expect(messages).toEqual([]);
+  });
+
+  it('renames a thread title through the app boundary', async () => {
+    const { app, repositories } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({
+      appId: 'playground-runtime-pi',
+      title: 'Original title'
+    });
+
+    const renamed = await app.threads.rename({
+      threadId: thread.id,
+      title: '  Renamed thread  '
+    });
+
+    expect(renamed.title).toBe('Renamed thread');
+    expect((await repositories.threadRepo.findById(thread.id))?.title).toBe('Renamed thread');
+  });
+
+  it('rejects blank thread titles during rename', async () => {
+    const { app } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({
+      appId: 'playground-runtime-pi',
+      title: 'Original title'
+    });
+
+    await expect(
+      app.threads.rename({
+        threadId: thread.id,
+        title: '   '
+      })
+    ).rejects.toBeInstanceOf(InvalidThreadTitleError);
+  });
+
+  it('archives a thread and excludes it from active thread lists', async () => {
+    const { app, repositories } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({
+      appId: 'playground-runtime-pi',
+      title: 'Archive me'
+    });
+
+    const archived = await app.threads.archive({ threadId: thread.id });
+
+    expect(archived.status).toBe('archived');
+    expect(archived.archivedAt).toBeInstanceOf(Date);
+    expect(await repositories.threadRepo.findById(thread.id)).toMatchObject({
+      id: thread.id,
+      status: 'archived'
+    });
+    expect(await app.threads.list({ appId: 'playground-runtime-pi' })).toEqual([]);
+  });
+
+  it('keeps active shares accessible after a thread is archived', async () => {
+    const { app } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({
+      appId: 'playground-runtime-pi',
+      title: 'Archive shared thread'
+    });
+
+    const created = await app.shares.createThreadSnapshot({ threadId: thread.id });
+    await app.threads.archive({ threadId: thread.id });
+
+    const publicRead = await app.shares.getPublic({ publicId: created.share.publicId });
+    expect(publicRead.share.publicId).toBe(created.share.publicId);
+    expect(publicRead.snapshot.payloadFormat).toBe('messages_v1');
+  });
+
+  it('rejects archive when the thread has an active run', async () => {
+    const { app } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({
+      appId: 'playground-runtime-pi',
+      title: 'Busy archive thread'
+    });
+
+    await app.turns.startText({
+      threadId: thread.id,
+      text: 'Still running'
+    });
+
+    await expect(app.threads.archive({ threadId: thread.id })).rejects.toBeInstanceOf(ThreadHasActiveRunError);
   });
 
   it('rejects blank turn text without leaving durable records', async () => {

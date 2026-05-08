@@ -98,6 +98,15 @@ export class InvalidTurnTextError extends AgentInfraAppError {
   }
 }
 
+export class InvalidThreadTitleError extends AgentInfraAppError {
+  constructor() {
+    super('thread title is required', {
+      statusCode: 400,
+      code: 'invalid_thread_title'
+    });
+  }
+}
+
 export class RuntimeSelectionError extends AgentInfraAppError {
   constructor(message: string, cause?: unknown) {
     super(message, {

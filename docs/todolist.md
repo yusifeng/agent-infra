@@ -1,293 +1,155 @@
-# Share 功能待办（v1）
-
-这份待办定义 **thread-level snapshot share** 的第一版实现范围。
-
-目标不是公开一个 live thread，也不是复刻原始 runtime，而是：
-
-- 为一个已完成的 thread 创建一个**独立 public id** 的分享对象
-- 冻结并持久化一份 **snapshot**
-- 通过 `/share/:shareId` 提供一个**只读分享页**
-- 复用现有的前端内容投影链，而不是再造一套分享版聊天模型
-
-## 0. 背景与产品边界
-
-### 0.1 已确认的产品事实
-
-- [x] 分享链接不能直接暴露原始 `threadId`
-- [x] 分享的是 **snapshot**，不是 live thread
-- [x] 第一版只做 **thread-level share**
-- [x] 第一版不做 **segment-level share**
-- [x] 分享页是**只读页面**
-- [x] 分享页应复用现有 transcript / answer container 渲染能力
-
-### 0.2 第一版目标
-
-- [x] 创建 thread-level share
-- [x] 生成独立 `shareId`
-- [x] 持久化 immutable snapshot
-- [x] 提供 public read API
-- [x] 提供 revoke share API
-- [x] Vite 中实现分享弹窗
-- [x] Vite 中实现 `/share/:shareId` 只读页
-- [x] 分享页可打开搜索结果侧栏
-
-### 0.3 非目标
-
-- [x] 不公开原始 `threadId`
-- [x] 不公开 live run / live thread 状态
-- [x] 不做 segment-level share
-- [x] 不做 replay share
-- [x] 不做“继续聊”真实 fork 能力
-- [x] 不把 `TranscriptBlock` / `AnswerContainer` 直接持久化到 infra
-- [x] 不要求分享页与 normal chat 的 runtime 完全统一
-
-## 1. 数据模型优先
-
-### 1.1 持久化实体
-
-- [x] 新增 `ChatShare`
-- [x] 新增 `ChatShareSnapshot`
-
-### 1.2 `ChatShare` 字段
-
-- [x] `id`
-- [x] `publicId`
-- [x] `sourceThreadId`
-- [x] `scopeType`
-- [x] `status`
-- [x] `snapshotId`
-- [x] `createdAt`
-- [x] `revokedAt`
-
-### 1.3 `ChatShareSnapshot` 字段
-
-- [x] `id`
-- [x] `shareId`
-- [x] `payloadFormat`
-- [x] `payloadVersion`
-- [x] `payloadJson`
-- [x] `messageCount`
-- [x] `startSeq`
-- [x] `endSeq`
-- [x] `createdAt`
-
-### 1.4 第一版状态和范围约束
-
-- [x] `ChatShare.status` 仅支持 `active | revoked`
-- [x] `ChatShare.scopeType` 第一版固定 `thread`
-- [x] 第一版每个 thread 最多一个 active share
-- [x] 第一版仅允许对 **没有 active run** 的 thread 创建 share
-
-### 1.5 为未来预留的扩展点
-
-- [x] 保留 `scopeType` 以支持未来 `segment-level share`
-- [x] `payloadFormat/payloadVersion` 支持未来 payload 演进
-- [x] `startSeq/endSeq` 为未来 message-range / segment-range 预留
-
-## 2. Snapshot Payload 设计
-
-### 2.1 payload 形态选择
-
-- [x] 明确第一版存 **share-safe raw message snapshot**
-- [x] 不直接存 `TranscriptBlock[]`
-- [x] 不直接存 `AnswerContainer[]`
-
-### 2.2 public payload 要求
-
-- [x] 不暴露原始 `threadId`
-- [x] 不暴露原始 `runId/messageId/partId/toolCallId`
-- [x] 使用 share-local synthetic ids 或 share-safe ids
-- [x] 过滤不应公开的 metadata / jsonValue
-- [x] 保留分享页真正需要的 `text / reasoning / tool-call / tool-result` 信息
-
-### 2.3 搜索数据
-
-- [x] snapshot payload 中包含分享页打开 search panel 所需的数据
-- [x] 分享页 search panel 不依赖 live thread timeline
-
-## 3. Core / Contracts / DB / App
-
-### 3.1 core types / repo
-
-- [x] 在 `packages/core` 新增 `ChatShare` type
-- [x] 在 `packages/core` 新增 `ChatShareSnapshot` type
-- [x] 新增 `ChatShareRepository`
-- [x] 新增 `ChatShareSnapshotRepository`
-
-### 3.2 db
-
-- [x] 在 `packages/db` 新增 share 相关 schema
-- [x] 支持按 `publicId` 查询 share
-- [x] 支持按 `threadId` 查询 active share
-- [x] snapshot row 保持 immutable
-
-### 3.3 contracts
-
-- [x] 新增 `ChatShareDto`
-- [x] 新增 `ChatShareSnapshotDto`
-- [x] 新增 public share read DTO
-- [x] 新增 create share response DTO
-- [x] 新增 revoke share response DTO
-- [x] 新增 thread current share state DTO
-
-### 3.4 app use-cases
-
-- [x] 新增 `createThreadSnapshotShare(...)`
-- [x] 新增 `getPublicShare(...)`
-- [x] 新增 `revokeShare(...)`
-- [x] 新增 `getCurrentThreadShare(...)`
-
-### 3.5 app 规则
-
-- [x] create share 时检查 thread 是否存在
-- [x] create share 时检查 thread 没有 active run
-- [x] create share 时构建 snapshot
-- [x] revoke 后 public read 返回明确错误语义
-
-## 4. HTTP / Route Interface
-
-### 4.1 内部管理接口
-
-- [x] `POST /api/threads/:threadId/shares`
-- [x] `GET /api/threads/:threadId/shares/current`
-
-### 4.2 public 接口
-
-- [x] `GET /api/shares/:publicId`
-- [x] `POST /api/shares/:publicId/revoke`
-
-### 4.3 路由要求
-
-- [x] public read 只接受 `publicId`
-- [x] 不存在 share 返回 404
-- [x] revoked share 返回明确错误（例如 410）
-- [x] active run 场景创建 share 返回 409
-
-## 5. Vite 前端分层
-
-### 5.1 schema
-
-- [x] 新增 `schema/share-snapshot.ts`
-- [x] 解析 public share payload
-- [x] 校验 share-local ids / search bundle / snapshot meta
-
-### 5.2 repo
-
-- [x] 新增 `repo/share-api.ts`
-- [x] `createThreadSnapshotShare(threadId)`
-- [x] `fetchThreadSnapshotShare(publicId)`
-- [x] 如第一版需要，再补 `revokeThreadSnapshotShare(publicId)`
-- [x] 如第一版需要，再补 `fetchCurrentThreadShare(threadId)`
-
-### 5.3 service
-
-- [x] 定义 share 页专用 view-model build 逻辑
-- [x] 从 shared snapshot 构建 `ContentNode[]` 或 share-safe equivalent
-- [x] 复用 normal projector 生成 `TranscriptBlock[]`
-- [x] 复用 `buildAnswerContainers(...)`
-- [x] 组装 share-local search panel bundle
-
-### 5.4 runtime
-
-- [x] 新增 `use-share-dialog-state.ts`
-- [x] 新增 `use-shared-snapshot-runtime.ts`
-- [x] 分享弹窗状态机：`idle -> creating -> success | error`
-- [x] 只读分享页加载态 / 错误态 / 成功态
-
-### 5.5 ui
-
-- [x] `ChatHeader` 增加分享入口承载位
-- [x] 新增 `ShareDialog`
-- [x] 新增 `SharedSnapshotConsole`
-- [x] 新增 `/share/:publicId` 路由
-- [x] 分享页复用 `ChatMessageList`
-- [x] 分享页复用 `SearchResultsPanel`
-- [x] 分享页不显示 sidebar / composer / replay control bar
-
-## 6. 模型复用规则
-
-### 6.1 应复用
-
-- [x] `ContentNode` 作为共享内容来源概念
-- [x] `TranscriptBlock`
-- [x] `AnswerContainer`
-- [x] `ChatMessageList`
-- [x] `SearchResultsPanel`
-
-### 6.2 不应直接复用
-
-- [x] `ReplayStep`
-- [x] `ReplaySession`
-- [x] `LiveAssistantDraft`
-- [x] `useDurableChatRuntime`
-- [x] 直接面向 live thread 的 `chat-api.fetchThreadMessages`
-
-## 7. “继续聊” 边界
-
-### 7.1 第一版默认策略
-
-- [x] 第一版分享页先只读
-- [x] 不实现真实“继续聊”
-
-### 7.2 若必须保留 CTA
-
-- [x] 只允许定义为 future fork 能力
-- [x] 不允许回到原 thread 继续写
-- [x] 不允许前端本地伪造 live thread 恢复
-
-## 8. 测试计划
-
-### 8.1 db / app / contracts
-
-- [x] db：`publicId` 唯一性
-- [x] db：active share by thread 查询
-- [x] db：snapshot immutable
-- [x] app：active run 时创建 share 失败
-- [x] app：revoke 后 public read 失败
-- [x] contracts：public DTO 不泄露内部 ids
-
-### 8.2 Vite schema / repo
-
-- [x] schema：share payload 解析测试
-- [x] repo：create share 成功/失败/abort
-- [x] repo：fetch public share 成功/404/revoked
-
-### 8.3 Vite service / runtime / ui
-
-- [x] service：shared snapshot -> transcript blocks
-- [x] service：shared snapshot -> answer containers
-- [x] service：search panel bundle build
-- [x] runtime：share dialog create flow
-- [x] runtime：shared page load / error / retry
-- [x] ui：只读分享页渲染
-- [x] ui：点击 search label 打开右侧 panel
-
-## 9. 推荐执行顺序
-
-### 第一轮：先定数据库与 contracts
-
-- [x] core types
-- [x] db schema
-- [x] contracts DTO
-- [x] app use-cases
-- [x] server routes
-
-### 第二轮：前端边界层
-
-- [x] share schema
-- [x] share repo api
-- [x] shared snapshot service
-
-### 第三轮：分享页
-
-- [x] `/share/:publicId`
-- [x] `SharedSnapshotConsole`
-- [x] 只读 transcript
-- [x] search panel
-
-### 第四轮：分享弹窗
-
-- [x] header 入口
-- [x] `ShareDialog`
-- [x] create + copy
-- [x] current share state / revoke（若第一版要做）
+# Thread Management Todo
+
+## 0. Context and Boundary
+
+### 0.1 Confirmed facts
+- [x] This task starts from thread item actions in the sidebar: rename, pin, share, delete.
+- [x] Share already exists as an infra capability and should be reused rather than redesigned.
+- [x] Thread rename should overwrite `thread.title` directly; v1 does not need separate auto-title vs custom-title fields.
+- [x] Thread delete should be modeled as soft delete.
+- [x] The repository already has thread lifecycle concepts that should be checked before adding new delete fields.
+- [x] Deleting the active thread should navigate to `/new`.
+- [x] UI work should prefer shadcn/ui primitives for menu, dialog, and destructive confirmations.
+- [x] The current infra boundary discussion indicates `rename`, `archive`, and `share` belong in infra; `pin` should not yet become thread-level infra truth.
+- [x] Multiple pinned threads are allowed as a product requirement, but pin is currently better treated as a consumer-level preference, not a `Thread` model field.
+- [x] Existing shares should remain accessible after a thread is soft-deleted; delete should not auto-revoke share.
+
+### 0.2 Goals
+- [ ] Add infra-backed thread rename capability.
+- [ ] Add infra-backed thread archive capability using the existing thread lifecycle model rather than inventing a second delete model.
+- [ ] Reuse the existing share flow from thread actions.
+- [ ] Expose a sidebar thread actions menu in Vite for rename, share, archive, and pin.
+- [ ] Implement pin as a Vite-side list preference only, without changing infra thread truth.
+- [ ] Ensure deleting the active thread transitions the app to `/new`.
+
+### 0.3 Non-goals
+- [x] Do not introduce a new global `pinnedAt` / `isPinned` field on `Thread` in infra for this task.
+- [x] Do not build a per-user preference model in infra as part of this task.
+- [x] Do not add segment-level share.
+- [x] Do not add hard delete, trash, undo delete, or restore flows.
+- [x] Do not redesign the full sidebar architecture.
+- [x] Do not build a new share system; reuse the existing snapshot share model.
+
+## 1. Definitions First
+
+### 1.1 Source of Truth
+- [x] Verify and align with existing thread lifecycle truth in infra before changing delete semantics.
+- [x] Verify whether `Thread.status` and `archivedAt` already cover the needed archive model end-to-end.
+- [ ] Decide whether this task needs a follow-up source-of-truth doc for thread lifecycle / thread management after the implementation stabilizes.
+- [x] Keep `docs/source-of-truth/share-model.md` as the only long-lived truth for share behavior; do not duplicate share semantics here.
+
+### 1.2 Data model
+- [x] Confirm the current `Thread` durable shape in `core` / `db` and document the exact fields reused for archive.
+- [x] Reuse `thread.title` for rename with no additional title fields.
+- [x] Reuse existing archive lifecycle fields instead of adding `deletedAt` / `isDeleted` if current infra already supports archived threads.
+- [ ] Define a Vite-local persistence model for pinned thread ids and ordering semantics.
+- [ ] Confirm pin sorting semantics in Vite: pinned first, pinned ordered by latest pin action first, then normal threads by existing list order.
+
+### 1.3 Types / Interfaces
+- [x] Add or update core/app interfaces for `renameThread`.
+- [x] Add or update core/app interfaces for `archiveThread`.
+- [x] Add or update contracts/DTOs for rename and archive responses.
+- [ ] Add or update Vite repo interfaces for rename/archive/share actions.
+- [ ] Define Vite-local types for pinned thread preferences and pin-aware list projection.
+
+## 2. Backend / Platform
+
+### 2.1 core
+- [x] Add thread management use-case surface for rename.
+- [x] Add thread management use-case surface for archive.
+- [x] Avoid adding thread-level pin truth to core.
+
+### 2.2 contracts
+- [x] Add request/response contracts for rename thread.
+- [x] Add request/response contracts for archive thread.
+- [x] Reuse existing share contracts for the share action entrypoint.
+
+### 2.3 db
+- [x] Confirm whether existing thread persistence already supports archive filtering and archive timestamps.
+- [x] Implement repository rename behavior.
+- [x] Implement repository archive behavior.
+- [x] Ensure archived threads are excluded from normal thread list reads.
+
+### 2.4 app
+- [x] Add app-layer rename thread flow.
+- [x] Add app-layer archive thread flow.
+- [x] Preserve share lifecycle independence from thread archive.
+
+### 2.5 routes
+- [x] Add route to rename a thread.
+- [x] Add route to archive a thread.
+- [x] Reuse current share routes from the thread actions flow rather than adding parallel share APIs.
+
+## 3. Frontend Boundary
+
+### 3.1 schema
+- [ ] Add parsers/validators for rename/archive route payloads if needed.
+- [ ] Keep pin state parsing local to Vite-side preference storage.
+
+### 3.2 repo
+- [ ] Add Vite repo functions for rename thread.
+- [ ] Add Vite repo functions for archive thread.
+- [ ] Reuse the existing share repo facade for thread share actions.
+- [ ] Add a Vite repo/storage facade for pin preference persistence.
+
+### 3.3 service
+- [ ] Add service logic for thread list projection with pinned-first sorting.
+- [ ] Keep pin ordering rules in service-level pure logic with focused tests.
+- [ ] Ensure archived threads disappear from projected visible thread lists.
+
+### 3.4 runtime
+- [ ] Add thread action runtime state for open/close menus.
+- [ ] Add rename flow state and optimistic/local refresh behavior.
+- [ ] Add archive flow state and active-thread redirect to `/new`.
+- [ ] Add share action wiring that opens the existing share dialog.
+- [ ] Add pin/unpin runtime wiring backed by Vite-local preferences.
+
+### 3.5 ui
+- [ ] Add a thread actions menu to thread list items using shadcn-style primitives.
+- [ ] Add rename UI using shadcn-style input/dialog patterns.
+- [ ] Add archive confirmation using shadcn-style destructive confirmation patterns.
+- [ ] Add share menu item that launches the existing share dialog.
+- [ ] Add pin/unpin menu item and pinned list presentation without exposing infra-level pin semantics.
+
+## 4. Tests
+
+### 4.1 backend / platform tests
+- [x] Add rename thread app/repository tests.
+- [x] Add archive thread app/repository tests.
+- [x] Add route tests for rename.
+- [x] Add route tests for archive.
+- [x] Add tests proving archive does not revoke existing shares.
+
+### 4.2 frontend repo/service tests
+- [ ] Add tests for pin preference persistence.
+- [ ] Add tests for pinned-first sorting and latest-pin-first order.
+- [ ] Add tests for archived thread omission from visible lists.
+- [ ] Add tests for share action integration with existing share state.
+
+### 4.3 frontend runtime/ui tests
+- [ ] Add tests for thread actions menu visibility and commands.
+- [ ] Add tests for rename success/failure states.
+- [ ] Add tests for archive confirmation and redirect to `/new` when active thread is archived.
+- [ ] Add tests for share action opening the existing share dialog.
+- [ ] Add tests for pin/unpin interaction and reordered list rendering.
+
+## 5. Recommended Execution Order
+
+### Loop 1
+- [x] Confirm current infra thread lifecycle fields and archive semantics.
+- [x] Implement infra rename and archive surfaces in core/contracts/db/app/routes.
+- [x] Add focused backend tests.
+
+### Loop 2
+- [ ] Implement Vite repo/schema wiring for rename/archive/share.
+- [ ] Implement pin preference storage and service-level sorting rules.
+- [ ] Add focused repo/service tests.
+
+### Loop 3
+- [ ] Implement sidebar thread actions runtime and UI with shadcn-style primitives.
+- [ ] Wire rename, archive, share, and pin actions.
+- [ ] Add focused runtime/UI tests.
+
+### Loop 4
+- [ ] Verify end-to-end behavior manually in the Vite app.
+- [ ] Run targeted review and clean up any source-of-truth promotions if thread lifecycle rules became stable enough for a long-lived doc.
