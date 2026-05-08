@@ -1,4 +1,5 @@
 import clsx from 'clsx';
+import type { ReactNode } from 'react';
 import { PanelLeftOpen } from 'lucide-react';
 
 import { ChatAvatar, IconButton } from './shared';
@@ -8,9 +9,10 @@ type ChatHeaderProps = {
   currentThreadTitle: string;
   sidebarOpen: boolean;
   onOpenSidebar: () => void;
+  trailingContent?: ReactNode;
 };
 
-export function ChatHeader({ currentThreadTitle, sidebarOpen, onOpenSidebar }: ChatHeaderProps) {
+export function ChatHeader({ currentThreadTitle, sidebarOpen, onOpenSidebar, trailingContent }: ChatHeaderProps) {
   return (
     <header className="z-[11] flex h-10 min-h-10 max-h-10 items-center justify-between border-b border-[color:var(--chat-reasoning-divider)] px-2">
       <div className="flex min-w-0 items-center gap-3">
@@ -22,6 +24,7 @@ export function ChatHeader({ currentThreadTitle, sidebarOpen, onOpenSidebar }: C
           <div className={clsx(ui.chatHeaderTitle)}>{currentThreadTitle}</div>
         </div>
       </div>
+      {trailingContent ? <div className="flex shrink-0 items-center gap-1">{trailingContent}</div> : null}
     </header>
   );
 }

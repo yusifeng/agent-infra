@@ -23,23 +23,23 @@
 ### 0.2 第一版目标
 
 - [x] 创建 thread-level share
-- [ ] 生成独立 `shareId`
-- [ ] 持久化 immutable snapshot
+- [x] 生成独立 `shareId`
+- [x] 持久化 immutable snapshot
 - [x] 提供 public read API
 - [x] 提供 revoke share API
-- [ ] Vite 中实现分享弹窗
-- [ ] Vite 中实现 `/share/:shareId` 只读页
-- [ ] 分享页可打开搜索结果侧栏
+- [x] Vite 中实现分享弹窗
+- [x] Vite 中实现 `/share/:shareId` 只读页
+- [x] 分享页可打开搜索结果侧栏
 
 ### 0.3 非目标
 
-- [ ] 不公开原始 `threadId`
-- [ ] 不公开 live run / live thread 状态
-- [ ] 不做 segment-level share
-- [ ] 不做 replay share
-- [ ] 不做“继续聊”真实 fork 能力
-- [ ] 不把 `TranscriptBlock` / `AnswerContainer` 直接持久化到 infra
-- [ ] 不要求分享页与 normal chat 的 runtime 完全统一
+- [x] 不公开原始 `threadId`
+- [x] 不公开 live run / live thread 状态
+- [x] 不做 segment-level share
+- [x] 不做 replay share
+- [x] 不做“继续聊”真实 fork 能力
+- [x] 不把 `TranscriptBlock` / `AnswerContainer` 直接持久化到 infra
+- [x] 不要求分享页与 normal chat 的 runtime 完全统一
 
 ## 1. 数据模型优先
 
@@ -189,62 +189,62 @@
 
 ### 5.4 runtime
 
-- [ ] 新增 `use-share-dialog-state.ts`
-- [ ] 新增 `use-shared-snapshot-runtime.ts`
-- [ ] 分享弹窗状态机：`idle -> creating -> success | error`
-- [ ] 只读分享页加载态 / 错误态 / 成功态
+- [x] 新增 `use-share-dialog-state.ts`
+- [x] 新增 `use-shared-snapshot-runtime.ts`
+- [x] 分享弹窗状态机：`idle -> creating -> success | error`
+- [x] 只读分享页加载态 / 错误态 / 成功态
 
 ### 5.5 ui
 
-- [ ] `ChatHeader` 增加分享入口承载位
-- [ ] 新增 `ShareDialog`
-- [ ] 新增 `SharedSnapshotConsole`
-- [ ] 新增 `/share/:publicId` 路由
-- [ ] 分享页复用 `ChatMessageList`
-- [ ] 分享页复用 `SearchResultsPanel`
-- [ ] 分享页不显示 sidebar / composer / replay control bar
+- [x] `ChatHeader` 增加分享入口承载位
+- [x] 新增 `ShareDialog`
+- [x] 新增 `SharedSnapshotConsole`
+- [x] 新增 `/share/:publicId` 路由
+- [x] 分享页复用 `ChatMessageList`
+- [x] 分享页复用 `SearchResultsPanel`
+- [x] 分享页不显示 sidebar / composer / replay control bar
 
 ## 6. 模型复用规则
 
 ### 6.1 应复用
 
-- [ ] `ContentNode` 作为共享内容来源概念
-- [ ] `TranscriptBlock`
-- [ ] `AnswerContainer`
-- [ ] `ChatMessageList`
-- [ ] `SearchResultsPanel`
+- [x] `ContentNode` 作为共享内容来源概念
+- [x] `TranscriptBlock`
+- [x] `AnswerContainer`
+- [x] `ChatMessageList`
+- [x] `SearchResultsPanel`
 
 ### 6.2 不应直接复用
 
-- [ ] `ReplayStep`
-- [ ] `ReplaySession`
-- [ ] `LiveAssistantDraft`
-- [ ] `useDurableChatRuntime`
-- [ ] 直接面向 live thread 的 `chat-api.fetchThreadMessages`
+- [x] `ReplayStep`
+- [x] `ReplaySession`
+- [x] `LiveAssistantDraft`
+- [x] `useDurableChatRuntime`
+- [x] 直接面向 live thread 的 `chat-api.fetchThreadMessages`
 
 ## 7. “继续聊” 边界
 
 ### 7.1 第一版默认策略
 
-- [ ] 第一版分享页先只读
-- [ ] 不实现真实“继续聊”
+- [x] 第一版分享页先只读
+- [x] 不实现真实“继续聊”
 
 ### 7.2 若必须保留 CTA
 
-- [ ] 只允许定义为 future fork 能力
-- [ ] 不允许回到原 thread 继续写
-- [ ] 不允许前端本地伪造 live thread 恢复
+- [x] 只允许定义为 future fork 能力
+- [x] 不允许回到原 thread 继续写
+- [x] 不允许前端本地伪造 live thread 恢复
 
 ## 8. 测试计划
 
 ### 8.1 db / app / contracts
 
-- [ ] db：`publicId` 唯一性
-- [ ] db：active share by thread 查询
-- [ ] db：snapshot immutable
+- [x] db：`publicId` 唯一性
+- [x] db：active share by thread 查询
+- [x] db：snapshot immutable
 - [x] app：active run 时创建 share 失败
 - [x] app：revoke 后 public read 失败
-- [ ] contracts：public DTO 不泄露内部 ids
+- [x] contracts：public DTO 不泄露内部 ids
 
 ### 8.2 Vite schema / repo
 
@@ -257,37 +257,37 @@
 - [x] service：shared snapshot -> transcript blocks
 - [x] service：shared snapshot -> answer containers
 - [x] service：search panel bundle build
-- [ ] runtime：share dialog create flow
-- [ ] runtime：shared page load / error / retry
-- [ ] ui：只读分享页渲染
-- [ ] ui：点击 search label 打开右侧 panel
+- [x] runtime：share dialog create flow
+- [x] runtime：shared page load / error / retry
+- [x] ui：只读分享页渲染
+- [x] ui：点击 search label 打开右侧 panel
 
 ## 9. 推荐执行顺序
 
 ### 第一轮：先定数据库与 contracts
 
 - [x] core types
-- [ ] db schema
+- [x] db schema
 - [x] contracts DTO
-- [ ] app use-cases
-- [ ] server routes
+- [x] app use-cases
+- [x] server routes
 
 ### 第二轮：前端边界层
 
-- [ ] share schema
-- [ ] share repo api
-- [ ] shared snapshot service
+- [x] share schema
+- [x] share repo api
+- [x] shared snapshot service
 
 ### 第三轮：分享页
 
-- [ ] `/share/:publicId`
-- [ ] `SharedSnapshotConsole`
-- [ ] 只读 transcript
-- [ ] search panel
+- [x] `/share/:publicId`
+- [x] `SharedSnapshotConsole`
+- [x] 只读 transcript
+- [x] search panel
 
 ### 第四轮：分享弹窗
 
-- [ ] header 入口
-- [ ] `ShareDialog`
-- [ ] create + copy
-- [ ] current share state / revoke（若第一版要做）
+- [x] header 入口
+- [x] `ShareDialog`
+- [x] create + copy
+- [x] current share state / revoke（若第一版要做）

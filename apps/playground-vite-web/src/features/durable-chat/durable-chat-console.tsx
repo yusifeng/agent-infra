@@ -1,12 +1,16 @@
 import clsx from 'clsx';
+import { Share2 } from 'lucide-react';
 
 import { ChatHeader } from './components/chat-header';
 import { ComposerDock } from './components/composer-dock';
+import { ShareDialog } from './components/share-dialog';
+import { IconButton } from './components/shared';
 import { ChatMessageList } from './components/message-list';
 import { SearchResultsPanel } from './components/search-results-panel';
 import { ChatSidebar } from './components/sidebar';
 import { ui } from './components/ui';
 import { useDurableChatRuntime } from './runtime/use-durable-chat-runtime';
+import { useShareDialogState } from './runtime/use-share-dialog-state';
 
 export function DurableChatConsole({ initialThreadId }: { initialThreadId: string | null }) {
   const runtime = useDurableChatRuntime({ initialThreadId });
@@ -57,6 +61,10 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
     onScrollToBottom,
     showResponseLoading
   } = runtime;
+  const shareDialog = useShareDialogState({
+    activeThreadId,
+    enabled: Boolean(activeThreadId) && !isChatResponding && displayedMessages.length > 0
+  });
   const showLoadingText =
     showResponseLoading &&
     liveAssistantDraft !== null &&
@@ -83,6 +91,11 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
             currentThreadTitle={currentThreadTitle}
             sidebarOpen={sidebarOpen}
             onOpenSidebar={onOpenSidebar}
+            trailingContent={
+              shareDialog.canOpen ? (
+                <IconButton icon={Share2} onClick={shareDialog.onOpen} size="small" title="分享对话" />
+              ) : null
+            }
           />
 
           <div className={clsx('flex min-h-0 flex-1 flex-col overflow-hidden', centeredEmptyState && 'justify-center')}>
@@ -147,6 +160,19 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
           onClose={onCloseSearchPanel}
         />
       </div>
+
+      <ShareDialog
+        open={shareDialog.open}
+        loadingCurrentShare={shareDialog.loadingCurrentShare}
+        creatingShare={shareDialog.creatingShare}
+        revokingShare={shareDialog.revokingShare}
+        copied={shareDialog.copied}
+        error={shareDialog.error}
+        shareUrl={shareDialog.shareUrl}
+        onClose={shareDialog.onClose}
+        onCreateOrCopy={shareDialog.onCreateOrCopy}
+        onRevoke={shareDialog.onRevoke}
+      />
     </main>
   );
 }
