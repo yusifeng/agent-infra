@@ -1,6 +1,15 @@
+import { buildAnswerContainers } from '@/features/durable-chat/service/build-answer-containers';
 import type { MessageDto, MessagePartDto } from '@agent-infra/contracts';
 
-import type { ReplayControlState, ReplayCursor, ReplaySession, ReplayStep, ReplayTextStep, ReplayViewState } from '@/features/durable-chat/types/replay';
+import type {
+  ReplayControlState,
+  ReplayCursor,
+  ReplayPresentation,
+  ReplaySession,
+  ReplayStep,
+  ReplayTextStep,
+  ReplayViewState
+} from '@/features/durable-chat/types/replay';
 import type { AssistantTurnItem, SearchStatusBlock, SearchSummaryBlock, TranscriptBlock } from '@/features/durable-chat/types/transcript-blocks';
 
 function createReplayPart(step: ReplayTextStep): MessagePartDto {
@@ -187,9 +196,12 @@ export function buildReplayViewState(session: ReplaySession | null, cursor: Repl
   };
 }
 
-export function buildReplayPresentation(session: ReplaySession | null, cursor: ReplayCursor) {
+export function buildReplayPresentation(session: ReplaySession | null, cursor: ReplayCursor): ReplayPresentation {
+  const transcriptBlocks = session ? buildReplayTranscriptBlocks(session, cursor) : [];
+
   return {
-    transcriptBlocks: session ? buildReplayTranscriptBlocks(session, cursor) : [],
+    transcriptBlocks,
+    answerContainers: buildAnswerContainers(transcriptBlocks),
     controlState: buildReplayControlState(session, cursor),
     viewState: buildReplayViewState(session, cursor)
   };

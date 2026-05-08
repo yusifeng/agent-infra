@@ -22,7 +22,7 @@
 - [x] 在前端显式补出 `AnswerContainer` 概念。
 - [x] 让 operation 的宿主从“当前实现切出来的 block”提升到更稳定的回答宿主层。
 - [x] 让 `action host` 和 `action payload scope` 解耦。
-- [ ] 先在 normal chat 中收正概念，再让 replay 复用，而不是各自发明规则。
+- [x] 先在 normal chat 中收正概念，再让 replay 复用，而不是各自发明规则。
 
 ### 0.3 非目标
 
@@ -152,19 +152,19 @@
 
 ### 5.1 replay 的前提
 
-- [ ] replay 不单独定义另一套 operation host 语义
-- [ ] replay 尽量复用 normal chat 的 `AnswerContainer` 概念
+- [x] replay 不单独定义另一套 operation host 语义
+- [x] replay 尽量复用 normal chat 的 `AnswerContainer` 概念
 
 ### 5.2 replay 改造目标
 
-- [ ] replay 不再简单执行 `ReplayStep -> TranscriptBlock`
-- [ ] replay 最终应产出可映射到 `AnswerContainer[]` 的展示结构
-- [ ] replay 中 operation 的宿主与 normal chat 保持一致
+- [x] replay 不再简单执行 `ReplayStep -> TranscriptBlock`
+- [x] replay 最终应产出可映射到 `AnswerContainer[]` 的展示结构
+- [x] replay 中 operation 的宿主与 normal chat 保持一致
 
 ### 5.3 replay 非目标
 
-- [ ] 不要求 replay 第一轮就彻底重写 step 模型
-- [ ] 不在这一轮同时优化 fake loading 的所有细节
+- [x] 不要求 replay 第一轮就彻底重写 step 模型
+- [x] 不在这一轮同时优化 fake loading 的所有细节
 
 ## 6. 测试计划
 
@@ -174,7 +174,7 @@
 - [ ] 覆盖：
   - [x] 单个 assistant block -> 单个 container
   - [x] 多个相关 block -> 一个 container
-  - [ ] search-only block 不单独成为操作宿主
+  - [x] search-only block 不单独成为操作宿主
 - [x] 为 `build-answer-container-actions.ts` 写纯函数测试
 - [x] 验证 operation visibility 和 action payload scope 派生正确
 
@@ -182,12 +182,12 @@
 
 - [x] normal chat 页面中 operation 挂在 `AnswerContainer` 下，而不是中间 block 下
 - [x] `text | search-label | text` 结构只出现一套 operation
-- [ ] search-only container 不显示 operation
+- [x] search-only container 不显示 operation
 
 ### 6.3 replay tests
 
-- [ ] 在 normal chat 收正后，为 replay 增加 container-level 测试
-- [ ] 验证 replay 中间节点不会各自冒出一套 operation
+- [x] 在 normal chat 收正后，为 replay 增加 container-level 测试
+- [x] 验证 replay 中间节点不会各自冒出一套 operation
 
 ## 7. 推荐执行顺序
 
@@ -211,6 +211,6 @@
 
 ### 第四轮：迁 replay
 
-- [ ] 让 replay 复用 `AnswerContainer` 概念
-- [ ] 调整 replay operation host
-- [ ] 跑 replay focused tests / typecheck / review
+- [x] 让 replay 复用 `AnswerContainer` 概念
+- [x] 调整 replay operation host
+- [x] 跑 replay focused tests / typecheck / review

@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ReplayConsole } from '@/features/durable-chat/replay-console';
+import type { AnswerContainer } from '@/features/durable-chat/types/answer-containers';
 import type { TranscriptBlock } from '@/features/durable-chat/types/transcript-blocks';
 
 const replayConsoleRuntimeMocks = vi.hoisted(() => ({
@@ -42,11 +43,13 @@ function createMessage(overrides: Partial<MessageDto> & Pick<MessageDto, 'id' | 
 function createReplayRuntime({
   messages,
   transcriptBlocks,
+  answerContainers = [],
   viewStatus = 'playing',
   onOpenSearchResult = vi.fn()
 }: {
   messages: MessageDto[];
   transcriptBlocks: TranscriptBlock[];
+  answerContainers?: AnswerContainer[];
   viewStatus?: 'idle' | 'playing' | 'paused' | 'completed';
   onOpenSearchResult?: ReturnType<typeof vi.fn>;
 }) {
@@ -58,6 +61,7 @@ function createReplayRuntime({
     loading: false,
     error: null,
     messagesViewportRef: { current: null },
+    answerContainers,
     transcriptBlocks,
     sourceMessages: messages,
     controlState: {
@@ -106,6 +110,72 @@ describe('ReplayConsole', () => {
     replayConsoleRuntimeMocks.useReplayConsoleRuntime.mockReturnValue(
       createReplayRuntime({
         messages: [assistantMessage],
+        answerContainers: [
+          {
+            id: 'answer-container:run-1:assistant-turn-1',
+            kind: 'assistant-answer',
+            runId: 'run-1',
+            transcriptBlockIds: ['assistant-turn-1', 'assistant-turn-1:search', 'assistant-turn-1:text-2'],
+            blocks: [
+              {
+                type: 'assistant-turn',
+                id: 'assistant-turn-1',
+                runId: 'run-1',
+                sourceMessages: [assistantMessage],
+                items: [
+                  {
+                    type: 'text',
+                    id: 'assistant-turn-1:text-1',
+                    cacheKey: 'assistant-turn-1:text-1',
+                    part: assistantMessage.parts[0]!
+                  }
+                ]
+              },
+              {
+                type: 'assistant-turn',
+                id: 'assistant-turn-1:search',
+                runId: 'run-1',
+                sourceMessages: [assistantMessage],
+                items: [
+                  {
+                    type: 'search-summary',
+                    id: 'assistant-turn-1:search-summary',
+                    summary: {
+                      runId: 'run-1',
+                      entries: [
+                        {
+                          toolCallId: 'call-1',
+                          query: 'Claude latest news',
+                          resultCount: 10,
+                          sourceNames: ['The Verge', 'WSJ'],
+                          sources: [
+                            { sourceName: 'The Verge', hostname: 'theverge.com' },
+                            { sourceName: 'WSJ', hostname: 'wsj.com' }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                type: 'assistant-turn',
+                id: 'assistant-turn-1:text-2',
+                runId: 'run-1',
+                sourceMessages: [assistantMessage],
+                items: [
+                  {
+                    type: 'text',
+                    id: 'assistant-turn-1:text-2:item',
+                    cacheKey: 'assistant-turn-1:text-2',
+                    part: assistantMessage.parts[1]!
+                  }
+                ]
+              }
+            ],
+            actionHostId: 'answer-container:run-1:assistant-turn-1'
+          }
+        ],
         transcriptBlocks: [
           {
             type: 'assistant-turn',
@@ -177,6 +247,7 @@ describe('ReplayConsole', () => {
       transcriptText.indexOf('以下是关于 Claude 的最新新闻摘要：')
     );
     expect(screen.getByText(/3 \/ 3 · playing/)).toBeTruthy();
+    expect(document.querySelectorAll('[data-message-actions-available="true"]')).toHaveLength(1);
 
     fireEvent.click(screen.getByRole('button', { name: /已阅读 10 个网页/ }));
 

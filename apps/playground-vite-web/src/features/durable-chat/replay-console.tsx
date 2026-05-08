@@ -23,6 +23,7 @@ export function ReplayConsole({ initialThreadId }: { initialThreadId: string | n
     loading,
     error,
     messagesViewportRef,
+    answerContainers,
     transcriptBlocks,
     sourceMessages,
     controlState,
@@ -73,6 +74,7 @@ export function ReplayConsole({ initialThreadId }: { initialThreadId: string | n
                 loadingMessages={loading}
                 activeThreadId={activeThreadId}
                 messages={sourceMessages}
+                answerContainers={answerContainers}
                 transcriptBlocks={transcriptBlocks}
                 liveAssistantDraft={null}
                 showLoadingText={false}

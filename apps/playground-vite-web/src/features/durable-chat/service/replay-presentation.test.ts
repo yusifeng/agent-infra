@@ -95,6 +95,11 @@ describe('buildReplayPresentation', () => {
       type: 'assistant-turn',
       items: [{ type: 'search-summary' }]
     });
+    expect(presentation.answerContainers).toHaveLength(1);
+    expect(presentation.answerContainers[0]).toMatchObject({
+      runId: 'run-1',
+      transcriptBlockIds: ['replay-assistant:text-1', 'replay-assistant:summary-1']
+    });
   });
 
   it('hides completed search loading nodes once the matching summary is visible', () => {
@@ -121,6 +126,12 @@ describe('buildReplayPresentation', () => {
       type: 'assistant-turn',
       items: [{ type: 'search-status' }]
     });
+    expect(presentation.answerContainers).toHaveLength(1);
+    expect(presentation.answerContainers[0]?.transcriptBlockIds).toEqual([
+      'replay-assistant:text-1',
+      'replay-assistant:summary-1',
+      'replay-assistant:loading-2'
+    ]);
   });
 
   it('derives control state and progress from the cursor', () => {

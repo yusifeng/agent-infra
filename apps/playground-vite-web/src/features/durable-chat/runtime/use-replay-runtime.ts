@@ -144,6 +144,7 @@ export function useReplayRuntime({ session }: { session: ReplaySession | null })
 
   return {
     cursor,
+    answerContainers: presentation.answerContainers,
     controlState: presentation.controlState,
     transcriptBlocks: presentation.transcriptBlocks,
     viewState: presentation.viewState,

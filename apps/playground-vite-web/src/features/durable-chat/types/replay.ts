@@ -1,4 +1,5 @@
 import type { TranscriptBlock } from '@/features/durable-chat/types/transcript-blocks';
+import type { AnswerContainer } from '@/features/durable-chat/types/answer-containers';
 
 export type ReplayRouteParams = {
   threadId: string;
@@ -89,4 +90,11 @@ export type ReplayViewState = {
   currentStepIndex: number;
   totalSteps: number;
   progressLabel: string;
+};
+
+export type ReplayPresentation = {
+  transcriptBlocks: TranscriptBlock[];
+  answerContainers: AnswerContainer[];
+  controlState: ReplayControlState;
+  viewState: ReplayViewState;
 };

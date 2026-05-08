@@ -118,6 +118,7 @@ export function useReplayConsoleRuntime({ initialThreadId }: { initialThreadId: 
     loading,
     error,
     messagesViewportRef,
+    answerContainers: replayRuntime.answerContainers,
     transcriptBlocks: replayRuntime.transcriptBlocks,
     sourceMessages,
     controlState: replayRuntime.controlState,
