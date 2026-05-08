@@ -22,11 +22,11 @@
 
 ### 0.2 第一版目标
 
-- [ ] 创建 thread-level share
+- [x] 创建 thread-level share
 - [ ] 生成独立 `shareId`
 - [ ] 持久化 immutable snapshot
-- [ ] 提供 public read API
-- [ ] 提供 revoke share API
+- [x] 提供 public read API
+- [x] 提供 revoke share API
 - [ ] Vite 中实现分享弹窗
 - [ ] Vite 中实现 `/share/:shareId` 只读页
 - [ ] 分享页可打开搜索结果侧栏
@@ -148,20 +148,20 @@
 
 ### 4.1 内部管理接口
 
-- [ ] `POST /api/threads/:threadId/shares`
-- [ ] `GET /api/threads/:threadId/shares/current`
+- [x] `POST /api/threads/:threadId/shares`
+- [x] `GET /api/threads/:threadId/shares/current`
 
 ### 4.2 public 接口
 
-- [ ] `GET /api/shares/:publicId`
-- [ ] `POST /api/shares/:publicId/revoke`
+- [x] `GET /api/shares/:publicId`
+- [x] `POST /api/shares/:publicId/revoke`
 
 ### 4.3 路由要求
 
-- [ ] public read 只接受 `publicId`
-- [ ] 不存在 share 返回 404
-- [ ] revoked share 返回明确错误（例如 410）
-- [ ] active run 场景创建 share 返回 409
+- [x] public read 只接受 `publicId`
+- [x] 不存在 share 返回 404
+- [x] revoked share 返回明确错误（例如 410）
+- [x] active run 场景创建 share 返回 409
 
 ## 5. Vite 前端分层
 
@@ -242,8 +242,8 @@
 - [ ] db：`publicId` 唯一性
 - [ ] db：active share by thread 查询
 - [ ] db：snapshot immutable
-- [ ] app：active run 时创建 share 失败
-- [ ] app：revoke 后 public read 失败
+- [x] app：active run 时创建 share 失败
+- [x] app：revoke 后 public read 失败
 - [ ] contracts：public DTO 不泄露内部 ids
 
 ### 8.2 Vite schema / repo

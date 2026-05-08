@@ -160,11 +160,34 @@ async function createTestServer(options: {
 
     return {
       app: built.app,
+      appServices,
       tempDir
     };
   });
 
   return serverBundle;
+}
+
+async function createThread(server: Awaited<ReturnType<typeof createTestServer>>, title: string) {
+  const created = await server.app.inject({
+    method: 'POST',
+    url: '/api/threads',
+    payload: { title }
+  });
+
+  expect(created.statusCode).toBe(200);
+  return created.json().thread.id as string;
+}
+
+async function streamSuccessfulTurn(server: Awaited<ReturnType<typeof createTestServer>>, threadId: string, text: string) {
+  const stream = await server.app.inject({
+    method: 'POST',
+    url: `/api/threads/${threadId}/runs/stream`,
+    payload: { text }
+  });
+
+  expect(stream.statusCode).toBe(200);
+  return parseSsePayloads(stream.body);
 }
 
 const activeServers: Array<{ app: Awaited<ReturnType<typeof buildPlaygroundServer>>['app']; tempDir: string }> = [];
@@ -457,5 +480,130 @@ describe('playground-fastify-server', () => {
         process.env.TAVILY_API_KEY = previousTavilyApiKey;
       }
     }
+  });
+
+  it('creates a thread share and returns it as the current share', async () => {
+    const server = await createTestServer({});
+    activeServers.push(server);
+
+    const threadId = await createThread(server, 'Shareable Thread');
+    await streamSuccessfulTurn(server, threadId, 'hello');
+
+    const createdShare = await server.app.inject({
+      method: 'POST',
+      url: `/api/threads/${threadId}/shares`
+    });
+    expect(createdShare.statusCode).toBe(200);
+    expect(createdShare.headers['server-timing']).toContain('shares_create;dur=');
+
+    const createdBody = createdShare.json();
+    expect(createdBody.share).toMatchObject({
+      sourceThreadId: threadId,
+      scopeType: 'thread',
+      status: 'active'
+    });
+    expect(createdBody.share.publicId).toBeTruthy();
+
+    const currentShare = await server.app.inject({
+      method: 'GET',
+      url: `/api/threads/${threadId}/shares/current`
+    });
+    expect(currentShare.statusCode).toBe(200);
+    expect(currentShare.headers['server-timing']).toContain('shares_current;dur=');
+    expect(currentShare.json()).toEqual({
+      share: createdBody.share
+    });
+  });
+
+  it('returns a public thread snapshot for an active share', async () => {
+    const server = await createTestServer({});
+    activeServers.push(server);
+
+    const threadId = await createThread(server, 'Public Share Thread');
+    await streamSuccessfulTurn(server, threadId, 'hello');
+
+    const createdShare = await server.app.inject({
+      method: 'POST',
+      url: `/api/threads/${threadId}/shares`
+    });
+    const publicId = createdShare.json().share.publicId as string;
+
+    const publicShare = await server.app.inject({
+      method: 'GET',
+      url: `/api/shares/${publicId}`
+    });
+    expect(publicShare.statusCode).toBe(200);
+    expect(publicShare.headers['server-timing']).toContain('shares_public;dur=');
+    expect(publicShare.json()).toMatchObject({
+      share: {
+        publicId,
+        scopeType: 'thread',
+        status: 'active',
+        snapshot: {
+          payloadFormat: 'messages_v1',
+          payloadVersion: 1,
+          title: 'Public Share Thread'
+        }
+      }
+    });
+    expect(publicShare.json().share.snapshot.messages.map((message: { role: string }) => message.role)).toEqual([
+      'user',
+      'assistant'
+    ]);
+  });
+
+  it('revokes a share and makes subsequent public reads return 410', async () => {
+    const server = await createTestServer({});
+    activeServers.push(server);
+
+    const threadId = await createThread(server, 'Revokable Share Thread');
+    await streamSuccessfulTurn(server, threadId, 'hello');
+
+    const createdShare = await server.app.inject({
+      method: 'POST',
+      url: `/api/threads/${threadId}/shares`
+    });
+    const publicId = createdShare.json().share.publicId as string;
+
+    const revoked = await server.app.inject({
+      method: 'POST',
+      url: `/api/shares/${publicId}/revoke`
+    });
+    expect(revoked.statusCode).toBe(200);
+    expect(revoked.headers['server-timing']).toContain('shares_revoke;dur=');
+    expect(revoked.json().share).toMatchObject({
+      publicId,
+      status: 'revoked'
+    });
+
+    const publicShare = await server.app.inject({
+      method: 'GET',
+      url: `/api/shares/${publicId}`
+    });
+    expect(publicShare.statusCode).toBe(410);
+    expect(publicShare.json()).toMatchObject({
+      error: `chat share ${publicId} has been revoked`
+    });
+  });
+
+  it('rejects share creation when the thread has an active run', async () => {
+    const server = await createTestServer({});
+    activeServers.push(server);
+
+    const threadId = await createThread(server, 'Busy Share Thread');
+    const started = await server.appServices.app.turns.startText({
+      threadId,
+      text: 'hello'
+    });
+
+    const createdShare = await server.app.inject({
+      method: 'POST',
+      url: `/api/threads/${threadId}/shares`
+    });
+    expect(createdShare.statusCode).toBe(409);
+    expect(createdShare.json()).toMatchObject({
+      error: `thread ${threadId} has an active run`
+    });
+    await server.appServices.app.runs.getTimeline({ runId: started.run.id });
   });
 });

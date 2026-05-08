@@ -1,15 +1,22 @@
-import type { Message, MessagePart, Run, RunEvent, Thread, ToolInvocation } from '@agent-infra/core';
+import type { ChatShare, ChatShareSnapshot, Message, MessagePart, Run, RunEvent, Thread, ToolInvocation } from '@agent-infra/core';
 import type {
+  ChatShareDto,
+  ChatShareSnapshotDto,
   MessageDto,
   MessagePartDto,
+  PublicChatShareDto,
   RunDto,
   RunEventDto,
   RunEventSummaryDto,
   RuntimePiMetaDto,
+  SharedMessageDto,
+  SharedMessagePartDto,
+  SharedThreadSnapshotDto,
   ThreadDto,
   ToolInvocationDto,
   ToolInvocationSummaryDto
 } from '@agent-infra/contracts';
+import type { PublicChatShareResult, SharedThreadSnapshotPayload } from '@agent-infra/app';
 
 export type RuntimeMetaDtoInput = {
   dbMode: string;
@@ -145,5 +152,75 @@ export function toRuntimeMetaDto(input: RuntimeMetaDtoInput): RuntimePiMetaDto {
     defaultModelKey: input.defaultModelKey,
     modelOptions: input.modelOptions,
     runtimeConfigError: input.runtimeConfigError
+  };
+}
+
+export function toChatShareDto(share: ChatShare): ChatShareDto {
+  return {
+    id: share.id,
+    publicId: share.publicId,
+    sourceThreadId: share.sourceThreadId,
+    scopeType: share.scopeType,
+    status: share.status,
+    snapshotId: share.snapshotId,
+    createdAt: share.createdAt.toISOString(),
+    revokedAt: serializeDate(share.revokedAt)
+  };
+}
+
+export function toChatShareSnapshotDto(snapshot: ChatShareSnapshot): ChatShareSnapshotDto {
+  return {
+    id: snapshot.id,
+    shareId: snapshot.shareId,
+    payloadFormat: snapshot.payloadFormat,
+    payloadVersion: snapshot.payloadVersion,
+    payloadJson: snapshot.payloadJson ?? null,
+    messageCount: snapshot.messageCount,
+    startSeq: snapshot.startSeq ?? null,
+    endSeq: snapshot.endSeq ?? null,
+    createdAt: snapshot.createdAt.toISOString()
+  };
+}
+
+export function toSharedMessagePartDto(part: SharedThreadSnapshotPayload['messages'][number]['parts'][number]): SharedMessagePartDto {
+  return {
+    id: part.id,
+    messageId: part.messageId,
+    partIndex: part.partIndex,
+    type: part.type,
+    textValue: part.textValue ?? null,
+    jsonValue: part.jsonValue ?? null,
+    createdAt: part.createdAt
+  };
+}
+
+export function toSharedMessageDto(message: SharedThreadSnapshotPayload['messages'][number]): SharedMessageDto {
+  return {
+    id: message.id,
+    runId: message.runId ?? null,
+    role: message.role,
+    seq: message.seq,
+    createdAt: message.createdAt,
+    parts: message.parts.map(toSharedMessagePartDto)
+  };
+}
+
+export function toSharedThreadSnapshotDto(snapshot: SharedThreadSnapshotPayload): SharedThreadSnapshotDto {
+  return {
+    payloadFormat: snapshot.payloadFormat,
+    payloadVersion: snapshot.payloadVersion,
+    title: snapshot.title ?? null,
+    messages: snapshot.messages.map(toSharedMessageDto),
+    searchBundles: snapshot.searchBundles ?? null
+  };
+}
+
+export function toPublicChatShareDto(result: PublicChatShareResult): PublicChatShareDto {
+  return {
+    publicId: result.share.publicId,
+    scopeType: result.share.scopeType,
+    status: 'active',
+    createdAt: result.share.createdAt.toISOString(),
+    snapshot: toSharedThreadSnapshotDto(result.snapshot)
   };
 }

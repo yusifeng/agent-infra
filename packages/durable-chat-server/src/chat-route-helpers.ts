@@ -1,6 +1,9 @@
-import type { RunTextTurnResult, StartTextTurnResult } from '@agent-infra/app';
+import type { CreateThreadSnapshotShareResult, PublicChatShareResult, RunTextTurnResult, StartTextTurnResult } from '@agent-infra/app';
 import type { Message, MessagePageResult, MessagePart, Run, RunEvent, Thread, ToolInvocation } from '@agent-infra/core';
 import type {
+  CreateThreadShareResponseDto,
+  PublicChatShareResponseDto,
+  RevokeChatShareResponseDto,
   CreateThreadResponseDto,
   RunStreamAssistantEventDto,
   RunStreamCompletedEventDto,
@@ -12,6 +15,7 @@ import type {
   RunTextTurnRequestDto,
   RunTextTurnResponseDto,
   RuntimePiMetaDto,
+  ThreadShareStateResponseDto,
   ThreadMessagesResponseDto,
   ThreadMessagesPageInfoDto,
   ThreadRunsResponseDto,
@@ -19,7 +23,9 @@ import type {
 } from '@agent-infra/contracts';
 
 import {
+  toChatShareDto,
   toMessageDto,
+  toPublicChatShareDto,
   toRunDto,
   toRunEventDto,
   toRuntimeMetaDto,
@@ -75,6 +81,54 @@ export function buildCreateThreadResponse(thread: Thread): CreateThreadResponseD
 }
 
 export function buildCreateThreadErrorResponse(error: unknown, fallbackMessage: string): CreateThreadResponseDto {
+  return {
+    error: getRouteErrorMessage(error, fallbackMessage)
+  };
+}
+
+export function buildCreateThreadShareResponse(result: CreateThreadSnapshotShareResult): CreateThreadShareResponseDto {
+  return {
+    share: toChatShareDto(result.share)
+  };
+}
+
+export function buildCreateThreadShareErrorResponse(error: unknown, fallbackMessage: string): CreateThreadShareResponseDto {
+  return {
+    error: getRouteErrorMessage(error, fallbackMessage)
+  };
+}
+
+export function buildThreadShareStateResponse(share: Parameters<typeof toChatShareDto>[0] | null): ThreadShareStateResponseDto {
+  return {
+    share: share ? toChatShareDto(share) : null
+  };
+}
+
+export function buildThreadShareStateErrorResponse(error: unknown, fallbackMessage: string): ThreadShareStateResponseDto {
+  return {
+    error: getRouteErrorMessage(error, fallbackMessage)
+  };
+}
+
+export function buildPublicChatShareResponse(result: PublicChatShareResult): PublicChatShareResponseDto {
+  return {
+    share: toPublicChatShareDto(result)
+  };
+}
+
+export function buildPublicChatShareErrorResponse(error: unknown, fallbackMessage: string): PublicChatShareResponseDto {
+  return {
+    error: getRouteErrorMessage(error, fallbackMessage)
+  };
+}
+
+export function buildRevokeChatShareResponse(share: Parameters<typeof toChatShareDto>[0]): RevokeChatShareResponseDto {
+  return {
+    share: toChatShareDto(share)
+  };
+}
+
+export function buildRevokeChatShareErrorResponse(error: unknown, fallbackMessage: string): RevokeChatShareResponseDto {
   return {
     error: getRouteErrorMessage(error, fallbackMessage)
   };

@@ -2,6 +2,12 @@ import type { AgentInfraApp, StartTextTurnResult } from '@agent-infra/app';
 import type { RunStreamEventDto, RunStreamFailedEventDto, RuntimePiMetaDto } from '@agent-infra/contracts';
 import type { AgentInfraRepositoryBundle } from '@agent-infra/db';
 import {
+  buildCreateThreadShareErrorResponse,
+  buildCreateThreadShareResponse,
+  buildPublicChatShareErrorResponse,
+  buildPublicChatShareResponse,
+  buildRevokeChatShareErrorResponse,
+  buildRevokeChatShareResponse,
   buildCreateThreadErrorResponse,
   buildCreateThreadResponse,
   buildRunAssistantEvent,
@@ -14,6 +20,8 @@ import {
   buildRuntimeMetaResponse,
   buildThreadMessagesErrorResponse,
   buildThreadMessagesResponse,
+  buildThreadShareStateErrorResponse,
+  buildThreadShareStateResponse,
   buildThreadRunsErrorResponse,
   buildThreadRunsResponse,
   buildThreadsErrorResponse,
@@ -235,6 +243,40 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
     }
   });
 
+  app.post<{ Params: { threadId: string } }>('/api/threads/:threadId/shares', async (request, reply) => {
+    try {
+      request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
+      request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
+      const { app: services } = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      const share = await request.requestTiming.measureAsync('shares.create', () =>
+        services.shares.createThreadSnapshot({ threadId: request.params.threadId })
+      );
+
+      return reply.send(buildCreateThreadShareResponse(share));
+    } catch (error) {
+      return reply
+        .code(getRouteErrorStatus(error))
+        .send(buildCreateThreadShareErrorResponse(error, 'failed to create thread share'));
+    }
+  });
+
+  app.get<{ Params: { threadId: string } }>('/api/threads/:threadId/shares/current', async (request, reply) => {
+    try {
+      request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
+      request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
+      const { app: services } = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      const share = await request.requestTiming.measureAsync('shares.current', () =>
+        services.shares.getCurrentByThread({ threadId: request.params.threadId })
+      );
+
+      return reply.send(buildThreadShareStateResponse(share));
+    } catch (error) {
+      return reply
+        .code(getRouteErrorStatus(error))
+        .send(buildThreadShareStateErrorResponse(error, 'failed to load current thread share'));
+    }
+  });
+
   app.get<{ Params: { threadId: string }; Querystring: { limit?: string } }>('/api/threads/:threadId/runs', async (request, reply) => {
     try {
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
@@ -265,6 +307,36 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
       return reply.send(buildRunTimelineResponse(timeline));
     } catch (error) {
       return reply.code(getRouteErrorStatus(error)).send(buildRunTimelineErrorResponse(error, 'failed to load run timeline'));
+    }
+  });
+
+  app.get<{ Params: { publicId: string } }>('/api/shares/:publicId', async (request, reply) => {
+    try {
+      request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
+      request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
+      const { app: services } = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      const share = await request.requestTiming.measureAsync('shares.public', () =>
+        services.shares.getPublic({ publicId: request.params.publicId })
+      );
+
+      return reply.send(buildPublicChatShareResponse(share));
+    } catch (error) {
+      return reply.code(getRouteErrorStatus(error)).send(buildPublicChatShareErrorResponse(error, 'failed to load public share'));
+    }
+  });
+
+  app.post<{ Params: { publicId: string } }>('/api/shares/:publicId/revoke', async (request, reply) => {
+    try {
+      request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
+      request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
+      const { app: services } = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      const share = await request.requestTiming.measureAsync('shares.revoke', () =>
+        services.shares.revoke({ publicId: request.params.publicId })
+      );
+
+      return reply.send(buildRevokeChatShareResponse(share));
+    } catch (error) {
+      return reply.code(getRouteErrorStatus(error)).send(buildRevokeChatShareErrorResponse(error, 'failed to revoke share'));
     }
   });
 
