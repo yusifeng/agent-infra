@@ -86,6 +86,27 @@ replay 可以继续把节点按播放顺序逐步显露。
 - normal chat 的 block 边界
 - replay 的播放粒度
 
+### 5. `ContentNode` 层负责 normal chat / replay 的共享内容来源
+
+这层统一的是：
+
+- text / reasoning 的原子内容语义
+- search-loading / search-summary 的原子工具语义
+- normal chat 与 replay 的上游节点来源
+
+这层不统一的是：
+
+- live runtime
+- replay runtime
+- `AnswerContainer` 的 operation host 语义
+- 具体 action 的 payload scope
+
+换句话说：
+
+- normal chat 与 replay 共享 `ContentNode[]`
+- normal chat 继续有自己的 `TranscriptBlock` projector
+- replay 继续有自己的 `ReplayStep` projector
+
 ## 第一版建议节点类型
 
 - `user-text`
@@ -97,6 +118,16 @@ replay 可以继续把节点按播放顺序逐步显露。
 - `assistant-tool-part`
 
 第一版先覆盖 durable chat 目前已经真实展示的这些内容类型。
+
+## 第一版完成态
+
+当前前端已经满足以下约束：
+
+- normal chat 的 `TranscriptBlock` 来自 `ContentNode[]`
+- replay 的 `ReplayStep` 来自 `ContentNode[]`
+- search 相关解析由共享 service 提供
+- `user-reasoning`、`assistant-reasoning` 都属于同级内容节点
+- `AnswerContainer` 继续作为 operation host，未被 `ContentNode` 取代
 
 ## 第一版建议字段
 
@@ -143,6 +174,16 @@ replay 可以继续把节点按播放顺序逐步显露。
 - fake loading
 - 逐节点显露
 - 节奏控制
+
+## 当前非目标
+
+以下内容不是这层要解决的问题：
+
+- 统一 live runtime 和 replay runtime
+- 把 `run` 和 `AnswerContainer` 合并
+- 删除 `ReplayStep`
+- 强行让 replay 的 block grouping 等于 normal chat
+- 在这一层决定 copy / regenerate 的 payload scope
 
 ## 非目标
 

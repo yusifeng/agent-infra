@@ -14,6 +14,9 @@
 - `answer-container-model.md`
   - durable chat 前端中 `run`、`TranscriptBlock`、`AnswerContainer`、
     `OperationHost`、`ActionPayloadScope` 的关系定义
+- `content-node-model.md`
+  - durable chat 前端中 `ContentNode` 作为 normal chat 与 replay 共享内容来源的定义，
+    以及它与 `TranscriptBlock`、`AnswerContainer`、`ReplayStep` 的职责边界
 
 ## 不适合放在这里的内容
 

@@ -43,6 +43,25 @@
 - 用于承载一整条用户感知上的 assistant 回答
 - operation 挂在这个层级，而不是直接挂在单个 `TranscriptBlock`
 
+## UI 解释
+
+`AnswerContainer` 是用户感知上的回答容器，`TranscriptBlock` 是前端内部的内容组织单元。
+
+这意味着：
+
+- 一个 `AnswerContainer` 内部可以保留多个 `TranscriptBlock`
+- UI 不需要把这些 block 的数量暴露成产品语义
+- 用户只需要感知为“一条连续回答”
+- operation 只需要在 `AnswerContainer` 底部出现一次
+
+因此，后续优化不以“继续合并 block 数量”为目标，而以：
+
+- 回答容器边界稳定
+- 内容顺序稳定
+- action host / payload scope 稳定
+
+为目标。
+
 ## 关系
 
 ```text
