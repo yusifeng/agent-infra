@@ -20,16 +20,16 @@
 
 - [x] 在前端显式补出 `ContentNode` 概念。
 - [x] 把 text / reasoning / search-loading / search-summary 的原子内容语义统一到一层。
-- [ ] 让 normal chat 和 replay 共享节点来源，而不是共享 runtime。
-- [ ] 保持 `AnswerContainer`、`TranscriptBlock`、`ReplayStep` 的职责分离。
+- [x] 让 normal chat 和 replay 共享节点来源，而不是共享 runtime。
+- [x] 保持 `AnswerContainer`、`TranscriptBlock`、`ReplayStep` 的职责分离。
 
 ### 0.3 非目标
 
-- [ ] 不统一 live runtime 和 replay runtime。
-- [ ] 不把 `run` 和 `AnswerContainer` 合并。
-- [ ] 不取消 `ReplayStep`。
-- [ ] 不要求 replay 和 normal chat 使用完全相同的 block grouping。
-- [ ] 不在第一轮改变 operation 的具体 copy / regenerate 语义。
+- [x] 保持不统一 live runtime 和 replay runtime。
+- [x] 保持不把 `run` 和 `AnswerContainer` 合并。
+- [x] 保持不取消 `ReplayStep`。
+- [x] 保持不要求 replay 和 normal chat 使用完全相同的 block grouping。
+- [x] 保持不在第一轮改变 operation 的具体 copy / regenerate 语义。
 
 ## 1. 概念模型
 
@@ -60,6 +60,7 @@
 - [x] 定义 `ContentNodeKind`
 - [x] 定义 `BaseContentNode`
 - [x] 定义 `UserTextNode`
+- [x] 定义 `UserReasoningNode`
 - [x] 定义 `AssistantTextNode`
 - [x] 定义 `AssistantReasoningNode`
 - [x] 定义 `AssistantSearchLoadingNode`
@@ -128,23 +129,23 @@
 
 ### 4.2 接入 normal chat
 
-- [ ] 让 `chat-view-state.ts` 改从 `ContentNode[]` 走 projector
+- [x] 让 `chat-view-state.ts` 改从 `ContentNode[]` 走 projector
 - [x] 保持 `AnswerContainer` 构建逻辑继续复用
-- [ ] 不动 live draft / recover / reconcile
+- [x] 保持不动 live draft / recover / reconcile
 
 ## 5. replay projector
 
 ### 5.1 projector 纯逻辑
 
-- [ ] 让 `build-replay-steps.ts` 从 `ContentNode[]` 构建，而不是重新解析 `TranscriptBlock`
-- [ ] 保留 replay 的 fake loading / timing 行为
-- [ ] 不要求 replay block grouping 等于 normal chat
+- [x] 让 `build-replay-steps.ts` 从 `ContentNode[]` 构建，而不是重新解析 `TranscriptBlock`
+- [x] 保留 replay 的 fake loading / timing 行为
+- [x] 不要求 replay block grouping 等于 normal chat
 
 ### 5.2 presentation
 
-- [ ] 让 replay presentation 尽量消费共享节点来源
-- [ ] 保持 replay 继续复用 `AnswerContainer`
-- [ ] 不要求第一轮消除所有 synthetic message/part
+- [x] 让 replay presentation 尽量消费共享节点来源
+- [x] 保持 replay 继续复用 `AnswerContainer`
+- [x] 保持不要求第一轮消除所有 synthetic message/part
 
 ## 6. 测试计划
 
@@ -161,12 +162,12 @@
 ### 6.2 normal chat tests
 
 - [x] projector 测试覆盖当前 normal chat 的 block 语义
-- [ ] `AnswerContainer` 相关 UI 测试继续保持通过
+- [x] `AnswerContainer` 相关 UI 测试继续保持通过
 
 ### 6.3 replay tests
 
-- [ ] replay step 构建改为基于 `ContentNode[]` 后，保持现有 replay 测试通过
-- [ ] container-level replay tests 继续通过
+- [x] replay step 构建改为基于 `ContentNode[]` 后，保持现有 replay 测试通过
+- [x] container-level replay tests 继续通过
 
 ## 7. 推荐执行顺序
 
@@ -186,9 +187,9 @@
 
 - [x] 接 `project-normal-transcript-blocks.ts`
 - [x] 保持 normal chat 行为不变
-- [ ] 跑 Vite targeted tests / typecheck / review
+- [x] 跑 Vite targeted tests / typecheck / review
 
 ### 第四轮：接 replay projector
 
-- [ ] 让 replay steps 改从 `ContentNode[]` 构建
-- [ ] 跑 replay focused tests / typecheck / review
+- [x] 让 replay steps 改从 `ContentNode[]` 构建
+- [x] 跑 replay focused tests / typecheck / review

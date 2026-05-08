@@ -52,20 +52,36 @@ export function buildContentNodes(messages: MessageDto[]): ContentNode[] {
       const blockHintId = buildUserBlockHintId(message);
 
       for (const part of message.parts) {
-        if (part.type !== 'text' || !part.textValue?.trim()) {
+        if (!part.textValue?.trim()) {
           continue;
         }
 
-        nodes.push({
-          id: createNodeId(message.id, part.id, 'user-text'),
-          kind: 'user-text',
-          threadId: message.threadId,
-          runId: message.runId ?? null,
-          messageId: message.id,
-          sourcePartId: part.id,
-          blockHintId,
-          text: part.textValue.trim()
-        });
+        if (part.type === 'text') {
+          nodes.push({
+            id: createNodeId(message.id, part.id, 'user-text'),
+            kind: 'user-text',
+            threadId: message.threadId,
+            runId: message.runId ?? null,
+            messageId: message.id,
+            sourcePartId: part.id,
+            blockHintId,
+            text: part.textValue.trim()
+          });
+          continue;
+        }
+
+        if (part.type === 'reasoning') {
+          nodes.push({
+            id: createNodeId(message.id, part.id, 'user-reasoning'),
+            kind: 'user-reasoning',
+            threadId: message.threadId,
+            runId: message.runId ?? null,
+            messageId: message.id,
+            sourcePartId: part.id,
+            blockHintId,
+            text: part.textValue.trim()
+          });
+        }
       }
 
       continue;

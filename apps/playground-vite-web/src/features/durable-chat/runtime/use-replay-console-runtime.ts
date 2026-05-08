@@ -3,8 +3,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { fetchReplayThreadBasis } from '@/features/durable-chat/repo/replay-api';
-import { buildReplaySession } from '@/features/durable-chat/service/build-replay-steps';
-import { buildTranscriptBlocks } from '@/features/durable-chat/service/build-transcript-blocks';
+import { buildContentNodes } from '@/features/durable-chat/service/build-content-nodes';
+import { buildReplaySessionFromContentNodes } from '@/features/durable-chat/service/build-replay-steps';
 import { useReplayRuntime } from '@/features/durable-chat/runtime/use-replay-runtime';
 import { useSearchPanelState } from '@/features/durable-chat/runtime/use-search-panel-state';
 import type { ReplaySession } from '@/features/durable-chat/types/replay';
@@ -74,10 +74,11 @@ export function useReplayConsoleRuntime({ initialThreadId }: { initialThreadId: 
         }
 
         const messages = result.data.messages ?? [];
-        const transcriptBlocks = buildTranscriptBlocks(messages);
+        const contentNodes = buildContentNodes(messages);
+        const replayThreadId = messages[0]?.threadId ?? threadId;
         setThreads(result.data.threads);
         setSourceMessages(messages);
-        setSession(buildReplaySession(transcriptBlocks));
+        setSession(buildReplaySessionFromContentNodes(contentNodes, replayThreadId));
       })
       .catch((nextError) => {
         if (requestIdRef.current !== requestId || controller.signal.aborted) {

@@ -1,8 +1,9 @@
 import type { MessageDto, MessagePartDto } from '@agent-infra/contracts';
 import { describe, expect, it } from 'vitest';
 
-import { buildReplaySession, buildReplaySteps } from '@/features/durable-chat/service/build-replay-steps';
-import { buildTranscriptBlocks } from '@/features/durable-chat/service/build-transcript-blocks';
+import { buildContentNodes } from '@/features/durable-chat/service/build-content-nodes';
+import { buildReplaySession, buildReplaySessionFromContentNodes, buildReplayStepsFromContentNodes } from '@/features/durable-chat/service/build-replay-steps';
+import type { TranscriptBlock } from '@/features/durable-chat/types/transcript-blocks';
 
 function createPart(overrides: Partial<MessagePartDto> & Pick<MessagePartDto, 'id' | 'type'>): MessagePartDto {
   return {
@@ -66,7 +67,7 @@ function createSearchResultPart(toolCallId: string, query: string, messageId: st
 
 describe('buildReplaySteps', () => {
   it('builds text -> search-loading -> search-summary -> text steps at transcript item granularity', () => {
-    const blocks = buildTranscriptBlocks([
+    const messages = [
       createMessage({
         id: 'user-1',
         role: 'user',
@@ -101,9 +102,9 @@ describe('buildReplaySteps', () => {
         seq: 5,
         parts: [createPart({ id: 'assistant-2:text', type: 'text', messageId: 'assistant-2', textValue: '以下是关于 Claude 的最新新闻摘要。' })]
       })
-    ]);
+    ];
 
-    const steps = buildReplaySteps(blocks);
+    const steps = buildReplayStepsFromContentNodes(buildContentNodes(messages));
 
     expect(steps.map((step) => step.kind)).toEqual([
       'text',
@@ -146,7 +147,7 @@ describe('buildReplaySteps', () => {
   });
 
   it('preserves multiple search nodes instead of collapsing them into one replay summary', () => {
-    const blocks = buildTranscriptBlocks([
+    const messages = [
       createMessage({
         id: 'assistant-1',
         role: 'assistant',
@@ -182,9 +183,9 @@ describe('buildReplaySteps', () => {
         seq: 5,
         parts: [createSearchResultPart('call-2', 'second query', 'tool-4', 5)]
       })
-    ]);
+    ];
 
-    const steps = buildReplaySteps(blocks);
+    const steps = buildReplayStepsFromContentNodes(buildContentNodes(messages));
 
     expect(steps.map((step) => step.kind)).toEqual([
       'text',
@@ -199,7 +200,7 @@ describe('buildReplaySteps', () => {
   });
 
   it('supports pure text replies without creating fake search nodes', () => {
-    const blocks = buildTranscriptBlocks([
+    const messages = [
       createMessage({
         id: 'assistant-1',
         role: 'assistant',
@@ -210,31 +211,112 @@ describe('buildReplaySteps', () => {
           createPart({ id: 'assistant-1:reasoning', type: 'reasoning', messageId: 'assistant-1', textValue: '这是思考段。' })
         ]
       })
-    ]);
+    ];
 
-    const steps = buildReplaySteps(blocks);
+    const steps = buildReplayStepsFromContentNodes(buildContentNodes(messages));
 
     expect(steps.map((step) => step.kind)).toEqual(['text', 'text', 'done']);
     expect(steps[0]).toMatchObject({ kind: 'text', variant: 'text', content: '这是第一段。' });
     expect(steps[1]).toMatchObject({ kind: 'text', variant: 'reasoning', content: '这是思考段。' });
   });
 
+  it('replays user reasoning steps from shared content nodes', () => {
+    const messages = [
+      createMessage({
+        id: 'user-1',
+        role: 'user',
+        seq: 1,
+        parts: [
+          createPart({ id: 'user-1:text', type: 'text', messageId: 'user-1', textValue: '帮我整理 Claude 新闻' }),
+          createPart({
+            id: 'user-1:reasoning',
+            type: 'reasoning',
+            messageId: 'user-1',
+            partIndex: 1,
+            textValue: '我想先看重点，再看细节。'
+          })
+        ]
+      })
+    ];
+
+    const steps = buildReplayStepsFromContentNodes(buildContentNodes(messages));
+
+    expect(steps.map((step) => step.kind)).toEqual(['text', 'text', 'done']);
+    expect(steps[0]).toMatchObject({
+      kind: 'text',
+      role: 'user',
+      variant: 'text',
+      content: '帮我整理 Claude 新闻'
+    });
+    expect(steps[1]).toMatchObject({
+      kind: 'text',
+      role: 'user',
+      variant: 'reasoning',
+      content: '我想先看重点，再看细节。'
+    });
+  });
+
   it('builds a replay session with thread-scoped metadata and empty initial transcript blocks', () => {
-    const blocks = buildTranscriptBlocks([
+    const messages = [
       createMessage({
         id: 'user-1',
         role: 'user',
         seq: 1,
         parts: [createPart({ id: 'user-1:text', type: 'text', messageId: 'user-1', textValue: 'Search GPT-5.5' })]
       })
-    ]);
+    ];
 
-    const session = buildReplaySession(blocks);
+    const session = buildReplaySessionFromContentNodes(buildContentNodes(messages));
 
     expect(session.id).toContain('replay:thread-1:');
     expect(session.threadId).toBe('thread-1');
     expect(session.mode).toBe('thread');
     expect(session.initialTranscriptBlocks).toEqual([]);
     expect(session.steps.at(-1)).toMatchObject({ kind: 'done' });
+  });
+
+  it('preserves a fallback thread id when no content nodes are available', () => {
+    const session = buildReplaySessionFromContentNodes([], 'thread-empty');
+
+    expect(session.threadId).toBe('thread-empty');
+    expect(session.id).toContain('replay:thread-empty:');
+    expect(session.steps).toHaveLength(1);
+    expect(session.steps[0]).toMatchObject({
+      kind: 'done',
+      threadId: 'thread-empty'
+    });
+  });
+
+  it('preserves thread identity in the legacy block wrapper when replayable nodes are absent', () => {
+    const blocks: TranscriptBlock[] = [
+      {
+        type: 'user-message',
+        id: 'user-message:user-legacy',
+        message: createMessage({
+          id: 'user-legacy',
+          threadId: 'thread-legacy',
+          role: 'user',
+          seq: 1,
+          parts: [
+            createPart({
+              id: 'user-legacy:tool-call',
+              type: 'tool-call',
+              messageId: 'user-legacy',
+              jsonValue: { toolName: 'noop', toolCallId: 'call-legacy', input: {} }
+            })
+          ]
+        })
+      }
+    ];
+
+    const session = buildReplaySession(blocks);
+
+    expect(session.threadId).toBe('thread-legacy');
+    expect(session.id).toContain('replay:thread-legacy:');
+    expect(session.steps).toHaveLength(1);
+    expect(session.steps[0]).toMatchObject({
+      kind: 'done',
+      threadId: 'thread-legacy'
+    });
   });
 });

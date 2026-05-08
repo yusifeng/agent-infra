@@ -4,6 +4,7 @@ import type { SearchSummaryEntry } from '@/features/durable-chat/types/transcrip
 
 export type ContentNodeKind =
   | 'user-text'
+  | 'user-reasoning'
   | 'assistant-text'
   | 'assistant-reasoning'
   | 'assistant-search-loading'
@@ -22,6 +23,11 @@ export type BaseContentNode = {
 
 export type UserTextContentNode = BaseContentNode & {
   kind: 'user-text';
+  text: string;
+};
+
+export type UserReasoningContentNode = BaseContentNode & {
+  kind: 'user-reasoning';
   text: string;
 };
 
@@ -54,6 +60,7 @@ export type AssistantToolPartContentNode = BaseContentNode & {
 
 export type ContentNode =
   | UserTextContentNode
+  | UserReasoningContentNode
   | AssistantTextContentNode
   | AssistantReasoningContentNode
   | AssistantSearchLoadingContentNode

@@ -70,7 +70,16 @@ describe('buildContentNodes', () => {
         id: 'user-1',
         role: 'user',
         seq: 1,
-        parts: [createPart({ id: 'user-1:text', type: 'text', messageId: 'user-1', textValue: '帮我看 Claude 最新新闻' })]
+        parts: [
+          createPart({ id: 'user-1:text', type: 'text', messageId: 'user-1', textValue: '帮我看 Claude 最新新闻' }),
+          createPart({
+            id: 'user-1:reasoning',
+            type: 'reasoning',
+            messageId: 'user-1',
+            partIndex: 1,
+            textValue: '先明确需要搜索的话题。'
+          })
+        ]
       }),
       createMessage({
         id: 'assistant-1',
@@ -100,6 +109,7 @@ describe('buildContentNodes', () => {
 
     expect(nodes.map((node) => node.kind)).toEqual([
       'user-text',
+      'user-reasoning',
       'assistant-text',
       'assistant-reasoning',
       'assistant-search-loading',
@@ -112,24 +122,30 @@ describe('buildContentNodes', () => {
       text: '帮我看 Claude 最新新闻'
     });
 
-    const assistantBlockHintId = 'assistant-turn:run-1:2';
     expect(nodes[1]).toMatchObject({
+      kind: 'user-reasoning',
+      blockHintId: 'user-message:user-1',
+      text: '先明确需要搜索的话题。'
+    });
+
+    const assistantBlockHintId = 'assistant-turn:run-1:2';
+    expect(nodes[2]).toMatchObject({
       kind: 'assistant-text',
       blockHintId: assistantBlockHintId,
       text: '好的，我来帮你搜索一下。'
     });
-    expect(nodes[2]).toMatchObject({
+    expect(nodes[3]).toMatchObject({
       kind: 'assistant-reasoning',
       blockHintId: assistantBlockHintId,
       text: '先搜索，再总结。'
     });
-    expect(nodes[3]).toMatchObject({
+    expect(nodes[4]).toMatchObject({
       kind: 'assistant-search-loading',
       blockHintId: assistantBlockHintId,
       toolCallId: 'call-1',
       query: 'Claude latest news'
     });
-    expect(nodes[4]).toMatchObject({
+    expect(nodes[5]).toMatchObject({
       kind: 'assistant-search-summary',
       blockHintId: assistantBlockHintId,
       entry: {

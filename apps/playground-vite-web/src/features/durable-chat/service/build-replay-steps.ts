@@ -1,5 +1,8 @@
-import { parseSearchLoadingEntry, parseSearchSummaryEntry } from '@/features/durable-chat/service/content-node-search';
+import type { MessageDto } from '@agent-infra/contracts';
+
+import { buildContentNodes } from '@/features/durable-chat/service/build-content-nodes';
 import { getReplayNodeDelayMs, getReplayTextDelayMs } from '@/features/durable-chat/service/replay-timing';
+import type { ContentNode } from '@/features/durable-chat/types/content-nodes';
 import type {
   ReplaySearchLoadingStep,
   ReplaySearchSummaryStep,
@@ -10,7 +13,16 @@ import type {
 } from '@/features/durable-chat/types/replay';
 import type { SearchSummaryEntry, TranscriptBlock } from '@/features/durable-chat/types/transcript-blocks';
 
-function resolveThreadId(blocks: TranscriptBlock[]) {
+function resolveThreadId(contentNodes: ContentNode[]) {
+  const firstNode = contentNodes[0];
+  if (!firstNode) {
+    return '';
+  }
+
+  return firstNode.threadId;
+}
+
+function resolveThreadIdFromBlocks(blocks: TranscriptBlock[]) {
   const firstBlock = blocks[0];
   if (!firstBlock) {
     return '';
@@ -97,119 +109,98 @@ function createSearchSummaryStep(params: {
   };
 }
 
-function buildUserReplaySteps(block: Extract<TranscriptBlock, { type: 'user-message' }>, threadId: string): ReplayStep[] {
+export function buildReplayStepsFromContentNodes(contentNodes: ContentNode[], fallbackThreadId = ''): ReplayStep[] {
+  const threadId = resolveThreadId(contentNodes) || fallbackThreadId;
   const steps: ReplayStep[] = [];
 
-  for (const part of block.message.parts) {
-    if ((part.type === 'text' || part.type === 'reasoning') && part.textValue?.trim()) {
+  for (const node of contentNodes) {
+    const blockId = node.blockHintId ?? node.id;
+    const messageId = node.messageId ?? node.id;
+
+    if (node.kind === 'user-text' || node.kind === 'user-reasoning') {
       steps.push(
         createTextStep({
           threadId,
-          blockId: block.id,
-          runId: block.message.runId ?? null,
-          messageId: block.message.id,
+          blockId,
+          runId: node.runId,
+          messageId,
           role: 'user',
-          variant: part.type === 'reasoning' ? 'reasoning' : 'text',
-          content: part.textValue.trim()
+          variant: node.kind === 'user-reasoning' ? 'reasoning' : 'text',
+          content: node.text
         })
       );
-    }
-  }
-
-  return steps;
-}
-
-function buildAssistantReplaySteps(block: Extract<TranscriptBlock, { type: 'assistant-turn' }>, threadId: string): ReplayStep[] {
-  const steps: ReplayStep[] = [];
-
-  for (const message of block.sourceMessages) {
-    for (const part of message.parts) {
-      if ((part.type === 'text' || part.type === 'reasoning') && part.textValue?.trim()) {
-        steps.push(
-          createTextStep({
-            threadId,
-            blockId: block.id,
-            runId: block.runId,
-            messageId: message.id,
-            role: 'assistant',
-            variant: part.type === 'reasoning' ? 'reasoning' : 'text',
-            content: part.textValue.trim()
-          })
-        );
-        continue;
-      }
-
-      const searchStatus = parseSearchLoadingEntry(part);
-      if (searchStatus) {
-        steps.push(
-          createSearchLoadingStep({
-            threadId,
-            blockId: block.id,
-            runId: block.runId,
-            messageId: message.id,
-            toolCallId: searchStatus.toolCallId,
-            query: searchStatus.query || null,
-            sourceNames: []
-          })
-        );
-        continue;
-      }
-
-      const searchEntry = parseSearchSummaryEntry(part);
-      if (searchEntry) {
-        const loadingIndex = steps.findIndex(
-          (step) =>
-            step.kind === 'search-loading' &&
-            step.blockId === block.id &&
-            step.toolCallIds.includes(searchEntry.toolCallId)
-        );
-
-        if (loadingIndex >= 0) {
-          const loadingStep = steps[loadingIndex] as ReplaySearchLoadingStep;
-          loadingStep.sourceNames = searchEntry.sourceNames;
-          loadingStep.delayMs = getReplayNodeDelayMs('search-loading', { resultCount: searchEntry.resultCount });
-        } else {
-          steps.push(
-            createSearchLoadingStep({
-              threadId,
-              blockId: block.id,
-              runId: block.runId,
-              messageId: message.id,
-              toolCallId: searchEntry.toolCallId,
-              query: searchEntry.query,
-              sourceNames: searchEntry.sourceNames,
-              resultCount: searchEntry.resultCount
-            })
-          );
-        }
-
-        steps.push(
-          createSearchSummaryStep({
-            threadId,
-            blockId: block.id,
-            runId: block.runId,
-            messageId: message.id,
-            entry: searchEntry
-          })
-        );
-      }
-    }
-  }
-
-  return steps;
-}
-
-export function buildReplaySteps(blocks: TranscriptBlock[]): ReplayStep[] {
-  const threadId = resolveThreadId(blocks);
-  const steps: ReplayStep[] = [];
-
-  for (const block of blocks) {
-    if (block.type === 'user-message') {
-      steps.push(...buildUserReplaySteps(block, threadId));
       continue;
     }
 
-    steps.push(...buildAssistantReplaySteps(block, threadId));
+    if (node.kind === 'assistant-text' || node.kind === 'assistant-reasoning') {
+      steps.push(
+        createTextStep({
+          threadId,
+          blockId,
+          runId: node.runId,
+          messageId,
+          role: 'assistant',
+          variant: node.kind === 'assistant-reasoning' ? 'reasoning' : 'text',
+          content: node.text
+        })
+      );
+      continue;
+    }
+
+    if (node.kind === 'assistant-search-loading') {
+      steps.push(
+        createSearchLoadingStep({
+          threadId,
+          blockId,
+          runId: node.runId,
+          messageId,
+          toolCallId: node.toolCallId,
+          query: node.query || null,
+          sourceNames: []
+        })
+      );
+      continue;
+    }
+
+    if (node.kind !== 'assistant-search-summary') {
+      continue;
+    }
+
+    const loadingIndex = steps.findIndex(
+      (step) =>
+        step.kind === 'search-loading' &&
+        step.blockId === blockId &&
+        step.toolCallIds.includes(node.entry.toolCallId)
+    );
+
+    if (loadingIndex >= 0) {
+      const loadingStep = steps[loadingIndex] as ReplaySearchLoadingStep;
+      loadingStep.sourceNames = node.entry.sourceNames;
+      loadingStep.delayMs = getReplayNodeDelayMs('search-loading', { resultCount: node.entry.resultCount });
+    } else {
+      steps.push(
+        createSearchLoadingStep({
+          threadId,
+          blockId,
+          runId: node.runId,
+          messageId,
+          toolCallId: node.entry.toolCallId,
+          query: node.entry.query,
+          sourceNames: node.entry.sourceNames,
+          resultCount: node.entry.resultCount
+        })
+      );
+    }
+
+    steps.push(
+      createSearchSummaryStep({
+        threadId,
+        blockId,
+        runId: node.runId,
+        messageId,
+        entry: node.entry
+      })
+    );
   }
 
   steps.push({
@@ -225,9 +216,42 @@ export function buildReplaySteps(blocks: TranscriptBlock[]): ReplayStep[] {
   return steps;
 }
 
-export function buildReplaySession(blocks: TranscriptBlock[]): ReplaySession {
-  const steps = buildReplaySteps(blocks);
-  const threadId = resolveThreadId(blocks);
+function extractMessagesFromBlocks(blocks: TranscriptBlock[]): MessageDto[] {
+  const messages: MessageDto[] = [];
+  const seenMessageIds = new Set<string>();
+
+  for (const block of blocks) {
+    if (block.type === 'user-message') {
+      if (!seenMessageIds.has(block.message.id)) {
+        seenMessageIds.add(block.message.id);
+        messages.push(block.message);
+      }
+      continue;
+    }
+
+    for (const message of block.sourceMessages) {
+      if (seenMessageIds.has(message.id)) {
+        continue;
+      }
+
+      seenMessageIds.add(message.id);
+      messages.push(message);
+    }
+  }
+
+  return messages;
+}
+
+export function buildReplaySteps(blocks: TranscriptBlock[]): ReplayStep[] {
+  return buildReplayStepsFromContentNodes(
+    buildContentNodes(extractMessagesFromBlocks(blocks)),
+    resolveThreadIdFromBlocks(blocks)
+  );
+}
+
+export function buildReplaySessionFromContentNodes(contentNodes: ContentNode[], fallbackThreadId = ''): ReplaySession {
+  const steps = buildReplayStepsFromContentNodes(contentNodes, fallbackThreadId);
+  const threadId = resolveThreadId(contentNodes) || fallbackThreadId;
 
   return {
     id: `replay:${threadId}:${steps.map((step) => step.id).join('|')}`,
@@ -237,4 +261,11 @@ export function buildReplaySession(blocks: TranscriptBlock[]): ReplaySession {
     initialTranscriptBlocks: [],
     startedAt: null
   };
+}
+
+export function buildReplaySession(blocks: TranscriptBlock[]): ReplaySession {
+  return buildReplaySessionFromContentNodes(
+    buildContentNodes(extractMessagesFromBlocks(blocks)),
+    resolveThreadIdFromBlocks(blocks)
+  );
 }

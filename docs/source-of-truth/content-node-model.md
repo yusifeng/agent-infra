@@ -89,6 +89,7 @@ replay 可以继续把节点按播放顺序逐步显露。
 ## 第一版建议节点类型
 
 - `user-text`
+- `user-reasoning`
 - `assistant-text`
 - `assistant-reasoning`
 - `assistant-search-loading`
