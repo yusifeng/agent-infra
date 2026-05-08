@@ -1,4 +1,6 @@
 import type {
+  ChatShare,
+  ChatShareSnapshot,
   Message,
   MessagePageResult,
   MessagePart,
@@ -10,7 +12,9 @@ import type {
   Thread,
   ThreadRepository,
   ToolInvocation,
-  ToolInvocationRepository
+  ToolInvocationRepository,
+  ChatShareRepository,
+  ChatShareSnapshotRepository
 } from '@agent-infra/core';
 
 export interface AgentInfraAppRepositories {
@@ -19,6 +23,8 @@ export interface AgentInfraAppRepositories {
   messageRepo: MessageRepository;
   toolRepo: ToolInvocationRepository;
   runEventRepo: RunEventRepository;
+  chatShareRepo: ChatShareRepository;
+  chatShareSnapshotRepo: ChatShareSnapshotRepository;
 }
 
 export interface RuntimeSelection {
@@ -104,6 +110,71 @@ export interface GetActiveThreadRunInput {
   threadId: string;
 }
 
+export interface CreateThreadSnapshotShareInput {
+  threadId: string;
+}
+
+export interface GetPublicShareInput {
+  publicId: string;
+}
+
+export interface RevokeShareInput {
+  publicId: string;
+}
+
+export interface GetCurrentThreadShareInput {
+  threadId: string;
+}
+
+export interface SharedMessagePartSnapshot {
+  id: string;
+  messageId: string;
+  partIndex: number;
+  type: MessagePart['type'];
+  textValue?: string | null;
+  jsonValue?: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface SharedMessageSnapshot {
+  id: string;
+  runId?: string | null;
+  role: Message['role'];
+  seq: number;
+  createdAt: string;
+  parts: SharedMessagePartSnapshot[];
+}
+
+export interface SharedSearchBundle {
+  runId?: string | null;
+  toolCallId: string;
+  toolName: string;
+  status: ToolInvocation['status'];
+  input?: Record<string, unknown> | null;
+  output?: Record<string, unknown> | null;
+  error?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+}
+
+export interface SharedThreadSnapshotPayload {
+  payloadFormat: 'messages_v1';
+  payloadVersion: 1;
+  title?: string | null;
+  messages: SharedMessageSnapshot[];
+  searchBundles?: Record<string, SharedSearchBundle> | null;
+}
+
+export interface CreateThreadSnapshotShareResult {
+  share: ChatShare;
+  snapshot: ChatShareSnapshot;
+}
+
+export interface PublicChatShareResult {
+  share: ChatShare;
+  snapshot: SharedThreadSnapshotPayload;
+}
+
 export interface AgentInfraAppDependencies {
   repositories: AgentInfraAppRepositories;
   runtime: AgentInfraRuntimePort;
@@ -127,5 +198,11 @@ export interface AgentInfraApp {
     getTimeline(input: GetRunTimelineInput): Promise<RunTimelineResult>;
     listByThread(input: GetThreadRunsInput): Promise<Run[]>;
     getActiveByThread(input: GetActiveThreadRunInput): Promise<Run | null>;
+  };
+  shares: {
+    createThreadSnapshot(input: CreateThreadSnapshotShareInput): Promise<CreateThreadSnapshotShareResult>;
+    getCurrentByThread(input: GetCurrentThreadShareInput): Promise<ChatShare | null>;
+    getPublic(input: GetPublicShareInput): Promise<PublicChatShareResult>;
+    revoke(input: RevokeShareInput): Promise<ChatShare>;
   };
 }

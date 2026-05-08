@@ -1,4 +1,6 @@
 import type {
+  ChatShare,
+  ChatShareSnapshot,
   Message,
   MessagePart,
   Run,
@@ -9,7 +11,14 @@ import type {
 import { describe, expect, it, vi } from 'vitest';
 
 import { createAgentInfraApp } from '../src/app';
-import { InvalidTurnTextError, RunNotFoundError, ThreadNotFoundError } from '../src/errors';
+import {
+  ActiveChatShareExistsError,
+  ChatShareRevokedError,
+  InvalidTurnTextError,
+  RunNotFoundError,
+  ThreadHasActiveRunError,
+  ThreadNotFoundError
+} from '../src/errors';
 import type { AgentInfraAppDependencies, AgentInfraAppRepositories, AgentInfraRuntimePort, RunTextRuntimeInput } from '../src/types';
 
 type StoredMessage = Message & { parts: MessagePart[] };
@@ -20,6 +29,8 @@ type InMemoryState = {
   messages: Map<string, StoredMessage>;
   tools: Map<string, ToolInvocation>;
   runEvents: Map<string, RunEvent>;
+  chatShares: Map<string, ChatShare>;
+  chatShareSnapshots: Map<string, ChatShareSnapshot>;
 };
 
 function cloneState(state: InMemoryState): InMemoryState {
@@ -36,7 +47,9 @@ function cloneState(state: InMemoryState): InMemoryState {
       ])
     ),
     tools: new Map([...state.tools.entries()].map(([id, tool]) => [id, { ...tool }])),
-    runEvents: new Map([...state.runEvents.entries()].map(([id, event]) => [id, { ...event }]))
+    runEvents: new Map([...state.runEvents.entries()].map(([id, event]) => [id, { ...event }])),
+    chatShares: new Map([...state.chatShares.entries()].map(([id, share]) => [id, { ...share }])),
+    chatShareSnapshots: new Map([...state.chatShareSnapshots.entries()].map(([id, snapshot]) => [id, structuredClone(snapshot)]))
   };
 }
 
@@ -56,6 +69,16 @@ function createRepositories(stateRef: { current: InMemoryState }, snapshot?: InM
       },
       async listByApp(appId) {
         return [...getState().threads.values()].filter((thread) => thread.appId === appId);
+      },
+      async touch(id, updatedAt) {
+        const current = getState().threads.get(id);
+        if (!current) {
+          throw new Error(`thread ${id} not found`);
+        }
+
+        const next = { ...current, updatedAt };
+        getState().threads.set(id, next);
+        return next;
       }
     },
     runRepo: {
@@ -216,6 +239,48 @@ function createRepositories(stateRef: { current: InMemoryState }, snapshot?: InM
             .reduce((max, event) => Math.max(max, event.seq), 0) + 1
         );
       }
+    },
+    chatShareRepo: {
+      async create(input) {
+        const createdAt = new Date();
+        const share = { ...input, createdAt };
+        getState().chatShares.set(share.id, share);
+        return share;
+      },
+      async findById(id) {
+        return getState().chatShares.get(id) ?? null;
+      },
+      async findByPublicId(publicId) {
+        return [...getState().chatShares.values()].find((share) => share.publicId === publicId) ?? null;
+      },
+      async findActiveByThread(threadId) {
+        return (
+          [...getState().chatShares.values()]
+            .filter((share) => share.sourceThreadId === threadId && share.status === 'active')
+            .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())[0] ?? null
+        );
+      },
+      async updateStatus(id, status, patch = {}) {
+        const current = getState().chatShares.get(id);
+        if (!current) {
+          throw new Error(`chat share ${id} not found`);
+        }
+
+        const next = { ...current, ...patch, status };
+        getState().chatShares.set(id, next);
+        return next;
+      }
+    },
+    chatShareSnapshotRepo: {
+      async create(input) {
+        const createdAt = new Date();
+        const snapshot = { ...input, createdAt };
+        getState().chatShareSnapshots.set(snapshot.id, snapshot);
+        return snapshot;
+      },
+      async findById(id) {
+        return getState().chatShareSnapshots.get(id) ?? null;
+      }
     }
   };
 }
@@ -227,7 +292,9 @@ function createDependencies(runtime: AgentInfraRuntimePort) {
       runs: new Map<string, Run>(),
       messages: new Map<string, StoredMessage>(),
       tools: new Map<string, ToolInvocation>(),
-      runEvents: new Map<string, RunEvent>()
+      runEvents: new Map<string, RunEvent>(),
+      chatShares: new Map<string, ChatShare>(),
+      chatShareSnapshots: new Map<string, ChatShareSnapshot>()
     }
   };
 
@@ -581,5 +648,195 @@ describe('createAgentInfraApp', () => {
     const { app } = createDependencies(createHappyRuntime());
 
     await expect(app.runs.getTimeline({ runId: 'missing-run' })).rejects.toBeInstanceOf(RunNotFoundError);
+  });
+
+  it('creates a thread snapshot share with share-safe ids and search bundles', async () => {
+    const { app, repositories } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Shared thread' });
+
+    const userMessage = await repositories.messageRepo.create({
+      id: 'message-user-1',
+      threadId: thread.id,
+      runId: null,
+      role: 'user',
+      seq: 1,
+      status: 'completed',
+      metadata: null
+    });
+    await repositories.messageRepo.createPart({
+      id: 'message-user-1-part-1',
+      messageId: userMessage.id,
+      partIndex: 0,
+      type: 'text',
+      textValue: 'Help me search Claude news',
+      jsonValue: null
+    });
+
+    const run = await repositories.runRepo.create({
+      id: 'run-1',
+      threadId: thread.id,
+      triggerMessageId: userMessage.id,
+      provider: 'deepseek',
+      model: 'deepseek-v4-flash',
+      status: 'completed',
+      usage: null,
+      error: null,
+      startedAt: new Date('2026-04-10T01:00:00.000Z'),
+      finishedAt: new Date('2026-04-10T01:00:05.000Z')
+    });
+
+    const assistantMessage = await repositories.messageRepo.create({
+      id: 'message-assistant-1',
+      threadId: thread.id,
+      runId: run.id,
+      role: 'assistant',
+      seq: 2,
+      status: 'completed',
+      metadata: null
+    });
+    await repositories.messageRepo.createPart({
+      id: 'message-assistant-1-part-1',
+      messageId: assistantMessage.id,
+      partIndex: 0,
+      type: 'text',
+      textValue: 'I will search for Claude news.',
+      jsonValue: null
+    });
+    await repositories.messageRepo.createPart({
+      id: 'message-assistant-1-part-2',
+      messageId: assistantMessage.id,
+      partIndex: 1,
+      type: 'tool-call',
+      textValue: null,
+      jsonValue: {
+        toolName: 'searchWeb',
+        toolCallId: 'tool-call-1',
+        input: { query: 'Claude news 2026' }
+      }
+    });
+
+    const toolMessage = await repositories.messageRepo.create({
+      id: 'message-tool-1',
+      threadId: thread.id,
+      runId: run.id,
+      role: 'tool',
+      seq: 3,
+      status: 'completed',
+      metadata: null
+    });
+    await repositories.messageRepo.createPart({
+      id: 'message-tool-1-part-1',
+      messageId: toolMessage.id,
+      partIndex: 0,
+      type: 'tool-result',
+      textValue: 'Found relevant results.',
+      jsonValue: {
+        toolName: 'searchWeb',
+        toolCallId: 'tool-call-1',
+        content: [{ type: 'text', text: 'Found relevant results.' }],
+        details: {
+          query: 'Claude news 2026',
+          resultCount: 8,
+          sources: [{ sourceName: 'Anthropic', hostname: 'www.anthropic.com' }]
+        },
+        isError: false
+      }
+    });
+
+    await repositories.toolRepo.create({
+      id: 'invocation-1',
+      threadId: thread.id,
+      runId: run.id,
+      messageId: assistantMessage.id,
+      toolName: 'searchWeb',
+      toolCallId: 'tool-call-1',
+      status: 'completed',
+      input: { query: 'Claude news 2026' },
+      output: {
+        artifact: { provider: 'tavily' },
+        details: {
+          query: 'Claude news 2026',
+          resultCount: 8,
+          sources: [{ sourceName: 'Anthropic', hostname: 'www.anthropic.com' }]
+        }
+      },
+      error: null,
+      startedAt: new Date('2026-04-10T01:00:01.000Z'),
+      finishedAt: new Date('2026-04-10T01:00:02.000Z')
+    });
+
+    const result = await app.shares.createThreadSnapshot({ threadId: thread.id });
+
+    expect(result.share.publicId).toBeTruthy();
+    expect(result.share.sourceThreadId).toBe(thread.id);
+    expect(result.snapshot.payloadFormat).toBe('messages_v1');
+
+    const payload = result.snapshot.payloadJson as {
+      title: string | null;
+      messages: Array<{ id: string; runId?: string | null; parts: Array<{ type: string; jsonValue?: Record<string, unknown> | null }> }>;
+      searchBundles: Record<string, { toolCallId: string; input?: Record<string, unknown> | null }>;
+    };
+
+    expect(payload.title).toBe('Shared thread');
+    expect(payload.messages.map((message) => message.id)).toEqual(['shared-message-1', 'shared-message-2', 'shared-message-3']);
+    expect(payload.messages[1]?.runId).toBe('shared-run-1');
+    expect(payload.messages[1]?.parts[1]?.jsonValue).toEqual({
+      toolName: 'searchWeb',
+      toolCallId: 'shared-tool-call-1',
+      input: { query: 'Claude news 2026' }
+    });
+    expect(payload.messages[2]?.parts[0]?.jsonValue).toEqual({
+      toolName: 'searchWeb',
+      toolCallId: 'shared-tool-call-1',
+      content: [{ type: 'text', text: 'Found relevant results.' }],
+      details: {
+        query: 'Claude news 2026',
+        resultCount: 8,
+        sources: [{ sourceName: 'Anthropic', hostname: 'www.anthropic.com' }]
+      },
+      isError: false
+    });
+    expect(payload.searchBundles['shared-tool-call-1']).toMatchObject({
+      runId: 'shared-run-1',
+      toolCallId: 'shared-tool-call-1',
+      input: { query: 'Claude news 2026' }
+    });
+  });
+
+  it('rejects snapshot share creation when the thread has an active run', async () => {
+    const { app } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Active share path' });
+
+    await app.turns.startText({
+      threadId: thread.id,
+      text: 'Still running'
+    });
+
+    await expect(app.shares.createThreadSnapshot({ threadId: thread.id })).rejects.toBeInstanceOf(ThreadHasActiveRunError);
+  });
+
+  it('returns the current active share for a thread and blocks duplicate active shares', async () => {
+    const { app } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Single share path' });
+
+    const first = await app.shares.createThreadSnapshot({ threadId: thread.id });
+
+    expect((await app.shares.getCurrentByThread({ threadId: thread.id }))?.id).toBe(first.share.id);
+    await expect(app.shares.createThreadSnapshot({ threadId: thread.id })).rejects.toBeInstanceOf(ActiveChatShareExistsError);
+  });
+
+  it('loads a public share and rejects reads after revoke', async () => {
+    const { app } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Revoked share path' });
+
+    const created = await app.shares.createThreadSnapshot({ threadId: thread.id });
+    const publicRead = await app.shares.getPublic({ publicId: created.share.publicId });
+    expect(publicRead.share.id).toBe(created.share.id);
+    expect(publicRead.snapshot.payloadFormat).toBe('messages_v1');
+
+    const revoked = await app.shares.revoke({ publicId: created.share.publicId });
+    expect(revoked.status).toBe('revoked');
+
+    await expect(app.shares.getPublic({ publicId: created.share.publicId })).rejects.toBeInstanceOf(ChatShareRevokedError);
   });
 });

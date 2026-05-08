@@ -26,6 +26,7 @@ export interface ThreadRepository {
   create(input: Omit<Thread, 'createdAt' | 'updatedAt'>): Promise<Thread>;
   findById(id: string): Promise<Thread | null>;
   listByApp(appId: string): Promise<Thread[]>;
+  touch(id: string, updatedAt: Date): Promise<Thread>;
 }
 
 export interface RunRepository {

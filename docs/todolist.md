@@ -132,17 +132,17 @@
 
 ### 3.4 app use-cases
 
-- [ ] 新增 `createThreadSnapshotShare(...)`
-- [ ] 新增 `getPublicShare(...)`
-- [ ] 新增 `revokeShare(...)`
-- [ ] 新增 `getCurrentThreadShare(...)`
+- [x] 新增 `createThreadSnapshotShare(...)`
+- [x] 新增 `getPublicShare(...)`
+- [x] 新增 `revokeShare(...)`
+- [x] 新增 `getCurrentThreadShare(...)`
 
 ### 3.5 app 规则
 
-- [ ] create share 时检查 thread 是否存在
-- [ ] create share 时检查 thread 没有 active run
-- [ ] create share 时构建 snapshot
-- [ ] revoke 后 public read 返回明确错误语义
+- [x] create share 时检查 thread 是否存在
+- [x] create share 时检查 thread 没有 active run
+- [x] create share 时构建 snapshot
+- [x] revoke 后 public read 返回明确错误语义
 
 ## 4. HTTP / Route Interface
 

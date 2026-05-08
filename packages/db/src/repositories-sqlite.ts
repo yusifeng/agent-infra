@@ -37,6 +37,13 @@ export class SqliteThreadRepository implements ThreadRepository {
   async listByApp(appId: string): Promise<Thread[]> {
     return this.db.select().from(threads).where(eq(threads.appId, appId)).orderBy(asc(threads.createdAt));
   }
+
+  async touch(id: string, updatedAt: Date): Promise<Thread> {
+    await this.db.update(threads).set({ updatedAt }).where(eq(threads.id, id));
+    const row = await this.findById(id);
+    if (!row) throw new Error(`thread ${id} not found`);
+    return row;
+  }
 }
 
 export class SqliteRunRepository implements RunRepository {

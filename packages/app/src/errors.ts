@@ -39,12 +39,52 @@ export class RunNotFoundError extends AgentInfraAppError {
   }
 }
 
+export class ChatShareNotFoundError extends AgentInfraAppError {
+  constructor(publicId: string) {
+    super(`chat share ${publicId} not found`, {
+      statusCode: 404,
+      code: 'chat_share_not_found',
+      context: { publicId }
+    });
+  }
+}
+
 export class ThreadNotActiveError extends AgentInfraAppError {
   constructor(threadId: string, status: string) {
     super(`thread ${threadId} is not active`, {
       statusCode: 409,
       code: 'thread_not_active',
       context: { threadId, status }
+    });
+  }
+}
+
+export class ThreadHasActiveRunError extends AgentInfraAppError {
+  constructor(threadId: string, runId: string) {
+    super(`thread ${threadId} has an active run`, {
+      statusCode: 409,
+      code: 'thread_has_active_run',
+      context: { threadId, runId }
+    });
+  }
+}
+
+export class ActiveChatShareExistsError extends AgentInfraAppError {
+  constructor(threadId: string, publicId: string) {
+    super(`thread ${threadId} already has an active share`, {
+      statusCode: 409,
+      code: 'active_chat_share_exists',
+      context: { threadId, publicId }
+    });
+  }
+}
+
+export class ChatShareRevokedError extends AgentInfraAppError {
+  constructor(publicId: string) {
+    super(`chat share ${publicId} has been revoked`, {
+      statusCode: 410,
+      code: 'chat_share_revoked',
+      context: { publicId }
     });
   }
 }
@@ -94,6 +134,28 @@ export class TurnProjectionError extends AgentInfraAppError {
     super(message, {
       statusCode: 500,
       code: 'turn_projection_error',
+      cause,
+      context
+    });
+  }
+}
+
+export class SharePersistenceError extends AgentInfraAppError {
+  constructor(message: string, context: Record<string, unknown>, cause?: unknown) {
+    super(message, {
+      statusCode: 500,
+      code: 'share_persistence_error',
+      cause,
+      context
+    });
+  }
+}
+
+export class ShareSnapshotBuildError extends AgentInfraAppError {
+  constructor(message: string, context: Record<string, unknown>, cause?: unknown) {
+    super(message, {
+      statusCode: 500,
+      code: 'share_snapshot_build_error',
       cause,
       context
     });
