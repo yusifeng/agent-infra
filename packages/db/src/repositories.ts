@@ -2,6 +2,10 @@ import { and, asc, desc, eq, gt, inArray, lt, max } from 'drizzle-orm';
 import type {
   Artifact,
   ArtifactRepository,
+  ChatShare,
+  ChatShareRepository,
+  ChatShareSnapshot,
+  ChatShareSnapshotRepository,
   Message,
   MessagePart,
   MessageRepository,
@@ -14,7 +18,7 @@ import type {
   ToolInvocation,
   ToolInvocationRepository
 } from '@agent-infra/core';
-import { artifacts, messageParts, messages, runEvents, runs, threads, toolInvocations } from './schema.js';
+import { artifacts, chatShareSnapshots, chatShares, messageParts, messages, runEvents, runs, threads, toolInvocations } from './schema.js';
 
 export class DrizzleThreadRepository implements ThreadRepository {
   constructor(private readonly db: any) {}
@@ -273,5 +277,65 @@ export class DrizzleArtifactRepository implements ArtifactRepository {
 
   async findByThread(threadId: string): Promise<Artifact[]> {
     return this.db.select().from(artifacts).where(eq(artifacts.threadId, threadId));
+  }
+}
+
+export class DrizzleChatShareRepository implements ChatShareRepository {
+  constructor(private readonly db: any) {}
+
+  async create(input: Omit<ChatShare, 'createdAt'>): Promise<ChatShare> {
+    const createdAt = new Date();
+    await this.db.insert(chatShares).values({ ...input, createdAt });
+    return { ...input, createdAt };
+  }
+
+  async findById(id: string): Promise<ChatShare | null> {
+    const [row] = await this.db.select().from(chatShares).where(eq(chatShares.id, id)).limit(1);
+    return row ?? null;
+  }
+
+  async findByPublicId(publicId: string): Promise<ChatShare | null> {
+    const [row] = await this.db.select().from(chatShares).where(eq(chatShares.publicId, publicId)).limit(1);
+    return row ?? null;
+  }
+
+  async findActiveByThread(threadId: string): Promise<ChatShare | null> {
+    const [row] = await this.db
+      .select()
+      .from(chatShares)
+      .where(and(eq(chatShares.sourceThreadId, threadId), eq(chatShares.status, 'active')))
+      .orderBy(desc(chatShares.createdAt))
+      .limit(1);
+    return row ?? null;
+  }
+
+  async updateStatus(id: string, status: ChatShare['status'], patch: Partial<ChatShare> = {}): Promise<ChatShare> {
+    await this.db
+      .update(chatShares)
+      .set({
+        status,
+        revokedAt: patch.revokedAt,
+        snapshotId: patch.snapshotId
+      })
+      .where(eq(chatShares.id, id));
+
+    const row = await this.findById(id);
+    if (!row) throw new Error(`chat share ${id} not found`);
+    return row;
+  }
+}
+
+export class DrizzleChatShareSnapshotRepository implements ChatShareSnapshotRepository {
+  constructor(private readonly db: any) {}
+
+  async create(input: Omit<ChatShareSnapshot, 'createdAt'>): Promise<ChatShareSnapshot> {
+    const createdAt = new Date();
+    await this.db.insert(chatShareSnapshots).values({ ...input, createdAt, payloadJson: input.payloadJson });
+    return { ...input, createdAt };
+  }
+
+  async findById(id: string): Promise<ChatShareSnapshot | null> {
+    const [row] = await this.db.select().from(chatShareSnapshots).where(eq(chatShareSnapshots.id, id)).limit(1);
+    return row ?? null;
   }
 }

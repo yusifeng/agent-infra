@@ -5,9 +5,19 @@ import { drizzle as drizzleSqlite } from 'drizzle-orm/better-sqlite3';
 import { drizzle as drizzleLibsql } from 'drizzle-orm/libsql/http';
 import { drizzle as drizzlePostgres } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
-import type { MessageRepository, RunEventRepository, RunRepository, ThreadRepository, ToolInvocationRepository } from '@agent-infra/core';
+import type {
+  ChatShareRepository,
+  ChatShareSnapshotRepository,
+  MessageRepository,
+  RunEventRepository,
+  RunRepository,
+  ThreadRepository,
+  ToolInvocationRepository
+} from '@agent-infra/core';
 
 import {
+  DrizzleChatShareRepository,
+  DrizzleChatShareSnapshotRepository,
   DrizzleMessageRepository,
   DrizzleRunEventRepository,
   DrizzleRunRepository,
@@ -15,6 +25,8 @@ import {
   DrizzleToolInvocationRepository
 } from './repositories.js';
 import {
+  SqliteChatShareRepository,
+  SqliteChatShareSnapshotRepository,
   SqliteMessageRepository,
   SqliteRunEventRepository,
   SqliteRunRepository,
@@ -39,6 +51,8 @@ export interface AgentInfraRepositoryBundle {
   messageRepo: MessageRepository;
   toolRepo: ToolInvocationRepository;
   runEventRepo: RunEventRepository;
+  chatShareRepo: ChatShareRepository;
+  chatShareSnapshotRepo: ChatShareSnapshotRepository;
 }
 
 const sqliteTransactionQueues = new Map<string, Promise<void>>();
@@ -102,7 +116,9 @@ export function createAgentInfraRepositories(mode: DbMode, db: any): AgentInfraR
       runRepo: new SqliteRunRepository(db),
       messageRepo: new SqliteMessageRepository(db),
       toolRepo: new SqliteToolInvocationRepository(db),
-      runEventRepo: new SqliteRunEventRepository(db)
+      runEventRepo: new SqliteRunEventRepository(db),
+      chatShareRepo: new SqliteChatShareRepository(db),
+      chatShareSnapshotRepo: new SqliteChatShareSnapshotRepository(db)
     };
   }
 
@@ -111,7 +127,9 @@ export function createAgentInfraRepositories(mode: DbMode, db: any): AgentInfraR
     runRepo: new DrizzleRunRepository(db),
     messageRepo: new DrizzleMessageRepository(db),
     toolRepo: new DrizzleToolInvocationRepository(db),
-    runEventRepo: new DrizzleRunEventRepository(db)
+    runEventRepo: new DrizzleRunEventRepository(db),
+    chatShareRepo: new DrizzleChatShareRepository(db),
+    chatShareSnapshotRepo: new DrizzleChatShareSnapshotRepository(db)
   };
 }
 

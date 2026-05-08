@@ -135,3 +135,44 @@ export const artifacts = pgTable('artifacts', {
   metadata: jsonb('metadata'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull()
 });
+
+export const chatShares = pgTable(
+  'chat_shares',
+  {
+    id: text('id').primaryKey(),
+    publicId: text('public_id').notNull(),
+    sourceThreadId: text('source_thread_id')
+      .notNull()
+      .references(() => threads.id),
+    scopeType: text('scope_type').notNull(),
+    status: text('status').notNull(),
+    snapshotId: text('snapshot_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true })
+  },
+  (table) => ({
+    publicIdUnique: unique('chat_shares_public_id_unique').on(table.publicId),
+    sourceThreadIdx: index('chat_shares_source_thread_id_idx').on(table.sourceThreadId),
+    statusIdx: index('chat_shares_status_idx').on(table.status)
+  })
+);
+
+export const chatShareSnapshots = pgTable(
+  'chat_share_snapshots',
+  {
+    id: text('id').primaryKey(),
+    shareId: text('share_id')
+      .notNull()
+      .references(() => chatShares.id),
+    payloadFormat: text('payload_format').notNull(),
+    payloadVersion: integer('payload_version').notNull(),
+    payloadJson: jsonb('payload_json'),
+    messageCount: integer('message_count').notNull(),
+    startSeq: integer('start_seq'),
+    endSeq: integer('end_seq'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull()
+  },
+  (table) => ({
+    shareIdIdx: index('chat_share_snapshots_share_id_idx').on(table.shareId)
+  })
+);

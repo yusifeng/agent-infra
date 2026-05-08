@@ -116,10 +116,10 @@
 
 ### 3.2 db
 
-- [ ] 在 `packages/db` 新增 share 相关 schema
-- [ ] 支持按 `publicId` 查询 share
-- [ ] 支持按 `threadId` 查询 active share
-- [ ] snapshot row 保持 immutable
+- [x] 在 `packages/db` 新增 share 相关 schema
+- [x] 支持按 `publicId` 查询 share
+- [x] 支持按 `threadId` 查询 active share
+- [x] snapshot row 保持 immutable
 
 ### 3.3 contracts
 

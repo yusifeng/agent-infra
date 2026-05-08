@@ -136,6 +136,47 @@ export const artifacts = sqliteTable('artifacts', {
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull()
 });
 
+export const chatShares = sqliteTable(
+  'chat_shares',
+  {
+    id: text('id').primaryKey(),
+    publicId: text('public_id').notNull(),
+    sourceThreadId: text('source_thread_id')
+      .notNull()
+      .references(() => threads.id),
+    scopeType: text('scope_type').notNull(),
+    status: text('status').notNull(),
+    snapshotId: text('snapshot_id').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    revokedAt: integer('revoked_at', { mode: 'timestamp_ms' })
+  },
+  (table) => ({
+    publicIdUnique: uniqueIndex('chat_shares_public_id_unique').on(table.publicId),
+    sourceThreadIdx: index('chat_shares_source_thread_id_idx').on(table.sourceThreadId),
+    statusIdx: index('chat_shares_status_idx').on(table.status)
+  })
+);
+
+export const chatShareSnapshots = sqliteTable(
+  'chat_share_snapshots',
+  {
+    id: text('id').primaryKey(),
+    shareId: text('share_id')
+      .notNull()
+      .references(() => chatShares.id),
+    payloadFormat: text('payload_format').notNull(),
+    payloadVersion: integer('payload_version').notNull(),
+    payloadJson: text('payload_json', { mode: 'json' }),
+    messageCount: integer('message_count').notNull(),
+    startSeq: integer('start_seq'),
+    endSeq: integer('end_seq'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull()
+  },
+  (table) => ({
+    shareIdIdx: index('chat_share_snapshots_share_id_idx').on(table.shareId)
+  })
+);
+
 
 export const SQLITE_SCHEMA_STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS threads (
@@ -223,5 +264,30 @@ export const SQLITE_SCHEMA_STATEMENTS = [
     uri TEXT,
     metadata TEXT,
     created_at INTEGER NOT NULL
-  )`
+  )`,
+  `CREATE TABLE IF NOT EXISTS chat_shares (
+    id TEXT PRIMARY KEY,
+    public_id TEXT NOT NULL,
+    source_thread_id TEXT NOT NULL REFERENCES threads(id),
+    scope_type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    snapshot_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    revoked_at INTEGER
+  )`,
+  'CREATE UNIQUE INDEX IF NOT EXISTS chat_shares_public_id_unique ON chat_shares(public_id)',
+  'CREATE INDEX IF NOT EXISTS chat_shares_source_thread_id_idx ON chat_shares(source_thread_id)',
+  'CREATE INDEX IF NOT EXISTS chat_shares_status_idx ON chat_shares(status)',
+  `CREATE TABLE IF NOT EXISTS chat_share_snapshots (
+    id TEXT PRIMARY KEY,
+    share_id TEXT NOT NULL REFERENCES chat_shares(id),
+    payload_format TEXT NOT NULL,
+    payload_version INTEGER NOT NULL,
+    payload_json TEXT,
+    message_count INTEGER NOT NULL,
+    start_seq INTEGER,
+    end_seq INTEGER,
+    created_at INTEGER NOT NULL
+  )`,
+  'CREATE INDEX IF NOT EXISTS chat_share_snapshots_share_id_idx ON chat_share_snapshots(share_id)'
 ] as const;
