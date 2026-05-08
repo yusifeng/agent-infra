@@ -67,3 +67,5 @@ coverage/
 .turbo/
 
 local.db
+chatgpt-response/
+.vercel

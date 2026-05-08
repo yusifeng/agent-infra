@@ -11,6 +11,7 @@ This repository is a `pnpm` workspace with one app and several shared packages.
 - `packages/runtime-pi`: server-side Pi runtime adapter and smoke harness.
 - `packages/shared`: small shared utilities.
 - `docs`: architecture and roadmap notes.
+- `docs/source-of-truth`: durable concept-model docs that should be treated as the single source of truth for shared frontend/runtime facts.
 - `.codex/skills`: local agent workflow helpers; treat these as tooling, not app code.
 
 ## Product Boundary
@@ -33,6 +34,7 @@ Bias toward cautious, minimal, verifiable changes, especially for non-trivial ta
 - Remove only the imports, variables, functions, or comments made obsolete by your own changes. Mention unrelated dead code separately instead of deleting it opportunistically.
 - Turn requests into explicit success criteria whenever possible, then verify them. For bug fixes, prefer reproducing the issue with a test first; for behavior changes, run the narrowest command that proves the change works.
 - For multi-step work, keep a short plan with concrete verification points so progress and correctness stay easy to evaluate.
+- When a concept model or long-lived behavioral fact already exists under `docs/source-of-truth`, align with that document first and update it instead of creating a parallel “truth” in another note.
 
 ## Build, Test, and Development Commands
 
