@@ -181,11 +181,11 @@
 
 ### 5.3 service
 
-- [ ] 定义 share 页专用 view-model build 逻辑
-- [ ] 从 shared snapshot 构建 `ContentNode[]` 或 share-safe equivalent
-- [ ] 复用 normal projector 生成 `TranscriptBlock[]`
-- [ ] 复用 `buildAnswerContainers(...)`
-- [ ] 组装 share-local search panel bundle
+- [x] 定义 share 页专用 view-model build 逻辑
+- [x] 从 shared snapshot 构建 `ContentNode[]` 或 share-safe equivalent
+- [x] 复用 normal projector 生成 `TranscriptBlock[]`
+- [x] 复用 `buildAnswerContainers(...)`
+- [x] 组装 share-local search panel bundle
 
 ### 5.4 runtime
 
@@ -254,9 +254,9 @@
 
 ### 8.3 Vite service / runtime / ui
 
-- [ ] service：shared snapshot -> transcript blocks
-- [ ] service：shared snapshot -> answer containers
-- [ ] service：search panel bundle build
+- [x] service：shared snapshot -> transcript blocks
+- [x] service：shared snapshot -> answer containers
+- [x] service：search panel bundle build
 - [ ] runtime：share dialog create flow
 - [ ] runtime：shared page load / error / retry
 - [ ] ui：只读分享页渲染
