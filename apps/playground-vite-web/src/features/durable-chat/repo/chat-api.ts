@@ -4,9 +4,34 @@ import {
   fetchThreadRunsResponse,
   type FetchThreadMessagesOptions
 } from '@agent-infra/durable-chat-client';
-import type { ToolInvocationDto } from '@agent-infra/contracts';
+import type { ToolInvocationDto, UpdateThreadResponseDto } from '@agent-infra/contracts';
+
+import { normalizeUpdateThreadResponse } from '@/features/durable-chat/schema/thread-management';
 
 export type { FetchThreadMessagesOptions };
+
+type UpdateThreadResult = {
+  ok: boolean;
+  status: number;
+  error: string | null;
+  data: UpdateThreadResponseDto;
+};
+
+async function fetchThreadMutation(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<UpdateThreadResult> {
+  const response = await fetch(input, init);
+  const raw = await response.json().catch(() => ({}));
+  const data = normalizeUpdateThreadResponse(raw);
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    error: data.error ?? null,
+    data
+  };
+}
 
 export async function fetchThreadMessages(threadId: string, options?: AbortSignal | FetchThreadMessagesOptions) {
   return fetchThreadMessagesResponse(threadId, options);
@@ -18,6 +43,22 @@ export async function fetchRunTimeline(runId: string, signal?: AbortSignal) {
 
 export async function fetchThreadRuns(threadId: string, limit: number, signal?: AbortSignal) {
   return fetchThreadRunsResponse(threadId, limit, signal);
+}
+
+export async function renameThread(threadId: string, title: string, signal?: AbortSignal) {
+  return fetchThreadMutation(`/api/threads/${threadId}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title }),
+    signal
+  });
+}
+
+export async function archiveThread(threadId: string, signal?: AbortSignal) {
+  return fetchThreadMutation(`/api/threads/${threadId}/archive`, {
+    method: 'POST',
+    signal
+  });
 }
 
 export async function fetchSearchToolInvocations(

@@ -2,12 +2,14 @@ import type { MessageDto, RunDto, RuntimePiMetaDto, ThreadDto, ThreadMessagesPag
 import { deriveMainChatResponseStatus, shouldShowMainChatLoading } from '@agent-infra/durable-chat-client';
 
 import { buildAnswerContainers } from '@/features/durable-chat/service/build-answer-containers';
+import { buildOrderedThreads } from '@/features/durable-chat/service/thread-list-presentation';
 import { buildTranscriptPresentation } from '@/features/durable-chat/service/transcript-presentation';
 import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
 import type { ChatPhase } from '@/features/durable-chat/types/runtime';
 
 type BuildChatViewStateArgs = {
   threads: ThreadDto[];
+  pinnedThreadIds: string[];
   activeThreadId: string | null;
   messages: MessageDto[];
   draft: string;
@@ -26,6 +28,7 @@ type BuildChatViewStateArgs = {
 export function buildChatViewState(args: BuildChatViewStateArgs) {
   const {
     threads,
+    pinnedThreadIds,
     activeThreadId,
     messages,
     draft,
@@ -41,6 +44,7 @@ export function buildChatViewState(args: BuildChatViewStateArgs) {
     pendingNewThreadLoadingId
   } = args;
 
+  const displayedThreads = buildOrderedThreads({ threads, pinnedThreadIds });
   const activeThread = threads.find((thread) => thread.id === activeThreadId) ?? null;
   const selectedModelOption = meta?.modelOptions.find((option) => option.key === selectedModelKey) ?? meta?.modelOptions[0] ?? null;
   const currentThreadTitle = activeThread?.title?.trim() || activeThreadId || 'New chat';
@@ -66,6 +70,7 @@ export function buildChatViewState(args: BuildChatViewStateArgs) {
 
   return {
     activeThread,
+    displayedThreads,
     selectedModelOption,
     currentThreadTitle,
     responseStatus,

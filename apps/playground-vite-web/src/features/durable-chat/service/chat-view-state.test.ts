@@ -93,6 +93,7 @@ describe('buildChatViewState', () => {
   it('derives the main chat view state from runtime inputs', () => {
     const result = buildChatViewState({
       threads: [createThread()],
+      pinnedThreadIds: [],
       activeThreadId: 'thread-1',
       messages: [createMessage()],
       draft: 'hello',
@@ -109,6 +110,7 @@ describe('buildChatViewState', () => {
     });
 
     expect(result.activeThread?.id).toBe('thread-1');
+    expect(result.displayedThreads).toHaveLength(1);
     expect(result.selectedModelOption?.key).toBe('gpt-5.5');
     expect(result.currentThreadTitle).toBe('Thread title');
     expect(result.isChatResponding).toBe(false);
@@ -125,6 +127,7 @@ describe('buildChatViewState', () => {
 
     const result = buildChatViewState({
       threads: [createThread()],
+      pinnedThreadIds: [],
       activeThreadId: 'thread-1',
       messages: [],
       draft: 'hello',
@@ -146,5 +149,31 @@ describe('buildChatViewState', () => {
     expect(result.inputLocked).toBe(true);
     expect(result.displayedMessages).toHaveLength(1);
     expect(result.displayedAnswerContainers).toHaveLength(0);
+  });
+
+  it('projects threads through the pinned-first sidebar ordering rules', () => {
+    const result = buildChatViewState({
+      threads: [
+        createThread({ id: 'thread-1', updatedAt: '2026-05-09T00:00:01.000Z' }),
+        createThread({ id: 'thread-2', updatedAt: '2026-05-09T00:00:03.000Z' }),
+        createThread({ id: 'thread-3', updatedAt: '2026-05-09T00:00:02.000Z' })
+      ],
+      pinnedThreadIds: ['thread-3', 'thread-1'],
+      activeThreadId: 'thread-1',
+      messages: [],
+      draft: '',
+      optimisticUserMessage: null,
+      meta: createMeta(),
+      selectedModelKey: 'gpt-5.5',
+      activeResponseRun: null,
+      chatPhase: 'idle',
+      persistingTurn: false,
+      loadingThreadId: null,
+      messagePageInfo: null,
+      liveAssistantDraft: null,
+      pendingNewThreadLoadingId: '__pending__'
+    });
+
+    expect(result.displayedThreads.map((thread) => thread.id)).toEqual(['thread-3', 'thread-1', 'thread-2']);
   });
 });

@@ -42,15 +42,15 @@
 - [x] Confirm the current `Thread` durable shape in `core` / `db` and document the exact fields reused for archive.
 - [x] Reuse `thread.title` for rename with no additional title fields.
 - [x] Reuse existing archive lifecycle fields instead of adding `deletedAt` / `isDeleted` if current infra already supports archived threads.
-- [ ] Define a Vite-local persistence model for pinned thread ids and ordering semantics.
-- [ ] Confirm pin sorting semantics in Vite: pinned first, pinned ordered by latest pin action first, then normal threads by existing list order.
+- [x] Define a Vite-local persistence model for pinned thread ids and ordering semantics.
+- [x] Confirm pin sorting semantics in Vite: pinned first, pinned ordered by latest pin action first, then normal threads by existing list order.
 
 ### 1.3 Types / Interfaces
 - [x] Add or update core/app interfaces for `renameThread`.
 - [x] Add or update core/app interfaces for `archiveThread`.
 - [x] Add or update contracts/DTOs for rename and archive responses.
-- [ ] Add or update Vite repo interfaces for rename/archive/share actions.
-- [ ] Define Vite-local types for pinned thread preferences and pin-aware list projection.
+- [x] Add or update Vite repo interfaces for rename/archive/share actions.
+- [x] Define Vite-local types for pinned thread preferences and pin-aware list projection.
 
 ## 2. Backend / Platform
 
@@ -83,19 +83,19 @@
 ## 3. Frontend Boundary
 
 ### 3.1 schema
-- [ ] Add parsers/validators for rename/archive route payloads if needed.
-- [ ] Keep pin state parsing local to Vite-side preference storage.
+- [x] Add parsers/validators for rename/archive route payloads if needed.
+- [x] Keep pin state parsing local to Vite-side preference storage.
 
 ### 3.2 repo
-- [ ] Add Vite repo functions for rename thread.
-- [ ] Add Vite repo functions for archive thread.
+- [x] Add Vite repo functions for rename thread.
+- [x] Add Vite repo functions for archive thread.
 - [ ] Reuse the existing share repo facade for thread share actions.
-- [ ] Add a Vite repo/storage facade for pin preference persistence.
+- [x] Add a Vite repo/storage facade for pin preference persistence.
 
 ### 3.3 service
-- [ ] Add service logic for thread list projection with pinned-first sorting.
-- [ ] Keep pin ordering rules in service-level pure logic with focused tests.
-- [ ] Ensure archived threads disappear from projected visible thread lists.
+- [x] Add service logic for thread list projection with pinned-first sorting.
+- [x] Keep pin ordering rules in service-level pure logic with focused tests.
+- [x] Ensure archived threads disappear from projected visible thread lists.
 
 ### 3.4 runtime
 - [ ] Add thread action runtime state for open/close menus.
@@ -121,9 +121,9 @@
 - [x] Add tests proving archive does not revoke existing shares.
 
 ### 4.2 frontend repo/service tests
-- [ ] Add tests for pin preference persistence.
-- [ ] Add tests for pinned-first sorting and latest-pin-first order.
-- [ ] Add tests for archived thread omission from visible lists.
+- [x] Add tests for pin preference persistence.
+- [x] Add tests for pinned-first sorting and latest-pin-first order.
+- [x] Add tests for archived thread omission from visible lists.
 - [ ] Add tests for share action integration with existing share state.
 
 ### 4.3 frontend runtime/ui tests
@@ -141,9 +141,9 @@
 - [x] Add focused backend tests.
 
 ### Loop 2
-- [ ] Implement Vite repo/schema wiring for rename/archive/share.
-- [ ] Implement pin preference storage and service-level sorting rules.
-- [ ] Add focused repo/service tests.
+- [x] Implement Vite repo/schema wiring for rename/archive/share.
+- [x] Implement pin preference storage and service-level sorting rules.
+- [x] Add focused repo/service tests.
 
 ### Loop 3
 - [ ] Implement sidebar thread actions runtime and UI with shadcn-style primitives.

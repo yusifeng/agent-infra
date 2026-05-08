@@ -7,6 +7,7 @@ export type { RunInspectorState } from '@agent-infra/durable-chat-client';
 
 export type ChatSessionState = {
   threads: ThreadDto[];
+  pinnedThreadIds: string[];
   activeThreadId: string | null;
   messages: MessageDto[];
   draft: string;

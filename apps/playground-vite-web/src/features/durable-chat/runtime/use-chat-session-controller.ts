@@ -27,6 +27,7 @@ function chatSessionReducer(state: ChatSessionState, action: ChatSessionAction) 
 function createInitialChatSessionState(): ChatSessionState {
   return {
     threads: [],
+    pinnedThreadIds: [],
     activeThreadId: null,
     messages: [],
     draft: '',
@@ -62,6 +63,9 @@ export function useChatSessionController() {
     state,
     setThreads: (next: Updater<ThreadDto[]>) => {
       dispatch((current) => ({ ...current, threads: resolveNext(current.threads, next) }));
+    },
+    setPinnedThreadIds: (next: Updater<string[]>) => {
+      dispatch((current) => ({ ...current, pinnedThreadIds: resolveNext(current.pinnedThreadIds, next) }));
     },
     setActiveThreadId: (next: Updater<string | null>) => {
       dispatch((current) => ({ ...current, activeThreadId: resolveNext(current.activeThreadId, next) }));

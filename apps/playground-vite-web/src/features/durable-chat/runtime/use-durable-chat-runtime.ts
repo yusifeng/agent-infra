@@ -20,6 +20,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useSearchPanelState } from '@/features/durable-chat/runtime/use-search-panel-state';
 import { fetchThreadMessages } from '@/features/durable-chat/repo/chat-api';
+import { readStoredPinnedThreadIds } from '@/features/durable-chat/repo/thread-pin-storage';
 import { buildChatViewState } from '@/features/durable-chat/service/chat-view-state';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
@@ -34,6 +35,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const {
     state: {
       threads,
+      pinnedThreadIds,
       activeThreadId,
       messages,
       draft,
@@ -57,6 +59,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       showScrollToBottom
     },
     setThreads,
+    setPinnedThreadIds,
     setActiveThreadId,
     setMessages,
     setDraft,
@@ -128,6 +131,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     showResponseLoading,
     sendDisabled,
     inputLocked,
+    displayedThreads,
     displayedMessages,
     displayedTranscriptBlocks,
     displayedAnswerContainers,
@@ -136,6 +140,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     () =>
       buildChatViewState({
         threads,
+        pinnedThreadIds,
         activeThreadId,
         messages,
         draft,
@@ -152,6 +157,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       }),
     [
       threads,
+      pinnedThreadIds,
       activeThreadId,
       messages,
       draft,
@@ -202,6 +208,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     if (typeof window === 'undefined') {
       return;
     }
+
+    setPinnedThreadIds(readStoredPinnedThreadIds());
 
     if (window.innerWidth < 1024) {
       setSidebarOpen(false);
@@ -728,6 +736,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     showScrollToBottom,
     sidebarOpen,
     textareaRef,
-    threads
+    threads: displayedThreads
   };
 }

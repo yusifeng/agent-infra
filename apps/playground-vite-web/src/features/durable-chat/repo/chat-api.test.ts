@@ -16,6 +16,7 @@ describe('chat api repo facade', () => {
     fetchRunTimelineResponse.mockReset();
     fetchThreadMessagesResponse.mockReset();
     fetchThreadRunsResponse.mockReset();
+    vi.unstubAllGlobals();
   });
 
   it('forwards thread message requests with options', async () => {
@@ -101,6 +102,78 @@ describe('chat api repo facade', () => {
           expect.objectContaining({ toolCallId: 'call-1', toolName: 'searchWeb' }),
           expect.objectContaining({ toolCallId: 'call-3', toolName: 'searchWeb' })
         ]
+      }
+    });
+  });
+
+  it('renames threads through the thread management route', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        thread: {
+          id: 'thread-1',
+          appId: 'playground-vite-web',
+          title: 'Renamed thread',
+          status: 'active',
+          metadata: null,
+          createdAt: '2026-05-09T00:00:00.000Z',
+          updatedAt: '2026-05-09T00:01:00.000Z',
+          archivedAt: null
+        }
+      })
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { renameThread } = await import('@/features/durable-chat/repo/chat-api');
+    const signal = new AbortController().signal;
+    const result = await renameThread('thread-1', 'Renamed thread', signal);
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/threads/thread-1', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Renamed thread' }),
+      signal
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        thread: expect.objectContaining({ id: 'thread-1', title: 'Renamed thread' })
+      }
+    });
+  });
+
+  it('archives threads through the thread management route', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        thread: {
+          id: 'thread-1',
+          appId: 'playground-vite-web',
+          title: 'Archived thread',
+          status: 'archived',
+          metadata: null,
+          createdAt: '2026-05-09T00:00:00.000Z',
+          updatedAt: '2026-05-09T00:02:00.000Z',
+          archivedAt: '2026-05-09T00:02:00.000Z'
+        }
+      })
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { archiveThread } = await import('@/features/durable-chat/repo/chat-api');
+    const signal = new AbortController().signal;
+    const result = await archiveThread('thread-1', signal);
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/threads/thread-1/archive', {
+      method: 'POST',
+      signal
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        thread: expect.objectContaining({ id: 'thread-1', status: 'archived' })
       }
     });
   });
