@@ -85,7 +85,6 @@ describe('buildReplayPresentation', () => {
 
     expect(presentation.transcriptBlocks.map((block) => block.type)).toEqual([
       'assistant-turn',
-      'assistant-turn',
       'assistant-turn'
     ]);
     expect(presentation.transcriptBlocks[0]).toMatchObject({
@@ -94,11 +93,33 @@ describe('buildReplayPresentation', () => {
     });
     expect(presentation.transcriptBlocks[1]).toMatchObject({
       type: 'assistant-turn',
-      items: [{ type: 'search-status' }]
+      items: [{ type: 'search-summary' }]
+    });
+  });
+
+  it('hides completed search loading nodes once the matching summary is visible', () => {
+    const session = createSession([
+      createStep({ id: 'text-1', kind: 'text', content: '第一段' }),
+      createStep({ id: 'loading-1', kind: 'search-loading', toolCallIds: ['call-1'], query: 'query 1' }),
+      createStep({ id: 'summary-1', kind: 'search-summary', toolCallIds: ['call-1'], query: 'query 1' }),
+      createStep({ id: 'loading-2', kind: 'search-loading', toolCallIds: ['call-2'], query: 'query 2' }),
+      createStep({ id: 'done-1', kind: 'done', runId: null, messageId: null, blockId: null, delayMs: 0 })
+    ]);
+
+    const presentation = buildReplayPresentation(session, createCursor({ stepIndex: 3, status: 'playing' }));
+
+    expect(presentation.transcriptBlocks).toHaveLength(3);
+    expect(presentation.transcriptBlocks[0]).toMatchObject({
+      type: 'assistant-turn',
+      items: [{ type: 'text' }]
+    });
+    expect(presentation.transcriptBlocks[1]).toMatchObject({
+      type: 'assistant-turn',
+      items: [{ type: 'search-summary' }]
     });
     expect(presentation.transcriptBlocks[2]).toMatchObject({
       type: 'assistant-turn',
-      items: [{ type: 'search-summary' }]
+      items: [{ type: 'search-status' }]
     });
   });
 
@@ -126,5 +147,19 @@ describe('buildReplayPresentation', () => {
       canRestart: true
     });
     expect(pausedPresentation.viewState.progressLabel).toBe('1 / 2');
+  });
+
+  it('keeps replay progress aligned with consumed steps after hiding completed search loading nodes', () => {
+    const session = createSession([
+      createStep({ id: 'text-1', kind: 'text', content: '第一段' }),
+      createStep({ id: 'loading-1', kind: 'search-loading', toolCallIds: ['call-1'], query: 'query 1' }),
+      createStep({ id: 'summary-1', kind: 'search-summary', toolCallIds: ['call-1'], query: 'query 1' }),
+      createStep({ id: 'done-1', kind: 'done', runId: null, messageId: null, blockId: null, delayMs: 0 })
+    ]);
+
+    const completedPresentation = buildReplayPresentation(session, createCursor({ stepIndex: 2, status: 'completed' }));
+
+    expect(completedPresentation.viewState.currentStepIndex).toBe(3);
+    expect(completedPresentation.viewState.progressLabel).toBe('3 / 3');
   });
 });

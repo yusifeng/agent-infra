@@ -141,7 +141,18 @@ function getVisibleSteps(session: ReplaySession, cursor: ReplayCursor) {
     return [];
   }
 
-  return session.steps.slice(0, cursor.stepIndex + 1).filter((step) => step.kind !== 'done');
+  const rawVisibleSteps = session.steps.slice(0, cursor.stepIndex + 1).filter((step) => step.kind !== 'done');
+  const completedSearchToolCallIds = new Set(
+    rawVisibleSteps.flatMap((step) => (step.kind === 'search-summary' ? step.toolCallIds : []))
+  );
+
+  return rawVisibleSteps.filter((step) => {
+    if (step.kind !== 'search-loading') {
+      return true;
+    }
+
+    return !step.toolCallIds.every((toolCallId) => completedSearchToolCallIds.has(toolCallId));
+  });
 }
 
 export function buildReplayTranscriptBlocks(session: ReplaySession, cursor: ReplayCursor): TranscriptBlock[] {
@@ -166,13 +177,13 @@ export function buildReplayControlState(session: ReplaySession | null, cursor: R
 
 export function buildReplayViewState(session: ReplaySession | null, cursor: ReplayCursor): ReplayViewState {
   const totalSteps = session ? session.steps.filter((step) => step.kind !== 'done').length : 0;
-  const visibleSteps = session ? getVisibleSteps(session, cursor).length : 0;
+  const consumedSteps = cursor.stepIndex >= 0 ? Math.min(cursor.stepIndex + 1, totalSteps) : 0;
 
   return {
     status: cursor.status,
-    currentStepIndex: visibleSteps,
+    currentStepIndex: consumedSteps,
     totalSteps,
-    progressLabel: totalSteps > 0 ? `${Math.min(visibleSteps, totalSteps)} / ${totalSteps}` : '0 / 0'
+    progressLabel: totalSteps > 0 ? `${consumedSteps} / ${totalSteps}` : '0 / 0'
   };
 }
 
