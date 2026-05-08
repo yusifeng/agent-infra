@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import type { ComponentType } from 'react';
+import type { ButtonHTMLAttributes, ComponentType } from 'react';
 
 import { LOBE_AVATAR_URL, WAVING_HAND_EMOJI_URL } from './ui';
 
@@ -10,7 +10,7 @@ type IconButtonProps = {
   size?: 'default' | 'small';
   disabled?: boolean;
   className?: string;
-};
+} & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children' | 'title' | 'onClick'>;
 
 export function IconButton({
   icon: Icon,
@@ -18,7 +18,8 @@ export function IconButton({
   title,
   size = 'default',
   disabled = false,
-  className
+  className,
+  ...buttonProps
 }: IconButtonProps) {
   const frameClass = size === 'small' ? 'h-6 w-6 rounded-md' : 'h-8 w-8 rounded-md';
   const iconClass = size === 'small' ? 'h-[14px] w-[14px]' : 'h-[18px] w-[18px]';
@@ -30,6 +31,7 @@ export function IconButton({
       title={title}
       disabled={disabled}
       onClick={onClick}
+      {...buttonProps}
       className={clsx(
         'flex items-center justify-center text-[color:var(--chat-text-secondary)] transition hover:bg-[var(--chat-hover)] hover:text-[color:var(--chat-text)] disabled:pointer-events-none disabled:opacity-50',
         frameClass,

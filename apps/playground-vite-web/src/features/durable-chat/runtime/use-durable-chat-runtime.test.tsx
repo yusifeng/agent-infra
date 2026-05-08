@@ -1,7 +1,7 @@
 import type { MessageDto, RunDto } from '@agent-infra/contracts';
 import type { LiveAssistantDraft } from '@agent-infra/durable-chat-client';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useDurableChatRuntime } from '@/features/durable-chat/runtime/use-durable-chat-runtime';
@@ -29,6 +29,18 @@ const liveDraftRecoveryMocks = vi.hoisted(() => ({
 const liveDraftPersistenceMocks = vi.hoisted(() => ({
   startRestoredLiveDraftRefreshLoop: vi.fn(),
   shouldRefreshRestoredLiveDraft: vi.fn()
+}));
+
+const chatApiMocks = vi.hoisted(() => ({
+  fetchThreadMessages: vi.fn(),
+  renameThread: vi.fn(),
+  archiveThread: vi.fn()
+}));
+
+const shareApiMocks = vi.hoisted(() => ({
+  createThreadSnapshotShare: vi.fn(),
+  fetchCurrentThreadShare: vi.fn(),
+  revokeThreadSnapshotShare: vi.fn()
 }));
 
 vi.mock('@agent-infra/durable-chat-client', async (importOriginal) => {
@@ -79,6 +91,18 @@ vi.mock('@/features/durable-chat/runtime/live-draft-persistence', () => ({
   shouldRefreshRestoredLiveDraft: (...args: unknown[]) => liveDraftPersistenceMocks.shouldRefreshRestoredLiveDraft(...args)
 }));
 
+vi.mock('@/features/durable-chat/repo/chat-api', () => ({
+  fetchThreadMessages: (...args: unknown[]) => chatApiMocks.fetchThreadMessages(...args),
+  renameThread: (...args: unknown[]) => chatApiMocks.renameThread(...args),
+  archiveThread: (...args: unknown[]) => chatApiMocks.archiveThread(...args)
+}));
+
+vi.mock('@/features/durable-chat/repo/share-api', () => ({
+  createThreadSnapshotShare: (...args: unknown[]) => shareApiMocks.createThreadSnapshotShare(...args),
+  fetchCurrentThreadShare: (...args: unknown[]) => shareApiMocks.fetchCurrentThreadShare(...args),
+  revokeThreadSnapshotShare: (...args: unknown[]) => shareApiMocks.revokeThreadSnapshotShare(...args)
+}));
+
 vi.mock('@/features/durable-chat/runtime/use-search-panel-state', () => ({
   useSearchPanelState: () => ({
     activeSearchResult: null,
@@ -103,6 +127,20 @@ function createRun(overrides: Partial<RunDto> = {}): RunDto {
     startedAt: null,
     finishedAt: null,
     createdAt: '2026-01-01T00:00:00.000Z',
+    ...overrides
+  };
+}
+
+function createThread(overrides: Partial<import('@agent-infra/contracts').ThreadDto> = {}) {
+  return {
+    id: 'thread-1',
+    appId: 'playground-vite-web',
+    title: 'Thread title',
+    status: 'active' as const,
+    metadata: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    archivedAt: null,
     ...overrides
   };
 }
@@ -139,15 +177,32 @@ function createDraft(): LiveAssistantDraft {
   };
 }
 
+let currentPath = '';
+
+function LocationProbe() {
+  currentPath = useLocation().pathname;
+  return null;
+}
+
 function wrapper({ children }: { children: React.ReactNode }) {
-  return <MemoryRouter>{children}</MemoryRouter>;
+  return (
+    <MemoryRouter initialEntries={['/chat/thread-1']}>
+      <LocationProbe />
+      {children}
+    </MemoryRouter>
+  );
 }
 
 describe('useDurableChatRuntime', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     durableChatClientMocks.runRefreshMeta.mockResolvedValue(undefined);
-    durableChatClientMocks.runRefreshThreads.mockResolvedValue(undefined);
+    durableChatClientMocks.runRefreshThreads.mockImplementation(async ({ actions }: any) => {
+      actions.setThreads([
+        createThread({ id: 'thread-1', title: '第一个会话', updatedAt: '2026-01-01T00:00:01.000Z' }),
+        createThread({ id: 'thread-2', title: '第二个会话', updatedAt: '2026-01-01T00:00:02.000Z' })
+      ]);
+    });
     durableChatClientMocks.runResetDraftThreadState.mockImplementation(() => undefined);
     durableChatClientMocks.runStopViewingLiveResponse.mockImplementation(() => undefined);
     durableChatClientMocks.runActivateThread.mockImplementation(async ({ threadId, actions, operations }: any) => {
@@ -166,6 +221,7 @@ describe('useDurableChatRuntime', () => {
       return { ok: true, restoredRunId: null };
     });
     durableChatClientMocks.runInitializeRuntime.mockImplementation(async ({ initialThreadId, operations }: any) => {
+      await operations.refreshThreads();
       if (initialThreadId) {
         await operations.activateThread(initialThreadId);
       }
@@ -194,6 +250,31 @@ describe('useDurableChatRuntime', () => {
       ({ restoredRunId }: { restoredRunId: string | null }) => restoredRunId === 'run-1'
     );
     liveDraftPersistenceMocks.startRestoredLiveDraftRefreshLoop.mockImplementation(() => () => undefined);
+    chatApiMocks.renameThread.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        thread: createThread({ id: 'thread-1', title: '已重命名' })
+      }
+    });
+    chatApiMocks.archiveThread.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        thread: createThread({ id: 'thread-1', status: 'archived', archivedAt: '2026-01-01T00:00:03.000Z' })
+      }
+    });
+    shareApiMocks.fetchCurrentThreadShare.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        share: null
+      }
+    });
+    currentPath = '/chat/thread-1';
   });
 
   it('restores an active live draft and starts its refresh loop after thread hydration', async () => {
@@ -292,6 +373,108 @@ describe('useDurableChatRuntime', () => {
       expect(durableChatClientMocks.runReconcileCompletedTurn).toHaveBeenCalledTimes(1);
       expect(result.current.liveAssistantDraft).toBeNull();
       expect(result.current.displayedMessages).toEqual([expect.objectContaining({ id: 'assistant-message-1' })]);
+    });
+  });
+
+  it('renames a thread and updates the visible thread title', async () => {
+    const { result } = renderHook(() => useDurableChatRuntime({ initialThreadId: 'thread-1' }), {
+      wrapper
+    });
+
+    await waitFor(() => {
+      expect(result.current.threads.map((thread) => thread.id)).toEqual(['thread-2', 'thread-1']);
+    });
+
+    act(() => {
+      result.current.onOpenRenameThread('thread-1');
+      result.current.onRenameDraftTitleChange('已重命名');
+    });
+
+    act(() => {
+      result.current.onConfirmRenameThread();
+    });
+
+    await waitFor(() => {
+      expect(chatApiMocks.renameThread).toHaveBeenCalledWith('thread-1', '已重命名');
+      expect(result.current.threads.find((thread) => thread.id === 'thread-1')?.title).toBe('已重命名');
+      expect(result.current.renameDialogThreadId).toBeNull();
+    });
+  });
+
+  it('surfaces rename failures without closing the dialog', async () => {
+    chatApiMocks.renameThread.mockResolvedValue({
+      ok: false,
+      status: 400,
+      error: 'Invalid title',
+      data: {}
+    });
+
+    const { result } = renderHook(() => useDurableChatRuntime({ initialThreadId: 'thread-1' }), {
+      wrapper
+    });
+
+    await waitFor(() => {
+      expect(result.current.threads).toHaveLength(2);
+    });
+
+    act(() => {
+      result.current.onOpenRenameThread('thread-1');
+      result.current.onRenameDraftTitleChange(' ');
+    });
+
+    act(() => {
+      result.current.onConfirmRenameThread();
+    });
+
+    await waitFor(() => {
+      expect(result.current.threadActionError).toBe('请输入会话标题。');
+      expect(result.current.renameDialogThreadId).toBe('thread-1');
+    });
+  });
+
+  it('archives the active thread and navigates back to /new', async () => {
+    const { result } = renderHook(() => useDurableChatRuntime({ initialThreadId: 'thread-1' }), {
+      wrapper
+    });
+
+    await waitFor(() => {
+      expect(result.current.activeThreadId).toBe('thread-1');
+      expect(result.current.threads).toHaveLength(2);
+    });
+
+    act(() => {
+      result.current.onPinThread('thread-1');
+      result.current.onOpenArchiveThread('thread-1');
+    });
+
+    act(() => {
+      result.current.onConfirmArchiveThread();
+    });
+
+    await waitFor(() => {
+      expect(chatApiMocks.archiveThread).toHaveBeenCalledWith('thread-1');
+      expect(result.current.threads.find((thread) => thread.id === 'thread-1')).toBeUndefined();
+      expect(result.current.pinnedThreadIds).toEqual([]);
+      expect(currentPath).toBe('/new');
+    });
+  });
+
+  it('opens the share dialog for a thread action target', async () => {
+    const { result } = renderHook(() => useDurableChatRuntime({ initialThreadId: 'thread-1' }), {
+      wrapper
+    });
+
+    await waitFor(() => {
+      expect(result.current.threads).toHaveLength(2);
+    });
+
+    act(() => {
+      result.current.onOpenShareThread('thread-2');
+    });
+
+    await waitFor(() => {
+      expect(result.current.shareDialog.open).toBe(true);
+      expect(result.current.shareDialog.targetThreadId).toBe('thread-2');
     });
   });
 });

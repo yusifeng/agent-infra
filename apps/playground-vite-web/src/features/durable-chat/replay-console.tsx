@@ -49,10 +49,18 @@ export function ReplayConsole({ initialThreadId }: { initialThreadId: string | n
       <ChatSidebar
         sidebarOpen={sidebarOpen}
         threads={threads}
+        pinnedThreadIds={[]}
         activeThreadId={activeThreadId}
+        openThreadMenuId={null}
         onClose={onCloseSidebar}
         onNewChat={onNewChat}
         onOpenThread={onOpenThread}
+        onOpenThreadMenu={() => undefined}
+        onCloseThreadMenu={() => undefined}
+        onRenameThread={() => undefined}
+        onTogglePinThread={() => undefined}
+        onShareThread={() => undefined}
+        onArchiveThread={() => undefined}
       />
 
       <div className="relative flex flex-1 min-h-0 min-w-0 overflow-hidden">

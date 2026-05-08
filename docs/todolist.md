@@ -15,12 +15,12 @@
 - [x] Existing shares should remain accessible after a thread is soft-deleted; delete should not auto-revoke share.
 
 ### 0.2 Goals
-- [ ] Add infra-backed thread rename capability.
-- [ ] Add infra-backed thread archive capability using the existing thread lifecycle model rather than inventing a second delete model.
-- [ ] Reuse the existing share flow from thread actions.
-- [ ] Expose a sidebar thread actions menu in Vite for rename, share, archive, and pin.
-- [ ] Implement pin as a Vite-side list preference only, without changing infra thread truth.
-- [ ] Ensure deleting the active thread transitions the app to `/new`.
+- [x] Add infra-backed thread rename capability.
+- [x] Add infra-backed thread archive capability using the existing thread lifecycle model rather than inventing a second delete model.
+- [x] Reuse the existing share flow from thread actions.
+- [x] Expose a sidebar thread actions menu in Vite for rename, share, archive, and pin.
+- [x] Implement pin as a Vite-side list preference only, without changing infra thread truth.
+- [x] Ensure deleting the active thread transitions the app to `/new`.
 
 ### 0.3 Non-goals
 - [x] Do not introduce a new global `pinnedAt` / `isPinned` field on `Thread` in infra for this task.
@@ -35,7 +35,7 @@
 ### 1.1 Source of Truth
 - [x] Verify and align with existing thread lifecycle truth in infra before changing delete semantics.
 - [x] Verify whether `Thread.status` and `archivedAt` already cover the needed archive model end-to-end.
-- [ ] Decide whether this task needs a follow-up source-of-truth doc for thread lifecycle / thread management after the implementation stabilizes.
+- [x] Decide whether this task needs a follow-up source-of-truth doc for thread lifecycle / thread management after the implementation stabilizes. Result: no new long-lived thread management source-of-truth doc is needed yet.
 - [x] Keep `docs/source-of-truth/share-model.md` as the only long-lived truth for share behavior; do not duplicate share semantics here.
 
 ### 1.2 Data model
@@ -89,7 +89,7 @@
 ### 3.2 repo
 - [x] Add Vite repo functions for rename thread.
 - [x] Add Vite repo functions for archive thread.
-- [ ] Reuse the existing share repo facade for thread share actions.
+- [x] Reuse the existing share repo facade for thread share actions.
 - [x] Add a Vite repo/storage facade for pin preference persistence.
 
 ### 3.3 service
@@ -98,18 +98,18 @@
 - [x] Ensure archived threads disappear from projected visible thread lists.
 
 ### 3.4 runtime
-- [ ] Add thread action runtime state for open/close menus.
-- [ ] Add rename flow state and optimistic/local refresh behavior.
-- [ ] Add archive flow state and active-thread redirect to `/new`.
-- [ ] Add share action wiring that opens the existing share dialog.
-- [ ] Add pin/unpin runtime wiring backed by Vite-local preferences.
+- [x] Add thread action runtime state for open/close menus.
+- [x] Add rename flow state and optimistic/local refresh behavior.
+- [x] Add archive flow state and active-thread redirect to `/new`.
+- [x] Add share action wiring that opens the existing share dialog.
+- [x] Add pin/unpin runtime wiring backed by Vite-local preferences.
 
 ### 3.5 ui
-- [ ] Add a thread actions menu to thread list items using shadcn-style primitives.
-- [ ] Add rename UI using shadcn-style input/dialog patterns.
-- [ ] Add archive confirmation using shadcn-style destructive confirmation patterns.
-- [ ] Add share menu item that launches the existing share dialog.
-- [ ] Add pin/unpin menu item and pinned list presentation without exposing infra-level pin semantics.
+- [x] Add a thread actions menu to thread list items using shadcn-style primitives.
+- [x] Add rename UI using shadcn-style input/dialog patterns.
+- [x] Add archive confirmation using shadcn-style destructive confirmation patterns.
+- [x] Add share menu item that launches the existing share dialog.
+- [x] Add pin/unpin menu item and pinned list presentation without exposing infra-level pin semantics.
 
 ## 4. Tests
 
@@ -124,14 +124,14 @@
 - [x] Add tests for pin preference persistence.
 - [x] Add tests for pinned-first sorting and latest-pin-first order.
 - [x] Add tests for archived thread omission from visible lists.
-- [ ] Add tests for share action integration with existing share state.
+- [x] Add tests for share action integration with existing share state.
 
 ### 4.3 frontend runtime/ui tests
-- [ ] Add tests for thread actions menu visibility and commands.
-- [ ] Add tests for rename success/failure states.
-- [ ] Add tests for archive confirmation and redirect to `/new` when active thread is archived.
-- [ ] Add tests for share action opening the existing share dialog.
-- [ ] Add tests for pin/unpin interaction and reordered list rendering.
+- [x] Add tests for thread actions menu visibility and commands.
+- [x] Add tests for rename success/failure states.
+- [x] Add tests for archive confirmation and redirect to `/new` when active thread is archived.
+- [x] Add tests for share action opening the existing share dialog.
+- [x] Add tests for pin/unpin interaction and reordered list rendering.
 
 ## 5. Recommended Execution Order
 
@@ -146,10 +146,10 @@
 - [x] Add focused repo/service tests.
 
 ### Loop 3
-- [ ] Implement sidebar thread actions runtime and UI with shadcn-style primitives.
-- [ ] Wire rename, archive, share, and pin actions.
-- [ ] Add focused runtime/UI tests.
+- [x] Implement sidebar thread actions runtime and UI with shadcn-style primitives.
+- [x] Wire rename, archive, share, and pin actions.
+- [x] Add focused runtime/UI tests.
 
 ### Loop 4
-- [ ] Verify end-to-end behavior manually in the Vite app.
-- [ ] Run targeted review and clean up any source-of-truth promotions if thread lifecycle rules became stable enough for a long-lived doc.
+- [x] Verify end-to-end behavior manually in the Vite app.
+- [x] Run targeted review and clean up any source-of-truth promotions if thread lifecycle rules became stable enough for a long-lived doc.

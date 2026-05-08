@@ -16,13 +16,8 @@ function buildShareUrl(publicId: string) {
   return new URL(`/share/${publicId}`, window.location.origin).toString();
 }
 
-type UseShareDialogStateArgs = {
-  activeThreadId: string | null;
-  enabled: boolean;
-};
-
-export function useShareDialogState(args: UseShareDialogStateArgs) {
-  const { activeThreadId, enabled } = args;
+export function useShareDialogState() {
+  const [targetThreadId, setTargetThreadId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [loadingCurrentShare, setLoadingCurrentShare] = useState(false);
   const [creatingShare, setCreatingShare] = useState(false);
@@ -32,19 +27,18 @@ export function useShareDialogState(args: UseShareDialogStateArgs) {
   const [currentShare, setCurrentShare] = useState<ChatShareDto | null>(null);
   const requestIdRef = useRef(0);
   const mutationIdRef = useRef(0);
-  const activeThreadIdRef = useRef<string | null>(activeThreadId);
+  const targetThreadIdRef = useRef<string | null>(targetThreadId);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    activeThreadIdRef.current = activeThreadId;
-  }, [activeThreadId]);
+    targetThreadIdRef.current = targetThreadId;
+  }, [targetThreadId]);
 
   useEffect(() => {
-    setOpen(false);
     setCopied(false);
     setError(null);
 
-    if (!activeThreadId) {
+    if (!targetThreadId) {
       setCurrentShare(null);
       setLoadingCurrentShare(false);
       abortControllerRef.current?.abort();
@@ -59,7 +53,7 @@ export function useShareDialogState(args: UseShareDialogStateArgs) {
     setCurrentShare(null);
     setLoadingCurrentShare(true);
 
-    void fetchCurrentThreadShare(activeThreadId, controller.signal)
+    void fetchCurrentThreadShare(targetThreadId, controller.signal)
       .then((result) => {
         if (requestIdRef.current !== requestId || controller.signal.aborted) {
           return;
@@ -90,7 +84,7 @@ export function useShareDialogState(args: UseShareDialogStateArgs) {
     return () => {
       controller.abort();
     };
-  }, [activeThreadId]);
+  }, [targetThreadId]);
 
   useEffect(() => {
     return () => {
@@ -99,8 +93,6 @@ export function useShareDialogState(args: UseShareDialogStateArgs) {
   }, []);
 
   const shareUrl = useMemo(() => (currentShare ? buildShareUrl(currentShare.publicId) : null), [currentShare]);
-  const canOpen = enabled && Boolean(activeThreadId);
-
   async function copyCurrentShareUrl(url: string) {
     await copyTextToClipboard(url);
     setCopied(true);
@@ -108,11 +100,11 @@ export function useShareDialogState(args: UseShareDialogStateArgs) {
   }
 
   async function createOrCopy() {
-    if (!activeThreadId || !enabled) {
+    if (!targetThreadId) {
       return;
     }
 
-    const threadId = activeThreadId;
+    const threadId = targetThreadId;
     const mutationId = mutationIdRef.current + 1;
     mutationIdRef.current = mutationId;
     setCopied(false);
@@ -127,7 +119,7 @@ export function useShareDialogState(args: UseShareDialogStateArgs) {
 
     try {
       const result = await createThreadSnapshotShare(threadId);
-      if (mutationIdRef.current !== mutationId || activeThreadIdRef.current !== threadId) {
+      if (mutationIdRef.current !== mutationId || targetThreadIdRef.current !== threadId) {
         return;
       }
 
@@ -138,14 +130,14 @@ export function useShareDialogState(args: UseShareDialogStateArgs) {
       setCurrentShare(result.data.share);
       await copyCurrentShareUrl(buildShareUrl(result.data.share.publicId));
     } catch (nextError) {
-      if (mutationIdRef.current !== mutationId || activeThreadIdRef.current !== threadId) {
+      if (mutationIdRef.current !== mutationId || targetThreadIdRef.current !== threadId) {
         return;
       }
 
       setError(nextError instanceof Error ? nextError.message : 'Failed to create share.');
       setCopied(false);
     } finally {
-      if (mutationIdRef.current === mutationId && activeThreadIdRef.current === threadId) {
+      if (mutationIdRef.current === mutationId && targetThreadIdRef.current === threadId) {
         setCreatingShare(false);
       }
     }
@@ -156,7 +148,7 @@ export function useShareDialogState(args: UseShareDialogStateArgs) {
       return;
     }
 
-    const threadId = activeThreadIdRef.current;
+    const threadId = targetThreadIdRef.current;
     const mutationId = mutationIdRef.current + 1;
     mutationIdRef.current = mutationId;
     setRevokingShare(true);
@@ -165,7 +157,7 @@ export function useShareDialogState(args: UseShareDialogStateArgs) {
 
     try {
       const result = await revokeThreadSnapshotShare(currentShare.publicId);
-      if (mutationIdRef.current !== mutationId || activeThreadIdRef.current !== threadId) {
+      if (mutationIdRef.current !== mutationId || targetThreadIdRef.current !== threadId) {
         return;
       }
 
@@ -175,13 +167,13 @@ export function useShareDialogState(args: UseShareDialogStateArgs) {
 
       setCurrentShare(null);
     } catch (nextError) {
-      if (mutationIdRef.current !== mutationId || activeThreadIdRef.current !== threadId) {
+      if (mutationIdRef.current !== mutationId || targetThreadIdRef.current !== threadId) {
         return;
       }
 
       setError(nextError instanceof Error ? nextError.message : 'Failed to revoke share.');
     } finally {
-      if (mutationIdRef.current === mutationId && activeThreadIdRef.current === threadId) {
+      if (mutationIdRef.current === mutationId && targetThreadIdRef.current === threadId) {
         setRevokingShare(false);
       }
     }
@@ -189,7 +181,7 @@ export function useShareDialogState(args: UseShareDialogStateArgs) {
 
   return {
     open,
-    canOpen,
+    targetThreadId,
     copied,
     error,
     creatingShare,
@@ -197,15 +189,19 @@ export function useShareDialogState(args: UseShareDialogStateArgs) {
     loadingCurrentShare,
     currentShare,
     shareUrl,
-    onOpen: () => {
-      if (canOpen) {
-        setOpen(true);
+    onOpenForThread: (threadId: string | null) => {
+      if (!threadId) {
+        return;
       }
+
+      setTargetThreadId(threadId);
+      setOpen(true);
     },
     onClose: () => {
       setOpen(false);
       setCopied(false);
       setError(null);
+      setTargetThreadId(null);
     },
     onCreateOrCopy: () => {
       void createOrCopy();

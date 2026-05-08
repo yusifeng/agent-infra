@@ -4,23 +4,41 @@ import { Share2 } from 'lucide-react';
 import { ChatHeader } from './components/chat-header';
 import { ComposerDock } from './components/composer-dock';
 import { ShareDialog } from './components/share-dialog';
+import { ThreadArchiveDialog } from './components/thread-archive-dialog';
+import { ThreadRenameDialog } from './components/thread-rename-dialog';
 import { IconButton } from './components/shared';
 import { ChatMessageList } from './components/message-list';
 import { SearchResultsPanel } from './components/search-results-panel';
 import { ChatSidebar } from './components/sidebar';
 import { ui } from './components/ui';
 import { useDurableChatRuntime } from './runtime/use-durable-chat-runtime';
-import { useShareDialogState } from './runtime/use-share-dialog-state';
 
 export function DurableChatConsole({ initialThreadId }: { initialThreadId: string | null }) {
   const runtime = useDurableChatRuntime({ initialThreadId });
   const {
     sidebarOpen,
     threads,
+    pinnedThreadIds,
     activeThreadId,
+    openThreadMenuId,
+    renameDialogThreadId,
+    renameDraftTitle,
+    renamingThreadId,
+    archiveDialogThreadId,
+    archivingThreadId,
+    threadActionError,
     onCloseSidebar,
     onNewChat,
     onOpenThread,
+    onOpenThreadMenu,
+    closeThreadMenu: onCloseThreadMenu,
+    onOpenRenameThread,
+    onRenameDraftTitleChange,
+    onConfirmRenameThread,
+    onOpenArchiveThread,
+    onConfirmArchiveThread,
+    onPinThread,
+    onUnpinThread,
     currentThreadTitle,
     onOpenSidebar,
     messagesViewportRef,
@@ -59,12 +77,10 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
     onSend,
     onStop,
     onScrollToBottom,
-    showResponseLoading
+    showResponseLoading,
+    shareDialog,
+    onOpenShareThread
   } = runtime;
-  const shareDialog = useShareDialogState({
-    activeThreadId,
-    enabled: Boolean(activeThreadId) && !isChatResponding && displayedMessages.length > 0
-  });
   const showLoadingText =
     showResponseLoading &&
     liveAssistantDraft !== null &&
@@ -79,24 +95,38 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
       <ChatSidebar
         sidebarOpen={sidebarOpen}
         threads={threads}
+        pinnedThreadIds={pinnedThreadIds}
         activeThreadId={activeThreadId}
+        openThreadMenuId={openThreadMenuId}
         onClose={onCloseSidebar}
         onNewChat={onNewChat}
         onOpenThread={onOpenThread}
+        onOpenThreadMenu={onOpenThreadMenu}
+        onCloseThreadMenu={onCloseThreadMenu}
+        onRenameThread={onOpenRenameThread}
+        onTogglePinThread={(threadId, pinned) => {
+          if (pinned) {
+            onUnpinThread(threadId);
+          } else {
+            onPinThread(threadId);
+          }
+        }}
+        onShareThread={onOpenShareThread}
+        onArchiveThread={onOpenArchiveThread}
       />
 
       <div className="relative flex flex-1 min-h-0 min-w-0 overflow-hidden">
         <div className={clsx('relative flex flex-1 min-h-0 min-w-0 flex-col overflow-hidden', ui.chatPane)}>
           <ChatHeader
-            currentThreadTitle={currentThreadTitle}
-            sidebarOpen={sidebarOpen}
-            onOpenSidebar={onOpenSidebar}
-            trailingContent={
-              shareDialog.canOpen ? (
-                <IconButton icon={Share2} onClick={shareDialog.onOpen} size="small" title="分享对话" />
-              ) : null
-            }
-          />
+              currentThreadTitle={currentThreadTitle}
+              sidebarOpen={sidebarOpen}
+              onOpenSidebar={onOpenSidebar}
+              trailingContent={
+                activeThreadId && !isChatResponding && displayedMessages.length > 0 ? (
+                  <IconButton icon={Share2} onClick={() => onOpenShareThread(activeThreadId)} size="small" title="分享对话" />
+                ) : null
+              }
+            />
 
           <div className={clsx('flex min-h-0 flex-1 flex-col overflow-hidden', centeredEmptyState && 'justify-center')}>
             <div
@@ -172,6 +202,24 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
         onClose={shareDialog.onClose}
         onCreateOrCopy={shareDialog.onCreateOrCopy}
         onRevoke={shareDialog.onRevoke}
+      />
+
+      <ThreadRenameDialog
+        open={Boolean(renameDialogThreadId)}
+        title={renameDraftTitle}
+        loading={Boolean(renamingThreadId)}
+        error={threadActionError}
+        onClose={runtime.closeRenameDialog}
+        onTitleChange={onRenameDraftTitleChange}
+        onConfirm={onConfirmRenameThread}
+      />
+
+      <ThreadArchiveDialog
+        open={Boolean(archiveDialogThreadId)}
+        loading={Boolean(archivingThreadId)}
+        error={threadActionError}
+        onClose={runtime.closeArchiveDialog}
+        onConfirm={onConfirmArchiveThread}
       />
     </main>
   );

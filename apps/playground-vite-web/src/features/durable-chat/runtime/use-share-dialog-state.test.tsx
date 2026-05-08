@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useShareDialogState } from '@/features/durable-chat/runtime/use-share-dialog-state';
@@ -56,18 +56,21 @@ describe('useShareDialogState', () => {
     });
 
     const { result } = renderHook(() =>
-      useShareDialogState({
-        activeThreadId: 'thread-1',
-        enabled: true
-      })
+      useShareDialogState()
     );
 
+    act(() => {
+      result.current.onOpenForThread('thread-1');
+    });
+
     await waitFor(() => {
+      expect(result.current.targetThreadId).toBe('thread-1');
       expect(result.current.loadingCurrentShare).toBe(false);
     });
 
-    result.current.onOpen();
-    result.current.onCreateOrCopy();
+    act(() => {
+      result.current.onCreateOrCopy();
+    });
 
     await waitFor(() => {
       expect(helperMocks.copyTextToClipboard).toHaveBeenCalledWith(expect.stringContaining('/share/public-1'));
@@ -114,17 +117,20 @@ describe('useShareDialogState', () => {
     });
 
     const { result } = renderHook(() =>
-      useShareDialogState({
-        activeThreadId: 'thread-1',
-        enabled: true
-      })
+      useShareDialogState()
     );
+
+    act(() => {
+      result.current.onOpenForThread('thread-1');
+    });
 
     await waitFor(() => {
       expect(result.current.currentShare?.publicId).toBe('public-1');
     });
 
-    result.current.onRevoke();
+    act(() => {
+      result.current.onRevoke();
+    });
 
     await waitFor(() => {
       expect(result.current.currentShare).toBeNull();
