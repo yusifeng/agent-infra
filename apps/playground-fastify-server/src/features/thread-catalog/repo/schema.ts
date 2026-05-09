@@ -58,6 +58,14 @@ const SQLITE_BACKFILL_STATEMENT = `
   WHERE threads.app_id = ? AND catalog.thread_id IS NULL
 `;
 
+const TURSO_BACKFILL_STATEMENT = `
+  INSERT INTO playground_thread_catalog (thread_id, app_id, owner_user_id, pinned_at, created_at, updated_at)
+  SELECT threads.id, threads.app_id, '${LOCAL_DEV_USER_ID}', NULL, threads.created_at, threads.updated_at
+  FROM threads
+  LEFT JOIN playground_thread_catalog catalog ON catalog.thread_id = threads.id
+  WHERE threads.app_id = '${APP_ID}' AND catalog.thread_id IS NULL
+`;
+
 export async function bootstrapPlaygroundThreadCatalog(dbConfig: DbConfig) {
   const statements = dbConfig.mode === 'postgres' ? POSTGRES_STATEMENTS : SQLITE_STATEMENTS;
 
@@ -67,11 +75,21 @@ export async function bootstrapPlaygroundThreadCatalog(dbConfig: DbConfig) {
       continue;
     }
 
+    if (dbConfig.mode === 'turso') {
+      await dbConfig.db.$client.execute(statement);
+      continue;
+    }
+
     await dbConfig.db.execute(sql.raw(statement));
   }
 
   if (dbConfig.mode === 'sqlite') {
     dbConfig.db.$client.prepare(SQLITE_BACKFILL_STATEMENT).run(LOCAL_DEV_USER_ID, APP_ID);
+    return;
+  }
+
+  if (dbConfig.mode === 'turso') {
+    await dbConfig.db.$client.execute(TURSO_BACKFILL_STATEMENT);
     return;
   }
 

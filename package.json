@@ -11,6 +11,8 @@
     "dev:next-web": "pnpm --filter playground-next-web dev:prepared",
     "dev:vite-web": "pnpm --filter playground-vite-web dev",
     "dev:fastify-server": "pnpm --filter playground-fastify-server dev:prepared",
+    "dev:fastify-server:sqlite": "pnpm --filter playground-fastify-server dev:prepared:sqlite",
+    "dev:fastify-server:turso": "pnpm --filter playground-fastify-server dev:prepared:turso",
     "dev:docs": "pnpm --filter docs-web dev",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm --filter @agent-infra/core build && pnpm --filter @agent-infra/contracts build && pnpm --filter @agent-infra/durable-chat-client build && pnpm --filter @agent-infra/db build && pnpm --filter @agent-infra/app build && pnpm --filter @agent-infra/durable-chat-server build && pnpm --filter @agent-infra/runtime-pi build && pnpm -r typecheck",

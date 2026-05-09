@@ -34,6 +34,8 @@ Use this when actively editing the apps:
 
 - Fastify host with explicit bootstrap first:
   - `pnpm --filter playground-fastify-server dev:prepared`
+  - `pnpm --filter playground-fastify-server dev:prepared:sqlite`
+  - `pnpm --filter playground-fastify-server dev:prepared:turso`
   - or from repo root: `pnpm run dev:fastify-server`
 - Vite: `pnpm --filter playground-vite-web dev`
 
@@ -41,6 +43,12 @@ The web app talks to the server through `/api` and Vite's proxy.
 
 The raw `dev` script still exists, but it assumes the database schema has already been bootstrapped.
 The validated default workflow is the prepared variant, which runs the bootstrap step before starting the host.
+When you need deterministic local DB selection during development, use the explicit variants:
+
+- `dev:prepared:sqlite` forces `PLAYGROUND_DB_MODE=sqlite`
+- `dev:prepared:turso` forces `PLAYGROUND_DB_MODE=turso`
+
+This avoids `.env` files reintroducing `TURSO_DATABASE_URL` or `DATABASE_URL` after startup.
 
 ### Production-shaped local validation
 

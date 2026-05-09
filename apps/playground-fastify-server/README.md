@@ -17,6 +17,8 @@ Current purpose:
 
 - `pnpm --filter playground-fastify-server bootstrap:db`
 - `pnpm --filter playground-fastify-server dev:prepared`
+- `pnpm --filter playground-fastify-server dev:prepared:sqlite`
+- `pnpm --filter playground-fastify-server dev:prepared:turso`
 - `pnpm --filter playground-fastify-server dev`
 - `pnpm --filter playground-fastify-server build`
 - `pnpm --filter playground-fastify-server start:prepared`
@@ -24,6 +26,7 @@ Current purpose:
 - `pnpm --filter playground-fastify-server test`
 
 The prepared commands are the validated default path. They run DB bootstrap explicitly before the host starts serving requests.
+The `:sqlite` and `:turso` variants also force DB mode explicitly via `PLAYGROUND_DB_MODE`, so `.env` loading cannot silently switch the runtime to another backend.
 
 ## Env loading
 

@@ -164,9 +164,27 @@ async function ensureTursoSchema(connectionString: string, authToken?: string) {
   }
 }
 
+function resolveForcedDbMode(): DbMode | null {
+  const rawMode = process.env.PLAYGROUND_DB_MODE?.trim().toLowerCase();
+  if (!rawMode) {
+    return null;
+  }
+
+  if (rawMode === 'sqlite' || rawMode === 'turso' || rawMode === 'postgres') {
+    return rawMode;
+  }
+
+  throw new Error(`unsupported PLAYGROUND_DB_MODE: ${process.env.PLAYGROUND_DB_MODE}`);
+}
+
 export function createDbConfigFromEnv(): DbConfig {
+  const forcedMode = resolveForcedDbMode();
   const tursoDatabaseUrl = process.env.TURSO_DATABASE_URL;
-  if (tursoDatabaseUrl) {
+  if (forcedMode === 'turso' || (!forcedMode && tursoDatabaseUrl)) {
+    if (!tursoDatabaseUrl) {
+      throw new Error('PLAYGROUND_DB_MODE=turso requires TURSO_DATABASE_URL');
+    }
+
     const authToken = process.env.TURSO_AUTH_TOKEN;
     const client = createLibsqlClient({
       url: tursoDatabaseUrl,
@@ -184,7 +202,11 @@ export function createDbConfigFromEnv(): DbConfig {
   }
 
   const databaseUrl = process.env.DATABASE_URL;
-  if (databaseUrl) {
+  if (forcedMode === 'postgres' || (!forcedMode && databaseUrl)) {
+    if (!databaseUrl) {
+      throw new Error('PLAYGROUND_DB_MODE=postgres requires DATABASE_URL');
+    }
+
     const pool = new Pool({ connectionString: databaseUrl });
     return {
       mode: 'postgres',
