@@ -3,6 +3,14 @@ import clsx from 'clsx';
 import { Archive, ChevronDown, MoreHorizontal, MessageSquarePlus, PanelLeftClose, PencilLine, Pin, PinOff, Share2 } from 'lucide-react';
 import { useState } from 'react';
 
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
+
 import { IconButton } from './shared';
 import { ui } from './ui';
 
@@ -123,59 +131,48 @@ export function ChatSidebar({
                             {pinned ? <Pin className="h-3.5 w-3.5 shrink-0 text-[color:var(--chat-text-tertiary)]" /> : null}
                             <ThreadTitle thread={thread} />
                           </button>
-                          <div className="relative ml-2 shrink-0">
-                            <IconButton
-                              icon={MoreHorizontal}
-                              title="会话操作"
-                              size="small"
-                              className={clsx('opacity-0 group-hover:opacity-100', menuOpen && 'opacity-100')}
-                              data-thread-menu-button={thread.id}
-                              onClick={() => {
-                                if (menuOpen) {
-                                  onCloseThreadMenu();
-                                } else {
-                                  onOpenThreadMenu(thread.id);
-                                }
-                              }}
-                            />
+                          <DropdownMenu
+                            open={menuOpen}
+                            onOpenChange={(nextOpen) => {
+                              if (nextOpen) {
+                                onOpenThreadMenu(thread.id);
+                              } else {
+                                onCloseThreadMenu();
+                              }
+                            }}
+                          >
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon-xs"
+                                aria-label="会话操作"
+                                title="会话操作"
+                                data-thread-menu-button={thread.id}
+                                className={clsx('ml-2 shrink-0 opacity-0 group-hover:opacity-100', menuOpen && 'opacity-100')}
+                              >
+                                <MoreHorizontal className="h-[14px] w-[14px]" />
+                              </Button>
+                            </DropdownMenuTrigger>
 
-                            {menuOpen ? (
-                              <div className="absolute right-0 top-[calc(100%+8px)] z-20 w-44 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-[0_18px_60px_rgba(15,23,42,0.18)]">
-                                <button
-                                  type="button"
-                                  onClick={() => onRenameThread(thread.id)}
-                                  className="flex h-10 w-full items-center gap-3 rounded-xl px-3 text-sm text-slate-700 transition hover:bg-slate-100"
-                                >
-                                  <PencilLine className="h-4 w-4" />
-                                  <span>重命名</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => onTogglePinThread(thread.id, pinned)}
-                                  className="flex h-10 w-full items-center gap-3 rounded-xl px-3 text-sm text-slate-700 transition hover:bg-slate-100"
-                                >
-                                  {pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
-                                  <span>{pinned ? '取消置顶' : '置顶'}</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => onShareThread(thread.id)}
-                                  className="flex h-10 w-full items-center gap-3 rounded-xl px-3 text-sm text-slate-700 transition hover:bg-slate-100"
-                                >
-                                  <Share2 className="h-4 w-4" />
-                                  <span>分享</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => onArchiveThread(thread.id)}
-                                  className="flex h-10 w-full items-center gap-3 rounded-xl px-3 text-sm text-red-600 transition hover:bg-red-50"
-                                >
-                                  <Archive className="h-4 w-4" />
-                                  <span>删除</span>
-                                </button>
-                              </div>
-                            ) : null}
-                          </div>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onSelect={() => onRenameThread(thread.id)}>
+                                <PencilLine className="h-4 w-4" />
+                                <span>重命名</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => onTogglePinThread(thread.id, pinned)}>
+                                {pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+                                <span>{pinned ? '取消置顶' : '置顶'}</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => onShareThread(thread.id)}>
+                                <Share2 className="h-4 w-4" />
+                                <span>分享</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem variant="destructive" onSelect={() => onArchiveThread(thread.id)}>
+                                <Archive className="h-4 w-4" />
+                                <span>删除</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       );
                     })}

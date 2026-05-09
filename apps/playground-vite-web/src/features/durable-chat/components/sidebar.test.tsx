@@ -6,6 +6,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { ChatSidebar } from './sidebar';
 import { buildOrderedThreads } from '@/features/durable-chat/service/thread-list-presentation';
 
+function openMenu(trigger: HTMLElement) {
+  fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+}
+
 function createThread(overrides: Partial<ThreadDto> = {}): ThreadDto {
   return {
     id: 'thread-1',
@@ -60,19 +64,19 @@ describe('ChatSidebar', () => {
 
     render(<Harness />);
 
-    fireEvent.click(screen.getByLabelText('会话操作'));
-    expect(screen.getByRole('button', { name: '重命名' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: '分享' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: '删除' })).toBeTruthy();
+    openMenu(screen.getByTitle('会话操作'));
+    expect(screen.getByRole('menuitem', { name: '重命名' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: '分享' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: '删除' })).toBeTruthy();
 
     fireEvent.click(screen.getByText('重命名'));
     expect(renameSpy).toHaveBeenCalledWith('thread-1');
 
-    fireEvent.click(screen.getByLabelText('会话操作'));
+    openMenu(screen.getByTitle('会话操作'));
     fireEvent.click(screen.getByText('分享'));
     expect(shareSpy).toHaveBeenCalledWith('thread-1');
 
-    fireEvent.click(screen.getByLabelText('会话操作'));
+    openMenu(screen.getByTitle('会话操作'));
     fireEvent.click(screen.getByText('删除'));
     expect(archiveSpy).toHaveBeenCalledWith('thread-1');
   });
@@ -123,12 +127,12 @@ describe('ChatSidebar', () => {
 
     expect(getTitles()).toEqual(['第二条', '第一条']);
 
-    fireEvent.click(container.querySelector('[data-thread-menu-button="thread-1"]') as HTMLElement);
-    fireEvent.click(screen.getByRole('button', { name: '置顶' }));
+    openMenu(container.querySelector('[data-thread-menu-button="thread-1"]') as HTMLElement);
+    fireEvent.click(screen.getByRole('menuitem', { name: '置顶' }));
     expect(getTitles()).toEqual(['第一条', '第二条']);
 
-    fireEvent.click(container.querySelector('[data-thread-menu-button="thread-1"]') as HTMLElement);
-    fireEvent.click(screen.getByRole('button', { name: '取消置顶' }));
+    openMenu(container.querySelector('[data-thread-menu-button="thread-1"]') as HTMLElement);
+    fireEvent.click(screen.getByRole('menuitem', { name: '取消置顶' }));
     expect(getTitles()).toEqual(['第二条', '第一条']);
   });
 });

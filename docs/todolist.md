@@ -1,155 +1,114 @@
-# Thread Management Todo
+# Vite Shadcn Primitive Replacement Todo
 
 ## 0. Context and Boundary
 
 ### 0.1 Confirmed facts
-- [x] This task starts from thread item actions in the sidebar: rename, pin, share, delete.
-- [x] Share already exists as an infra capability and should be reused rather than redesigned.
-- [x] Thread rename should overwrite `thread.title` directly; v1 does not need separate auto-title vs custom-title fields.
-- [x] Thread delete should be modeled as soft delete.
-- [x] The repository already has thread lifecycle concepts that should be checked before adding new delete fields.
-- [x] Deleting the active thread should navigate to `/new`.
-- [x] UI work should prefer shadcn/ui primitives for menu, dialog, and destructive confirmations.
-- [x] The current infra boundary discussion indicates `rename`, `archive`, and `share` belong in infra; `pin` should not yet become thread-level infra truth.
-- [x] Multiple pinned threads are allowed as a product requirement, but pin is currently better treated as a consumer-level preference, not a `Thread` model field.
-- [x] Existing shares should remain accessible after a thread is soft-deleted; delete should not auto-revoke share.
+- [x] `apps/playground-vite-web` already has shadcn/ui initialized (`components.json`, Tailwind import, existing `Button` and `Select` primitives).
+- [x] The current thread actions UI in durable chat still uses hand-rolled primitives for the thread menu and several dialogs.
+- [x] The current hand-rolled implementations are in:
+  - `src/features/durable-chat/components/sidebar.tsx`
+  - `src/features/durable-chat/components/share-dialog.tsx`
+  - `src/features/durable-chat/components/thread-rename-dialog.tsx`
+  - `src/features/durable-chat/components/thread-archive-dialog.tsx`
+- [x] The project currently does **not** yet provide reusable shadcn/ui wrappers for:
+  - `DropdownMenu`
+  - `Dialog`
+  - `AlertDialog`
+  - `Input`
+- [x] `Button` already exists at `src/components/ui/button.tsx` and should be reused rather than bypassed.
+- [x] This task is Vite-only and should not change infra behavior, contracts, or server routes.
 
 ### 0.2 Goals
-- [x] Add infra-backed thread rename capability.
-- [x] Add infra-backed thread archive capability using the existing thread lifecycle model rather than inventing a second delete model.
-- [x] Reuse the existing share flow from thread actions.
-- [x] Expose a sidebar thread actions menu in Vite for rename, share, archive, and pin.
-- [x] Implement pin as a Vite-side list preference only, without changing infra thread truth.
-- [x] Ensure deleting the active thread transitions the app to `/new`.
+- [ ] Add the missing shadcn/Radix primitive wrappers needed by the current durable-chat thread actions UX.
+- [x] Replace the hand-rolled thread actions menu with a shadcn/Radix `DropdownMenu`.
+- [x] Replace the hand-rolled archive confirmation with a shadcn/Radix `AlertDialog`.
+- [x] Replace the hand-rolled rename and share modals with shadcn/Radix `Dialog` plus shared `Input`/`Button` primitives where appropriate.
+- [x] Preserve the current product behavior while improving accessibility, focus management, and primitive consistency.
 
 ### 0.3 Non-goals
-- [x] Do not introduce a new global `pinnedAt` / `isPinned` field on `Thread` in infra for this task.
-- [x] Do not build a per-user preference model in infra as part of this task.
-- [x] Do not add segment-level share.
-- [x] Do not add hard delete, trash, undo delete, or restore flows.
-- [x] Do not redesign the full sidebar architecture.
-- [x] Do not build a new share system; reuse the existing snapshot share model.
+- [x] Do not redesign the thread actions feature itself.
+- [x] Do not change rename/archive/share/pin runtime semantics.
+- [x] Do not change infra, contracts, db, app, or routes.
+- [x] Do not rewrite the whole sidebar or durable-chat visual language.
+- [x] Do not force all existing custom UI into shadcn/ui; this task only covers the current thread menu and related dialogs.
+- [x] Do not introduce a new form/state library.
 
 ## 1. Definitions First
 
 ### 1.1 Source of Truth
-- [x] Verify and align with existing thread lifecycle truth in infra before changing delete semantics.
-- [x] Verify whether `Thread.status` and `archivedAt` already cover the needed archive model end-to-end.
-- [x] Decide whether this task needs a follow-up source-of-truth doc for thread lifecycle / thread management after the implementation stabilizes. Result: no new long-lived thread management source-of-truth doc is needed yet.
-- [x] Keep `docs/source-of-truth/share-model.md` as the only long-lived truth for share behavior; do not duplicate share semantics here.
+- [x] `apps/playground-vite-web/AGENTS.md` should explicitly state that new interactive primitives in this app should prefer shadcn/ui / Radix over hand-rolled DOM implementations.
+- [x] Decide whether this replacement task needs any long-lived `docs/source-of-truth/*` addition. Result: no new source-of-truth doc is needed; the app-local policy belongs in `apps/playground-vite-web/AGENTS.md`.
 
-### 1.2 Data model
-- [x] Confirm the current `Thread` durable shape in `core` / `db` and document the exact fields reused for archive.
-- [x] Reuse `thread.title` for rename with no additional title fields.
-- [x] Reuse existing archive lifecycle fields instead of adding `deletedAt` / `isDeleted` if current infra already supports archived threads.
-- [x] Define a Vite-local persistence model for pinned thread ids and ordering semantics.
-- [x] Confirm pin sorting semantics in Vite: pinned first, pinned ordered by latest pin action first, then normal threads by existing list order.
+### 1.2 Data / UI primitive model
+- [x] This task does not introduce new business data models.
+- [x] Define the minimal primitive set needed for replacement:
+  - `DropdownMenu`
+  - `Dialog`
+  - `AlertDialog`
+  - `Input`
+- [x] Confirm whether existing `Button` variants are sufficient for the current share / rename / archive actions, or whether only minimal variant additions are needed. Result: existing `Button` variants are sufficient for the first replacement pass.
 
 ### 1.3 Types / Interfaces
-- [x] Add or update core/app interfaces for `renameThread`.
-- [x] Add or update core/app interfaces for `archiveThread`.
-- [x] Add or update contracts/DTOs for rename and archive responses.
-- [x] Add or update Vite repo interfaces for rename/archive/share actions.
-- [x] Define Vite-local types for pinned thread preferences and pin-aware list projection.
+- [x] Keep current durable-chat runtime/component interfaces stable wherever possible.
+- [x] If new primitive wrappers require helper props or slot conventions, define them at the primitive layer instead of leaking Radix details through durable-chat feature interfaces.
 
-## 2. Backend / Platform
+## 2. Vite Boundary
 
-### 2.1 core
-- [x] Add thread management use-case surface for rename.
-- [x] Add thread management use-case surface for archive.
-- [x] Avoid adding thread-level pin truth to core.
+### 2.1 ui primitives
+- [x] Add `src/components/ui/dropdown-menu.tsx`.
+- [x] Add `src/components/ui/dialog.tsx`.
+- [x] Add `src/components/ui/alert-dialog.tsx`.
+- [x] Add `src/components/ui/input.tsx`.
+- [x] Keep these wrappers aligned with the app’s existing shadcn/Radix style and `cn()` utility patterns.
 
-### 2.2 contracts
-- [x] Add request/response contracts for rename thread.
-- [x] Add request/response contracts for archive thread.
-- [x] Reuse existing share contracts for the share action entrypoint.
+### 2.2 feature components
+- [x] Replace the thread item actions flyout in `sidebar.tsx` with `DropdownMenu`.
+- [x] Replace `thread-archive-dialog.tsx` internals with `AlertDialog`.
+- [x] Replace `thread-rename-dialog.tsx` internals with `Dialog` + `Input` + `Button`.
+- [x] Replace `share-dialog.tsx` internals with `Dialog` + shared primitives.
+- [x] Decide whether the bespoke `IconButton` helper should remain as-is or wrap `Button` later; do not expand this task unless necessary. Result: keep `IconButton` unchanged for now; it is outside the current primitive replacement scope.
 
-### 2.3 db
-- [x] Confirm whether existing thread persistence already supports archive filtering and archive timestamps.
-- [x] Implement repository rename behavior.
-- [x] Implement repository archive behavior.
-- [x] Ensure archived threads are excluded from normal thread list reads.
+### 2.3 runtime integration
+- [x] Preserve existing open/close and confirm/cancel wiring in `use-durable-chat-runtime.ts`.
+- [x] Preserve existing share dialog state behavior in `use-share-dialog-state.ts`.
+- [x] Remove any component-local assumptions that only existed because the old primitives were hand-rolled.
 
-### 2.4 app
-- [x] Add app-layer rename thread flow.
-- [x] Add app-layer archive thread flow.
-- [x] Preserve share lifecycle independence from thread archive.
+## 3. Tests
 
-### 2.5 routes
-- [x] Add route to rename a thread.
-- [x] Add route to archive a thread.
-- [x] Reuse current share routes from the thread actions flow rather than adding parallel share APIs.
+### 3.1 primitive-level tests
+- [x] Add focused tests for any new app-level primitive wrappers only if they contain meaningful local behavior beyond thin re-export/wrapping. Result: no wrapper-specific tests were added in Loop 1 because these files are thin app-local wrappers.
 
-## 3. Frontend Boundary
+### 3.2 feature UI tests
+- [x] Update sidebar tests to match `DropdownMenu` interaction semantics.
+- [x] Update archive dialog tests to match `AlertDialog` behavior.
+- [x] Update rename dialog tests to match `Dialog` + `Input` behavior.
+- [x] Update share dialog tests if the rendered accessibility structure changes. Result: existing runtime-level share dialog coverage remained sufficient; no dedicated component test was needed for this replacement.
 
-### 3.1 schema
-- [x] Add parsers/validators for rename/archive route payloads if needed.
-- [x] Keep pin state parsing local to Vite-side preference storage.
+### 3.3 runtime regression tests
+- [x] Keep existing runtime tests passing for rename/share/archive thread actions.
+- [x] Add or update tests only where primitive replacement changes event timing or close behavior.
 
-### 3.2 repo
-- [x] Add Vite repo functions for rename thread.
-- [x] Add Vite repo functions for archive thread.
-- [x] Reuse the existing share repo facade for thread share actions.
-- [x] Add a Vite repo/storage facade for pin preference persistence.
+### 3.4 verification
+- [x] Run targeted Vite tests for sidebar, share dialog state, and durable chat runtime.
+- [x] Run `pnpm --filter playground-vite-web typecheck`.
+- [x] Run `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`.
+- [x] Perform a quick browser smoke for thread menu, rename dialog, share dialog, and archive confirm behavior.
 
-### 3.3 service
-- [x] Add service logic for thread list projection with pinned-first sorting.
-- [x] Keep pin ordering rules in service-level pure logic with focused tests.
-- [x] Ensure archived threads disappear from projected visible thread lists.
-
-### 3.4 runtime
-- [x] Add thread action runtime state for open/close menus.
-- [x] Add rename flow state and optimistic/local refresh behavior.
-- [x] Add archive flow state and active-thread redirect to `/new`.
-- [x] Add share action wiring that opens the existing share dialog.
-- [x] Add pin/unpin runtime wiring backed by Vite-local preferences.
-
-### 3.5 ui
-- [x] Add a thread actions menu to thread list items using shadcn-style primitives.
-- [x] Add rename UI using shadcn-style input/dialog patterns.
-- [x] Add archive confirmation using shadcn-style destructive confirmation patterns.
-- [x] Add share menu item that launches the existing share dialog.
-- [x] Add pin/unpin menu item and pinned list presentation without exposing infra-level pin semantics.
-
-## 4. Tests
-
-### 4.1 backend / platform tests
-- [x] Add rename thread app/repository tests.
-- [x] Add archive thread app/repository tests.
-- [x] Add route tests for rename.
-- [x] Add route tests for archive.
-- [x] Add tests proving archive does not revoke existing shares.
-
-### 4.2 frontend repo/service tests
-- [x] Add tests for pin preference persistence.
-- [x] Add tests for pinned-first sorting and latest-pin-first order.
-- [x] Add tests for archived thread omission from visible lists.
-- [x] Add tests for share action integration with existing share state.
-
-### 4.3 frontend runtime/ui tests
-- [x] Add tests for thread actions menu visibility and commands.
-- [x] Add tests for rename success/failure states.
-- [x] Add tests for archive confirmation and redirect to `/new` when active thread is archived.
-- [x] Add tests for share action opening the existing share dialog.
-- [x] Add tests for pin/unpin interaction and reordered list rendering.
-
-## 5. Recommended Execution Order
+## 4. Recommended Execution Order
 
 ### Loop 1
-- [x] Confirm current infra thread lifecycle fields and archive semantics.
-- [x] Implement infra rename and archive surfaces in core/contracts/db/app/routes.
-- [x] Add focused backend tests.
+- [x] Add the missing shadcn/Radix primitive wrappers (`dropdown-menu`, `dialog`, `alert-dialog`, `input`).
+- [x] Verify they typecheck and fit the app’s existing UI conventions.
 
 ### Loop 2
-- [x] Implement Vite repo/schema wiring for rename/archive/share.
-- [x] Implement pin preference storage and service-level sorting rules.
-- [x] Add focused repo/service tests.
+- [x] Replace the sidebar thread actions menu with `DropdownMenu`.
+- [x] Update focused sidebar tests.
 
 ### Loop 3
-- [x] Implement sidebar thread actions runtime and UI with shadcn-style primitives.
-- [x] Wire rename, archive, share, and pin actions.
-- [x] Add focused runtime/UI tests.
+- [x] Replace archive confirmation with `AlertDialog`.
+- [x] Replace rename dialog with `Dialog` + `Input` + `Button`.
+- [x] Update related tests.
 
 ### Loop 4
-- [x] Verify end-to-end behavior manually in the Vite app.
-- [x] Run targeted review and clean up any source-of-truth promotions if thread lifecycle rules became stable enough for a long-lived doc.
+- [x] Replace share dialog internals with `Dialog` + shared primitives.
+- [x] Run targeted verification, review, and browser smoke.
