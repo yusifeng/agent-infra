@@ -1,11 +1,14 @@
+import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
+import rateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 
 import { loadPlaygroundEnv } from './env.js';
 import { applyTimingHeaders, createRequestTiming } from './request-timing.js';
+import { registerAuthRoutes, type AuthRouteDependencies } from './routes/auth.js';
 import { registerChatRoutes, type ChatRouteDependencies } from './routes/chat.js';
 
-export type BuildPlaygroundServerOptions = ChatRouteDependencies & {
+export type BuildPlaygroundServerOptions = ChatRouteDependencies & AuthRouteDependencies & {
   envFiles?: string[];
   loadEnv?: boolean;
   logger?: FastifyServerOptions['logger'];
@@ -22,6 +25,10 @@ export async function buildPlaygroundServer(options: BuildPlaygroundServerOption
 
   await app.register(cors, {
     origin: true
+  });
+  await app.register(cookie);
+  await app.register(rateLimit, {
+    global: false
   });
 
   app.addHook('onRequest', async (request) => {
@@ -45,6 +52,7 @@ export async function buildPlaygroundServer(options: BuildPlaygroundServerOption
     };
   });
 
+  await registerAuthRoutes(app, options);
   await registerChatRoutes(app, options);
 
   return {

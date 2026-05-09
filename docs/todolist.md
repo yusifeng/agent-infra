@@ -15,7 +15,7 @@
 - [x] 历史 `local-dev-user` 业务数据无关紧要，这次任务不为其保留兼容迁移逻辑。
 
 ### 0.2 Goals
-- [ ] 为 Fastify host 增加宿主侧 auth schema、repo、service、route 和 session 解析。
+- [x] 为 Fastify host 增加宿主侧 auth schema、repo、service、route 和 session 解析。
 - [ ] 支持邮箱注册验证码发送、邮箱验证码注册、邮箱/密码登录、当前用户查询、登出。
 - [ ] 将 thread routes 从固定 `local-dev-user` 切换为 request-scoped 的真实 auth user。
 - [ ] 让未登录用户无法访问需要 ownership 的 thread API。
@@ -97,7 +97,7 @@
   - `sign-up`
   - `sign-in`
   - `logout`
-- [ ] 定义统一 auth error code 集合：
+- [x] 定义统一 auth error code 集合：
   - `INVALID_EMAIL`
   - `EMAIL_ALREADY_REGISTERED`
   - `INVALID_CODE`
@@ -107,12 +107,12 @@
   - `RATE_LIMITED`
   - `UNAUTHORIZED`
 - [ ] 定义 request-scoped `currentUser` 类型，并挂到 Fastify request 上。
-- [ ] 定义 auth email sender 接口，隔离供应商 SDK。
-- [ ] 定义 session token 服务接口：
+- [x] 定义 auth email sender 接口，隔离供应商 SDK。
+- [x] 定义 session token 服务接口：
   - 生成原始 token
   - 计算 `token_hash`
   - 校验 cookie token
-- [ ] 定义 email challenge HMAC 计算接口：
+- [x] 定义 email challenge HMAC 计算接口：
   - 使用服务端 secret
   - 输入包含 `challengeId + email + purpose + code`
 
@@ -125,42 +125,41 @@
 
 ### 2.2 Host repo / service structure
 - [x] 新增 `features/auth/identity/normalize-email.ts`。
-- [ ] 新增 `features/auth/repo/auth-user-repo.ts`。
-- [ ] 新增 `features/auth/repo/auth-identity-repo.ts`。
-- [ ] 新增 `features/auth/repo/auth-password-repo.ts`。
-- [ ] 新增 `features/auth/repo/auth-email-challenge-repo.ts`。
-- [ ] 新增 `features/auth/repo/auth-session-repo.ts`。
+- [x] 新增 `features/auth/repo/auth-user-repo.ts`。
+- [x] 新增 `features/auth/repo/auth-identity-repo.ts`。
+- [x] 新增 `features/auth/repo/auth-password-repo.ts`。
+- [x] 新增 `features/auth/repo/auth-email-challenge-repo.ts`。
+- [x] 新增 `features/auth/repo/auth-session-repo.ts`。
 - [x] 新增 `features/auth/service/password-hasher.ts`，使用 `argon2id`。
-- [ ] 新增 `features/auth/service/session-token.ts`，负责生成原始 token 与 `token_hash`。
 - [x] 新增 `features/auth/service/session-token.ts`，负责生成原始 token 与 `token_hash`。
-- [ ] 新增 `features/auth/service/email-challenge-service.ts`，负责验证码生成、HMAC 校验、过期与 attempt 逻辑。
-- [ ] 新增 `features/auth/service/auth-service.ts`，负责注册、登录、登出、当前用户解析。
-- [ ] 新增 `features/auth/service/email-sender.ts` 抽象，首个实现默认接 `Resend`。
-- [ ] 新增 `features/auth/service/origin-check.ts`，对敏感写接口做 `Origin` 校验。
+- [x] 新增 `features/auth/service/email-challenge-service.ts`，负责验证码生成、HMAC 校验、过期与 attempt 逻辑。
+- [x] 新增 `features/auth/service/auth-service.ts`，负责注册、登录、登出、当前用户解析。
+- [x] 新增 `features/auth/service/email-sender.ts` 抽象，首个实现默认接 `Resend`。
+- [x] 新增 `features/auth/service/origin-check.ts`，对敏感写接口做 `Origin` 校验。
 
 ### 2.3 Host auth routes
-- [ ] 新增 [`apps/playground-fastify-server/src/routes/auth.ts`](/Users/david/Documents/github/agent-infra/apps/playground-fastify-server/src/routes/auth.ts)。
-- [ ] 实现 `POST /api/auth/email/request-signup-code`。
-- [ ] 实现 `POST /api/auth/sign-up`。
-- [ ] 实现 `POST /api/auth/sign-in`。
-- [ ] 实现 `GET /api/auth/me`。
-- [ ] 实现 `POST /api/auth/logout`。
-- [ ] 为 auth 写接口加 rate limit。
-- [ ] 为 auth 写接口加 `Origin` 校验。
-- [ ] 为登录错误统一返回 `INVALID_CREDENTIALS`，避免用户枚举。
+- [x] 新增 [`apps/playground-fastify-server/src/routes/auth.ts`](/Users/david/Documents/github/agent-infra/apps/playground-fastify-server/src/routes/auth.ts)。
+- [x] 实现 `POST /api/auth/email/request-signup-code`。
+- [x] 实现 `POST /api/auth/sign-up`。
+- [x] 实现 `POST /api/auth/sign-in`。
+- [x] 实现 `GET /api/auth/me`。
+- [x] 实现 `POST /api/auth/logout`。
+- [x] 为 auth 写接口加 rate limit。
+- [x] 为 auth 写接口加 `Origin` 校验。
+- [x] 为登录错误统一返回 `INVALID_CREDENTIALS`，避免用户枚举。
 
 ### 2.4 Cookie and session handling
-- [ ] 注册 `@fastify/cookie`。
-- [ ] 开发环境使用 cookie 名 `sid`。
-- [ ] 生产环境使用 cookie 名 `__Host-sid`。
-- [ ] cookie 仅存原始 `sessionToken`，数据库仅存 `token_hash`。
-- [ ] cookie 属性固定为：
+- [x] 注册 `@fastify/cookie`。
+- [x] 开发环境使用 cookie 名 `sid`。
+- [x] 生产环境使用 cookie 名 `__Host-sid`。
+- [x] cookie 仅存原始 `sessionToken`，数据库仅存 `token_hash`。
+- [x] cookie 属性固定为：
   - `HttpOnly`
   - `SameSite=Lax`
   - `Path=/`
   - production `Secure=true`
-- [ ] `GET /api/auth/me` 每次都从 cookie token -> hash -> `auth_sessions` -> `auth_users` 解析当前用户。
-- [ ] `logout` 撤销 session 并清 cookie。
+- [x] `GET /api/auth/me` 每次都从 cookie token -> hash -> `auth_sessions` -> `auth_users` 解析当前用户。
+- [x] `logout` 撤销 session 并清 cookie。
 
 ### 2.5 Replace current-user and protect thread routes
 - [ ] 用 request-scoped session user 替换固定 `local-dev-user` 实现。
@@ -203,18 +202,18 @@
 ## 4. Tests
 
 ### 4.1 Backend tests
-- [ ] 覆盖请求注册验证码成功。
-- [ ] 覆盖已注册邮箱请求注册验证码失败。
-- [ ] 覆盖 resend cooldown 生效。
+- [x] 覆盖请求注册验证码成功。
+- [x] 覆盖已注册邮箱请求注册验证码失败。
+- [x] 覆盖 resend cooldown 生效。
 - [ ] 覆盖验证码过期失败。
 - [ ] 覆盖验证码错误失败。
 - [ ] 覆盖验证码 attempt 超限失败。
-- [ ] 覆盖注册成功会创建 `auth_users / auth_identities / auth_passwords / auth_sessions`。
-- [ ] 覆盖登录成功会创建 session。
-- [ ] 覆盖登录失败返回 `INVALID_CREDENTIALS`。
-- [ ] 覆盖 `/api/auth/me` 已登录返回 user。
-- [ ] 覆盖 `/api/auth/me` 未登录返回 `user: null`。
-- [ ] 覆盖登出会撤销 session 并清 cookie。
+- [x] 覆盖注册成功会创建 `auth_users / auth_identities / auth_passwords / auth_sessions`。
+- [x] 覆盖登录成功会创建 session。
+- [x] 覆盖登录失败返回 `INVALID_CREDENTIALS`。
+- [x] 覆盖 `/api/auth/me` 已登录返回 user。
+- [x] 覆盖 `/api/auth/me` 未登录返回 `user: null`。
+- [x] 覆盖登出会撤销 session 并清 cookie。
 - [ ] 覆盖未登录访问 thread API 返回 `401`。
 - [ ] 覆盖已登录创建 thread 后 `owner_user_id` 正确写入 auth user id。
 
@@ -226,12 +225,12 @@
 - [ ] 覆盖登出后回到登录页。
 
 ### 4.3 Verification
-- [ ] 运行 `pnpm --filter playground-fastify-server test`
-- [ ] 运行 `pnpm --filter playground-fastify-server typecheck`
+- [x] 运行 `pnpm --filter playground-fastify-server test`
+- [x] 运行 `pnpm --filter playground-fastify-server typecheck`
 - [ ] 运行 `pnpm --filter playground-vite-web test`
 - [ ] 运行 `pnpm --filter playground-vite-web typecheck`
 - [ ] 运行 `pnpm typecheck`
-- [ ] 运行 `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`
+- [x] 运行 `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`
 
 ## 5. Recommended Execution Order
 
@@ -241,9 +240,9 @@
 - [x] 为 session token、验证码 HMAC、密码 hash 建立最小单元测试。
 
 ### Loop 2
-- [ ] 实现 auth repo / service / email sender 抽象。
-- [ ] 接入 `@fastify/cookie`、`Origin` 校验和 rate limit。
-- [ ] 实现 `/api/auth/*` 路由并完成后端主链路测试。
+- [x] 实现 auth repo / service / email sender 抽象。
+- [x] 接入 `@fastify/cookie`、`Origin` 校验和 rate limit。
+- [x] 实现 `/api/auth/*` 路由并完成后端主链路测试。
 
 ### Loop 3
 - [ ] 将 `current-user` 从固定值切到 request-scoped session user。
