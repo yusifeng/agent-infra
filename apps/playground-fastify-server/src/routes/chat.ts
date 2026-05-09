@@ -1,4 +1,5 @@
 import type { StartTextTurnResult } from '@agent-infra/app';
+import { ChatShareNotFoundError, RunNotFoundError } from '@agent-infra/app';
 import type { RunStreamEventDto, RunStreamFailedEventDto, RuntimePiMetaDto } from '@agent-infra/contracts';
 import type { AgentInfraRepositoryBundle } from '@agent-infra/db';
 import {
@@ -36,9 +37,9 @@ import type { RuntimePiRuntime } from '@agent-infra/runtime-pi/types';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 
 import { APP_ID } from '../constants.js';
+import type { PlaygroundAuthConfig } from '../features/auth/service/auth-config.js';
 import { getPlaygroundAppServices, getPlaygroundAppServicesState } from '../playground-app-services.js';
 import { getPlaygroundBaseServicesState, type PlaygroundAppServices } from '../playground-base-services.js';
-import { getCurrentUserId } from '../features/thread-catalog/identity/current-user.js';
 import { projectPlaygroundThreadDto, projectPlaygroundThreadList } from '../features/thread-catalog/service/project-playground-thread-dto.js';
 import { PlaygroundThreadCatalogService } from '../features/thread-catalog/service/thread-catalog-service.js';
 import { getPlaygroundDbInfo, getPlaygroundMeta } from '../playground-meta.js';
@@ -58,6 +59,7 @@ type ChatRuntimeServices = ChatAppServices & {
 type ChatRouteMeta = ReturnType<typeof getPlaygroundMeta>;
 
 export type ChatRouteDependencies = {
+  authConfig?: PlaygroundAuthConfig;
   getAppServices?: () => Promise<ChatAppServices>;
   getRuntimeServices?: () => Promise<ChatRuntimeServices>;
   getRuntimeMeta?: () => ChatRouteMeta;
@@ -98,6 +100,20 @@ function writeSseEvent(
 
 function describeServiceState(state: { initialized: boolean; initializing: boolean; lastInitDurationMs: number | null }) {
   return state.initialized ? 'warm' : state.initializing ? 'warming' : 'cold';
+}
+
+function requireAuthenticatedCurrentUser(
+  request: { currentUser: { id: string } | null },
+  reply: { code: (statusCode: number) => { send: (payload: Record<string, unknown>) => unknown } }
+) {
+  if (request.currentUser) {
+    return request.currentUser;
+  }
+
+  reply.code(401).send({
+    error: 'UNAUTHORIZED'
+  });
+  return null;
 }
 
 function isValidSiteIconHostname(hostname: string) {
@@ -147,10 +163,35 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
     return new PlaygroundThreadCatalogService(services.dbConfig);
   }
 
-  async function loadAccessibleThread(services: ChatAppServices, threadId: string) {
-    const currentUserId = getCurrentUserId();
+  async function loadAccessibleThread(services: ChatAppServices, threadId: string, currentUserId: string) {
     const catalogService = createThreadCatalogService(services);
     return catalogService.loadAccessibleThread(threadId, currentUserId, () => services.repos.threadRepo.findById(threadId));
+  }
+
+  async function loadAccessibleRun(services: ChatAppServices, runId: string, currentUserId: string) {
+    const run = await services.repos.runRepo.findById(runId);
+    if (!run) {
+      throw new RunNotFoundError(runId);
+    }
+
+    const threadAccess = await loadAccessibleThread(services, run.threadId, currentUserId);
+    return {
+      run,
+      ...threadAccess
+    };
+  }
+
+  async function loadAccessibleShare(services: ChatAppServices, publicId: string, currentUserId: string) {
+    const share = await services.repos.chatShareRepo.findByPublicId(publicId);
+    if (!share) {
+      throw new ChatShareNotFoundError(publicId);
+    }
+
+    const threadAccess = await loadAccessibleThread(services, share.sourceThreadId, currentUserId);
+    return {
+      share,
+      ...threadAccess
+    };
   }
 
   app.get('/api/meta', async (request, reply) => {
@@ -199,14 +240,18 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
   });
 
   app.get('/api/threads', async (request, reply) => {
+    const currentUser = requireAuthenticatedCurrentUser(request, reply);
+    if (!currentUser) {
+      return;
+    }
+
     try {
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
       const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
-      const currentUserId = getCurrentUserId();
       const catalogService = createThreadCatalogService(services);
       const [catalogRows, threads] = await Promise.all([
-        request.requestTiming.measureAsync('catalog.list', () => catalogService.listVisibleCatalogRows(currentUserId)),
+        request.requestTiming.measureAsync('catalog.list', () => catalogService.listVisibleCatalogRows(currentUser.id)),
         request.requestTiming.measureAsync('threads.list', () => services.app.threads.list({ appId: APP_ID }))
       ]);
 
@@ -223,16 +268,19 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
 
   app.post('/api/threads', async (request, reply) => {
     const title = parseCreateThreadTitle(request.body);
+    const currentUser = requireAuthenticatedCurrentUser(request, reply);
+    if (!currentUser) {
+      return;
+    }
 
     try {
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
       const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
       const catalogService = createThreadCatalogService(services);
-      const currentUserId = getCurrentUserId();
       const { thread, catalogRow } = await request.requestTiming.measureAsync('threads.create', () =>
         catalogService.createThreadWithCatalog({
-          ownerUserId: currentUserId,
+          ownerUserId: currentUser.id,
           title,
           metadata: {
             source: 'playground-vite-web',
@@ -253,13 +301,17 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
 
   app.patch<{ Params: { threadId: string } }>('/api/threads/:threadId', async (request, reply) => {
     const title = parseRenameThreadTitle(request.body);
+    const currentUser = requireAuthenticatedCurrentUser(request, reply);
+    if (!currentUser) {
+      return;
+    }
 
     try {
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
       const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
       const { catalogRow } = await request.requestTiming.measureAsync('catalog.load', () =>
-        loadAccessibleThread(services, request.params.threadId)
+        loadAccessibleThread(services, request.params.threadId, currentUser.id)
       );
       const thread = await request.requestTiming.measureAsync('threads.rename', () =>
         services.app.threads.rename({
@@ -279,11 +331,18 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
   });
 
   app.post<{ Params: { threadId: string } }>('/api/threads/:threadId/archive', async (request, reply) => {
+    const currentUser = requireAuthenticatedCurrentUser(request, reply);
+    if (!currentUser) {
+      return;
+    }
+
     try {
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
       const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
-      await request.requestTiming.measureAsync('catalog.load', () => loadAccessibleThread(services, request.params.threadId));
+      await request.requestTiming.measureAsync('catalog.load', () =>
+        loadAccessibleThread(services, request.params.threadId, currentUser.id)
+      );
       const catalogService = createThreadCatalogService(services);
       const thread = await request.requestTiming.measureAsync('threads.archive', () =>
         services.app.threads.archive({
@@ -305,13 +364,18 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
   });
 
   app.post<{ Params: { threadId: string } }>('/api/threads/:threadId/pin', async (request, reply) => {
+    const currentUser = requireAuthenticatedCurrentUser(request, reply);
+    if (!currentUser) {
+      return;
+    }
+
     try {
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
       const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
       const catalogService = createThreadCatalogService(services);
       const { thread } = await request.requestTiming.measureAsync('catalog.load', () =>
-        loadAccessibleThread(services, request.params.threadId)
+        loadAccessibleThread(services, request.params.threadId, currentUser.id)
       );
       const catalogRow = await request.requestTiming.measureAsync('catalog.pin', () =>
         catalogService.pinThread(thread, new Date())
@@ -328,13 +392,18 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
   });
 
   app.delete<{ Params: { threadId: string } }>('/api/threads/:threadId/pin', async (request, reply) => {
+    const currentUser = requireAuthenticatedCurrentUser(request, reply);
+    if (!currentUser) {
+      return;
+    }
+
     try {
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
       const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
       const catalogService = createThreadCatalogService(services);
       const { thread } = await request.requestTiming.measureAsync('catalog.load', () =>
-        loadAccessibleThread(services, request.params.threadId)
+        loadAccessibleThread(services, request.params.threadId, currentUser.id)
       );
       const catalogRow = await request.requestTiming.measureAsync('catalog.unpin', () =>
         catalogService.unpinThread(thread.id, new Date())
@@ -351,11 +420,18 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
   });
 
   app.get<{ Params: { threadId: string } }>('/api/threads/:threadId/messages', async (request, reply) => {
+    const currentUser = requireAuthenticatedCurrentUser(request, reply);
+    if (!currentUser) {
+      return;
+    }
+
     try {
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
       const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
-      await request.requestTiming.measureAsync('catalog.load', () => loadAccessibleThread(services, request.params.threadId));
+      await request.requestTiming.measureAsync('catalog.load', () =>
+        loadAccessibleThread(services, request.params.threadId, currentUser.id)
+      );
       const [messages, activeRun] = await Promise.all([
         request.requestTiming.measureAsync('messages.get', () => services.app.threads.getMessages({ threadId: request.params.threadId })),
         request.requestTiming.measureAsync('runs.active', () => services.app.runs.getActiveByThread({ threadId: request.params.threadId }))
@@ -368,11 +444,18 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
   });
 
   app.post<{ Params: { threadId: string } }>('/api/threads/:threadId/shares', async (request, reply) => {
+    const currentUser = requireAuthenticatedCurrentUser(request, reply);
+    if (!currentUser) {
+      return;
+    }
+
     try {
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
       const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
-      await request.requestTiming.measureAsync('catalog.load', () => loadAccessibleThread(services, request.params.threadId));
+      await request.requestTiming.measureAsync('catalog.load', () =>
+        loadAccessibleThread(services, request.params.threadId, currentUser.id)
+      );
       const share = await request.requestTiming.measureAsync('shares.create', () =>
         services.app.shares.createThreadSnapshot({ threadId: request.params.threadId })
       );
@@ -386,11 +469,18 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
   });
 
   app.get<{ Params: { threadId: string } }>('/api/threads/:threadId/shares/current', async (request, reply) => {
+    const currentUser = requireAuthenticatedCurrentUser(request, reply);
+    if (!currentUser) {
+      return;
+    }
+
     try {
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
       const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
-      await request.requestTiming.measureAsync('catalog.load', () => loadAccessibleThread(services, request.params.threadId));
+      await request.requestTiming.measureAsync('catalog.load', () =>
+        loadAccessibleThread(services, request.params.threadId, currentUser.id)
+      );
       const share = await request.requestTiming.measureAsync('shares.current', () =>
         services.app.shares.getCurrentByThread({ threadId: request.params.threadId })
       );
@@ -404,11 +494,18 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
   });
 
   app.get<{ Params: { threadId: string }; Querystring: { limit?: string } }>('/api/threads/:threadId/runs', async (request, reply) => {
+    const currentUser = requireAuthenticatedCurrentUser(request, reply);
+    if (!currentUser) {
+      return;
+    }
+
     try {
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
       const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
-      await request.requestTiming.measureAsync('catalog.load', () => loadAccessibleThread(services, request.params.threadId));
+      await request.requestTiming.measureAsync('catalog.load', () =>
+        loadAccessibleThread(services, request.params.threadId, currentUser.id)
+      );
       const runs = await request.requestTiming.measureAsync('runs.list', () =>
         services.app.runs.listByThread({
           threadId: request.params.threadId,
@@ -423,12 +520,20 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
   });
 
   app.get<{ Params: { runId: string } }>('/api/runs/:runId/timeline', async (request, reply) => {
+    const currentUser = requireAuthenticatedCurrentUser(request, reply);
+    if (!currentUser) {
+      return;
+    }
+
     try {
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
-      const { app: services } = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      await request.requestTiming.measureAsync('catalog.load_for_run_timeline', () =>
+        loadAccessibleRun(services, request.params.runId, currentUser.id)
+      );
       const timeline = await request.requestTiming.measureAsync('runs.timeline', () =>
-        services.runs.getTimeline({ runId: request.params.runId })
+        services.app.runs.getTimeline({ runId: request.params.runId })
       );
 
       return reply.send(buildRunTimelineResponse(timeline));
@@ -453,12 +558,20 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
   });
 
   app.post<{ Params: { publicId: string } }>('/api/shares/:publicId/revoke', async (request, reply) => {
+    const currentUser = requireAuthenticatedCurrentUser(request, reply);
+    if (!currentUser) {
+      return;
+    }
+
     try {
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
-      const { app: services } = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      await request.requestTiming.measureAsync('catalog.load_for_share_revoke', () =>
+        loadAccessibleShare(services, request.params.publicId, currentUser.id)
+      );
       const share = await request.requestTiming.measureAsync('shares.revoke', () =>
-        services.shares.revoke({ publicId: request.params.publicId })
+        services.app.shares.revoke({ publicId: request.params.publicId })
       );
 
       return reply.send(buildRevokeChatShareResponse(share));
@@ -471,6 +584,10 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
     const turnInput = parseRunTextTurnInput(request.body);
     let started: StartTextTurnResult;
     let runtimeServices: ChatRuntimeServices;
+    const currentUser = requireAuthenticatedCurrentUser(request, reply);
+    if (!currentUser) {
+      return;
+    }
 
     try {
       if (turnInput.webSearchEnabled && !isPlaygroundWebSearchConfigured()) {
@@ -486,7 +603,7 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
       request.requestTiming.annotate('runtime_services_state', describeServiceState(getPlaygroundRuntimeServicesState()));
       runtimeServices = await request.requestTiming.measureAsync('services.runtime', () => getRuntimeServices());
       await request.requestTiming.measureAsync('catalog.load', () =>
-        loadAccessibleThread(runtimeServices, (request.params as { threadId: string }).threadId)
+        loadAccessibleThread(runtimeServices, (request.params as { threadId: string }).threadId, currentUser.id)
       );
       started = await request.requestTiming.measureAsync('turns.start_text', () =>
         runtimeServices.app.turns.startText({

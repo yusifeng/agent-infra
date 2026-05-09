@@ -9,12 +9,23 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { buildPlaygroundServer } from '../src/app.js';
 import { APP_ID } from '../src/constants.js';
+import { bootstrapPlaygroundAuthSchema } from '../src/features/auth/repo/schema.js';
+import type { AuthEmailSender, SendSignupCodeEmailInput } from '../src/features/auth/service/email-sender.js';
+import { PlaygroundThreadCatalogRepo } from '../src/features/thread-catalog/repo/thread-catalog-repo.js';
 import { bootstrapPlaygroundThreadCatalog } from '../src/features/thread-catalog/repo/schema.js';
 import { createPlaygroundAppServices } from '../src/playground-base-services.js';
 import { getPlaygroundMeta, type PlaygroundMeta } from '../src/playground-meta.js';
 import { createDurableChatBaseServices } from '@agent-infra/durable-chat-server';
 
 const envKeys = ['SQLITE_PATH', 'DATABASE_URL', 'TURSO_DATABASE_URL', 'TURSO_AUTH_TOKEN'] as const;
+
+class RecordingAuthEmailSender implements AuthEmailSender {
+  readonly sent: SendSignupCodeEmailInput[] = [];
+
+  async sendSignupCodeEmail(input: SendSignupCodeEmailInput) {
+    this.sent.push(input);
+  }
+}
 
 function parseSsePayloads(body: string) {
   return body
@@ -125,7 +136,9 @@ async function createTestServer(options: {
     const dbConfig = createDbConfigFromEnv();
     await dbConfig.bootstrapSchema();
     const base = await createDurableChatBaseServices(dbConfig);
+    await bootstrapPlaygroundAuthSchema(dbConfig);
     await bootstrapPlaygroundThreadCatalog(dbConfig);
+    const emailSender = new RecordingAuthEmailSender();
     const durableRuntime = createFakeDurableRuntime(options.runtimeMode);
     const runtimePort: AgentInfraRuntimePort = {
       async prepare(input) {
@@ -158,87 +171,88 @@ async function createTestServer(options: {
         ...appServices,
         durableRuntime
       }),
-      getRuntimeMeta: () => meta
-    });
-
-    return {
-      app: built.app,
-      appServices,
-      tempDir
-    };
-  });
-
-  return serverBundle;
-}
-
-async function createTestServerWithLegacyThread(title: string) {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'playground-fastify-server-legacy-test-'));
-  const sqlitePath = path.join(tempDir, 'test.db');
-
-  const serverBundle = await withSqlitePath(sqlitePath, async () => {
-    const dbConfig = createDbConfigFromEnv();
-    await dbConfig.bootstrapSchema();
-
-    const baseBeforeCatalog = await createDurableChatBaseServices(dbConfig);
-    const durableRuntime = createFakeDurableRuntime();
-    const runtimePort: AgentInfraRuntimePort = {
-      async prepare(input) {
-        return durableRuntime.prepare(input);
-      },
-      async runTextTurn(repositories, input) {
-        await durableRuntime.runTurn(
-          {
-            runRepo: repositories.runRepo,
-            messageRepo: repositories.messageRepo,
-            toolRepo: repositories.toolRepo,
-            runEventRepo: repositories.runEventRepo
-          },
-          input
-        );
+      getRuntimeMeta: () => meta,
+      emailSender,
+      authConfig: {
+        codeSecret: 'test-auth-code-secret',
+        sessionTtlMs: 1000 * 60 * 60 * 24 * 30,
+        signupCodeTtlMs: 1000 * 60 * 10,
+        signupCodeCooldownMs: 1000 * 60,
+        maxChallengeAttempts: 5,
+        sessionCookieName: 'sid',
+        secureCookies: false,
+        allowedOrigins: new Set(['http://localhost:5173'])
       }
-    };
-    const appServices = createPlaygroundAppServices(baseBeforeCatalog, runtimePort);
-    const legacyThread = await appServices.app.threads.create({
-      appId: APP_ID,
-      title,
-      metadata: {
-        source: 'legacy-test'
-      }
-    });
-
-    await bootstrapPlaygroundThreadCatalog(dbConfig);
-
-    const meta = {
-      ...getPlaygroundMeta({}, baseBeforeCatalog.dbInfo),
-      dbInfo: baseBeforeCatalog.dbInfo
-    };
-    const built = await buildPlaygroundServer({
-      loadEnv: false,
-      envFiles: ['test.env'],
-      logger: false,
-      getAppServices: async () => appServices,
-      getRuntimeServices: async () => ({
-        ...appServices,
-        durableRuntime
-      }),
-      getRuntimeMeta: () => meta
     });
 
     return {
       app: built.app,
       appServices,
       tempDir,
-      legacyThreadId: legacyThread.id
+      emailSender
     };
   });
 
   return serverBundle;
 }
 
-async function createThread(server: Awaited<ReturnType<typeof createTestServer>>, title: string) {
+function getSessionCookie(response: { headers: Record<string, unknown> }) {
+  const rawSetCookie = response.headers['set-cookie'];
+  const cookieValue = Array.isArray(rawSetCookie) ? rawSetCookie[0] : rawSetCookie;
+
+  if (typeof cookieValue !== 'string') {
+    throw new Error('Missing set-cookie header');
+  }
+
+  return cookieValue.split(';')[0];
+}
+
+async function registerAndSignIn(server: Awaited<ReturnType<typeof createTestServer>>, email: string) {
+  const requestCode = await server.app.inject({
+    method: 'POST',
+    url: '/api/auth/email/request-signup-code',
+    headers: {
+      origin: 'http://localhost:5173'
+    },
+    payload: {
+      email
+    }
+  });
+  expect(requestCode.statusCode).toBe(200);
+
+  const sentEmail = server.emailSender.sent.at(-1);
+  if (!sentEmail) {
+    throw new Error('Expected signup code email to be sent');
+  }
+
+  const signUp = await server.app.inject({
+    method: 'POST',
+    url: '/api/auth/sign-up',
+    headers: {
+      origin: 'http://localhost:5173'
+    },
+    payload: {
+      email,
+      code: sentEmail.code,
+      password: 'correct horse battery staple'
+    }
+  });
+
+  expect(signUp.statusCode).toBe(200);
+  return getSessionCookie(signUp);
+}
+
+async function createThread(
+  server: Awaited<ReturnType<typeof createTestServer>>,
+  sessionCookie: string,
+  title: string
+) {
   const created = await server.app.inject({
     method: 'POST',
     url: '/api/threads',
+    headers: {
+      cookie: sessionCookie
+    },
     payload: { title }
   });
 
@@ -246,10 +260,18 @@ async function createThread(server: Awaited<ReturnType<typeof createTestServer>>
   return created.json().thread.id as string;
 }
 
-async function streamSuccessfulTurn(server: Awaited<ReturnType<typeof createTestServer>>, threadId: string, text: string) {
+async function streamSuccessfulTurn(
+  server: Awaited<ReturnType<typeof createTestServer>>,
+  sessionCookie: string,
+  threadId: string,
+  text: string
+) {
   const stream = await server.app.inject({
     method: 'POST',
     url: `/api/threads/${threadId}/runs/stream`,
+    headers: {
+      cookie: sessionCookie
+    },
     payload: { text }
   });
 
@@ -390,13 +412,43 @@ describe('playground-fastify-server', () => {
     });
   });
 
-  it('creates threads, lists them, and loads thread messages', async () => {
+  it('returns 401 for protected thread routes without a session', async () => {
     const server = await createTestServer({});
     activeServers.push(server);
 
-    const initialThreads = await server.app.inject({
+    const listThreads = await server.app.inject({
       method: 'GET',
       url: '/api/threads'
+    });
+    expect(listThreads.statusCode).toBe(401);
+    expect(listThreads.json()).toEqual({
+      error: 'UNAUTHORIZED'
+    });
+
+    const createThreadResponse = await server.app.inject({
+      method: 'POST',
+      url: '/api/threads',
+      payload: {
+        title: 'Unauthorized Thread'
+      }
+    });
+    expect(createThreadResponse.statusCode).toBe(401);
+    expect(createThreadResponse.json()).toEqual({
+      error: 'UNAUTHORIZED'
+    });
+  });
+
+  it('creates threads, lists them, and loads thread messages', async () => {
+    const server = await createTestServer({});
+    activeServers.push(server);
+    const sessionCookie = await registerAndSignIn(server, 'threads-list@example.com');
+
+    const initialThreads = await server.app.inject({
+      method: 'GET',
+      url: '/api/threads',
+      headers: {
+        cookie: sessionCookie
+      }
     });
     expect(initialThreads.statusCode).toBe(200);
     expect(initialThreads.headers['server-timing']).toContain('threads_list;dur=');
@@ -407,6 +459,9 @@ describe('playground-fastify-server', () => {
     const created = await server.app.inject({
       method: 'POST',
       url: '/api/threads',
+      headers: {
+        cookie: sessionCookie
+      },
       payload: {
         title: 'Integration Thread'
       }
@@ -416,7 +471,10 @@ describe('playground-fastify-server', () => {
 
     const threads = await server.app.inject({
       method: 'GET',
-      url: '/api/threads'
+      url: '/api/threads',
+      headers: {
+        cookie: sessionCookie
+      }
     });
     expect(threads.json().threads).toHaveLength(1);
     expect(threads.json().threads[0]).toMatchObject({
@@ -426,7 +484,10 @@ describe('playground-fastify-server', () => {
 
     const messages = await server.app.inject({
       method: 'GET',
-      url: `/api/threads/${threadId}/messages`
+      url: `/api/threads/${threadId}/messages`,
+      headers: {
+        cookie: sessionCookie
+      }
     });
     expect(messages.statusCode).toBe(200);
     expect(messages.headers['server-timing']).toContain('messages_get;dur=');
@@ -436,15 +497,66 @@ describe('playground-fastify-server', () => {
     });
   });
 
-  it('renames threads and rejects blank titles', async () => {
+  it('writes the authenticated owner id into the catalog and isolates threads by owner', async () => {
     const server = await createTestServer({});
     activeServers.push(server);
 
-    const threadId = await createThread(server, 'Original Thread');
+    const ownerCookie = await registerAndSignIn(server, 'owner@example.com');
+    const otherCookie = await registerAndSignIn(server, 'other@example.com');
+    const threadId = await createThread(server, ownerCookie, 'Owned Thread');
+
+    const ownerMe = await server.app.inject({
+      method: 'GET',
+      url: '/api/auth/me',
+      headers: {
+        cookie: ownerCookie
+      }
+    });
+    expect(ownerMe.statusCode).toBe(200);
+    const ownerUserId = ownerMe.json().user.id as string;
+
+    const catalogRepo = new PlaygroundThreadCatalogRepo(server.appServices.dbConfig);
+    const catalogRow = await catalogRepo.findByThreadId(threadId);
+    expect(catalogRow?.ownerUserId).toBe(ownerUserId);
+
+    const otherThreads = await server.app.inject({
+      method: 'GET',
+      url: '/api/threads',
+      headers: {
+        cookie: otherCookie
+      }
+    });
+    expect(otherThreads.statusCode).toBe(200);
+    expect(otherThreads.json()).toEqual({
+      threads: []
+    });
+
+    const otherMessages = await server.app.inject({
+      method: 'GET',
+      url: `/api/threads/${threadId}/messages`,
+      headers: {
+        cookie: otherCookie
+      }
+    });
+    expect(otherMessages.statusCode).toBe(404);
+    expect(otherMessages.json()).toMatchObject({
+      error: `thread ${threadId} not found`
+    });
+  });
+
+  it('renames threads and rejects blank titles', async () => {
+    const server = await createTestServer({});
+    activeServers.push(server);
+    const sessionCookie = await registerAndSignIn(server, 'rename@example.com');
+
+    const threadId = await createThread(server, sessionCookie, 'Original Thread');
 
     const renamed = await server.app.inject({
       method: 'PATCH',
       url: `/api/threads/${threadId}`,
+      headers: {
+        cookie: sessionCookie
+      },
       payload: {
         title: '  Renamed Thread  '
       }
@@ -458,7 +570,10 @@ describe('playground-fastify-server', () => {
 
     const threads = await server.app.inject({
       method: 'GET',
-      url: '/api/threads'
+      url: '/api/threads',
+      headers: {
+        cookie: sessionCookie
+      }
     });
     expect(threads.json().threads[0]).toMatchObject({
       id: threadId,
@@ -468,6 +583,9 @@ describe('playground-fastify-server', () => {
     const invalid = await server.app.inject({
       method: 'PATCH',
       url: `/api/threads/${threadId}`,
+      headers: {
+        cookie: sessionCookie
+      },
       payload: {
         title: '   '
       }
@@ -481,19 +599,26 @@ describe('playground-fastify-server', () => {
   it('archives threads, removes them from list reads, and keeps active shares readable', async () => {
     const server = await createTestServer({});
     activeServers.push(server);
+    const sessionCookie = await registerAndSignIn(server, 'archive@example.com');
 
-    const threadId = await createThread(server, 'Archive me');
-    await streamSuccessfulTurn(server, threadId, 'hello');
+    const threadId = await createThread(server, sessionCookie, 'Archive me');
+    await streamSuccessfulTurn(server, sessionCookie, threadId, 'hello');
 
     const createdShare = await server.app.inject({
       method: 'POST',
-      url: `/api/threads/${threadId}/shares`
+      url: `/api/threads/${threadId}/shares`,
+      headers: {
+        cookie: sessionCookie
+      }
     });
     const publicId = createdShare.json().share.publicId as string;
 
     const archived = await server.app.inject({
       method: 'POST',
-      url: `/api/threads/${threadId}/archive`
+      url: `/api/threads/${threadId}/archive`,
+      headers: {
+        cookie: sessionCookie
+      }
     });
     expect(archived.statusCode).toBe(200);
     expect(archived.headers['server-timing']).toContain('threads_archive;dur=');
@@ -505,7 +630,10 @@ describe('playground-fastify-server', () => {
 
     const threads = await server.app.inject({
       method: 'GET',
-      url: '/api/threads'
+      url: '/api/threads',
+      headers: {
+        cookie: sessionCookie
+      }
     });
     expect(threads.json().threads).toEqual([]);
 
@@ -520,6 +648,7 @@ describe('playground-fastify-server', () => {
   it('rejects pin operations for threads outside the playground app scope', async () => {
     const server = await createTestServer({});
     activeServers.push(server);
+    const sessionCookie = await registerAndSignIn(server, 'pin-foreign@example.com');
 
     const foreignThread = await server.appServices.repos.threadRepo.create({
       id: 'foreign-thread',
@@ -533,7 +662,10 @@ describe('playground-fastify-server', () => {
 
     const pinResponse = await server.app.inject({
       method: 'POST',
-      url: `/api/threads/${foreignThread.id}/pin`
+      url: `/api/threads/${foreignThread.id}/pin`,
+      headers: {
+        cookie: sessionCookie
+      }
     });
     expect(pinResponse.statusCode).toBe(404);
     expect(pinResponse.json()).toMatchObject({
@@ -542,7 +674,10 @@ describe('playground-fastify-server', () => {
 
     const unpinResponse = await server.app.inject({
       method: 'DELETE',
-      url: `/api/threads/${foreignThread.id}/pin`
+      url: `/api/threads/${foreignThread.id}/pin`,
+      headers: {
+        cookie: sessionCookie
+      }
     });
     expect(unpinResponse.statusCode).toBe(404);
     expect(unpinResponse.json()).toMatchObject({
@@ -550,46 +685,17 @@ describe('playground-fastify-server', () => {
     });
   });
 
-  it('backfills catalog rows for pre-existing playground threads on bootstrap', async () => {
-    const server = await createTestServerWithLegacyThread('Legacy Thread');
-    activeServers.push(server);
-
-    const threads = await server.app.inject({
-      method: 'GET',
-      url: '/api/threads'
-    });
-    expect(threads.statusCode).toBe(200);
-    expect(threads.json().threads).toMatchObject([
-      {
-        id: server.legacyThreadId,
-        title: 'Legacy Thread',
-        pinned: false,
-        pinnedAt: null,
-        status: 'active'
-      }
-    ]);
-
-    const renamed = await server.app.inject({
-      method: 'PATCH',
-      url: `/api/threads/${server.legacyThreadId}`,
-      payload: {
-        title: 'Backfilled Thread'
-      }
-    });
-    expect(renamed.statusCode).toBe(200);
-    expect(renamed.json().thread).toMatchObject({
-      id: server.legacyThreadId,
-      title: 'Backfilled Thread'
-    });
-  });
-
   it('streams a successful turn and persists the assistant reply', async () => {
     const server = await createTestServer({});
     activeServers.push(server);
+    const sessionCookie = await registerAndSignIn(server, 'stream-success@example.com');
 
     const created = await server.app.inject({
       method: 'POST',
       url: '/api/threads',
+      headers: {
+        cookie: sessionCookie
+      },
       payload: {
         title: 'Streaming Thread'
       }
@@ -599,6 +705,9 @@ describe('playground-fastify-server', () => {
     const stream = await server.app.inject({
       method: 'POST',
       url: `/api/threads/${threadId}/runs/stream`,
+      headers: {
+        cookie: sessionCookie
+      },
       payload: {
         text: 'hello'
       }
@@ -619,7 +728,10 @@ describe('playground-fastify-server', () => {
 
     const messages = await server.app.inject({
       method: 'GET',
-      url: `/api/threads/${threadId}/messages`
+      url: `/api/threads/${threadId}/messages`,
+      headers: {
+        cookie: sessionCookie
+      }
     });
     expect(messages.statusCode).toBe(200);
     expect(messages.json().messages.map((message: { role: string }) => message.role)).toEqual(['user', 'assistant']);
@@ -631,10 +743,14 @@ describe('playground-fastify-server', () => {
       runtimeMode: 'failure'
     });
     activeServers.push(server);
+    const sessionCookie = await registerAndSignIn(server, 'stream-failure@example.com');
 
     const created = await server.app.inject({
       method: 'POST',
       url: '/api/threads',
+      headers: {
+        cookie: sessionCookie
+      },
       payload: {
         title: 'Failing Stream Thread'
       }
@@ -644,6 +760,9 @@ describe('playground-fastify-server', () => {
     const stream = await server.app.inject({
       method: 'POST',
       url: `/api/threads/${threadId}/runs/stream`,
+      headers: {
+        cookie: sessionCookie
+      },
       payload: {
         text: 'hello'
       }
@@ -664,10 +783,14 @@ describe('playground-fastify-server', () => {
     try {
       const server = await createTestServer({});
       activeServers.push(server);
+      const sessionCookie = await registerAndSignIn(server, 'web-search@example.com');
 
       const created = await server.app.inject({
         method: 'POST',
         url: '/api/threads',
+        headers: {
+          cookie: sessionCookie
+        },
         payload: {
           title: 'Web Search Unavailable'
         }
@@ -677,6 +800,9 @@ describe('playground-fastify-server', () => {
       const stream = await server.app.inject({
         method: 'POST',
         url: `/api/threads/${threadId}/runs/stream`,
+        headers: {
+          cookie: sessionCookie
+        },
         payload: {
           text: '搜索 Claude 新闻',
           webSearchEnabled: true
@@ -699,13 +825,17 @@ describe('playground-fastify-server', () => {
   it('creates a thread share and returns it as the current share', async () => {
     const server = await createTestServer({});
     activeServers.push(server);
+    const sessionCookie = await registerAndSignIn(server, 'share-current@example.com');
 
-    const threadId = await createThread(server, 'Shareable Thread');
-    await streamSuccessfulTurn(server, threadId, 'hello');
+    const threadId = await createThread(server, sessionCookie, 'Shareable Thread');
+    await streamSuccessfulTurn(server, sessionCookie, threadId, 'hello');
 
     const createdShare = await server.app.inject({
       method: 'POST',
-      url: `/api/threads/${threadId}/shares`
+      url: `/api/threads/${threadId}/shares`,
+      headers: {
+        cookie: sessionCookie
+      }
     });
     expect(createdShare.statusCode).toBe(200);
     expect(createdShare.headers['server-timing']).toContain('shares_create;dur=');
@@ -720,7 +850,10 @@ describe('playground-fastify-server', () => {
 
     const currentShare = await server.app.inject({
       method: 'GET',
-      url: `/api/threads/${threadId}/shares/current`
+      url: `/api/threads/${threadId}/shares/current`,
+      headers: {
+        cookie: sessionCookie
+      }
     });
     expect(currentShare.statusCode).toBe(200);
     expect(currentShare.headers['server-timing']).toContain('shares_current;dur=');
@@ -732,13 +865,17 @@ describe('playground-fastify-server', () => {
   it('returns a public thread snapshot for an active share', async () => {
     const server = await createTestServer({});
     activeServers.push(server);
+    const sessionCookie = await registerAndSignIn(server, 'share-public@example.com');
 
-    const threadId = await createThread(server, 'Public Share Thread');
-    await streamSuccessfulTurn(server, threadId, 'hello');
+    const threadId = await createThread(server, sessionCookie, 'Public Share Thread');
+    await streamSuccessfulTurn(server, sessionCookie, threadId, 'hello');
 
     const createdShare = await server.app.inject({
       method: 'POST',
-      url: `/api/threads/${threadId}/shares`
+      url: `/api/threads/${threadId}/shares`,
+      headers: {
+        cookie: sessionCookie
+      }
     });
     const publicId = createdShare.json().share.publicId as string;
 
@@ -769,19 +906,26 @@ describe('playground-fastify-server', () => {
   it('revokes a share and makes subsequent public reads return 410', async () => {
     const server = await createTestServer({});
     activeServers.push(server);
+    const sessionCookie = await registerAndSignIn(server, 'share-revoke@example.com');
 
-    const threadId = await createThread(server, 'Revokable Share Thread');
-    await streamSuccessfulTurn(server, threadId, 'hello');
+    const threadId = await createThread(server, sessionCookie, 'Revokable Share Thread');
+    await streamSuccessfulTurn(server, sessionCookie, threadId, 'hello');
 
     const createdShare = await server.app.inject({
       method: 'POST',
-      url: `/api/threads/${threadId}/shares`
+      url: `/api/threads/${threadId}/shares`,
+      headers: {
+        cookie: sessionCookie
+      }
     });
     const publicId = createdShare.json().share.publicId as string;
 
     const revoked = await server.app.inject({
       method: 'POST',
-      url: `/api/shares/${publicId}/revoke`
+      url: `/api/shares/${publicId}/revoke`,
+      headers: {
+        cookie: sessionCookie
+      }
     });
     expect(revoked.statusCode).toBe(200);
     expect(revoked.headers['server-timing']).toContain('shares_revoke;dur=');
@@ -803,8 +947,9 @@ describe('playground-fastify-server', () => {
   it('rejects share creation when the thread has an active run', async () => {
     const server = await createTestServer({});
     activeServers.push(server);
+    const sessionCookie = await registerAndSignIn(server, 'share-active-run@example.com');
 
-    const threadId = await createThread(server, 'Busy Share Thread');
+    const threadId = await createThread(server, sessionCookie, 'Busy Share Thread');
     const started = await server.appServices.app.turns.startText({
       threadId,
       text: 'hello'
@@ -812,7 +957,10 @@ describe('playground-fastify-server', () => {
 
     const createdShare = await server.app.inject({
       method: 'POST',
-      url: `/api/threads/${threadId}/shares`
+      url: `/api/threads/${threadId}/shares`,
+      headers: {
+        cookie: sessionCookie
+      }
     });
     expect(createdShare.statusCode).toBe(409);
     expect(createdShare.json()).toMatchObject({

@@ -17,9 +17,9 @@
 ### 0.2 Goals
 - [x] 为 Fastify host 增加宿主侧 auth schema、repo、service、route 和 session 解析。
 - [ ] 支持邮箱注册验证码发送、邮箱验证码注册、邮箱/密码登录、当前用户查询、登出。
-- [ ] 将 thread routes 从固定 `local-dev-user` 切换为 request-scoped 的真实 auth user。
-- [ ] 让未登录用户无法访问需要 ownership 的 thread API。
-- [ ] 让新建 thread 的 `playground_thread_catalog.owner_user_id` 写入真实 `auth_users.id`。
+- [x] 将 thread routes 从固定 `local-dev-user` 切换为 request-scoped 的真实 auth user。
+- [x] 让未登录用户无法访问需要 ownership 的 thread API。
+- [x] 让新建 thread 的 `playground_thread_catalog.owner_user_id` 写入真实 `auth_users.id`。
 - [ ] 为 Vite consumer 增加 `/login`、`/register` 与 auth gate，接上新的 `/api/auth/*`。
 
 ### 0.3 Non-goals
@@ -106,7 +106,7 @@
   - `INVALID_CREDENTIALS`
   - `RATE_LIMITED`
   - `UNAUTHORIZED`
-- [ ] 定义 request-scoped `currentUser` 类型，并挂到 Fastify request 上。
+- [x] 定义 request-scoped `currentUser` 类型，并挂到 Fastify request 上。
 - [x] 定义 auth email sender 接口，隔离供应商 SDK。
 - [x] 定义 session token 服务接口：
   - 生成原始 token
@@ -162,11 +162,11 @@
 - [x] `logout` 撤销 session 并清 cookie。
 
 ### 2.5 Replace current-user and protect thread routes
-- [ ] 用 request-scoped session user 替换固定 `local-dev-user` 实现。
-- [ ] 在 thread routes 中读取 `request.currentUser.id`，不再使用进程级固定 helper。
-- [ ] 未登录访问 thread list/create/messages/pin/archive/run 等 ownership 相关 API 时返回 `401`。
-- [ ] 创建 thread 时保持 `thread.userId = null`。
-- [ ] 创建 thread 时写入 `playground_thread_catalog.owner_user_id = auth_users.id`。
+- [x] 用 request-scoped session user 替换固定 `local-dev-user` 实现。
+- [x] 在 thread routes 中读取 `request.currentUser.id`，不再使用进程级固定 helper。
+- [x] 未登录访问 thread list/create/messages/pin/archive/run 等 ownership 相关 API 时返回 `401`。
+- [x] 创建 thread 时保持 `thread.userId = null`。
+- [x] 创建 thread 时写入 `playground_thread_catalog.owner_user_id = auth_users.id`。
 
 ## 3. Frontend Boundary
 
@@ -214,8 +214,8 @@
 - [x] 覆盖 `/api/auth/me` 已登录返回 user。
 - [x] 覆盖 `/api/auth/me` 未登录返回 `user: null`。
 - [x] 覆盖登出会撤销 session 并清 cookie。
-- [ ] 覆盖未登录访问 thread API 返回 `401`。
-- [ ] 覆盖已登录创建 thread 后 `owner_user_id` 正确写入 auth user id。
+- [x] 覆盖未登录访问 thread API 返回 `401`。
+- [x] 覆盖已登录创建 thread 后 `owner_user_id` 正确写入 auth user id。
 
 ### 4.2 Frontend tests
 - [ ] 覆盖未登录时 auth gate 跳转 `/login`。
@@ -245,9 +245,9 @@
 - [x] 实现 `/api/auth/*` 路由并完成后端主链路测试。
 
 ### Loop 3
-- [ ] 将 `current-user` 从固定值切到 request-scoped session user。
-- [ ] 为 thread routes 增加登录保护。
-- [ ] 验证已登录用户创建 thread 后 `owner_user_id` 正确写入。
+- [x] 将 `current-user` 从固定值切到 request-scoped session user。
+- [x] 为 thread routes 增加登录保护。
+- [x] 验证已登录用户创建 thread 后 `owner_user_id` 正确写入。
 
 ### Loop 4
 - [ ] 为 Vite 增加 `/login`、`/register` 和 auth gate。

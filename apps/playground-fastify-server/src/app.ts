@@ -4,6 +4,9 @@ import rateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 
 import { loadPlaygroundEnv } from './env.js';
+import { createPlaygroundAuthConfigFromEnv } from './features/auth/service/auth-config.js';
+import { resolveCurrentUser } from './features/thread-catalog/identity/current-user.js';
+import { getPlaygroundAppServices } from './playground-app-services.js';
 import { applyTimingHeaders, createRequestTiming } from './request-timing.js';
 import { registerAuthRoutes, type AuthRouteDependencies } from './routes/auth.js';
 import { registerChatRoutes, type ChatRouteDependencies } from './routes/chat.js';
@@ -19,6 +22,8 @@ export async function buildPlaygroundServer(options: BuildPlaygroundServerOption
   envFiles: string[];
 }> {
   const envFiles = options.loadEnv === false ? (options.envFiles ?? []) : (options.envFiles ?? loadPlaygroundEnv());
+  const authConfig = options.authConfig ?? createPlaygroundAuthConfigFromEnv();
+  const getAppServices = options.getAppServices ?? getPlaygroundAppServices;
   const app = Fastify({
     logger: options.logger ?? true
   });
@@ -33,6 +38,16 @@ export async function buildPlaygroundServer(options: BuildPlaygroundServerOption
 
   app.addHook('onRequest', async (request) => {
     request.requestTiming = createRequestTiming();
+    const sessionToken = request.cookies?.[authConfig.sessionCookieName];
+    if (!sessionToken) {
+      request.currentUser = null;
+      return;
+    }
+
+    request.currentUser = await resolveCurrentUser({
+      dbConfig: (await getAppServices()).dbConfig,
+      sessionToken
+    });
   });
 
   app.addHook('onSend', async (request, reply, payload) => {
@@ -52,8 +67,14 @@ export async function buildPlaygroundServer(options: BuildPlaygroundServerOption
     };
   });
 
-  await registerAuthRoutes(app, options);
-  await registerChatRoutes(app, options);
+  await registerAuthRoutes(app, {
+    ...options,
+    authConfig
+  });
+  await registerChatRoutes(app, {
+    ...options,
+    authConfig
+  });
 
   return {
     app,
