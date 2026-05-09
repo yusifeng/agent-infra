@@ -227,11 +227,9 @@
 ### 4.3 Verification
 - [x] 运行 `pnpm --filter playground-fastify-server test`
 - [x] 运行 `pnpm --filter playground-fastify-server typecheck`
-- [ ] 运行 `pnpm --filter playground-vite-web test`
-- [ ] 运行 `pnpm --filter playground-vite-web typecheck`
 - [x] 运行 `pnpm --filter playground-vite-web test`
 - [x] 运行 `pnpm --filter playground-vite-web typecheck`
-- [ ] 运行 `pnpm typecheck`
+- [x] 运行 `pnpm typecheck`
 - [x] 运行 `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`
 
 ## 5. Recommended Execution Order
@@ -257,6 +255,6 @@
 - [x] 完成前端 auth 交互测试。
 
 ### Loop 5
-- [ ] 跑完整定向验证与 typecheck。
+- [x] 跑完整定向验证与 typecheck。
 - [ ] 运行 `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`。
 - [ ] 将长期有效的 auth 概念事实整理进正式文档，并删除这份 `docs/todolist.md`。
