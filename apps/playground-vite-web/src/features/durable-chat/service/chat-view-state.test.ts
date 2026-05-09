@@ -1,8 +1,9 @@
-import type { MessageDto, RunDto, RuntimePiMetaDto, ThreadDto } from '@agent-infra/contracts';
+import type { MessageDto, RunDto, RuntimePiMetaDto } from '@agent-infra/contracts';
 import { describe, expect, it } from 'vitest';
 
 import { buildChatViewState } from './chat-view-state';
 import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
+import type { DurableThreadDto } from '@/features/durable-chat/types/thread';
 
 function createMessage(overrides: Partial<MessageDto> = {}): MessageDto {
   return {
@@ -27,12 +28,13 @@ function createMessage(overrides: Partial<MessageDto> = {}): MessageDto {
   };
 }
 
-function createThread(overrides: Partial<ThreadDto> = {}): ThreadDto {
+function createThread(overrides: Partial<DurableThreadDto> = {}): DurableThreadDto {
   return {
     id: 'thread-1',
     appId: 'playground-vite-web',
     title: 'Thread title',
     status: 'active',
+    pinned: false,
     createdAt: '2026-05-08T00:00:00.000Z',
     updatedAt: '2026-05-08T00:00:00.000Z',
     ...overrides

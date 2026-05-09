@@ -1,12 +1,12 @@
-import type { MessageDto, RunDto, ThreadDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
-import { fetchThreadsResponse } from '@agent-infra/durable-chat-client';
+import type { MessageDto, RunDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
 
-import { fetchThreadMessages, fetchThreadRuns } from '@/features/durable-chat/repo/chat-api';
+import { fetchThreadMessages, fetchThreadRuns, fetchThreads } from '@/features/durable-chat/repo/chat-api';
+import type { DurableThreadDto } from '@/features/durable-chat/types/thread';
 
 const REPLAY_MESSAGE_PAGE_LIMIT = 100;
 
 export async function fetchReplayThreads(signal?: AbortSignal) {
-  const result = await fetchThreadsResponse();
+  const result = await fetchThreads(signal);
   if (signal?.aborted) {
     throw new DOMException('The operation was aborted.', 'AbortError');
   }
@@ -89,14 +89,14 @@ export async function fetchReplayThreadBasis(threadId: string, signal?: AbortSig
   }
 
   return {
-    ok: true as const,
-    status: 200,
-    error: null,
-    data: {
-      threads: threadsResult.data.threads as ThreadDto[],
-      messages: messagesResult.data.messages ?? [],
-      pageInfo: messagesResult.data.pageInfo ?? null,
-      activeRun: messagesResult.data.activeRun ?? null,
+      ok: true as const,
+      status: 200,
+      error: null,
+      data: {
+        threads: threadsResult.data.threads as DurableThreadDto[],
+        messages: messagesResult.data.messages ?? [],
+        pageInfo: messagesResult.data.pageInfo ?? null,
+        activeRun: messagesResult.data.activeRun ?? null,
       runs: runsResult.data.runs
     }
   };

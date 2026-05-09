@@ -1,7 +1,7 @@
-import type { ThreadDto } from '@agent-infra/contracts';
+import type { DurableThreadDto } from '@/features/durable-chat/types/thread';
 
 type BuildOrderedThreadsArgs = {
-  threads: ThreadDto[];
+  threads: DurableThreadDto[];
   pinnedThreadIds: string[];
 };
 

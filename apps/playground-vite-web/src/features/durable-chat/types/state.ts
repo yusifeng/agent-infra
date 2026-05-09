@@ -1,13 +1,13 @@
-import type { MessageDto, RunDto, RuntimePiMetaDto, ThreadDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
+import type { MessageDto, RunDto, RuntimePiMetaDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
 
 import type { LiveAssistantDraft } from './live-assistant-draft';
 import type { ChatPhase, DurableRecoveryState } from './runtime';
+import type { DurableThreadDto } from './thread';
 
 export type { RunInspectorState } from '@agent-infra/durable-chat-client';
 
 export type ChatSessionState = {
-  threads: ThreadDto[];
-  pinnedThreadIds: string[];
+  threads: DurableThreadDto[];
   activeThreadId: string | null;
   messages: MessageDto[];
   draft: string;

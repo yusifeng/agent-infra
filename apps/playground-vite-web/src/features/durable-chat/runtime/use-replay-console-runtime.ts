@@ -1,4 +1,4 @@
-import type { MessageDto, ThreadDto } from '@agent-infra/contracts';
+import type { MessageDto } from '@agent-infra/contracts';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -8,11 +8,12 @@ import { buildReplaySessionFromContentNodes } from '@/features/durable-chat/serv
 import { useReplayRuntime } from '@/features/durable-chat/runtime/use-replay-runtime';
 import { useSearchPanelState } from '@/features/durable-chat/runtime/use-search-panel-state';
 import type { ReplaySession } from '@/features/durable-chat/types/replay';
+import type { DurableThreadDto } from '@/features/durable-chat/types/thread';
 
 export function useReplayConsoleRuntime({ initialThreadId }: { initialThreadId: string | null }) {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 1024 : true));
-  const [threads, setThreads] = useState<ThreadDto[]>([]);
+  const [threads, setThreads] = useState<DurableThreadDto[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(initialThreadId);
   const [loading, setLoading] = useState(Boolean(initialThreadId));
   const [error, setError] = useState<string | null>(null);

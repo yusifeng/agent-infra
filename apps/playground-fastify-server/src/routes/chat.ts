@@ -1,17 +1,13 @@
-import type { AgentInfraApp, StartTextTurnResult } from '@agent-infra/app';
+import type { StartTextTurnResult } from '@agent-infra/app';
 import type { RunStreamEventDto, RunStreamFailedEventDto, RuntimePiMetaDto } from '@agent-infra/contracts';
 import type { AgentInfraRepositoryBundle } from '@agent-infra/db';
 import {
   buildCreateThreadShareErrorResponse,
   buildCreateThreadShareResponse,
-  buildUpdateThreadErrorResponse,
-  buildUpdateThreadResponse,
   buildPublicChatShareErrorResponse,
   buildPublicChatShareResponse,
   buildRevokeChatShareErrorResponse,
   buildRevokeChatShareResponse,
-  buildCreateThreadErrorResponse,
-  buildCreateThreadResponse,
   buildRunAssistantEvent,
   buildRunReadyEvent,
   buildRunTimelineErrorResponse,
@@ -26,8 +22,6 @@ import {
   buildThreadShareStateResponse,
   buildThreadRunsErrorResponse,
   buildThreadRunsResponse,
-  buildThreadsErrorResponse,
-  buildThreadsResponse,
   buildUnavailableRuntimeMetaResponse,
   encodeSseEvent,
   getRouteErrorMessage,
@@ -43,17 +37,22 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 
 import { APP_ID } from '../constants.js';
 import { getPlaygroundAppServices, getPlaygroundAppServicesState } from '../playground-app-services.js';
-import { getPlaygroundBaseServicesState } from '../playground-base-services.js';
+import { getPlaygroundBaseServicesState, type PlaygroundAppServices } from '../playground-base-services.js';
 import { getPlaygroundDbInfo, getPlaygroundMeta } from '../playground-meta.js';
 import {
   getPlaygroundRuntimeServices,
   getPlaygroundRuntimeServicesState,
   isPlaygroundWebSearchConfigured
 } from '../playground-services.js';
+import {
+  buildPinnedThreadResponse,
+  buildPinnedThreadsResponse,
+  clearPinnedThreadState,
+  loadThreadOrThrow,
+  updatePinnedThreadState
+} from '../thread-pins.js';
 
-type ChatAppServices = {
-  app: AgentInfraApp;
-};
+type ChatAppServices = PlaygroundAppServices;
 
 type ChatRuntimeServices = ChatAppServices & {
   repos: AgentInfraRepositoryBundle;
@@ -200,9 +199,12 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
       const { app: services } = await request.requestTiming.measureAsync('services.app', () => getAppServices());
       const threads = await request.requestTiming.measureAsync('threads.list', () => services.threads.list({ appId: APP_ID }));
 
-      return reply.send(buildThreadsResponse(threads));
+      return reply.send(buildPinnedThreadsResponse(threads));
     } catch (error) {
-      return reply.code(getRouteErrorStatus(error)).send(buildThreadsErrorResponse(error, 'failed to list threads'));
+      return reply.code(getRouteErrorStatus(error)).send({
+        threads: [],
+        error: getRouteErrorMessage(error, 'failed to list threads')
+      });
     }
   });
 
@@ -224,9 +226,11 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
         })
       );
 
-      return reply.send(buildCreateThreadResponse(thread));
+      return reply.send(buildPinnedThreadResponse(thread));
     } catch (error) {
-      return reply.code(getRouteErrorStatus(error)).send(buildCreateThreadErrorResponse(error, 'failed to create thread'));
+      return reply.code(getRouteErrorStatus(error)).send({
+        error: getRouteErrorMessage(error, 'failed to create thread')
+      });
     }
   });
 
@@ -244,9 +248,11 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
         })
       );
 
-      return reply.send(buildUpdateThreadResponse(thread));
+      return reply.send(buildPinnedThreadResponse(thread));
     } catch (error) {
-      return reply.code(getRouteErrorStatus(error)).send(buildUpdateThreadErrorResponse(error, 'failed to rename thread'));
+      return reply.code(getRouteErrorStatus(error)).send({
+        error: getRouteErrorMessage(error, 'failed to rename thread')
+      });
     }
   });
 
@@ -260,10 +266,49 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
           threadId: request.params.threadId
         })
       );
+      request.requestTiming.measureSync('threads.unpin_after_archive', () => clearPinnedThreadState(thread.id));
 
-      return reply.send(buildUpdateThreadResponse(thread));
+      return reply.send(buildPinnedThreadResponse(thread));
     } catch (error) {
-      return reply.code(getRouteErrorStatus(error)).send(buildUpdateThreadErrorResponse(error, 'failed to archive thread'));
+      return reply.code(getRouteErrorStatus(error)).send({
+        error: getRouteErrorMessage(error, 'failed to archive thread')
+      });
+    }
+  });
+
+  app.post<{ Params: { threadId: string } }>('/api/threads/:threadId/pin', async (request, reply) => {
+    try {
+      request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
+      request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
+      const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      const thread = await request.requestTiming.measureAsync('threads.load', () =>
+        loadThreadOrThrow(() => services.repos.threadRepo.findById(request.params.threadId), request.params.threadId, APP_ID)
+      );
+      request.requestTiming.measureSync('threads.pin', () => updatePinnedThreadState(thread, true, new Date()));
+
+      return reply.send(buildPinnedThreadResponse(thread));
+    } catch (error) {
+      return reply.code(getRouteErrorStatus(error)).send({
+        error: getRouteErrorMessage(error, 'failed to pin thread')
+      });
+    }
+  });
+
+  app.delete<{ Params: { threadId: string } }>('/api/threads/:threadId/pin', async (request, reply) => {
+    try {
+      request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
+      request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
+      const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      const thread = await request.requestTiming.measureAsync('threads.load', () =>
+        loadThreadOrThrow(() => services.repos.threadRepo.findById(request.params.threadId), request.params.threadId, APP_ID)
+      );
+      request.requestTiming.measureSync('threads.unpin', () => updatePinnedThreadState(thread, false, new Date()));
+
+      return reply.send(buildPinnedThreadResponse(thread));
+    } catch (error) {
+      return reply.code(getRouteErrorStatus(error)).send({
+        error: getRouteErrorMessage(error, 'failed to unpin thread')
+      });
     }
   });
 

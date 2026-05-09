@@ -450,6 +450,39 @@ describe('playground-fastify-server', () => {
     expect(publicShare.json().share.publicId).toBe(publicId);
   });
 
+  it('rejects pin operations for threads outside the playground app scope', async () => {
+    const server = await createTestServer({});
+    activeServers.push(server);
+
+    const foreignThread = await server.appServices.repos.threadRepo.create({
+      id: 'foreign-thread',
+      appId: 'foreign-app',
+      userId: null,
+      title: 'Foreign Thread',
+      status: 'active',
+      metadata: null,
+      archivedAt: null
+    });
+
+    const pinResponse = await server.app.inject({
+      method: 'POST',
+      url: `/api/threads/${foreignThread.id}/pin`
+    });
+    expect(pinResponse.statusCode).toBe(404);
+    expect(pinResponse.json()).toMatchObject({
+      error: `thread ${foreignThread.id} not found`
+    });
+
+    const unpinResponse = await server.app.inject({
+      method: 'DELETE',
+      url: `/api/threads/${foreignThread.id}/pin`
+    });
+    expect(unpinResponse.statusCode).toBe(404);
+    expect(unpinResponse.json()).toMatchObject({
+      error: `thread ${foreignThread.id} not found`
+    });
+  });
+
   it('streams a successful turn and persists the assistant reply', async () => {
     const server = await createTestServer({});
     activeServers.push(server);

@@ -1,16 +1,16 @@
-import type { ThreadDto } from '@agent-infra/contracts';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ChatSidebar } from './sidebar';
 import { buildOrderedThreads } from '@/features/durable-chat/service/thread-list-presentation';
+import type { DurableThreadDto } from '@/features/durable-chat/types/thread';
 
 function openMenu(trigger: HTMLElement) {
   fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
 }
 
-function createThread(overrides: Partial<ThreadDto> = {}): ThreadDto {
+function createThread(overrides: Partial<DurableThreadDto> = {}): DurableThreadDto {
   return {
     id: 'thread-1',
     appId: 'playground-vite-web',

@@ -69,3 +69,4 @@ coverage/
 local.db
 chatgpt-response/
 .vercel
+repomix-output/

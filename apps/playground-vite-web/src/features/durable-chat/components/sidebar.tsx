@@ -1,4 +1,3 @@
-import type { ThreadDto } from '@agent-infra/contracts';
 import clsx from 'clsx';
 import {
   Archive,
@@ -20,11 +19,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
+import type { DurableThreadDto } from '@/features/durable-chat/types/thread';
 
 import { ChatAvatar, IconButton } from './shared';
 import { ui } from './ui';
 
-function ThreadTitle({ thread }: { thread: ThreadDto }) {
+function ThreadTitle({ thread }: { thread: DurableThreadDto }) {
   const title = thread.title?.trim() || 'New Thread';
   return <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[15px] leading-[1.2]">{title}</span>;
 }
@@ -54,7 +54,7 @@ function formatGroupLabel(date: Date) {
 
 type ChatSidebarProps = {
   sidebarOpen: boolean;
-  threads: ThreadDto[];
+  threads: DurableThreadDto[];
   pinnedThreadIds: string[];
   activeThreadId: string | null;
   openThreadMenuId: string | null;
@@ -94,7 +94,7 @@ export function ChatSidebar({
     const pinnedThreads = activeThreads.filter((thread) => pinnedSet.has(thread.id));
     const unpinnedThreads = activeThreads.filter((thread) => !pinnedSet.has(thread.id));
 
-    const groups = new Map<string, ThreadDto[]>();
+    const groups = new Map<string, DurableThreadDto[]>();
     for (const thread of unpinnedThreads) {
       const label = formatGroupLabel(new Date(thread.updatedAt));
       const current = groups.get(label) ?? [];
@@ -262,7 +262,7 @@ function ThreadRow({
   onShareThread,
   onArchiveThread
 }: {
-  thread: ThreadDto;
+  thread: DurableThreadDto;
   active: boolean;
   pinned: boolean;
   menuOpen: boolean;

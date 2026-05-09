@@ -2,14 +2,12 @@ import type { MessageDto } from '@agent-infra/contracts';
 import {
   applyHydratedTranscriptState,
   runActivateThread,
-  runCreateThreadRecord,
   runInitializeRuntime,
   INITIAL_MESSAGE_PAGE_LIMIT,
   runLoadOlderMessages,
   runLoadThreadMessages,
   runReconcileCompletedTurn,
   runRefreshMeta,
-  runRefreshThreads,
   runResetDraftThreadState,
   runSendMessageFlow,
   runStopViewingLiveResponse
@@ -19,8 +17,15 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useSearchPanelState } from '@/features/durable-chat/runtime/use-search-panel-state';
-import { archiveThread, fetchThreadMessages, renameThread } from '@/features/durable-chat/repo/chat-api';
-import { readStoredPinnedThreadIds, writeStoredPinnedThreadIds } from '@/features/durable-chat/repo/thread-pin-storage';
+import {
+  archiveThread,
+  createThread,
+  fetchThreadMessages,
+  fetchThreads,
+  pinThread as pinThreadRequest,
+  renameThread,
+  unpinThread as unpinThreadRequest
+} from '@/features/durable-chat/repo/chat-api';
 import { buildChatViewState } from '@/features/durable-chat/service/chat-view-state';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
@@ -36,7 +41,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const {
     state: {
       threads,
-      pinnedThreadIds,
       activeThreadId,
       messages,
       draft,
@@ -60,7 +64,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       showScrollToBottom
     },
     setThreads,
-    setPinnedThreadIds,
     setActiveThreadId,
     setMessages,
     setDraft,
@@ -132,6 +135,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const [threadActionError, setThreadActionError] = useState<string | null>(null);
   const [renamingThreadId, setRenamingThreadId] = useState<string | null>(null);
   const [archivingThreadId, setArchivingThreadId] = useState<string | null>(null);
+  const pinnedThreadIds = useMemo(() => threads.filter((thread) => thread.pinned).map((thread) => thread.id), [threads]);
   const {
     selectedModelOption,
     currentThreadTitle,
@@ -217,8 +221,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     if (typeof window === 'undefined') {
       return;
     }
-
-    setPinnedThreadIds(readStoredPinnedThreadIds());
 
     if (window.innerWidth < 1024) {
       setSidebarOpen(false);
@@ -385,11 +387,13 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }
 
   async function refreshThreads() {
-    return runRefreshThreads({
-      actions: {
-        setThreads
-      }
-    });
+    const result = await fetchThreads();
+    if (!result.ok) {
+      throw new Error(result.error ?? `Failed to load threads (${result.status})`);
+    }
+
+    setThreads(result.data.threads);
+    return result.data.threads;
   }
 
   async function refreshMeta() {
@@ -612,11 +616,14 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }
 
   async function createThreadRecord() {
-    return runCreateThreadRecord({
-      actions: {
-        setThreads
-      }
-    });
+    const result = await createThread();
+    if (!result.ok || !result.data.thread) {
+      throw new Error(result.error ?? `Failed to create thread (${result.status})`);
+    }
+
+    const createdThread = result.data.thread;
+    setThreads((current) => [createdThread, ...current.filter((thread) => thread.id !== createdThread.id)]);
+    return createdThread;
   }
 
   async function sendMessage() {
@@ -698,17 +705,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     navigateToThread(threadId);
   }
 
-  function updatePinnedThreadIds(
-    next: string[] | ((current: string[]) => string[])
-  ) {
-    setPinnedThreadIds((current) => {
-      const resolved = typeof next === 'function' ? next(current) : next;
-      const normalized = Array.from(new Set(resolved.filter((threadId) => threadId.trim().length > 0)));
-      writeStoredPinnedThreadIds(normalized);
-      return normalized;
-    });
-  }
-
   function openThreadMenu(threadId: string) {
     setOpenThreadMenuId(threadId);
     setThreadActionError(null);
@@ -749,9 +745,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         throw new Error(result.error ?? `Failed to rename thread (${result.status})`);
       }
 
-      setThreads((current) =>
-        current.map((thread) => (thread.id === threadId ? result.data.thread ?? thread : thread))
-      );
+      setThreads((current) => current.map((thread) => (thread.id === threadId ? result.data.thread ?? thread : thread)));
       closeRenameDialog();
       return true;
     } catch (nextError) {
@@ -789,7 +783,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       }
 
       setThreads((current) => current.filter((thread) => thread.id !== threadId));
-      updatePinnedThreadIds((current) => current.filter((candidate) => candidate !== threadId));
       closeArchiveDialog();
 
       if (activeThreadIdRef.current === threadId) {
@@ -812,13 +805,40 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }
 
   function pinThread(threadId: string) {
-    updatePinnedThreadIds((current) => [threadId, ...current.filter((candidate) => candidate !== threadId)]);
-    setOpenThreadMenuId(null);
+    void (async () => {
+      try {
+        const result = await pinThreadRequest(threadId);
+        if (!result.ok || !result.data.thread) {
+          throw new Error(result.error ?? 'Failed to pin thread');
+        }
+
+        setThreads((current) => [
+          result.data.thread as (typeof current)[number],
+          ...current
+            .map((thread) => (thread.id === threadId ? result.data.thread ?? thread : thread))
+            .filter((thread) => thread.id !== threadId)
+        ]);
+        setOpenThreadMenuId(null);
+      } catch (error) {
+        setThreadActionError(error instanceof Error ? error.message : '置顶会话失败。');
+      }
+    })();
   }
 
   function unpinThread(threadId: string) {
-    updatePinnedThreadIds((current) => current.filter((candidate) => candidate !== threadId));
-    setOpenThreadMenuId(null);
+    void (async () => {
+      try {
+        const result = await unpinThreadRequest(threadId);
+        if (!result.ok || !result.data.thread) {
+          throw new Error(result.error ?? 'Failed to unpin thread');
+        }
+
+        setThreads((current) => current.map((thread) => (thread.id === threadId ? result.data.thread ?? thread : thread)));
+        setOpenThreadMenuId(null);
+      } catch (error) {
+        setThreadActionError(error instanceof Error ? error.message : '取消置顶失败。');
+      }
+    })();
   }
 
   function openShareThread(threadId: string) {

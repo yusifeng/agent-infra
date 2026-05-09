@@ -2,13 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fetchThreadMessagesResponse = vi.fn();
 const fetchThreadRunsResponse = vi.fn();
-const fetchThreadsResponse = vi.fn();
-
-vi.mock('@agent-infra/durable-chat-client', () => ({
-  fetchThreadsResponse
-}));
+const fetchThreads = vi.fn();
 
 vi.mock('@/features/durable-chat/repo/chat-api', () => ({
+  fetchThreads: (...args: unknown[]) => fetchThreads(...args),
   fetchThreadMessages: (...args: unknown[]) => fetchThreadMessagesResponse(...args),
   fetchThreadRuns: (...args: unknown[]) => fetchThreadRunsResponse(...args)
 }));
@@ -17,11 +14,11 @@ describe('replay api repo facade', () => {
   beforeEach(() => {
     fetchThreadMessagesResponse.mockReset();
     fetchThreadRunsResponse.mockReset();
-    fetchThreadsResponse.mockReset();
+    fetchThreads.mockReset();
   });
 
   it('loads all replay thread message pages before returning basis data', async () => {
-    fetchThreadsResponse.mockResolvedValue({
+    fetchThreads.mockResolvedValue({
       ok: true,
       status: 200,
       error: null,
@@ -77,7 +74,7 @@ describe('replay api repo facade', () => {
   });
 
   it('surfaces upstream errors without masking them', async () => {
-    fetchThreadsResponse.mockResolvedValue({
+    fetchThreads.mockResolvedValue({
       ok: false,
       status: 500,
       error: 'threads failed',

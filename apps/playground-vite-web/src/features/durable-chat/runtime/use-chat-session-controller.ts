@@ -1,10 +1,11 @@
 import type { DurableRecoveryState } from '@agent-infra/durable-chat-client';
-import type { MessageDto, RunDto, RuntimePiMetaDto, ThreadDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
+import type { MessageDto, RunDto, RuntimePiMetaDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
 import { useReducer } from 'react';
 
 import type { LiveAssistantDraft } from '../types/live-assistant-draft';
 import type { ChatPhase } from '../types/runtime';
 import type { ChatSessionState } from '../types/state';
+import type { DurableThreadDto } from '../types/thread';
 
 type Updater<T> = T | ((current: T) => T);
 type ChatSessionAction = Partial<ChatSessionState> | ((current: ChatSessionState) => ChatSessionState);
@@ -27,7 +28,6 @@ function chatSessionReducer(state: ChatSessionState, action: ChatSessionAction) 
 function createInitialChatSessionState(): ChatSessionState {
   return {
     threads: [],
-    pinnedThreadIds: [],
     activeThreadId: null,
     messages: [],
     draft: '',
@@ -61,11 +61,8 @@ export function useChatSessionController() {
 
   return {
     state,
-    setThreads: (next: Updater<ThreadDto[]>) => {
+    setThreads: (next: Updater<DurableThreadDto[]>) => {
       dispatch((current) => ({ ...current, threads: resolveNext(current.threads, next) }));
-    },
-    setPinnedThreadIds: (next: Updater<string[]>) => {
-      dispatch((current) => ({ ...current, pinnedThreadIds: resolveNext(current.pinnedThreadIds, next) }));
     },
     setActiveThreadId: (next: Updater<string | null>) => {
       dispatch((current) => ({ ...current, activeThreadId: resolveNext(current.activeThreadId, next) }));

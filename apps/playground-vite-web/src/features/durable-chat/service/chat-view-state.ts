@@ -1,4 +1,4 @@
-import type { MessageDto, RunDto, RuntimePiMetaDto, ThreadDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
+import type { MessageDto, RunDto, RuntimePiMetaDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
 import { deriveMainChatResponseStatus, shouldShowMainChatLoading } from '@agent-infra/durable-chat-client';
 
 import { buildAnswerContainers } from '@/features/durable-chat/service/build-answer-containers';
@@ -6,9 +6,10 @@ import { buildOrderedThreads } from '@/features/durable-chat/service/thread-list
 import { buildTranscriptPresentation } from '@/features/durable-chat/service/transcript-presentation';
 import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
 import type { ChatPhase } from '@/features/durable-chat/types/runtime';
+import type { DurableThreadDto } from '@/features/durable-chat/types/thread';
 
 type BuildChatViewStateArgs = {
-  threads: ThreadDto[];
+  threads: DurableThreadDto[];
   pinnedThreadIds: string[];
   activeThreadId: string | null;
   messages: MessageDto[];

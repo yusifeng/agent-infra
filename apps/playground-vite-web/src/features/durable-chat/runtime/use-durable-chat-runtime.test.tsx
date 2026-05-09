@@ -32,9 +32,13 @@ const liveDraftPersistenceMocks = vi.hoisted(() => ({
 }));
 
 const chatApiMocks = vi.hoisted(() => ({
+  createThread: vi.fn(),
+  fetchThreads: vi.fn(),
   fetchThreadMessages: vi.fn(),
   renameThread: vi.fn(),
-  archiveThread: vi.fn()
+  archiveThread: vi.fn(),
+  pinThread: vi.fn(),
+  unpinThread: vi.fn()
 }));
 
 const shareApiMocks = vi.hoisted(() => ({
@@ -92,9 +96,13 @@ vi.mock('@/features/durable-chat/runtime/live-draft-persistence', () => ({
 }));
 
 vi.mock('@/features/durable-chat/repo/chat-api', () => ({
+  createThread: (...args: unknown[]) => chatApiMocks.createThread(...args),
+  fetchThreads: (...args: unknown[]) => chatApiMocks.fetchThreads(...args),
   fetchThreadMessages: (...args: unknown[]) => chatApiMocks.fetchThreadMessages(...args),
   renameThread: (...args: unknown[]) => chatApiMocks.renameThread(...args),
-  archiveThread: (...args: unknown[]) => chatApiMocks.archiveThread(...args)
+  archiveThread: (...args: unknown[]) => chatApiMocks.archiveThread(...args),
+  pinThread: (...args: unknown[]) => chatApiMocks.pinThread(...args),
+  unpinThread: (...args: unknown[]) => chatApiMocks.unpinThread(...args)
 }));
 
 vi.mock('@/features/durable-chat/repo/share-api', () => ({
@@ -131,13 +139,16 @@ function createRun(overrides: Partial<RunDto> = {}): RunDto {
   };
 }
 
-function createThread(overrides: Partial<import('@agent-infra/contracts').ThreadDto> = {}) {
+function createThread(
+  overrides: Partial<import('@/features/durable-chat/types/thread').DurableThreadDto> = {}
+) {
   return {
     id: 'thread-1',
     appId: 'playground-vite-web',
     title: 'Thread title',
     status: 'active' as const,
     metadata: null,
+    pinned: false,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     archivedAt: null,
@@ -197,11 +208,24 @@ describe('useDurableChatRuntime', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     durableChatClientMocks.runRefreshMeta.mockResolvedValue(undefined);
-    durableChatClientMocks.runRefreshThreads.mockImplementation(async ({ actions }: any) => {
-      actions.setThreads([
-        createThread({ id: 'thread-1', title: '第一个会话', updatedAt: '2026-01-01T00:00:01.000Z' }),
-        createThread({ id: 'thread-2', title: '第二个会话', updatedAt: '2026-01-01T00:00:02.000Z' })
-      ]);
+    chatApiMocks.fetchThreads.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        threads: [
+          createThread({ id: 'thread-1', title: '第一个会话', updatedAt: '2026-01-01T00:00:01.000Z' }),
+          createThread({ id: 'thread-2', title: '第二个会话', updatedAt: '2026-01-01T00:00:02.000Z' })
+        ]
+      }
+    });
+    chatApiMocks.createThread.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        thread: createThread({ id: 'thread-3', title: '新会话', updatedAt: '2026-01-01T00:00:03.000Z' })
+      }
     });
     durableChatClientMocks.runResetDraftThreadState.mockImplementation(() => undefined);
     durableChatClientMocks.runStopViewingLiveResponse.mockImplementation(() => undefined);
@@ -264,6 +288,22 @@ describe('useDurableChatRuntime', () => {
       error: null,
       data: {
         thread: createThread({ id: 'thread-1', status: 'archived', archivedAt: '2026-01-01T00:00:03.000Z' })
+      }
+    });
+    chatApiMocks.pinThread.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        thread: createThread({ id: 'thread-1', pinned: true })
+      }
+    });
+    chatApiMocks.unpinThread.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        thread: createThread({ id: 'thread-1', pinned: false })
       }
     });
     shareApiMocks.fetchCurrentThreadShare.mockResolvedValue({

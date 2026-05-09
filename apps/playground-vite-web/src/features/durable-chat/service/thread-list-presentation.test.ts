@@ -1,15 +1,16 @@
-import type { ThreadDto } from '@agent-infra/contracts';
 import { describe, expect, it } from 'vitest';
 
 import { buildOrderedThreads } from './thread-list-presentation';
+import type { DurableThreadDto } from '@/features/durable-chat/types/thread';
 
-function createThread(overrides: Partial<ThreadDto> = {}): ThreadDto {
+function createThread(overrides: Partial<DurableThreadDto> = {}): DurableThreadDto {
   return {
     id: 'thread-1',
     appId: 'playground-vite-web',
     title: 'Thread title',
     status: 'active',
     metadata: null,
+    pinned: false,
     createdAt: '2026-05-09T00:00:00.000Z',
     updatedAt: '2026-05-09T00:00:00.000Z',
     archivedAt: null,

@@ -4,9 +4,18 @@ import {
   fetchThreadRunsResponse,
   type FetchThreadMessagesOptions
 } from '@agent-infra/durable-chat-client';
-import type { ToolInvocationDto, UpdateThreadResponseDto } from '@agent-infra/contracts';
+import type { ToolInvocationDto } from '@agent-infra/contracts';
 
-import { normalizeUpdateThreadResponse } from '@/features/durable-chat/schema/thread-management';
+import {
+  normalizeCreateThreadResponse,
+  normalizeThreadsResponse,
+  normalizeUpdateThreadResponse
+} from '@/features/durable-chat/schema/thread-management';
+import type {
+  DurableCreateThreadResponseDto,
+  DurableThreadsResponseDto,
+  DurableUpdateThreadResponseDto
+} from '@/features/durable-chat/types/thread';
 
 export type { FetchThreadMessagesOptions };
 
@@ -14,7 +23,21 @@ type UpdateThreadResult = {
   ok: boolean;
   status: number;
   error: string | null;
-  data: UpdateThreadResponseDto;
+  data: DurableUpdateThreadResponseDto;
+};
+
+type ThreadsResult = {
+  ok: boolean;
+  status: number;
+  error: string | null;
+  data: DurableThreadsResponseDto;
+};
+
+type CreateThreadResult = {
+  ok: boolean;
+  status: number;
+  error: string | null;
+  data: DurableCreateThreadResponseDto;
 };
 
 async function fetchThreadMutation(
@@ -24,6 +47,36 @@ async function fetchThreadMutation(
   const response = await fetch(input, init);
   const raw = await response.json().catch(() => ({}));
   const data = normalizeUpdateThreadResponse(raw);
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    error: data.error ?? null,
+    data
+  };
+}
+
+export async function fetchThreads(signal?: AbortSignal): Promise<ThreadsResult> {
+  const response = await fetch('/api/threads', { signal });
+  const raw = await response.json().catch(() => ({}));
+  const data = normalizeThreadsResponse(raw);
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    error: data.error ?? null,
+    data
+  };
+}
+
+export async function createThread(): Promise<CreateThreadResult> {
+  const response = await fetch('/api/threads', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({})
+  });
+  const raw = await response.json().catch(() => ({}));
+  const data = normalizeCreateThreadResponse(raw);
 
   return {
     ok: response.ok,
@@ -57,6 +110,20 @@ export async function renameThread(threadId: string, title: string, signal?: Abo
 export async function archiveThread(threadId: string, signal?: AbortSignal) {
   return fetchThreadMutation(`/api/threads/${threadId}/archive`, {
     method: 'POST',
+    signal
+  });
+}
+
+export async function pinThread(threadId: string, signal?: AbortSignal) {
+  return fetchThreadMutation(`/api/threads/${threadId}/pin`, {
+    method: 'POST',
+    signal
+  });
+}
+
+export async function unpinThread(threadId: string, signal?: AbortSignal) {
+  return fetchThreadMutation(`/api/threads/${threadId}/pin`, {
+    method: 'DELETE',
     signal
   });
 }
