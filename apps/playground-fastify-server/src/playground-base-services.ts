@@ -10,6 +10,8 @@ import {
   type DurableChatBaseServices
 } from '@agent-infra/durable-chat-server';
 
+import { bootstrapPlaygroundThreadCatalog } from './features/thread-catalog/repo/schema.js';
+
 export type PlaygroundBaseServices = DurableChatBaseServices;
 export type PlaygroundAppServices = DurableChatAppServices;
 
@@ -27,6 +29,7 @@ async function buildPlaygroundBaseServices(): Promise<PlaygroundBaseServices> {
   try {
     const dbConfig = createDbConfigFromEnv();
     const services = await createDurableChatBaseServices(dbConfig);
+    await bootstrapPlaygroundThreadCatalog(dbConfig);
     playgroundBaseServicesState.initialized = true;
     playgroundBaseServicesState.lastInitDurationMs = Number((performance.now() - startedAt).toFixed(1));
     return services;

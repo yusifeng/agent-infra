@@ -6,10 +6,10 @@ import { buildOrderedThreads } from '@/features/durable-chat/service/thread-list
 import { buildTranscriptPresentation } from '@/features/durable-chat/service/transcript-presentation';
 import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
 import type { ChatPhase } from '@/features/durable-chat/types/runtime';
-import type { DurableThreadDto } from '@/features/durable-chat/types/thread';
+import type { PlaygroundThreadDto } from '@/features/durable-chat/types/thread';
 
 type BuildChatViewStateArgs = {
-  threads: DurableThreadDto[];
+  threads: PlaygroundThreadDto[];
   pinnedThreadIds: string[];
   activeThreadId: string | null;
   messages: MessageDto[];

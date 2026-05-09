@@ -5,7 +5,7 @@ import { useReducer } from 'react';
 import type { LiveAssistantDraft } from '../types/live-assistant-draft';
 import type { ChatPhase } from '../types/runtime';
 import type { ChatSessionState } from '../types/state';
-import type { DurableThreadDto } from '../types/thread';
+import type { PlaygroundThreadDto } from '../types/thread';
 
 type Updater<T> = T | ((current: T) => T);
 type ChatSessionAction = Partial<ChatSessionState> | ((current: ChatSessionState) => ChatSessionState);
@@ -61,7 +61,7 @@ export function useChatSessionController() {
 
   return {
     state,
-    setThreads: (next: Updater<DurableThreadDto[]>) => {
+    setThreads: (next: Updater<PlaygroundThreadDto[]>) => {
       dispatch((current) => ({ ...current, threads: resolveNext(current.threads, next) }));
     },
     setActiveThreadId: (next: Updater<string | null>) => {

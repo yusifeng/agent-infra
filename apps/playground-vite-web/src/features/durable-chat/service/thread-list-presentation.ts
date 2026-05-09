@@ -1,7 +1,7 @@
-import type { DurableThreadDto } from '@/features/durable-chat/types/thread';
+import type { PlaygroundThreadDto } from '@/features/durable-chat/types/thread';
 
 type BuildOrderedThreadsArgs = {
-  threads: DurableThreadDto[];
+  threads: PlaygroundThreadDto[];
   pinnedThreadIds: string[];
 };
 

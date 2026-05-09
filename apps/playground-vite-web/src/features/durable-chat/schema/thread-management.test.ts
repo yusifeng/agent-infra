@@ -30,6 +30,7 @@ describe('thread management schema', () => {
           status: 'active',
           metadata: null,
           pinned: true,
+          pinnedAt: null,
           createdAt: '2026-05-09T00:00:00.000Z',
           updatedAt: '2026-05-09T00:01:00.000Z',
           archivedAt: null
@@ -63,6 +64,7 @@ describe('thread management schema', () => {
         status: 'active',
         metadata: null,
         pinned: false,
+        pinnedAt: null,
         createdAt: '2026-05-09T00:00:00.000Z',
         updatedAt: '2026-05-09T00:01:00.000Z',
         archivedAt: null
@@ -95,6 +97,7 @@ describe('thread management schema', () => {
         status: 'active',
         metadata: null,
         pinned: false,
+        pinnedAt: null,
         createdAt: '2026-05-09T00:00:00.000Z',
         updatedAt: '2026-05-09T00:01:00.000Z',
         archivedAt: null

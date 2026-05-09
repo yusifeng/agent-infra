@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useReplayConsoleRuntime } from '@/features/durable-chat/runtime/use-replay-console-runtime';
-import type { DurableThreadDto } from '@/features/durable-chat/types/thread';
+import type { PlaygroundThreadDto } from '@/features/durable-chat/types/thread';
 
 const replayApiMocks = vi.hoisted(() => ({
   fetchReplayThreadBasis: vi.fn()
@@ -30,12 +30,13 @@ vi.mock('@/features/durable-chat/runtime/use-search-panel-state', () => ({
   useSearchPanelState: (...args: unknown[]) => searchPanelMocks.useSearchPanelState(...args)
 }));
 
-function createThread(overrides: Partial<DurableThreadDto> = {}): DurableThreadDto {
+function createThread(overrides: Partial<PlaygroundThreadDto> = {}): PlaygroundThreadDto {
   return {
     id: 'thread-1',
     appId: 'playground-vite-web',
     title: 'Thread 1',
     pinned: false,
+    pinnedAt: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     status: 'active',

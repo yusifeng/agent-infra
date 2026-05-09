@@ -140,7 +140,7 @@ function createRun(overrides: Partial<RunDto> = {}): RunDto {
 }
 
 function createThread(
-  overrides: Partial<import('@/features/durable-chat/types/thread').DurableThreadDto> = {}
+  overrides: Partial<import('@/features/durable-chat/types/thread').PlaygroundThreadDto> = {}
 ) {
   return {
     id: 'thread-1',
@@ -149,6 +149,7 @@ function createThread(
     status: 'active' as const,
     metadata: null,
     pinned: false,
+    pinnedAt: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     archivedAt: null,

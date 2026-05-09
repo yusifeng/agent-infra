@@ -38,19 +38,15 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import { APP_ID } from '../constants.js';
 import { getPlaygroundAppServices, getPlaygroundAppServicesState } from '../playground-app-services.js';
 import { getPlaygroundBaseServicesState, type PlaygroundAppServices } from '../playground-base-services.js';
+import { getCurrentUserId } from '../features/thread-catalog/identity/current-user.js';
+import { projectPlaygroundThreadDto, projectPlaygroundThreadList } from '../features/thread-catalog/service/project-playground-thread-dto.js';
+import { PlaygroundThreadCatalogService } from '../features/thread-catalog/service/thread-catalog-service.js';
 import { getPlaygroundDbInfo, getPlaygroundMeta } from '../playground-meta.js';
 import {
   getPlaygroundRuntimeServices,
   getPlaygroundRuntimeServicesState,
   isPlaygroundWebSearchConfigured
 } from '../playground-services.js';
-import {
-  buildPinnedThreadResponse,
-  buildPinnedThreadsResponse,
-  clearPinnedThreadState,
-  loadThreadOrThrow,
-  updatePinnedThreadState
-} from '../thread-pins.js';
 
 type ChatAppServices = PlaygroundAppServices;
 
@@ -147,6 +143,16 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
   const getRuntimeServices = dependencies.getRuntimeServices ?? getPlaygroundRuntimeServices;
   const getRuntimeMeta = dependencies.getRuntimeMeta ?? (() => getPlaygroundMeta({}, getPlaygroundDbInfo()));
 
+  function createThreadCatalogService(services: ChatAppServices) {
+    return new PlaygroundThreadCatalogService(services.dbConfig);
+  }
+
+  async function loadAccessibleThread(services: ChatAppServices, threadId: string) {
+    const currentUserId = getCurrentUserId();
+    const catalogService = createThreadCatalogService(services);
+    return catalogService.loadAccessibleThread(threadId, currentUserId, () => services.repos.threadRepo.findById(threadId));
+  }
+
   app.get('/api/meta', async (request, reply) => {
     try {
       const runtime = request.requestTiming.measureSync('meta.resolve', () => getRuntimeMeta());
@@ -196,10 +202,17 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
     try {
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
-      const { app: services } = await request.requestTiming.measureAsync('services.app', () => getAppServices());
-      const threads = await request.requestTiming.measureAsync('threads.list', () => services.threads.list({ appId: APP_ID }));
+      const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      const currentUserId = getCurrentUserId();
+      const catalogService = createThreadCatalogService(services);
+      const [catalogRows, threads] = await Promise.all([
+        request.requestTiming.measureAsync('catalog.list', () => catalogService.listVisibleCatalogRows(currentUserId)),
+        request.requestTiming.measureAsync('threads.list', () => services.app.threads.list({ appId: APP_ID }))
+      ]);
 
-      return reply.send(buildPinnedThreadsResponse(threads));
+      return reply.send({
+        threads: projectPlaygroundThreadList(threads, catalogRows)
+      });
     } catch (error) {
       return reply.code(getRouteErrorStatus(error)).send({
         threads: [],
@@ -214,10 +227,12 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
     try {
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
-      const { app: services } = await request.requestTiming.measureAsync('services.app', () => getAppServices());
-      const thread = await request.requestTiming.measureAsync('threads.create', () =>
-        services.threads.create({
-          appId: APP_ID,
+      const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      const catalogService = createThreadCatalogService(services);
+      const currentUserId = getCurrentUserId();
+      const { thread, catalogRow } = await request.requestTiming.measureAsync('threads.create', () =>
+        catalogService.createThreadWithCatalog({
+          ownerUserId: currentUserId,
           title,
           metadata: {
             source: 'playground-vite-web',
@@ -226,7 +241,9 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
         })
       );
 
-      return reply.send(buildPinnedThreadResponse(thread));
+      return reply.send({
+        thread: projectPlaygroundThreadDto(thread, catalogRow)
+      });
     } catch (error) {
       return reply.code(getRouteErrorStatus(error)).send({
         error: getRouteErrorMessage(error, 'failed to create thread')
@@ -240,15 +257,20 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
     try {
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
-      const { app: services } = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      const { catalogRow } = await request.requestTiming.measureAsync('catalog.load', () =>
+        loadAccessibleThread(services, request.params.threadId)
+      );
       const thread = await request.requestTiming.measureAsync('threads.rename', () =>
-        services.threads.rename({
+        services.app.threads.rename({
           threadId: request.params.threadId,
           title
         })
       );
 
-      return reply.send(buildPinnedThreadResponse(thread));
+      return reply.send({
+        thread: projectPlaygroundThreadDto(thread, catalogRow)
+      });
     } catch (error) {
       return reply.code(getRouteErrorStatus(error)).send({
         error: getRouteErrorMessage(error, 'failed to rename thread')
@@ -260,15 +282,21 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
     try {
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
-      const { app: services } = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      await request.requestTiming.measureAsync('catalog.load', () => loadAccessibleThread(services, request.params.threadId));
+      const catalogService = createThreadCatalogService(services);
       const thread = await request.requestTiming.measureAsync('threads.archive', () =>
-        services.threads.archive({
+        services.app.threads.archive({
           threadId: request.params.threadId
         })
       );
-      request.requestTiming.measureSync('threads.unpin_after_archive', () => clearPinnedThreadState(thread.id));
+      const catalogRow = await request.requestTiming.measureAsync('catalog.clear_pin_after_archive', () =>
+        catalogService.unpinThread(thread.id, new Date())
+      );
 
-      return reply.send(buildPinnedThreadResponse(thread));
+      return reply.send({
+        thread: projectPlaygroundThreadDto(thread, catalogRow)
+      });
     } catch (error) {
       return reply.code(getRouteErrorStatus(error)).send({
         error: getRouteErrorMessage(error, 'failed to archive thread')
@@ -281,12 +309,17 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
       const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
-      const thread = await request.requestTiming.measureAsync('threads.load', () =>
-        loadThreadOrThrow(() => services.repos.threadRepo.findById(request.params.threadId), request.params.threadId, APP_ID)
+      const catalogService = createThreadCatalogService(services);
+      const { thread } = await request.requestTiming.measureAsync('catalog.load', () =>
+        loadAccessibleThread(services, request.params.threadId)
       );
-      request.requestTiming.measureSync('threads.pin', () => updatePinnedThreadState(thread, true, new Date()));
+      const catalogRow = await request.requestTiming.measureAsync('catalog.pin', () =>
+        catalogService.pinThread(thread, new Date())
+      );
 
-      return reply.send(buildPinnedThreadResponse(thread));
+      return reply.send({
+        thread: projectPlaygroundThreadDto(thread, catalogRow)
+      });
     } catch (error) {
       return reply.code(getRouteErrorStatus(error)).send({
         error: getRouteErrorMessage(error, 'failed to pin thread')
@@ -299,12 +332,17 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
       const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
-      const thread = await request.requestTiming.measureAsync('threads.load', () =>
-        loadThreadOrThrow(() => services.repos.threadRepo.findById(request.params.threadId), request.params.threadId, APP_ID)
+      const catalogService = createThreadCatalogService(services);
+      const { thread } = await request.requestTiming.measureAsync('catalog.load', () =>
+        loadAccessibleThread(services, request.params.threadId)
       );
-      request.requestTiming.measureSync('threads.unpin', () => updatePinnedThreadState(thread, false, new Date()));
+      const catalogRow = await request.requestTiming.measureAsync('catalog.unpin', () =>
+        catalogService.unpinThread(thread.id, new Date())
+      );
 
-      return reply.send(buildPinnedThreadResponse(thread));
+      return reply.send({
+        thread: projectPlaygroundThreadDto(thread, catalogRow)
+      });
     } catch (error) {
       return reply.code(getRouteErrorStatus(error)).send({
         error: getRouteErrorMessage(error, 'failed to unpin thread')
@@ -316,10 +354,11 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
     try {
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
-      const { app: services } = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      await request.requestTiming.measureAsync('catalog.load', () => loadAccessibleThread(services, request.params.threadId));
       const [messages, activeRun] = await Promise.all([
-        request.requestTiming.measureAsync('messages.get', () => services.threads.getMessages({ threadId: request.params.threadId })),
-        request.requestTiming.measureAsync('runs.active', () => services.runs.getActiveByThread({ threadId: request.params.threadId }))
+        request.requestTiming.measureAsync('messages.get', () => services.app.threads.getMessages({ threadId: request.params.threadId })),
+        request.requestTiming.measureAsync('runs.active', () => services.app.runs.getActiveByThread({ threadId: request.params.threadId }))
       ]);
 
       return reply.send(buildThreadMessagesResponse({ messages, activeRun }));
@@ -332,9 +371,10 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
     try {
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
-      const { app: services } = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      await request.requestTiming.measureAsync('catalog.load', () => loadAccessibleThread(services, request.params.threadId));
       const share = await request.requestTiming.measureAsync('shares.create', () =>
-        services.shares.createThreadSnapshot({ threadId: request.params.threadId })
+        services.app.shares.createThreadSnapshot({ threadId: request.params.threadId })
       );
 
       return reply.send(buildCreateThreadShareResponse(share));
@@ -349,9 +389,10 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
     try {
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
-      const { app: services } = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      await request.requestTiming.measureAsync('catalog.load', () => loadAccessibleThread(services, request.params.threadId));
       const share = await request.requestTiming.measureAsync('shares.current', () =>
-        services.shares.getCurrentByThread({ threadId: request.params.threadId })
+        services.app.shares.getCurrentByThread({ threadId: request.params.threadId })
       );
 
       return reply.send(buildThreadShareStateResponse(share));
@@ -366,9 +407,10 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
     try {
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
-      const { app: services } = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      await request.requestTiming.measureAsync('catalog.load', () => loadAccessibleThread(services, request.params.threadId));
       const runs = await request.requestTiming.measureAsync('runs.list', () =>
-        services.runs.listByThread({
+        services.app.runs.listByThread({
           threadId: request.params.threadId,
           limit: parseThreadRunsLimit(request.query.limit ?? null)
         })
@@ -443,6 +485,9 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('runtime_services_state', describeServiceState(getPlaygroundRuntimeServicesState()));
       runtimeServices = await request.requestTiming.measureAsync('services.runtime', () => getRuntimeServices());
+      await request.requestTiming.measureAsync('catalog.load', () =>
+        loadAccessibleThread(runtimeServices, (request.params as { threadId: string }).threadId)
+      );
       started = await request.requestTiming.measureAsync('turns.start_text', () =>
         runtimeServices.app.turns.startText({
           threadId: (request.params as { threadId: string }).threadId,

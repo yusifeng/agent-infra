@@ -4,13 +4,13 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ChatSidebar } from './sidebar';
 import { buildOrderedThreads } from '@/features/durable-chat/service/thread-list-presentation';
-import type { DurableThreadDto } from '@/features/durable-chat/types/thread';
+import type { PlaygroundThreadDto } from '@/features/durable-chat/types/thread';
 
 function openMenu(trigger: HTMLElement) {
   fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
 }
 
-function createThread(overrides: Partial<DurableThreadDto> = {}): DurableThreadDto {
+function createThread(overrides: Partial<PlaygroundThreadDto> = {}): PlaygroundThreadDto {
   return {
     id: 'thread-1',
     appId: 'playground-vite-web',
@@ -18,6 +18,7 @@ function createThread(overrides: Partial<DurableThreadDto> = {}): DurableThreadD
     status: 'active',
     metadata: null,
     pinned: false,
+    pinnedAt: null,
     createdAt: '2026-05-09T00:00:00.000Z',
     updatedAt: '2026-05-09T00:00:00.000Z',
     archivedAt: null,

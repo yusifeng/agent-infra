@@ -8,6 +8,8 @@ import type { RuntimePiRuntime } from '@agent-infra/runtime-pi/types';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { buildPlaygroundServer } from '../src/app.js';
+import { APP_ID } from '../src/constants.js';
+import { bootstrapPlaygroundThreadCatalog } from '../src/features/thread-catalog/repo/schema.js';
 import { createPlaygroundAppServices } from '../src/playground-base-services.js';
 import { getPlaygroundMeta, type PlaygroundMeta } from '../src/playground-meta.js';
 import { createDurableChatBaseServices } from '@agent-infra/durable-chat-server';
@@ -123,6 +125,7 @@ async function createTestServer(options: {
     const dbConfig = createDbConfigFromEnv();
     await dbConfig.bootstrapSchema();
     const base = await createDurableChatBaseServices(dbConfig);
+    await bootstrapPlaygroundThreadCatalog(dbConfig);
     const durableRuntime = createFakeDurableRuntime(options.runtimeMode);
     const runtimePort: AgentInfraRuntimePort = {
       async prepare(input) {
@@ -162,6 +165,70 @@ async function createTestServer(options: {
       app: built.app,
       appServices,
       tempDir
+    };
+  });
+
+  return serverBundle;
+}
+
+async function createTestServerWithLegacyThread(title: string) {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'playground-fastify-server-legacy-test-'));
+  const sqlitePath = path.join(tempDir, 'test.db');
+
+  const serverBundle = await withSqlitePath(sqlitePath, async () => {
+    const dbConfig = createDbConfigFromEnv();
+    await dbConfig.bootstrapSchema();
+
+    const baseBeforeCatalog = await createDurableChatBaseServices(dbConfig);
+    const durableRuntime = createFakeDurableRuntime();
+    const runtimePort: AgentInfraRuntimePort = {
+      async prepare(input) {
+        return durableRuntime.prepare(input);
+      },
+      async runTextTurn(repositories, input) {
+        await durableRuntime.runTurn(
+          {
+            runRepo: repositories.runRepo,
+            messageRepo: repositories.messageRepo,
+            toolRepo: repositories.toolRepo,
+            runEventRepo: repositories.runEventRepo
+          },
+          input
+        );
+      }
+    };
+    const appServices = createPlaygroundAppServices(baseBeforeCatalog, runtimePort);
+    const legacyThread = await appServices.app.threads.create({
+      appId: APP_ID,
+      title,
+      metadata: {
+        source: 'legacy-test'
+      }
+    });
+
+    await bootstrapPlaygroundThreadCatalog(dbConfig);
+
+    const meta = {
+      ...getPlaygroundMeta({}, baseBeforeCatalog.dbInfo),
+      dbInfo: baseBeforeCatalog.dbInfo
+    };
+    const built = await buildPlaygroundServer({
+      loadEnv: false,
+      envFiles: ['test.env'],
+      logger: false,
+      getAppServices: async () => appServices,
+      getRuntimeServices: async () => ({
+        ...appServices,
+        durableRuntime
+      }),
+      getRuntimeMeta: () => meta
+    });
+
+    return {
+      app: built.app,
+      appServices,
+      tempDir,
+      legacyThreadId: legacyThread.id
     };
   });
 
@@ -480,6 +547,39 @@ describe('playground-fastify-server', () => {
     expect(unpinResponse.statusCode).toBe(404);
     expect(unpinResponse.json()).toMatchObject({
       error: `thread ${foreignThread.id} not found`
+    });
+  });
+
+  it('backfills catalog rows for pre-existing playground threads on bootstrap', async () => {
+    const server = await createTestServerWithLegacyThread('Legacy Thread');
+    activeServers.push(server);
+
+    const threads = await server.app.inject({
+      method: 'GET',
+      url: '/api/threads'
+    });
+    expect(threads.statusCode).toBe(200);
+    expect(threads.json().threads).toMatchObject([
+      {
+        id: server.legacyThreadId,
+        title: 'Legacy Thread',
+        pinned: false,
+        pinnedAt: null,
+        status: 'active'
+      }
+    ]);
+
+    const renamed = await server.app.inject({
+      method: 'PATCH',
+      url: `/api/threads/${server.legacyThreadId}`,
+      payload: {
+        title: 'Backfilled Thread'
+      }
+    });
+    expect(renamed.statusCode).toBe(200);
+    expect(renamed.json().thread).toMatchObject({
+      id: server.legacyThreadId,
+      title: 'Backfilled Thread'
     });
   });
 

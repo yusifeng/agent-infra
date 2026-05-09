@@ -12,9 +12,9 @@ import {
   normalizeUpdateThreadResponse
 } from '@/features/durable-chat/schema/thread-management';
 import type {
-  DurableCreateThreadResponseDto,
-  DurableThreadsResponseDto,
-  DurableUpdateThreadResponseDto
+  PlaygroundCreateThreadResponseDto,
+  PlaygroundThreadsResponseDto,
+  PlaygroundUpdateThreadResponseDto
 } from '@/features/durable-chat/types/thread';
 
 export type { FetchThreadMessagesOptions };
@@ -23,21 +23,21 @@ type UpdateThreadResult = {
   ok: boolean;
   status: number;
   error: string | null;
-  data: DurableUpdateThreadResponseDto;
+  data: PlaygroundUpdateThreadResponseDto;
 };
 
 type ThreadsResult = {
   ok: boolean;
   status: number;
   error: string | null;
-  data: DurableThreadsResponseDto;
+  data: PlaygroundThreadsResponseDto;
 };
 
 type CreateThreadResult = {
   ok: boolean;
   status: number;
   error: string | null;
-  data: DurableCreateThreadResponseDto;
+  data: PlaygroundCreateThreadResponseDto;
 };
 
 async function fetchThreadMutation(

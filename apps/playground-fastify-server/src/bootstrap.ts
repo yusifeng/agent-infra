@@ -1,6 +1,7 @@
 import { createDbConfigFromEnv } from '@agent-infra/db';
 
 import { loadPlaygroundEnv } from './env.js';
+import { bootstrapPlaygroundThreadCatalog } from './features/thread-catalog/repo/schema.js';
 
 export type PlaygroundDbBootstrapResult = {
   connectionString: string;
@@ -13,6 +14,7 @@ export async function bootstrapPlaygroundDb(options: { loadEnv?: boolean } = {})
   const dbConfig = createDbConfigFromEnv();
 
   await dbConfig.bootstrapSchema();
+  await bootstrapPlaygroundThreadCatalog(dbConfig);
 
   return {
     dbMode: dbConfig.mode,

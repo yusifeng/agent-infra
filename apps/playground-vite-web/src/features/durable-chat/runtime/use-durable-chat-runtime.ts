@@ -135,7 +135,14 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const [threadActionError, setThreadActionError] = useState<string | null>(null);
   const [renamingThreadId, setRenamingThreadId] = useState<string | null>(null);
   const [archivingThreadId, setArchivingThreadId] = useState<string | null>(null);
-  const pinnedThreadIds = useMemo(() => threads.filter((thread) => thread.pinned).map((thread) => thread.id), [threads]);
+  const pinnedThreadIds = useMemo(
+    () =>
+      threads
+        .filter((thread) => thread.pinned)
+        .sort((left, right) => new Date(right.pinnedAt ?? 0).getTime() - new Date(left.pinnedAt ?? 0).getTime())
+        .map((thread) => thread.id),
+    [threads]
+  );
   const {
     selectedModelOption,
     currentThreadTitle,

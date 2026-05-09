@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildOrderedThreads } from './thread-list-presentation';
-import type { DurableThreadDto } from '@/features/durable-chat/types/thread';
+import type { PlaygroundThreadDto } from '@/features/durable-chat/types/thread';
 
-function createThread(overrides: Partial<DurableThreadDto> = {}): DurableThreadDto {
+function createThread(overrides: Partial<PlaygroundThreadDto> = {}): PlaygroundThreadDto {
   return {
     id: 'thread-1',
     appId: 'playground-vite-web',
@@ -11,6 +11,7 @@ function createThread(overrides: Partial<DurableThreadDto> = {}): DurableThreadD
     status: 'active',
     metadata: null,
     pinned: false,
+    pinnedAt: null,
     createdAt: '2026-05-09T00:00:00.000Z',
     updatedAt: '2026-05-09T00:00:00.000Z',
     archivedAt: null,

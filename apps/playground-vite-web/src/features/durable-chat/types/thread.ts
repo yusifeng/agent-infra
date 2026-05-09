@@ -5,18 +5,19 @@ import type {
   UpdateThreadResponseDto as BaseUpdateThreadResponseDto
 } from '@agent-infra/contracts';
 
-export type DurableThreadDto = BaseThreadDto & {
+export type PlaygroundThreadDto = BaseThreadDto & {
   pinned: boolean;
+  pinnedAt: string | null;
 };
 
-export type DurableThreadsResponseDto = Omit<BaseThreadsResponseDto, 'threads'> & {
-  threads: DurableThreadDto[];
+export type PlaygroundThreadsResponseDto = Omit<BaseThreadsResponseDto, 'threads'> & {
+  threads: PlaygroundThreadDto[];
 };
 
-export type DurableCreateThreadResponseDto = Omit<BaseCreateThreadResponseDto, 'thread'> & {
-  thread?: DurableThreadDto;
+export type PlaygroundCreateThreadResponseDto = Omit<BaseCreateThreadResponseDto, 'thread'> & {
+  thread?: PlaygroundThreadDto;
 };
 
-export type DurableUpdateThreadResponseDto = Omit<BaseUpdateThreadResponseDto, 'thread'> & {
-  thread?: DurableThreadDto;
+export type PlaygroundUpdateThreadResponseDto = Omit<BaseUpdateThreadResponseDto, 'thread'> & {
+  thread?: PlaygroundThreadDto;
 };

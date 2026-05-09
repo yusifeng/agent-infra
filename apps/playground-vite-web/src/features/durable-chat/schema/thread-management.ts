@@ -1,4 +1,4 @@
-import type { DurableCreateThreadResponseDto, DurableThreadDto, DurableThreadsResponseDto, DurableUpdateThreadResponseDto } from '@/features/durable-chat/types/thread';
+import type { PlaygroundCreateThreadResponseDto, PlaygroundThreadDto, PlaygroundThreadsResponseDto, PlaygroundUpdateThreadResponseDto } from '@/features/durable-chat/types/thread';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -26,11 +26,11 @@ function asJsonRecordOrNull(value: unknown) {
   return value === null || value === undefined ? null : asRecord(value);
 }
 
-function asThreadStatus(value: unknown): DurableThreadDto['status'] | null {
+function asThreadStatus(value: unknown): PlaygroundThreadDto['status'] | null {
   return value === 'active' || value === 'archived' ? value : null;
 }
 
-function normalizeThread(value: unknown): DurableThreadDto | null {
+function normalizeThread(value: unknown): PlaygroundThreadDto | null {
   const record = asRecord(value);
   if (!record) {
     return null;
@@ -54,23 +54,24 @@ function normalizeThread(value: unknown): DurableThreadDto | null {
     status,
     metadata: asJsonRecordOrNull(record.metadata),
     pinned: record.pinned === true,
+    pinnedAt: asNullableString(record.pinnedAt),
     createdAt,
     updatedAt,
     archivedAt: asNullableString(record.archivedAt)
   };
 }
 
-export function normalizeThreadsResponse(value: unknown): DurableThreadsResponseDto {
+export function normalizeThreadsResponse(value: unknown): PlaygroundThreadsResponseDto {
   const record = asRecord(value);
   const error = asNullableString(record?.error);
 
   return {
-    threads: Array.isArray(record?.threads) ? record.threads.map(normalizeThread).filter((thread): thread is DurableThreadDto => thread !== null) : [],
+    threads: Array.isArray(record?.threads) ? record.threads.map(normalizeThread).filter((thread): thread is PlaygroundThreadDto => thread !== null) : [],
     error: error ?? undefined
   };
 }
 
-export function normalizeCreateThreadResponse(value: unknown): DurableCreateThreadResponseDto {
+export function normalizeCreateThreadResponse(value: unknown): PlaygroundCreateThreadResponseDto {
   const record = asRecord(value);
   const thread = normalizeThread(record?.thread);
   const error = asNullableString(record?.error);
@@ -81,7 +82,7 @@ export function normalizeCreateThreadResponse(value: unknown): DurableCreateThre
   };
 }
 
-export function normalizeUpdateThreadResponse(value: unknown): DurableUpdateThreadResponseDto {
+export function normalizeUpdateThreadResponse(value: unknown): PlaygroundUpdateThreadResponseDto {
   const record = asRecord(value);
   const thread = normalizeThread(record?.thread);
   const error = asNullableString(record?.error);
