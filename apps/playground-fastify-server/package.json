@@ -22,9 +22,10 @@
     "@agent-infra/db": "workspace:*",
     "@agent-infra/durable-chat-server": "workspace:*",
     "@agent-infra/runtime-pi": "workspace:*",
+    "@fastify/cors": "^11.0.0",
     "@mariozechner/pi-agent-core": "^0.66.1",
     "@sinclair/typebox": "^0.34.41",
-    "@fastify/cors": "^11.0.0",
+    "argon2": "^0.44.0",
     "drizzle-orm": "^0.44.2",
     "fastify": "^5.0.0"
   },

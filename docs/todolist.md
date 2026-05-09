@@ -1,168 +1,261 @@
-# Playground Thread Catalog Todo
+# Playground Fastify/Vite Auth Todo
 
-## 完成状态
+## 0. Context and Boundary
 
-这轮工作已经完成，以下清单全部落地并验证通过。
+### 0.1 Confirmed facts
+- [x] 本次任务只覆盖 [`apps/playground-fastify-server`](/Users/david/Documents/github/agent-infra/apps/playground-fastify-server) 和 [`apps/playground-vite-web`](/Users/david/Documents/github/agent-infra/apps/playground-vite-web)。
+- [x] auth 是宿主侧能力，不引入到共享 `packages/*`，并保持与 [`docs/architecture.md`](/Users/david/Documents/github/agent-infra/docs/architecture.md) 的平台边界一致。
+- [x] `threads.userId` 不作为真实 ownership 语义使用，当前实现也仍然写入 `null`。
+- [x] thread ownership 继续只使用宿主表 `playground_thread_catalog.owner_user_id`。
+- [x] 当前 `current-user` 仍然是固定 `local-dev-user`，需要替换为真实 session user。
+- [x] 现有 Vite 客户端已经统一通过相对 `/api` 访问 Fastify host，适合同源 cookie session。
+- [x] 认证方案已经确认采用“邮箱验证码注册 + 邮箱/密码登录”。
+- [x] 密码不放进 `auth_users`，而是独立建模到 `auth_passwords`。
+- [x] 表名不使用 `playground_` 前缀，但保留 `auth_` 命名空间。
+- [x] 历史 `local-dev-user` 业务数据无关紧要，这次任务不为其保留兼容迁移逻辑。
 
-## 0. 背景与边界
+### 0.2 Goals
+- [ ] 为 Fastify host 增加宿主侧 auth schema、repo、service、route 和 session 解析。
+- [ ] 支持邮箱注册验证码发送、邮箱验证码注册、邮箱/密码登录、当前用户查询、登出。
+- [ ] 将 thread routes 从固定 `local-dev-user` 切换为 request-scoped 的真实 auth user。
+- [ ] 让未登录用户无法访问需要 ownership 的 thread API。
+- [ ] 让新建 thread 的 `playground_thread_catalog.owner_user_id` 写入真实 `auth_users.id`。
+- [ ] 为 Vite consumer 增加 `/login`、`/register` 与 auth gate，接上新的 `/api/auth/*`。
 
-### 0.1 已确认事实
-- [x] `pin` 继续作为宿主侧业务能力存在，没有提升到共享 `packages/core`、`packages/app`、`packages/db` 或 `packages/contracts`。
-- [x] 之前的 checkpoint commit 已经把 `pin` 处理收口到 `apps/playground-fastify-server` 和 `apps/playground-vite-web`。
-- [x] 宿主侧已经用 DB-backed 的 thread catalog 替换了 JSON-backed 的临时 `thread-pins.ts` 实现。
-- [x] 前端继续消费 app-local thread DTO，没有要求共享 `ThreadDto` 增加 `pinned` 字段。
-- [x] 这次任务保持了共享 durable primitives 不变，同时把宿主侧 thread catalog 模式正式化。
-- [x] v1 的 current-user 策略采用固定的 `local-dev-user`。
+### 0.3 Non-goals
+- [x] 不把 auth user、identity、session、password 模型提升到 `packages/core`、`packages/contracts`、`packages/db` 或 `packages/app`。
+- [x] 这次任务不改造 `threads.userId` 语义，也不把它接入 auth。
+- [x] 这次任务不实现忘记密码、重置密码、修改密码。
+- [x] 这次任务不实现短信登录、OAuth、magic link。
+- [x] 这次任务不实现邀请码校验逻辑，也不要求邀请码 UI 继续保留。
+- [x] 这次任务不引入 JWT 作为主登录态。
+- [x] 这次任务不做设备管理、登录告警、异常风控等增强能力。
 
-### 0.2 目标
-- [x] 用 DB-backed 的宿主自有 thread catalog 表替换了 `playground-fastify-server` 中 JSON-backed 的 `pin` 持久化。
-- [x] 建立了清晰的宿主侧 thread catalog 模块边界，包括 repo、service、projection 和 current-user lookup。
-- [x] 返回了宿主专用的 `PlaygroundThreadDto`，包含 `pinned` 和 `pinnedAt`。
-- [x] 保持了 route handler 轻量，把宿主业务逻辑从 route-local helper 中移出。
-- [x] 保持了当前平台边界：没有新增共享 pin repo、没有新增共享 `ThreadDto.pinned`、没有新增共享 pin app methods。
-
-### 0.3 非目标
-- [x] 不把 `pin` 提升到共享平台包。
-- [x] 这次任务不引入通用 extension framework 或可复用 extension kit。
-- [x] 这次任务不解决完整登录/认证系统。
-- [x] 这次任务不加入 labels、favorites、hidden flags 或其它未来业务能力。
-- [x] 这次任务不重新设计 `agent-infra` 里共享 durable thread ownership 语义。
-
-## 1. 先定义，再实现
+## 1. Definitions First
 
 ### 1.1 Source of Truth
-- [x] 实现与 [`docs/architecture.md`](/Users/david/Documents/github/agent-infra/docs/architecture.md) 中已有的平台边界保持一致。
-- [x] 判断后暂不新增长期 source-of-truth 文档；当前模式先保留在实现与这份完成清单中。
-- [x] 在模式验证前，这份 todo 承担了工作真相记录的作用；完成后保留为收尾记录。
+- [x] 当前没有现成的 `docs/source-of-truth/*` 文档定义宿主 auth / identity / session 模型。
+- [x] 本轮先把 evolving definitions 保留在这份 todo 中，不先创建新的 source-of-truth 文档。
+- [ ] 实现过程中若 auth / identity / session / ownership 关系沉淀为稳定长期事实，再评估是否提炼到 `docs/source-of-truth/*`。
+- [ ] 完工后将长期有效的概念事实转移到正式文档，并删除这份临时 todo。
 
-### 1.2 数据模型
-- [x] 明确并实现了宿主自有表 `playground_thread_catalog` 的结构：
-  - `thread_id`
-  - `app_id`
-  - `owner_user_id`
-  - `pinned_at`
+### 1.2 Data model
+- [x] 新增宿主表 `auth_users`：
+  - `id`
+  - `status`
+  - `created_at`
+  - `last_login_at`
+- [x] 新增宿主表 `auth_identities`：
+  - `id`
+  - `user_id`
+  - `identity_type`
+  - `identity_value_normalized`
+  - `verified_at`
+  - `created_at`
+- [x] 新增宿主表 `auth_passwords`：
+  - `user_id`
+  - `password_hash`
+  - `password_algo`
   - `created_at`
   - `updated_at`
-- [x] 在 Fastify host 中实现了这张表的 SQL/Drizzle 结构，并且没有把它放进共享 `packages/db` schema。
-- [x] 落实了所需索引：
-  - `thread_id` 主键
-  - `(app_id, owner_user_id)` 查询索引
-  - `(app_id, owner_user_id, pinned_at)` 查询/排序索引
-- [x] 落实了 invariant：每一个对用户可见的 playground thread 都有且只有一条 catalog row。
-- [x] 落实了缺失 catalog row、孤儿 catalog row 在读取和迁移阶段的处理方式：
-  - 启动时 backfill 旧 thread
-  - list 只投影同时存在 durable thread 与 catalog row 的 active thread
-  - access path 对缺失或不匹配的 catalog row 返回 not found
+- [x] 新增宿主表 `auth_email_challenges`：
+  - `id`
+  - `email_normalized`
+  - `purpose`
+  - `code_hmac`
+  - `expires_at`
+  - `consumed_at`
+  - `attempt_count`
+  - `last_sent_at`
+  - `created_at`
+- [x] 新增宿主表 `auth_sessions`：
+  - `id`
+  - `user_id`
+  - `token_hash`
+  - `expires_at`
+  - `revoked_at`
+  - `created_at`
+  - `updated_at`
+  - 可选 `ip_address`
+  - 可选 `user_agent`
+- [x] 为 `auth_identities(identity_type, identity_value_normalized)` 建立唯一约束。
+- [x] 为 `auth_passwords.user_id` 建立唯一约束。
+- [x] 为 `auth_sessions.token_hash` 建立唯一约束。
+- [x] 为 `auth_email_challenges` 建立按 `email_normalized / purpose / created_at` 的查询索引。
+- [x] 明确邮箱规范化规则只做 `trim + lowercase`，不做 provider-specific 特判。
 
-### 1.3 类型 / 接口
-- [x] 定义了 app-local DTO：`PlaygroundThreadDto`
-  - 以共享 `ThreadDto` 形状为基础
-  - `pinned: boolean`
-  - `pinnedAt: string | null`
-- [x] 现有前端 app-local 类型已经从 `DurableThreadDto` 重命名为 `PlaygroundThreadDto`，边界更清晰。
-- [x] 定义了宿主侧 projection contract：从 durable thread + catalog row 投影出 `PlaygroundThreadDto`。
-- [x] 定义了临时 host identity contract，用来解析 `local-dev-user`。
+### 1.3 Types / Interfaces
+- [ ] 定义 app-local auth DTO：
+  - `AuthUserDto`
+  - `AuthMeResponseDto`
+  - `AuthRequestSignupCodeResponseDto`
+  - `AuthSignUpResponseDto`
+  - `AuthSignInResponseDto`
+  - `AuthLogoutResponseDto`
+- [ ] 定义 app-local auth request payload schema：
+  - `request-signup-code`
+  - `sign-up`
+  - `sign-in`
+  - `logout`
+- [ ] 定义统一 auth error code 集合：
+  - `INVALID_EMAIL`
+  - `EMAIL_ALREADY_REGISTERED`
+  - `INVALID_CODE`
+  - `CODE_EXPIRED`
+  - `PASSWORD_TOO_SHORT`
+  - `INVALID_CREDENTIALS`
+  - `RATE_LIMITED`
+  - `UNAUTHORIZED`
+- [ ] 定义 request-scoped `currentUser` 类型，并挂到 Fastify request 上。
+- [ ] 定义 auth email sender 接口，隔离供应商 SDK。
+- [ ] 定义 session token 服务接口：
+  - 生成原始 token
+  - 计算 `token_hash`
+  - 校验 cookie token
+- [ ] 定义 email challenge HMAC 计算接口：
+  - 使用服务端 secret
+  - 输入包含 `challengeId + email + purpose + code`
 
-## 2. 后端 / 宿主实现
+## 2. Backend / Host
 
-### 2.1 Host DB 与 bootstrap
-- [x] Fastify host 已在宿主侧 bootstrap `playground_thread_catalog` schema，没有把它推入共享 `packages/db`。
-- [x] 宿主侧 schema 创建 / bootstrap 已覆盖本地 SQLite，并保留与其余 DB 模式兼容的执行路径。
-- [x] prepared server startup flow 会一并 bootstrap 这张宿主表。
+### 2.1 Host DB and Bootstrap
+- [x] 在 Fastify host 侧为 `auth_*` 表补齐 SQLite / Turso / Postgres schema 和 bootstrap 逻辑。
+- [x] 保持 auth schema 仅存在于 [`apps/playground-fastify-server`](/Users/david/Documents/github/agent-infra/apps/playground-fastify-server) 宿主侧，不进入共享 `packages/db` schema。
+- [x] 将 auth schema bootstrap 纳入现有 prepared startup 流程。
 
-### 2.2 Host repo / service 结构
-- [x] 已在以下目录下建立宿主侧 feature/module 边界：
-  - `apps/playground-fastify-server/src/features/thread-catalog/`
-- [x] 已新增 catalog repo，只负责 DB access。
-- [x] 已新增 catalog service，负责：
-  - 创建 catalog row
-  - 校验 owner visibility
-  - pin
-  - unpin
-  - archive 相关清理
-  - 为当前用户列出 catalog rows
-- [x] 已新增 current-user helper，在 v1 中返回 `local-dev-user`。
-- [x] 已移除 JSON-backed 的临时实现 [`thread-pins.ts`](/Users/david/Documents/github/agent-infra/apps/playground-fastify-server/src/thread-pins.ts)。
+### 2.2 Host repo / service structure
+- [x] 新增 `features/auth/identity/normalize-email.ts`。
+- [ ] 新增 `features/auth/repo/auth-user-repo.ts`。
+- [ ] 新增 `features/auth/repo/auth-identity-repo.ts`。
+- [ ] 新增 `features/auth/repo/auth-password-repo.ts`。
+- [ ] 新增 `features/auth/repo/auth-email-challenge-repo.ts`。
+- [ ] 新增 `features/auth/repo/auth-session-repo.ts`。
+- [x] 新增 `features/auth/service/password-hasher.ts`，使用 `argon2id`。
+- [ ] 新增 `features/auth/service/session-token.ts`，负责生成原始 token 与 `token_hash`。
+- [x] 新增 `features/auth/service/session-token.ts`，负责生成原始 token 与 `token_hash`。
+- [ ] 新增 `features/auth/service/email-challenge-service.ts`，负责验证码生成、HMAC 校验、过期与 attempt 逻辑。
+- [ ] 新增 `features/auth/service/auth-service.ts`，负责注册、登录、登出、当前用户解析。
+- [ ] 新增 `features/auth/service/email-sender.ts` 抽象，首个实现默认接 `Resend`。
+- [ ] 新增 `features/auth/service/origin-check.ts`，对敏感写接口做 `Origin` 校验。
 
-### 2.3 Host route 组合
-- [x] 创建 thread 的流程已经同时创建：
-  - durable thread
-  - 对应的 catalog row
-- [x] thread list 流程已经以 catalog rows 作为用户可见 threads 的入口。
-- [x] pin/unpin routes 已通过 catalog service 完成操作。
-- [x] archive 流程会清理 `pinned_at`，并确保 archived threads 不再进入 active list projection。
-- [x] route handlers 继续作为 composition roots，而不是承载内联业务逻辑。
+### 2.3 Host auth routes
+- [ ] 新增 [`apps/playground-fastify-server/src/routes/auth.ts`](/Users/david/Documents/github/agent-infra/apps/playground-fastify-server/src/routes/auth.ts)。
+- [ ] 实现 `POST /api/auth/email/request-signup-code`。
+- [ ] 实现 `POST /api/auth/sign-up`。
+- [ ] 实现 `POST /api/auth/sign-in`。
+- [ ] 实现 `GET /api/auth/me`。
+- [ ] 实现 `POST /api/auth/logout`。
+- [ ] 为 auth 写接口加 rate limit。
+- [ ] 为 auth 写接口加 `Origin` 校验。
+- [ ] 为登录错误统一返回 `INVALID_CREDENTIALS`，避免用户枚举。
 
-### 2.4 Projection
-- [x] 已新增专门的 projection helper，用于：
-  - 单条 thread response
-  - thread list response
-- [x] projection 负责计算：
-  - `pinned`
-  - `pinnedAt`
-- [x] list projection 已落实排序：
-  - pinned 优先
-  - `pinned_at desc`
-  - 然后 `thread.updatedAt desc`
+### 2.4 Cookie and session handling
+- [ ] 注册 `@fastify/cookie`。
+- [ ] 开发环境使用 cookie 名 `sid`。
+- [ ] 生产环境使用 cookie 名 `__Host-sid`。
+- [ ] cookie 仅存原始 `sessionToken`，数据库仅存 `token_hash`。
+- [ ] cookie 属性固定为：
+  - `HttpOnly`
+  - `SameSite=Lax`
+  - `Path=/`
+  - production `Secure=true`
+- [ ] `GET /api/auth/me` 每次都从 cookie token -> hash -> `auth_sessions` -> `auth_users` 解析当前用户。
+- [ ] `logout` 撤销 session 并清 cookie。
 
-## 3. 前端边界
+### 2.5 Replace current-user and protect thread routes
+- [ ] 用 request-scoped session user 替换固定 `local-dev-user` 实现。
+- [ ] 在 thread routes 中读取 `request.currentUser.id`，不再使用进程级固定 helper。
+- [ ] 未登录访问 thread list/create/messages/pin/archive/run 等 ownership 相关 API 时返回 `401`。
+- [ ] 创建 thread 时保持 `thread.userId = null`。
+- [ ] 创建 thread 时写入 `playground_thread_catalog.owner_user_id = auth_users.id`。
 
-### 3.1 Schema 与 repo
-- [x] 前端 app-local normalization 已支持 `pinnedAt`。
-- [x] 共享 `durable-chat-client` contracts 保持不变。
-- [x] `/api/threads` 和 pin/unpin response 已作为宿主 DTO payload 消费，而不是 shared contract payload。
+## 3. Frontend Boundary
 
-### 3.2 Runtime 与 service
-- [x] thread list presentation/runtime 逻辑已经优先使用显式 `pinnedAt` 语义，不再依赖隐式数组顺序。
-- [x] 当前 sidebar 的 pinned-first 行为保持不变。
-- [x] 当前 archive/pin/unpin 的交互行为保持不变，同时已经切换到 catalog-backed responses。
+### 3.1 Schema and repo
+- [ ] 新增 `features/auth/repo/auth-api.ts`。
+- [ ] 为 `/api/auth/*` 建立 app-local schema normalization，不把 auth contract 推进共享 `packages/contracts`。
+- [ ] 为 auth API 结果建立稳定错误码到前端文案的映射。
 
-### 3.3 UI
-- [x] 当前 sidebar / UI 行为保持稳定。
-- [x] 这次任务没有扩展成视觉重设计。
+### 3.2 Runtime
+- [ ] 新增 `features/auth/runtime/use-auth-state.ts`。
+- [ ] 应用启动时先请求 `/api/auth/me`。
+- [ ] 建立未登录 / 已登录 / 初始化中三态 auth runtime。
+- [ ] 将现有 chat runtime 启动条件改为依赖 auth gate。
 
-## 4. 测试
+### 3.3 UI / route flow
+- [ ] 新增 `/login` 页面或等价路由入口。
+- [ ] 新增 `/register` 页面或等价路由入口。
+- [ ] 注册页支持：
+  - 邮箱输入
+  - 发送验证码
+  - 验证码输入
+  - 密码输入
+  - 提交注册
+- [ ] 登录页支持：
+  - 邮箱输入
+  - 密码输入
+  - 提交登录
+- [ ] 未登录访问 chat 路由时重定向 `/login`。
+- [ ] 注册成功后跳转 `/new`。
+- [ ] 登录成功后跳转 `/new`。
+- [ ] 第一阶段不展示邀请码输入 UI。
 
-### 4.1 后端测试
-- [x] Fastify host 测试已经覆盖：
-  - 创建 thread 会创建 catalog row
-  - list 通过 catalog rows 读取当前用户可见 threads
-  - pin 会设置 `pinned_at`
-  - unpin 会清空 `pinned_at`
-  - archive 会清空 `pinned_at`
-  - archived threads 不会重新出现在 active list 中
-  - foreign app 的访问会被正确拒绝
-  - 旧 thread 在 bootstrap 后会被 backfill 进入 catalog
+## 4. Tests
 
-### 4.2 前端测试
-- [x] app-local schema tests 已更新，覆盖 `pinnedAt`。
-- [x] 排序逻辑切换到显式 `pinnedAt` 后，runtime/service tests 已同步通过。
-- [x] sidebar 行为测试在新的 projected DTO 形状下继续通过。
+### 4.1 Backend tests
+- [ ] 覆盖请求注册验证码成功。
+- [ ] 覆盖已注册邮箱请求注册验证码失败。
+- [ ] 覆盖 resend cooldown 生效。
+- [ ] 覆盖验证码过期失败。
+- [ ] 覆盖验证码错误失败。
+- [ ] 覆盖验证码 attempt 超限失败。
+- [ ] 覆盖注册成功会创建 `auth_users / auth_identities / auth_passwords / auth_sessions`。
+- [ ] 覆盖登录成功会创建 session。
+- [ ] 覆盖登录失败返回 `INVALID_CREDENTIALS`。
+- [ ] 覆盖 `/api/auth/me` 已登录返回 user。
+- [ ] 覆盖 `/api/auth/me` 未登录返回 `user: null`。
+- [ ] 覆盖登出会撤销 session 并清 cookie。
+- [ ] 覆盖未登录访问 thread API 返回 `401`。
+- [ ] 覆盖已登录创建 thread 后 `owner_user_id` 正确写入 auth user id。
 
-### 4.3 验证
-- [x] 运行 `pnpm --filter playground-fastify-server test`
-- [x] 运行 `pnpm --filter playground-vite-web test`
-- [x] 运行 `pnpm typecheck`
-- [x] 运行 `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`
+### 4.2 Frontend tests
+- [ ] 覆盖未登录时 auth gate 跳转 `/login`。
+- [ ] 覆盖注册页发送验证码交互。
+- [ ] 覆盖注册成功后进入 app。
+- [ ] 覆盖登录成功后进入 app。
+- [ ] 覆盖登出后回到登录页。
 
-## 5. 推荐执行顺序
+### 4.3 Verification
+- [ ] 运行 `pnpm --filter playground-fastify-server test`
+- [ ] 运行 `pnpm --filter playground-fastify-server typecheck`
+- [ ] 运行 `pnpm --filter playground-vite-web test`
+- [ ] 运行 `pnpm --filter playground-vite-web typecheck`
+- [ ] 运行 `pnpm typecheck`
+- [ ] 运行 `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`
+
+## 5. Recommended Execution Order
 
 ### Loop 1
-- [x] 在本地类型和代码中明确了 host table 结构与 invariants。
-- [x] 实现了 host 侧 current-user 解析，固定为 `local-dev-user`。
-- [x] 实现了 `playground_thread_catalog` 的宿主侧 schema / bootstrap。
+- [x] 锁定 auth 表结构、约束、HMAC/token hash 规则。
+- [x] 实现 auth schema 与 bootstrap，不改前端。
+- [x] 为 session token、验证码 HMAC、密码 hash 建立最小单元测试。
 
 ### Loop 2
-- [x] 实现了 host catalog repo 和 service。
-- [x] 用 DB-backed 的 catalog 持久化替换了 JSON-backed 的 pin 持久化。
-- [x] 测试重点覆盖了后端行为和 ownership/catalog invariants。
+- [ ] 实现 auth repo / service / email sender 抽象。
+- [ ] 接入 `@fastify/cookie`、`Origin` 校验和 rate limit。
+- [ ] 实现 `/api/auth/*` 路由并完成后端主链路测试。
 
 ### Loop 3
-- [x] route flows 已改为使用 catalog service 和专门的 DTO projection。
-- [x] host response 已返回 `pinned` 和 `pinnedAt`。
-- [x] 后端测试已完整验证 archive/pin/unpin/list/backfill 行为。
+- [ ] 将 `current-user` 从固定值切到 request-scoped session user。
+- [ ] 为 thread routes 增加登录保护。
+- [ ] 验证已登录用户创建 thread 后 `owner_user_id` 正确写入。
 
 ### Loop 4
-- [x] 前端 app-local DTO normalization 和 runtime 排序逻辑已支持 `pinnedAt`。
-- [x] 已运行定向前端测试和 typecheck。
-- [x] 已运行 codex review，并清除了 review 暴露出的 legacy backfill 问题。
+- [ ] 为 Vite 增加 `/login`、`/register` 和 auth gate。
+- [ ] 将 chat 页面接入 `/api/auth/me` 与新的登录流转。
+- [ ] 完成前端 auth 交互测试。
+
+### Loop 5
+- [ ] 跑完整定向验证与 typecheck。
+- [ ] 运行 `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`。
+- [ ] 将长期有效的 auth 概念事实整理进正式文档，并删除这份 `docs/todolist.md`。
