@@ -1,4 +1,5 @@
 import clsx from 'clsx';
+import type { ReactNode } from 'react';
 import { Share2 } from 'lucide-react';
 
 import { ChatHeader } from './components/chat-header';
@@ -13,7 +14,13 @@ import { ChatSidebar } from './components/sidebar';
 import { ui } from './components/ui';
 import { useDurableChatRuntime } from './runtime/use-durable-chat-runtime';
 
-export function DurableChatConsole({ initialThreadId }: { initialThreadId: string | null }) {
+export function DurableChatConsole({
+  initialThreadId,
+  headerTrailingContent = null
+}: {
+  initialThreadId: string | null;
+  headerTrailingContent?: ReactNode;
+}) {
   const runtime = useDurableChatRuntime({ initialThreadId });
   const {
     sidebarOpen,
@@ -122,9 +129,12 @@ export function DurableChatConsole({ initialThreadId }: { initialThreadId: strin
               sidebarOpen={sidebarOpen}
               onOpenSidebar={onOpenSidebar}
               trailingContent={
-                activeThreadId && !isChatResponding && displayedMessages.length > 0 ? (
-                  <IconButton icon={Share2} onClick={() => onOpenShareThread(activeThreadId)} size="small" title="分享对话" />
-                ) : null
+                <>
+                  {activeThreadId && !isChatResponding && displayedMessages.length > 0 ? (
+                    <IconButton icon={Share2} onClick={() => onOpenShareThread(activeThreadId)} size="small" title="分享对话" />
+                  ) : null}
+                  {headerTrailingContent}
+                </>
               }
             />
 

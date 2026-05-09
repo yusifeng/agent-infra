@@ -16,7 +16,7 @@
 
 ### 0.2 Goals
 - [x] 为 Fastify host 增加宿主侧 auth schema、repo、service、route 和 session 解析。
-- [ ] 支持邮箱注册验证码发送、邮箱验证码注册、邮箱/密码登录、当前用户查询、登出。
+- [x] 支持邮箱注册验证码发送、邮箱验证码注册、邮箱/密码登录、当前用户查询、登出。
 - [x] 将 thread routes 从固定 `local-dev-user` 切换为 request-scoped 的真实 auth user。
 - [x] 让未登录用户无法访问需要 ownership 的 thread API。
 - [x] 让新建 thread 的 `playground_thread_catalog.owner_user_id` 写入真实 `auth_users.id`。
@@ -171,33 +171,33 @@
 ## 3. Frontend Boundary
 
 ### 3.1 Schema and repo
-- [ ] 新增 `features/auth/repo/auth-api.ts`。
-- [ ] 为 `/api/auth/*` 建立 app-local schema normalization，不把 auth contract 推进共享 `packages/contracts`。
-- [ ] 为 auth API 结果建立稳定错误码到前端文案的映射。
+- [x] 新增 `features/auth/repo/auth-api.ts`。
+- [x] 为 `/api/auth/*` 建立 app-local schema normalization，不把 auth contract 推进共享 `packages/contracts`。
+- [x] 为 auth API 结果建立稳定错误码到前端文案的映射。
 
 ### 3.2 Runtime
-- [ ] 新增 `features/auth/runtime/use-auth-state.ts`。
-- [ ] 应用启动时先请求 `/api/auth/me`。
-- [ ] 建立未登录 / 已登录 / 初始化中三态 auth runtime。
-- [ ] 将现有 chat runtime 启动条件改为依赖 auth gate。
+- [x] 新增 `features/auth/runtime/use-auth-state.ts`。
+- [x] 应用启动时先请求 `/api/auth/me`。
+- [x] 建立未登录 / 已登录 / 初始化中三态 auth runtime。
+- [x] 将现有 chat runtime 启动条件改为依赖 auth gate。
 
 ### 3.3 UI / route flow
-- [ ] 新增 `/login` 页面或等价路由入口。
-- [ ] 新增 `/register` 页面或等价路由入口。
-- [ ] 注册页支持：
+- [x] 新增 `/login` 页面或等价路由入口。
+- [x] 新增 `/register` 页面或等价路由入口。
+- [x] 注册页支持：
   - 邮箱输入
   - 发送验证码
   - 验证码输入
   - 密码输入
   - 提交注册
-- [ ] 登录页支持：
+- [x] 登录页支持：
   - 邮箱输入
   - 密码输入
   - 提交登录
-- [ ] 未登录访问 chat 路由时重定向 `/login`。
-- [ ] 注册成功后跳转 `/new`。
-- [ ] 登录成功后跳转 `/new`。
-- [ ] 第一阶段不展示邀请码输入 UI。
+- [x] 未登录访问 chat 路由时重定向 `/login`。
+- [x] 注册成功后跳转 `/new`。
+- [x] 登录成功后跳转 `/new`。
+- [x] 第一阶段不展示邀请码输入 UI。
 
 ## 4. Tests
 
@@ -218,17 +218,19 @@
 - [x] 覆盖已登录创建 thread 后 `owner_user_id` 正确写入 auth user id。
 
 ### 4.2 Frontend tests
-- [ ] 覆盖未登录时 auth gate 跳转 `/login`。
-- [ ] 覆盖注册页发送验证码交互。
-- [ ] 覆盖注册成功后进入 app。
-- [ ] 覆盖登录成功后进入 app。
-- [ ] 覆盖登出后回到登录页。
+- [x] 覆盖未登录时 auth gate 跳转 `/login`。
+- [x] 覆盖注册页发送验证码交互。
+- [x] 覆盖注册成功后进入 app。
+- [x] 覆盖登录成功后进入 app。
+- [x] 覆盖登出后回到登录页。
 
 ### 4.3 Verification
 - [x] 运行 `pnpm --filter playground-fastify-server test`
 - [x] 运行 `pnpm --filter playground-fastify-server typecheck`
 - [ ] 运行 `pnpm --filter playground-vite-web test`
 - [ ] 运行 `pnpm --filter playground-vite-web typecheck`
+- [x] 运行 `pnpm --filter playground-vite-web test`
+- [x] 运行 `pnpm --filter playground-vite-web typecheck`
 - [ ] 运行 `pnpm typecheck`
 - [x] 运行 `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`
 
@@ -250,9 +252,9 @@
 - [x] 验证已登录用户创建 thread 后 `owner_user_id` 正确写入。
 
 ### Loop 4
-- [ ] 为 Vite 增加 `/login`、`/register` 和 auth gate。
-- [ ] 将 chat 页面接入 `/api/auth/me` 与新的登录流转。
-- [ ] 完成前端 auth 交互测试。
+- [x] 为 Vite 增加 `/login`、`/register` 和 auth gate。
+- [x] 将 chat 页面接入 `/api/auth/me` 与新的登录流转。
+- [x] 完成前端 auth 交互测试。
 
 ### Loop 5
 - [ ] 跑完整定向验证与 typecheck。
