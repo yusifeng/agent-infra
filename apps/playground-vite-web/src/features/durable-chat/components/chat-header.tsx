@@ -2,7 +2,7 @@ import clsx from 'clsx';
 import type { ReactNode } from 'react';
 import { PanelLeftOpen } from 'lucide-react';
 
-import { ChatAvatar, IconButton } from './shared';
+import { IconButton } from './shared';
 import { ui } from './ui';
 
 type ChatHeaderProps = {
@@ -19,7 +19,6 @@ export function ChatHeader({ currentThreadTitle, sidebarOpen, onOpenSidebar, tra
         {!sidebarOpen ? (
           <IconButton icon={PanelLeftOpen} onClick={onOpenSidebar} size="small" title="打开侧边栏" />
         ) : null}
-        <ChatAvatar size={28} title={currentThreadTitle} />
         <div className="relative flex max-w-full flex-1 items-center gap-2 overflow-hidden">
           <div className={clsx(ui.chatHeaderTitle)}>{currentThreadTitle}</div>
         </div>

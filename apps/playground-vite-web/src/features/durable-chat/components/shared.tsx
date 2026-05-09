@@ -1,7 +1,8 @@
 import clsx from 'clsx';
 import type { ButtonHTMLAttributes, ComponentType } from 'react';
 
-import { LOBE_AVATAR_URL, WAVING_HAND_EMOJI_URL } from './ui';
+import { DeepseekLogo } from './deepseek-logo';
+import { WAVING_HAND_EMOJI_URL } from './ui';
 
 type IconButtonProps = {
   icon: ComponentType<{ className?: string }>;
@@ -43,17 +44,8 @@ export function IconButton({
   );
 }
 
-export function ChatAvatar({ title, size = 28 }: { title: string; size?: number }) {
-  return (
-    <img
-      alt={title}
-      className="rounded-full object-cover"
-      height={size}
-      loading="lazy"
-      src={LOBE_AVATAR_URL}
-      width={size}
-    />
-  );
+export function ChatAvatar({ title, size }: { title: string; size?: number }) {
+  return <DeepseekLogo className={size ? 'w-auto' : 'h-[23px] w-auto'} title={title} width={143} height={23} />;
 }
 
 export function AnimatedEmoji({ emoji, size = 40 }: { emoji: string; size?: number }) {

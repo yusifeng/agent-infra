@@ -17,6 +17,7 @@ function createThread(overrides: Partial<ThreadDto> = {}): ThreadDto {
     title: 'Thread title',
     status: 'active',
     metadata: null,
+    pinned: false,
     createdAt: '2026-05-09T00:00:00.000Z',
     updatedAt: '2026-05-09T00:00:00.000Z',
     archivedAt: null,

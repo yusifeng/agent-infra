@@ -1,5 +1,3 @@
-export const LOBE_AVATAR_URL =
-  'https://registry.npmmirror.com/@lobehub/fluent-emoji-3d/latest/files/assets/1f92f.webp';
 export const WAVING_HAND_EMOJI_URL =
   'https://registry.npmmirror.com/@lobehub/fluent-emoji-anim-1/latest/files/assets/1f44b.webp';
 
