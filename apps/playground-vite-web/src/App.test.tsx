@@ -296,6 +296,8 @@ describe('App auth gate', () => {
       expect(authApiMocks.logout).toHaveBeenCalledTimes(1);
       expect(screen.getByRole('heading', { name: '登录到 Playground' })).toBeTruthy();
     });
+
+    expect(screen.getByRole('link', { name: '去注册' }).getAttribute('href')).toBe('/register');
   });
 
   it('returns to the login page even when logout fails', async () => {
@@ -324,5 +326,7 @@ describe('App auth gate', () => {
       expect(authApiMocks.logout).toHaveBeenCalledTimes(1);
       expect(screen.getByRole('heading', { name: '登录到 Playground' })).toBeTruthy();
     });
+
+    expect(screen.getByRole('link', { name: '去注册' }).getAttribute('href')).toBe('/register');
   });
 });
