@@ -350,6 +350,145 @@ describe('auth routes', () => {
     });
   });
 
+  it('rejects expired signup codes', async () => {
+    const server = await createAuthTestServer(new RecordingAuthEmailSender(), {
+      signupCodeTtlMs: -1
+    });
+
+    const requestCode = await server.app.inject({
+      method: 'POST',
+      url: '/api/auth/email/request-signup-code',
+      headers: {
+        origin: 'http://localhost:5173'
+      },
+      payload: {
+        email: 'user@example.com'
+      }
+    });
+
+    expect(requestCode.statusCode).toBe(200);
+
+    const code = server.emailSender instanceof RecordingAuthEmailSender ? server.emailSender.sent[0]?.code : null;
+    if (!code) {
+      throw new Error('Missing signup code');
+    }
+
+    const signUp = await server.app.inject({
+      method: 'POST',
+      url: '/api/auth/sign-up',
+      headers: {
+        origin: 'http://localhost:5173'
+      },
+      payload: {
+        email: 'user@example.com',
+        code,
+        password: 'correct horse battery staple'
+      }
+    });
+
+    expect(signUp.statusCode).toBe(400);
+    expect(signUp.json()).toEqual({
+      error: 'CODE_EXPIRED'
+    });
+  });
+
+  it('rejects incorrect signup codes', async () => {
+    const server = await createAuthTestServer();
+
+    const requestCode = await server.app.inject({
+      method: 'POST',
+      url: '/api/auth/email/request-signup-code',
+      headers: {
+        origin: 'http://localhost:5173'
+      },
+      payload: {
+        email: 'user@example.com'
+      }
+    });
+
+    expect(requestCode.statusCode).toBe(200);
+
+    const signUp = await server.app.inject({
+      method: 'POST',
+      url: '/api/auth/sign-up',
+      headers: {
+        origin: 'http://localhost:5173'
+      },
+      payload: {
+        email: 'user@example.com',
+        code: '000000',
+        password: 'correct horse battery staple'
+      }
+    });
+
+    expect(signUp.statusCode).toBe(400);
+    expect(signUp.json()).toEqual({
+      error: 'INVALID_CODE'
+    });
+  });
+
+  it('rejects signup after the challenge exceeds the max attempt limit', async () => {
+    const server = await createAuthTestServer(new RecordingAuthEmailSender(), {
+      maxChallengeAttempts: 2
+    });
+
+    const requestCode = await server.app.inject({
+      method: 'POST',
+      url: '/api/auth/email/request-signup-code',
+      headers: {
+        origin: 'http://localhost:5173'
+      },
+      payload: {
+        email: 'user@example.com'
+      }
+    });
+
+    expect(requestCode.statusCode).toBe(200);
+
+    const correctCode = server.emailSender instanceof RecordingAuthEmailSender ? server.emailSender.sent[0]?.code : null;
+    if (!correctCode) {
+      throw new Error('Missing signup code');
+    }
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const invalidAttempt = await server.app.inject({
+        method: 'POST',
+        url: '/api/auth/sign-up',
+        headers: {
+          origin: 'http://localhost:5173'
+        },
+        payload: {
+          email: 'user@example.com',
+          code: '000000',
+          password: 'correct horse battery staple'
+        }
+      });
+
+      expect(invalidAttempt.statusCode).toBe(400);
+      expect(invalidAttempt.json()).toEqual({
+        error: 'INVALID_CODE'
+      });
+    }
+
+    const finalAttempt = await server.app.inject({
+      method: 'POST',
+      url: '/api/auth/sign-up',
+      headers: {
+        origin: 'http://localhost:5173'
+      },
+      payload: {
+        email: 'user@example.com',
+        code: correctCode,
+        password: 'correct horse battery staple'
+      }
+    });
+
+    expect(finalAttempt.statusCode).toBe(400);
+    expect(finalAttempt.json()).toEqual({
+      error: 'INVALID_CODE'
+    });
+  });
+
   it('rejects state-changing auth requests that omit Origin', async () => {
     const server = await createAuthTestServer();
 

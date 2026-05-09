@@ -205,9 +205,9 @@
 - [x] 覆盖请求注册验证码成功。
 - [x] 覆盖已注册邮箱请求注册验证码失败。
 - [x] 覆盖 resend cooldown 生效。
-- [ ] 覆盖验证码过期失败。
-- [ ] 覆盖验证码错误失败。
-- [ ] 覆盖验证码 attempt 超限失败。
+- [x] 覆盖验证码过期失败。
+- [x] 覆盖验证码错误失败。
+- [x] 覆盖验证码 attempt 超限失败。
 - [x] 覆盖注册成功会创建 `auth_users / auth_identities / auth_passwords / auth_sessions`。
 - [x] 覆盖登录成功会创建 session。
 - [x] 覆盖登录失败返回 `INVALID_CREDENTIALS`。
