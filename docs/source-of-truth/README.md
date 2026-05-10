@@ -20,6 +20,9 @@
 - `share-model.md`
   - thread-level snapshot share 的持久化实体、public id、snapshot payload、
     internal/public contracts，以及 Vite 只读分享页应复用的内容边界
+- `playground-host-auth-model.md`
+  - playground Fastify/Vite 宿主侧 auth 的边界、ownership 规则、
+    session/cookie 模型、受保护路由语义，以及为什么它不进入 shared packages
 
 ## 不适合放在这里的内容
 

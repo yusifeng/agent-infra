@@ -16,7 +16,7 @@
 - `packages/runtime-pi`: pi-agent-core adapter that translates runtime events into durable records.
 - `apps/playground-next-web`: first consumer of `agent-infra`, with browser-local experiments plus a chat-first runtime validation surface that keeps durable inspection as a secondary pane.
 - `apps/playground-vite-web`: Vite-based browser consumer scaffold for validating the same client-side contracts outside Next.js.
-- `apps/playground-fastify-server`: Fastify-based server host scaffold for validating platform routes outside Next.js.
+- `apps/playground-fastify-server`: Fastify-based server host scaffold for validating platform routes outside Next.js, including host-local auth/session behavior that intentionally stays out of shared packages.
 
 ## Consumer boundary
 
