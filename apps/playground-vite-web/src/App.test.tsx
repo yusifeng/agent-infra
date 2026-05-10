@@ -114,7 +114,7 @@ describe('App auth gate', () => {
     renderApp(['/chat/thread-1']);
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: '登录到 Playground' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: '登录' })).toBeTruthy();
     });
   });
 
@@ -150,7 +150,7 @@ describe('App auth gate', () => {
     renderApp(['/login?next=%2Fchat%2Fthread-9']);
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: '登录到 Playground' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: '登录' })).toBeTruthy();
     });
 
     fireEvent.change(screen.getByLabelText('邮箱'), {
@@ -174,7 +174,7 @@ describe('App auth gate', () => {
     renderApp(['/login?next=%2F%2Fevil.example']);
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: '登录到 Playground' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: '登录' })).toBeTruthy();
     });
 
     fireEvent.change(screen.getByLabelText('邮箱'), {
@@ -198,13 +198,13 @@ describe('App auth gate', () => {
     renderApp(['/login?next=%2Fchat%2Fthread-15']);
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: '登录到 Playground' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: '登录' })).toBeTruthy();
     });
 
     fireEvent.click(screen.getByRole('link', { name: '去注册' }));
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: '注册你的 Playground 账号' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: '完成注册' })).toBeTruthy();
     });
 
     fireEvent.change(screen.getByLabelText('邮箱'), {
@@ -239,7 +239,7 @@ describe('App auth gate', () => {
     renderApp(['/register']);
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: '注册你的 Playground 账号' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: '完成注册' })).toBeTruthy();
     });
 
     fireEvent.change(screen.getByLabelText('邮箱'), {
@@ -294,7 +294,7 @@ describe('App auth gate', () => {
 
     await waitFor(() => {
       expect(authApiMocks.logout).toHaveBeenCalledTimes(1);
-      expect(screen.getByRole('heading', { name: '登录到 Playground' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: '登录' })).toBeTruthy();
     });
 
     expect(screen.getByRole('link', { name: '去注册' }).getAttribute('href')).toBe('/register');
@@ -324,7 +324,7 @@ describe('App auth gate', () => {
 
     await waitFor(() => {
       expect(authApiMocks.logout).toHaveBeenCalledTimes(1);
-      expect(screen.getByRole('heading', { name: '登录到 Playground' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: '登录' })).toBeTruthy();
     });
 
     expect(screen.getByRole('link', { name: '去注册' }).getAttribute('href')).toBe('/register');
