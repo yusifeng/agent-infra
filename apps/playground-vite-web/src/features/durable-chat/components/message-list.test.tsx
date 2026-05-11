@@ -70,6 +70,20 @@ function renderMessageList({
   );
 }
 
+function getThinkingContainerCount(markup: string) {
+  return markup.match(/data-thinking-container="true"/g)?.length ?? 0;
+}
+
+function getAssistantCardCount(markup: string) {
+  return markup.match(/data-message-role="assistant"/g)?.length ?? 0;
+}
+
+function expectAppearsBefore(markup: string, first: string, second: string) {
+  expect(markup.indexOf(first)).toBeGreaterThanOrEqual(0);
+  expect(markup.indexOf(second)).toBeGreaterThanOrEqual(0);
+  expect(markup.indexOf(first)).toBeLessThan(markup.indexOf(second));
+}
+
 describe('ChatMessageList', () => {
   it('shows actions for assistant blocks with copyable text while excluding search labels from the copy scope', () => {
     const assistantMessage = createMessage({
@@ -313,11 +327,116 @@ describe('ChatMessageList', () => {
       liveAssistantDraft: null
     });
 
-    expect(markup.match(/data-thinking-container="true"/g)).toHaveLength(1);
+    expect(getThinkingContainerCount(markup)).toBe(1);
     expect(markup).toContain('先判断问题。');
     expect(markup).toContain('我再打开页面看看。');
     expect(markup).toContain('搜索到 8 个网页');
     expect(markup).toContain('最终答案。');
+  });
+
+  it('keeps browse follow-up reasoning in the same thinking container without leaking openUrl payloads', () => {
+    const assistantMessage = createMessage({
+      id: 'assistant-browse-1',
+      role: 'assistant',
+      runId: 'run-browse-1',
+      seq: 1,
+      parts: [
+        createPart({ id: 'assistant-browse-1:r1', type: 'reasoning', messageId: 'assistant-browse-1', textValue: '我先搜索一下相关资料。' }),
+        createPart({
+          id: 'assistant-browse-1:tool-result',
+          type: 'tool-result',
+          messageId: 'assistant-browse-1',
+          partIndex: 1,
+          jsonValue: {
+            toolName: 'openUrl',
+            toolCallId: 'call-open-browse-1',
+            details: {
+              kind: 'open-url-summary',
+              url: 'https://baike.baidu.com/item/x',
+              finalUrl: 'https://baike.baidu.com/item/x',
+              title: '速水玲香_百度百科',
+              siteName: '百度百科',
+              contentQuality: 'good'
+            }
+          }
+        }),
+        createPart({ id: 'assistant-browse-1:r2', type: 'reasoning', messageId: 'assistant-browse-1', partIndex: 2, textValue: '我再打开一个页面确认细节。' }),
+        createPart({ id: 'assistant-browse-1:text', type: 'text', messageId: 'assistant-browse-1', partIndex: 3, textValue: '最终答案。' })
+      ]
+    });
+
+    const transcriptBlocks: TranscriptBlock[] = [
+      {
+        type: 'assistant-turn',
+        id: 'assistant-turn-browse-1',
+        runId: 'run-browse-1',
+        sourceMessages: [assistantMessage],
+        items: [
+          {
+            type: 'reasoning',
+            id: 'assistant-turn-browse-1:r1',
+            part: assistantMessage.parts[0]!
+          },
+          {
+            type: 'search-summary',
+            id: 'assistant-turn-browse-1:search',
+            summary: {
+              runId: 'run-browse-1',
+              entries: [
+                {
+                  toolCallId: 'call-search-browse-1',
+                  query: '速水玲香 金田一少年事件簿',
+                  resultCount: 8,
+                  sourceNames: ['百度百科'],
+                  sources: [{ sourceName: '百度百科', hostname: 'baike.baidu.com' }]
+                }
+              ]
+            }
+          },
+          {
+            type: 'tool-part',
+            id: 'assistant-turn-browse-1:tool-result',
+            part: assistantMessage.parts[1]!
+          },
+          {
+            type: 'reasoning',
+            id: 'assistant-turn-browse-1:r2',
+            part: assistantMessage.parts[2]!
+          },
+          {
+            type: 'text',
+            id: 'assistant-turn-browse-1:text',
+            cacheKey: 'assistant-turn-browse-1:text',
+            part: assistantMessage.parts[3]!
+          }
+        ]
+      }
+    ];
+
+    const answerContainer: AnswerContainer = {
+      id: 'answer-container:run-browse-1:assistant-turn-browse-1',
+      kind: 'assistant-answer',
+      runId: 'run-browse-1',
+      transcriptBlockIds: ['assistant-turn-browse-1'],
+      blocks: [transcriptBlocks[0] as Extract<TranscriptBlock, { type: 'assistant-turn' }>],
+      actionHostId: 'answer-container:run-browse-1:assistant-turn-browse-1'
+    };
+
+    const markup = renderMessageList({
+      messages: [assistantMessage],
+      transcriptBlocks,
+      answerContainers: [answerContainer],
+      liveAssistantDraft: null
+    });
+
+    expect(getThinkingContainerCount(markup)).toBe(1);
+    expect(markup).toContain('我先搜索一下相关资料。');
+    expect(markup).toContain('我再打开一个页面确认细节。');
+    expect(markup).toContain('搜索到 8 个网页');
+    expect(markup).toContain('最终答案。');
+    expect(markup).not.toContain('openUrl');
+    expect(markup).not.toContain('tool-result');
+    expect(markup).not.toContain('https://baike.baidu.com/item/x');
   });
 
   it('starts a new thinking container when reasoning appears after assistant text', () => {
@@ -383,7 +502,7 @@ describe('ChatMessageList', () => {
       liveAssistantDraft: null
     });
 
-    expect(markup.match(/data-thinking-container="true"/g)).toHaveLength(2);
+    expect(getThinkingContainerCount(markup)).toBe(2);
     expect(markup).toContain('第一段正文。');
     expect(markup).toContain('第二段正文。');
   });
@@ -830,10 +949,221 @@ describe('ChatMessageList', () => {
       })
     });
 
-    expect(markup.match(/data-thinking-container="true"/g)).toHaveLength(1);
+    expect(getThinkingContainerCount(markup)).toBe(1);
     expect(markup).toContain('我先搜索一下相关资料。');
     expect(markup).toContain('我再打开一个页面确认细节。');
     expect(markup).toContain('搜索到 8 个网页');
     expect(markup).toContain('最终答案开始输出。');
+  });
+
+  it('preserves lead-in text before the search summary in both live and persisted rendering', () => {
+    const leadIn = '让我先搜索一下速水玲香这个角色的相关信息。';
+
+    const liveAssistantDraft: LiveAssistantDraft = {
+      runId: 'run-live-order',
+      messageId: 'assistant-live-order',
+      source: 'live',
+      committedText: '',
+      partialText: '',
+      segmentText: '',
+      segmentTextMessageId: null,
+      partialReasoning: null,
+      segmentReasoningMessageId: null,
+      activeTools: [
+        {
+          toolCallId: 'call-live-search-order',
+          toolName: 'searchWeb',
+          phase: 'completed',
+          input: { query: '速水玲香 金田一少年事件簿' }
+        }
+      ],
+      eventType: 'streaming',
+      segments: [
+        {
+          id: 'segment-1',
+          messageId: 'assistant-live-order',
+          text: leadIn,
+          reasoning: null,
+          tools: [],
+          eventType: 'streaming'
+        },
+        {
+          id: 'segment-2',
+          messageId: 'assistant-live-order',
+          text: '',
+          reasoning: null,
+          tools: [
+            {
+              toolCallId: 'call-live-search-order',
+              toolName: 'searchWeb',
+              phase: 'completed',
+              input: { query: '速水玲香 金田一少年事件簿' }
+            }
+          ],
+          eventType: 'streaming'
+        }
+      ]
+    };
+
+    const liveMarkup = renderMessageList({
+      messages: [],
+      transcriptBlocks: [],
+      liveAssistantDraft,
+      getLiveSearchPanelData: () => ({
+        runId: 'run-live-order',
+        toolCallIds: ['call-live-search-order'],
+        provider: 'tavily',
+        resultCount: 8,
+        sourceNames: ['百度百科'],
+        sections: [
+          {
+            toolCallId: 'call-live-search-order',
+            query: '速水玲香 金田一少年事件簿',
+            resultCount: 8,
+            results: [
+              {
+                rank: 1,
+                title: '速水玲香',
+                url: 'https://baike.baidu.com/item/x',
+                snippet: '...',
+                sourceName: '百度百科',
+                hostname: 'baike.baidu.com',
+                publishedAt: null
+              }
+            ]
+          }
+        ]
+      })
+    });
+
+    expectAppearsBefore(liveMarkup, leadIn, '搜索到 8 个网页');
+
+    const assistantMessage = createMessage({
+      id: 'assistant-order-1',
+      role: 'assistant',
+      runId: 'run-persisted-order',
+      seq: 1,
+      parts: [
+        createPart({
+          id: 'assistant-order-1:text',
+          type: 'text',
+          messageId: 'assistant-order-1',
+          textValue: leadIn
+        })
+      ]
+    });
+
+    const persistedMarkup = renderMessageList({
+      messages: [assistantMessage],
+      transcriptBlocks: [
+        {
+          type: 'assistant-turn',
+          id: 'assistant-turn-order-1',
+          runId: 'run-persisted-order',
+          sourceMessages: [assistantMessage],
+          items: [
+            {
+              type: 'text',
+              id: 'assistant-turn-order-1:text',
+              cacheKey: 'assistant-turn-order-1:text',
+              part: assistantMessage.parts[0]!
+            },
+            {
+              type: 'search-summary',
+              id: 'assistant-turn-order-1:search',
+              summary: {
+                runId: 'run-persisted-order',
+                entries: [
+                  {
+                    toolCallId: 'call-live-search-order',
+                    query: '速水玲香 金田一少年事件簿',
+                    resultCount: 8,
+                    sourceNames: ['百度百科'],
+                    sources: [{ sourceName: '百度百科', hostname: 'baike.baidu.com' }]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      liveAssistantDraft: null
+    });
+
+    expectAppearsBefore(persistedMarkup, leadIn, '搜索到 8 个网页');
+  });
+
+  it('does not render an assistant card when a turn contains only non-visible tool metadata', () => {
+    const assistantMessage = createMessage({
+      id: 'assistant-tool-only-1',
+      role: 'assistant',
+      runId: 'run-tool-only-1',
+      seq: 1,
+      parts: [
+        createPart({
+          id: 'assistant-tool-only-1:tool-call',
+          type: 'tool-call',
+          messageId: 'assistant-tool-only-1',
+          jsonValue: {
+            toolName: 'openUrl',
+            toolCallId: 'call-open-1',
+            input: {
+              url: 'https://example.com/page'
+            }
+          }
+        }),
+        createPart({
+          id: 'assistant-tool-only-1:tool-result',
+          type: 'tool-result',
+          messageId: 'assistant-tool-only-1',
+          partIndex: 1,
+          jsonValue: {
+            toolName: 'openUrl',
+            toolCallId: 'call-open-1',
+            details: {
+              kind: 'open-url-summary',
+              url: 'https://example.com/page',
+              finalUrl: 'https://example.com/page',
+              title: '示例页面',
+              siteName: '示例站点',
+              contentQuality: 'good'
+            }
+          }
+        })
+      ]
+    });
+
+    const markup = renderMessageList({
+      messages: [assistantMessage],
+      transcriptBlocks: [
+        {
+          type: 'assistant-turn',
+          id: 'assistant-turn-tool-only-1',
+          runId: 'run-tool-only-1',
+          sourceMessages: [assistantMessage],
+          items: [
+            {
+              type: 'tool-part',
+              id: 'assistant-turn-tool-only-1:tool-call',
+              part: assistantMessage.parts[0]!
+            },
+            {
+              type: 'tool-part',
+              id: 'assistant-turn-tool-only-1:tool-result',
+              part: assistantMessage.parts[1]!
+            }
+          ]
+        }
+      ],
+      liveAssistantDraft: null
+    });
+
+    expect(getThinkingContainerCount(markup)).toBe(0);
+    expect(getAssistantCardCount(markup)).toBe(0);
+    expect(markup).not.toContain('tool-call');
+    expect(markup).not.toContain('tool-result');
+    expect(markup).not.toContain('openUrl');
+    expect(markup).not.toContain('https://example.com/page');
+    expect(markup).not.toContain('data-message-actions-available="true"');
   });
 });
