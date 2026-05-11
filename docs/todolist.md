@@ -11,11 +11,11 @@
 - [x] TanStack Query is not part of this first optimization pass.
 
 ### 0.2 Goals
-- [ ] Improve `apps/playground-vite-web` maintainability by reducing `use-durable-chat-runtime.ts` responsibility width.
+- [x] Improve `apps/playground-vite-web` maintainability by reducing `use-durable-chat-runtime.ts` responsibility width.
 - [x] Add or confirm focused tests before each refactor slice.
-- [ ] Preserve existing user-visible behavior and hook return shape unless a small interface change is explicitly justified.
-- [ ] Split low-risk controller responsibilities out of `use-durable-chat-runtime.ts` in independently verifiable loops.
-- [ ] Keep each loop small enough to typecheck, test, review, and commit independently.
+- [x] Preserve existing user-visible behavior and hook return shape unless a small interface change is explicitly justified.
+- [x] Split low-risk controller responsibilities out of `use-durable-chat-runtime.ts` in independently verifiable loops.
+- [x] Keep each loop small enough to typecheck, test, review, and commit independently.
 
 ### 0.3 Non-goals
 - [x] Do not introduce TanStack Query in this task.
@@ -33,7 +33,7 @@
 - [x] Existing `docs/source-of-truth/playground-chat-mode-model.md` governs selected model and chat mode behavior.
 - [x] Existing `docs/source-of-truth/playground-search-browse-policy-model.md` governs search/browse presentation semantics.
 - [x] Existing `docs/source-of-truth/share-model.md` governs share behavior.
-- [ ] Do not create a new source-of-truth doc at the start of this task.
+- [x] Do not create a new source-of-truth doc at the start of this task.
 - [ ] Re-evaluate after the refactor whether stable Vite runtime ownership rules should be promoted to `docs/source-of-truth/*`.
 
 ### 1.2 Runtime ownership
@@ -45,20 +45,20 @@
 - [ ] Extract thread menu/rename/archive/pin action state into a dedicated controller hook after lower-risk slices are stable.
 
 ### 1.3 Types / Interfaces
-- [ ] Keep `useDurableChatRuntime` return fields stable for `DurableChatConsole`.
-- [ ] Define narrow argument and return types for each extracted controller hook.
-- [ ] Avoid passing the full runtime state object into extracted hooks when a smaller explicit input set is enough.
-- [ ] Keep controller hooks colocated under `apps/playground-vite-web/src/features/durable-chat/runtime`.
-- [ ] Prefer named exports for new runtime helpers and hooks.
+- [x] Keep `useDurableChatRuntime` return fields stable for `DurableChatConsole`.
+- [x] Define narrow argument and return types for each extracted controller hook.
+- [x] Avoid passing the full runtime state object into extracted hooks when a smaller explicit input set is enough.
+- [x] Keep controller hooks colocated under `apps/playground-vite-web/src/features/durable-chat/runtime`.
+- [x] Prefer named exports for new runtime helpers and hooks.
 
 ## 2. Frontend Boundary
 
 ### 2.1 Runtime
 - [x] Identify the exact viewport/scroll/textarea code to extract from `use-durable-chat-runtime.ts`.
-- [ ] Identify the exact auto-title refresh/title typing code to extract from `use-durable-chat-runtime.ts`.
+- [x] Identify the exact auto-title refresh/title typing code to extract from `use-durable-chat-runtime.ts`.
 - [ ] Identify the exact thread action state and handlers to extract after the first two slices.
-- [ ] Preserve existing ref-based guards where they protect async races.
-- [ ] Do not convert runtime control refs into React state unless tests prove the behavior remains correct.
+- [x] Preserve existing ref-based guards where they protect async races.
+- [x] Do not convert runtime control refs into React state unless tests prove the behavior remains correct.
 
 ### 2.2 Components
 - [ ] Keep `DurableChatConsole` behavior unchanged while `useDurableChatRuntime` remains the facade.
@@ -81,22 +81,22 @@
 - [x] Add or confirm tests for active-thread switch scroll-to-bottom behavior.
 - [x] Add or confirm tests for older-message prepend anchor behavior.
 - [x] Add or confirm tests for older-message load cancellation/failed apply clearing the pending anchor.
-- [ ] Add or confirm tests for title refresh cleanup on unmount.
-- [ ] Add or confirm tests for auto-title fetch failures not mutating thread state.
-- [ ] Add or confirm tests for non-default titles not starting title typing animation.
+- [x] Add or confirm tests for title refresh cleanup on unmount.
+- [x] Add or confirm tests for auto-title fetch failures not mutating thread state.
+- [x] Add or confirm tests for non-default titles not starting title typing animation.
 - [ ] Add or confirm tests for archiving the active thread resetting runtime and navigating to `/new`.
 - [ ] Add or confirm tests for archiving a non-active thread only removing that thread from the list.
 - [ ] Add or confirm tests for pin/unpin failures surfacing `threadActionError` without mutating thread order.
 - [ ] Add or confirm tests for empty rename titles not calling the rename API.
 
 ### 3.3 Verification commands
-- [ ] Run targeted runtime tests for each loop:
+- [x] Run targeted runtime tests for each loop:
 
 ```sh
 pnpm --dir apps/playground-vite-web exec vitest run src/features/durable-chat/runtime/use-durable-chat-runtime.test.tsx
 ```
 
-- [ ] Run new controller hook tests when introduced:
+- [x] Run new controller hook tests when introduced:
 
 ```sh
 pnpm --dir apps/playground-vite-web exec vitest run src/features/durable-chat/runtime/<new-controller>.test.tsx
@@ -108,13 +108,13 @@ pnpm --dir apps/playground-vite-web exec vitest run src/features/durable-chat/ru
 pnpm --dir apps/playground-vite-web exec vitest run src/features/durable-chat/components/message-list.test.tsx
 ```
 
-- [ ] Run Vite app typecheck after each implementation loop:
+- [x] Run Vite app typecheck after each implementation loop:
 
 ```sh
 pnpm --filter playground-vite-web typecheck
 ```
 
-- [ ] Run slice-level review before committing each meaningful slice:
+- [x] Run slice-level review before committing each meaningful slice:
 
 ```sh
 codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"
@@ -132,17 +132,17 @@ codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="m
 - [x] Keep `useDurableChatRuntime` return fields stable: `messagesViewportRef`, `textareaRef`, `onScrollToBottom`.
 - [x] Run targeted tests and typecheck.
 - [x] Run `codex review` for the slice.
-- [ ] Commit the clean slice if tests and review pass.
+- [x] Commit the clean slice if tests and review pass.
 
 ### Loop 2: Auto-title Refresh / Typing Title Controller
-- [ ] Add or confirm missing auto-title cleanup and failure tests.
-- [ ] Create a dedicated title refresh controller hook under `runtime`.
-- [ ] Move `typingTitleState`, title typing timer, title refresh request id, and title refresh abort controller into the controller.
-- [ ] Preserve active-thread guards for title animation.
-- [ ] Preserve manual rename protection against in-flight auto-title refresh.
-- [ ] Expose only the small API needed by `useDurableChatRuntime`, such as current visible title data, visible thread patching data, stop typing, and refresh-after-run.
-- [ ] Run targeted tests and typecheck.
-- [ ] Run `codex review` for the slice.
+- [x] Add or confirm missing auto-title cleanup and failure tests.
+- [x] Create a dedicated title refresh controller hook under `runtime`.
+- [x] Move `typingTitleState`, title typing timer, title refresh request id, and title refresh abort controller into the controller.
+- [x] Preserve active-thread guards for title animation.
+- [x] Preserve manual rename protection against in-flight auto-title refresh.
+- [x] Expose only the small API needed by `useDurableChatRuntime`, such as current visible title data, visible thread patching data, stop typing, and refresh-after-run.
+- [x] Run targeted tests and typecheck.
+- [x] Run `codex review` for the slice.
 - [ ] Commit the clean slice if tests and review pass.
 
 ### Loop 3: Thread Actions Controller

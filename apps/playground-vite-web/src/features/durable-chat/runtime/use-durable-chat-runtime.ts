@@ -37,18 +37,10 @@ import { useLiveDraftOrchestration } from '@/features/durable-chat/runtime/use-l
 import { useChatRuntimeLifecycle } from '@/features/durable-chat/runtime/use-chat-runtime-lifecycle';
 import { useShareDialogState } from '@/features/durable-chat/runtime/use-share-dialog-state';
 import { useChatViewportController } from '@/features/durable-chat/runtime/use-chat-viewport-controller';
+import { useThreadTitleRefreshController } from '@/features/durable-chat/runtime/use-thread-title-refresh-controller';
 import type { PlaygroundThreadDto } from '@/features/durable-chat/types/thread';
 
 const PENDING_NEW_THREAD_LOADING_ID = '__pending-new-thread__';
-const AUTO_TITLE_REFRESH_MAX_ATTEMPTS = 8;
-const AUTO_TITLE_REFRESH_INTERVAL_MS = 300;
-const TITLE_TYPING_INTERVAL_MS = 40;
-
-type TypingTitleState = {
-  threadId: string;
-  finalText: string;
-  visibleText: string;
-};
 
 export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRuntimeOptions) {
   const navigate = useNavigate();
@@ -130,9 +122,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const sendRequestIdRef = useRef(0);
   const sendAbortControllerRef = useRef<AbortController | null>(null);
   const reconcileRequestIdRef = useRef(0);
-  const autoTitleRefreshRequestIdRef = useRef(0);
-  const autoTitleRefreshAbortControllerRef = useRef<AbortController | null>(null);
-  const titleTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const {
     activeSearchResult,
     getCachedSearchResult,
@@ -151,7 +140,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const [threadActionError, setThreadActionError] = useState<string | null>(null);
   const [renamingThreadId, setRenamingThreadId] = useState<string | null>(null);
   const [archivingThreadId, setArchivingThreadId] = useState<string | null>(null);
-  const [typingTitleState, setTypingTitleState] = useState<TypingTitleState | null>(null);
   const pinnedThreadIds = useMemo(
     () =>
       threads
@@ -227,6 +215,20 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     loadingMessages,
     setShowScrollToBottom
   });
+  const {
+    currentVisibleThreadTitle,
+    refreshThreadAfterCompletedRun,
+    stopTypingTitleAnimation,
+    typingTitleThreadId,
+    visibleThreads
+  } = useThreadTitleRefreshController({
+    activeThreadId,
+    currentThreadTitle,
+    displayedThreads,
+    fetchThreadById: async (threadId, signal) => fetchThread(threadId, signal).catch(() => null),
+    isDefaultTitle: isDefaultThreadTitle,
+    setThreads
+  });
 
   function markThreadHydrated(threadId: string) {
     hydratedThreadIdsRef.current.add(threadId);
@@ -253,20 +255,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }, [messages]);
 
   useEffect(() => {
-    if (!typingTitleState) {
-      return;
-    }
-
-    if (activeThreadId !== typingTitleState.threadId) {
-      if (titleTypingTimeoutRef.current !== null) {
-        clearTimeout(titleTypingTimeoutRef.current);
-        titleTypingTimeoutRef.current = null;
-      }
-      setTypingTitleState(null);
-    }
-  }, [activeThreadId, typingTitleState]);
-
-  useEffect(() => {
     const runId = liveAssistantDraft?.runId;
     if (!runId) {
       return;
@@ -283,15 +271,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       completedSearchToolCallIdGroups.map((toolCallIds) => prefetchSearchResult(runId, toolCallIds).catch(() => null))
     );
   }, [liveAssistantDraft, prefetchSearchResult]);
-
-  useEffect(() => {
-    return () => {
-      autoTitleRefreshAbortControllerRef.current?.abort();
-      if (titleTypingTimeoutRef.current !== null) {
-        clearTimeout(titleTypingTimeoutRef.current);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -409,104 +388,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
 
     setThreads(result.data.threads);
     return result.data.threads;
-  }
-
-  function patchThread(currentThread: PlaygroundThreadDto) {
-    setThreads((current) => current.map((thread) => (thread.id === currentThread.id ? currentThread : thread)));
-  }
-
-  function stopTypingTitleAnimation() {
-    if (titleTypingTimeoutRef.current !== null) {
-      clearTimeout(titleTypingTimeoutRef.current);
-      titleTypingTimeoutRef.current = null;
-    }
-    setTypingTitleState(null);
-  }
-
-  function startTypingTitleAnimation(threadId: string, finalText: string) {
-    const characters = Array.from(finalText);
-    if (characters.length === 0) {
-      stopTypingTitleAnimation();
-      return;
-    }
-
-    stopTypingTitleAnimation();
-
-    let visibleLength = 1;
-    setTypingTitleState({
-      threadId,
-      finalText,
-      visibleText: characters.slice(0, visibleLength).join('')
-    });
-
-    const step = () => {
-      if (activeThreadIdRef.current !== threadId) {
-        stopTypingTitleAnimation();
-        return;
-      }
-
-      visibleLength += 1;
-      if (visibleLength >= characters.length) {
-        stopTypingTitleAnimation();
-        return;
-      }
-
-      setTypingTitleState({
-        threadId,
-        finalText,
-        visibleText: characters.slice(0, visibleLength).join('')
-      });
-      titleTypingTimeoutRef.current = setTimeout(step, TITLE_TYPING_INTERVAL_MS);
-    };
-
-    titleTypingTimeoutRef.current = setTimeout(step, TITLE_TYPING_INTERVAL_MS);
-  }
-
-  async function refreshThreadAfterCompletedRun(threadId: string) {
-    const requestId = ++autoTitleRefreshRequestIdRef.current;
-    autoTitleRefreshAbortControllerRef.current?.abort();
-
-    for (let attempt = 0; attempt < AUTO_TITLE_REFRESH_MAX_ATTEMPTS; attempt += 1) {
-      if (requestId !== autoTitleRefreshRequestIdRef.current) {
-        return;
-      }
-
-      const controller = new AbortController();
-      autoTitleRefreshAbortControllerRef.current = controller;
-
-      const previousThread = threadsRef.current.find((thread) => thread.id === threadId) ?? null;
-      const wasDefaultTitle = isDefaultThreadTitle(previousThread?.title);
-
-      const result = await fetchThread(threadId, controller.signal).catch(() => null);
-      if (requestId !== autoTitleRefreshRequestIdRef.current) {
-        return;
-      }
-
-      if (result?.ok && result.data.thread) {
-        const nextThread = result.data.thread;
-        const currentLocalThread = threadsRef.current.find((thread) => thread.id === threadId) ?? null;
-        const stillDefaultLocally = isDefaultThreadTitle(currentLocalThread?.title);
-        const hasGeneratedTitle = !isDefaultThreadTitle(nextThread.title);
-        if (stillDefaultLocally || !hasGeneratedTitle) {
-          patchThread(nextThread);
-        }
-
-        if (hasGeneratedTitle) {
-          if (wasDefaultTitle && stillDefaultLocally && activeThreadIdRef.current === threadId && nextThread.title) {
-            startTypingTitleAnimation(threadId, nextThread.title);
-          }
-          return;
-        }
-      }
-
-      if (attempt === AUTO_TITLE_REFRESH_MAX_ATTEMPTS - 1) {
-        return;
-      }
-
-      await new Promise<void>((resolve) => {
-        setTimeout(resolve, AUTO_TITLE_REFRESH_INTERVAL_MS);
-      });
-    }
   }
 
   async function refreshMeta() {
@@ -859,7 +740,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         throw new Error(result.error ?? `Failed to rename thread (${result.status})`);
       }
 
-      if (typingTitleState?.threadId === threadId) {
+      if (typingTitleThreadId === threadId) {
         stopTypingTitleAnimation();
       }
       setThreads((current) => current.map((thread) => (thread.id === threadId ? result.data.thread ?? thread : thread)));
@@ -962,18 +843,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     setOpenThreadMenuId(null);
     shareDialog.onOpenForThread(threadId);
   }
-
-  const currentVisibleThreadTitle =
-    typingTitleState?.threadId === activeThreadId ? typingTitleState.visibleText : currentThreadTitle;
-  const visibleThreads = useMemo(() => {
-    if (!typingTitleState || activeThreadId !== typingTitleState.threadId) {
-      return displayedThreads;
-    }
-
-    return displayedThreads.map((thread) =>
-      thread.id === typingTitleState.threadId ? { ...thread, title: typingTitleState.visibleText } : thread
-    );
-  }, [activeThreadId, displayedThreads, typingTitleState]);
 
   return {
     activeThreadId,
