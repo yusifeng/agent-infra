@@ -36,6 +36,10 @@
     run 完成后的触发规则、默认标题态判断、
     单 thread refresh 约束，以及 `header + sidebar active item`
     的共享打字机表现规则
+- `playground-search-browse-policy-model.md`
+  - playground Fastify/Vite 的 search planner / openUrl 业务边界、
+    host-level tool execution gate、`search/browse/answer` phase、
+    `quick/expert` 搜索预算，以及前端聚合搜索/浏览摘要的展示规则
 
 ## 不适合放在这里的内容
 
