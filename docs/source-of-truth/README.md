@@ -31,6 +31,11 @@
   - playground Fastify host 的 env 加载边界、`PLAYGROUND_DB_MODE`
     作为唯一 DB 类型选择器的规则、prepared scripts 约束，
     以及 `/api/meta` 的 DB 报告必须与真实 `DbConfig` 一致
+- `playground-thread-auto-title-model.md`
+  - playground Fastify/Vite 的 thread auto-title 业务边界、
+    run 完成后的触发规则、默认标题态判断、
+    单 thread refresh 约束，以及 `header + sidebar active item`
+    的共享打字机表现规则
 
 ## 不适合放在这里的内容
 

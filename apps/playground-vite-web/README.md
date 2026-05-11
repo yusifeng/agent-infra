@@ -34,6 +34,7 @@ The app currently provides:
 - app-local durable chat runtime wired to `@agent-infra/durable-chat-client`
 - a single route host that keeps `DurableChatConsole` mounted across `/new` and `/chat/:threadId`, so the first-send handoff preserves in-flight chat state
 - a centered `/new` landing shell that maps `快速模式` to `deepseek-v4-flash` and `专家模式` to `deepseek-v4-pro` when DeepSeek runtime options are available
+- single-thread title refresh after completed runs, so auto-generated titles update the active header and sidebar item without reloading the full thread list
 - sidebar + transcript + sticky composer aligned to `playground-next-web`
 - a repeatable phase-1 smoke script that boots Fastify from source on a temporary sqlite DB, runs Vite with the matching proxy target, and verifies the main chat API loop
 - a production-shaped phase-1 smoke script that first builds the required workspace packages, then runs `playground-fastify-server start` plus `vite preview` against the same temporary sqlite-backed main chat loop
