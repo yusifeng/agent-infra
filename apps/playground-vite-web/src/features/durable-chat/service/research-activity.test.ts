@@ -165,6 +165,28 @@ describe('research-activity', () => {
     });
   });
 
+  it('keeps a completed live label visible after search/open tool phases settle', () => {
+    const status = buildLiveResearchStatusLabelViewModel([
+      {
+        toolCallId: 'call-search-1',
+        toolName: 'searchWeb',
+        phase: 'completed',
+        input: { query: '速水玲香 金田一少年事件簿' }
+      },
+      {
+        toolCallId: 'call-open-1',
+        toolName: 'openUrl',
+        phase: 'completed',
+        input: { url: 'https://example.com/character' }
+      }
+    ]);
+
+    expect(status).toEqual({
+      isSearching: false,
+      text: '已完成搜索 · 已浏览 1 个页面'
+    });
+  });
+
   it('keeps pending entries internal when a matching summary arrives without exposing a persisted status label', () => {
     const items: AssistantTurnItem[] = [
       {

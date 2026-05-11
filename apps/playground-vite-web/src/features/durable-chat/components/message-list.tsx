@@ -443,7 +443,11 @@ const LiveAssistantContent = memo(function LiveAssistantContent({ liveAssistantD
             ) : null}
             {searchEntries ? (
               <div className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 text-left text-[13px] text-[color:var(--chat-text-tertiary)]">
-                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[color:var(--chat-text-tertiary)]" />
+                {searchEntries.isSearching ? (
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[color:var(--chat-text-tertiary)]" />
+                ) : (
+                  <Search className="h-4 w-4 shrink-0 text-[color:var(--chat-text-tertiary)]" />
+                )}
                 <span className="truncate font-normal">{searchEntries.text}</span>
               </div>
             ) : null}

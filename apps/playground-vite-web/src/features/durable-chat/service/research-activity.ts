@@ -334,24 +334,42 @@ export function collectLiveResearchEntries(tools: LiveAssistantToolState[]): Liv
 }
 
 export function buildLiveResearchStatusLabelViewModel(tools: LiveAssistantToolState[]): ResearchStatusLabelViewModel | null {
-  const entries = collectLiveResearchEntries(tools).filter((entry) => entry.state === 'start');
-  const pendingSearchCount = entries.filter((entry) => entry.kind === 'search').length;
-  const pendingOpenCount = entries.filter((entry) => entry.kind === 'open').length;
+  const entries = collectLiveResearchEntries(tools);
+  const pendingSearchCount = entries.filter((entry) => entry.kind === 'search' && entry.state === 'start').length;
+  const pendingOpenCount = entries.filter((entry) => entry.kind === 'open' && entry.state === 'start').length;
 
-  if (pendingSearchCount === 0 && pendingOpenCount === 0) {
+  if (pendingSearchCount > 0 || pendingOpenCount > 0) {
+    const parts: string[] = [];
+    if (pendingSearchCount > 0) {
+      parts.push(pendingSearchCount === 1 ? '正在搜索网页' : `正在搜索 ${pendingSearchCount} 个查询`);
+    }
+    if (pendingOpenCount > 0) {
+      parts.push(pendingOpenCount === 1 ? '正在浏览 1 个页面' : `正在浏览 ${pendingOpenCount} 个页面`);
+    }
+
+    return {
+      isSearching: true,
+      text: parts.join(' · ')
+    };
+  }
+
+  const completedSearchCount = entries.filter((entry) => entry.kind === 'search' && entry.state === 'completed').length;
+  const completedOpenCount = entries.filter((entry) => entry.kind === 'open' && entry.state === 'completed').length;
+
+  if (completedSearchCount === 0 && completedOpenCount === 0) {
     return null;
   }
 
   const parts: string[] = [];
-  if (pendingSearchCount > 0) {
-    parts.push(pendingSearchCount === 1 ? '正在搜索网页' : `正在搜索 ${pendingSearchCount} 个查询`);
+  if (completedSearchCount > 0) {
+    parts.push(completedSearchCount === 1 ? '已完成搜索' : `已完成 ${completedSearchCount} 次搜索`);
   }
-  if (pendingOpenCount > 0) {
-    parts.push(pendingOpenCount === 1 ? '正在浏览 1 个页面' : `正在浏览 ${pendingOpenCount} 个页面`);
+  if (completedOpenCount > 0) {
+    parts.push(completedOpenCount === 1 ? '已浏览 1 个页面' : `已浏览 ${completedOpenCount} 个页面`);
   }
 
   return {
-    isSearching: true,
+    isSearching: false,
     text: parts.join(' · ')
   };
 }
