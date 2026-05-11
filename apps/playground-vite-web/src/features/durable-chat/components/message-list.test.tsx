@@ -224,6 +224,170 @@ describe('ChatMessageList', () => {
     expect(markup.match(/data-message-actions-available="true"/g)).toHaveLength(1);
   });
 
+  it('keeps one thinking container open until assistant text appears', () => {
+    const assistantMessageA = createMessage({
+      id: 'assistant-1',
+      role: 'assistant',
+      runId: 'run-1',
+      seq: 1,
+      parts: [createPart({ id: 'assistant-1:reasoning', type: 'reasoning', messageId: 'assistant-1', textValue: '先判断问题。' })]
+    });
+    const assistantMessageB = createMessage({
+      id: 'assistant-2',
+      role: 'assistant',
+      runId: 'run-1',
+      seq: 2,
+      parts: [
+        createPart({ id: 'assistant-2:reasoning', type: 'reasoning', messageId: 'assistant-2', textValue: '我再打开页面看看。' }),
+        createPart({ id: 'assistant-2:text', type: 'text', messageId: 'assistant-2', partIndex: 1, textValue: '最终答案。' })
+      ]
+    });
+
+    const transcriptBlocks: TranscriptBlock[] = [
+      {
+        type: 'assistant-turn',
+        id: 'assistant-turn-1',
+        runId: 'run-1',
+        sourceMessages: [assistantMessageA],
+        items: [
+          {
+            type: 'reasoning',
+            id: 'assistant-turn-1:reasoning',
+            part: assistantMessageA.parts[0]!
+          },
+          {
+            type: 'search-summary',
+            id: 'assistant-turn-1:search',
+            summary: {
+              runId: 'run-1',
+              entries: [
+                {
+                  toolCallId: 'call-1',
+                  query: '速水玲香 金田一少年事件簿',
+                  resultCount: 8,
+                  sourceNames: ['百度百科'],
+                  sources: [{ sourceName: '百度百科', hostname: 'baike.baidu.com' }]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        type: 'assistant-turn',
+        id: 'assistant-turn-2',
+        runId: 'run-1',
+        sourceMessages: [assistantMessageB],
+        items: [
+          {
+            type: 'reasoning',
+            id: 'assistant-turn-2:reasoning',
+            part: assistantMessageB.parts[0]!
+          },
+          {
+            type: 'text',
+            id: 'assistant-turn-2:text',
+            cacheKey: 'assistant-turn-2:text',
+            part: assistantMessageB.parts[1]!
+          }
+        ]
+      }
+    ];
+
+    const answerContainer: AnswerContainer = {
+      id: 'answer-container:run-1:assistant-turn-1',
+      kind: 'assistant-answer',
+      runId: 'run-1',
+      transcriptBlockIds: ['assistant-turn-1', 'assistant-turn-2'],
+      blocks: [
+        transcriptBlocks[0] as Extract<TranscriptBlock, { type: 'assistant-turn' }>,
+        transcriptBlocks[1] as Extract<TranscriptBlock, { type: 'assistant-turn' }>
+      ],
+      actionHostId: 'answer-container:run-1:assistant-turn-1'
+    };
+
+    const markup = renderMessageList({
+      messages: [assistantMessageA, assistantMessageB],
+      transcriptBlocks,
+      answerContainers: [answerContainer],
+      liveAssistantDraft: null
+    });
+
+    expect(markup.match(/data-thinking-container="true"/g)).toHaveLength(1);
+    expect(markup).toContain('先判断问题。');
+    expect(markup).toContain('我再打开页面看看。');
+    expect(markup).toContain('搜索到 8 个网页');
+    expect(markup).toContain('最终答案。');
+  });
+
+  it('starts a new thinking container when reasoning appears after assistant text', () => {
+    const assistantMessage = createMessage({
+      id: 'assistant-1',
+      role: 'assistant',
+      runId: 'run-1',
+      seq: 1,
+      parts: [
+        createPart({ id: 'assistant-1:r1', type: 'reasoning', messageId: 'assistant-1', textValue: '先想一下。' }),
+        createPart({ id: 'assistant-1:t1', type: 'text', messageId: 'assistant-1', partIndex: 1, textValue: '第一段正文。' }),
+        createPart({ id: 'assistant-1:r2', type: 'reasoning', messageId: 'assistant-1', partIndex: 2, textValue: '再补充一轮思考。' }),
+        createPart({ id: 'assistant-1:t2', type: 'text', messageId: 'assistant-1', partIndex: 3, textValue: '第二段正文。' })
+      ]
+    });
+
+    const transcriptBlocks: TranscriptBlock[] = [
+      {
+        type: 'assistant-turn',
+        id: 'assistant-turn-1',
+        runId: 'run-1',
+        sourceMessages: [assistantMessage],
+        items: [
+          {
+            type: 'reasoning',
+            id: 'assistant-turn-1:r1',
+            part: assistantMessage.parts[0]!
+          },
+          {
+            type: 'text',
+            id: 'assistant-turn-1:t1',
+            cacheKey: 'assistant-turn-1:t1',
+            part: assistantMessage.parts[1]!
+          },
+          {
+            type: 'reasoning',
+            id: 'assistant-turn-1:r2',
+            part: assistantMessage.parts[2]!
+          },
+          {
+            type: 'text',
+            id: 'assistant-turn-1:t2',
+            cacheKey: 'assistant-turn-1:t2',
+            part: assistantMessage.parts[3]!
+          }
+        ]
+      }
+    ];
+
+    const answerContainer: AnswerContainer = {
+      id: 'answer-container:run-1:assistant-turn-1',
+      kind: 'assistant-answer',
+      runId: 'run-1',
+      transcriptBlockIds: ['assistant-turn-1'],
+      blocks: [transcriptBlocks[0] as Extract<TranscriptBlock, { type: 'assistant-turn' }>],
+      actionHostId: 'answer-container:run-1:assistant-turn-1'
+    };
+
+    const markup = renderMessageList({
+      messages: [assistantMessage],
+      transcriptBlocks,
+      answerContainers: [answerContainer],
+      liveAssistantDraft: null
+    });
+
+    expect(markup.match(/data-thinking-container="true"/g)).toHaveLength(2);
+    expect(markup).toContain('第一段正文。');
+    expect(markup).toContain('第二段正文。');
+  });
+
   it('hides actions for search-only assistant blocks', () => {
     const toolMessage = createMessage({
       id: 'tool-1',
@@ -481,5 +645,98 @@ describe('ChatMessageList', () => {
 
     expect(markup).toContain('搜索到 9 个网页');
     expect(markup).toContain('百度百科');
+  });
+
+  it('renders one live thinking container across reasoning and research until text appears', () => {
+    const liveAssistantDraft: LiveAssistantDraft = {
+      runId: 'run-live',
+      messageId: 'assistant-live-3',
+      source: 'live',
+      committedText: '',
+      partialText: '',
+      segmentText: '',
+      segmentTextMessageId: null,
+      partialReasoning: null,
+      segmentReasoningMessageId: null,
+      activeTools: [],
+      eventType: 'streaming',
+      segments: [
+        {
+          id: 'segment-1',
+          messageId: 'assistant-live-3',
+          text: '',
+          reasoning: '我先搜索一下相关资料。',
+          tools: [
+            {
+              toolCallId: 'call-live-search',
+              toolName: 'searchWeb',
+              phase: 'completed',
+              input: { query: '速水玲香 金田一少年事件簿' }
+            }
+          ],
+          eventType: 'streaming'
+        },
+        {
+          id: 'segment-2',
+          messageId: 'assistant-live-3',
+          text: '',
+          reasoning: '我再打开一个页面确认细节。',
+          tools: [
+            {
+              toolCallId: 'call-live-open',
+              toolName: 'openUrl',
+              phase: 'completed',
+              input: { url: 'https://baike.baidu.com/item/x' }
+            }
+          ],
+          eventType: 'streaming'
+        },
+        {
+          id: 'segment-3',
+          messageId: 'assistant-live-3',
+          text: '最终答案开始输出。',
+          reasoning: null,
+          tools: [],
+          eventType: 'streaming'
+        }
+      ]
+    };
+
+    const markup = renderMessageList({
+      messages: [],
+      transcriptBlocks: [],
+      liveAssistantDraft,
+      getLiveSearchPanelData: () => ({
+        runId: 'run-live',
+        toolCallIds: ['call-live-search'],
+        provider: 'tavily',
+        resultCount: 8,
+        sourceNames: ['百度百科'],
+        sections: [
+          {
+            toolCallId: 'call-live-search',
+            query: '速水玲香 金田一少年事件簿',
+            resultCount: 8,
+            results: [
+              {
+                rank: 1,
+                title: '速水玲香',
+                url: 'https://baike.baidu.com/item/x',
+                snippet: '...',
+                sourceName: '百度百科',
+                hostname: 'baike.baidu.com',
+                publishedAt: null
+              }
+            ]
+          }
+        ]
+      })
+    });
+
+    expect(markup.match(/data-thinking-container="true"/g)).toHaveLength(1);
+    expect(markup).toContain('我先搜索一下相关资料。');
+    expect(markup).toContain('我再打开一个页面确认细节。');
+    expect(markup).toContain('搜索到 8 个网页');
+    expect(markup).toContain('最终答案开始输出。');
   });
 });

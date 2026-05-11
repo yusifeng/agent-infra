@@ -34,6 +34,126 @@ const transcriptRowPerformanceStyle: CSSProperties = {
 
 const reasoningMarkdownClassName = 'text-sm leading-7 text-[color:var(--chat-reasoning-text)]';
 
+type PersistedResearchToken = {
+  kind: 'persisted-research';
+  id: string;
+  item: Extract<AssistantTurnItem, { type: 'search-status' | 'search-summary' }>;
+  runId: string | null;
+};
+
+type LiveSummaryToken = {
+  kind: 'live-summary';
+  id: string;
+  runId: string | null;
+  searchEntries: NonNullable<ReturnType<typeof buildResearchStatusLabelViewModel>>;
+};
+
+type ReasoningToken = {
+  kind: 'reasoning';
+  id: string;
+  text: string;
+};
+
+type PersistedTextToken = {
+  kind: 'persisted-text';
+  id: string;
+  part: Extract<AssistantTurnItem, { type: 'text' }>;
+};
+
+type LiveTextToken = {
+  kind: 'live-text';
+  id: string;
+  text: string;
+  cacheKey: string;
+};
+
+type ToolPartToken = {
+  kind: 'tool-part';
+  id: string;
+  part: Extract<AssistantTurnItem, { type: 'tool-part' }>;
+};
+
+type ThinkingFlowToken =
+  | PersistedResearchToken
+  | LiveSummaryToken
+  | ReasoningToken
+  | PersistedTextToken
+  | LiveTextToken
+  | ToolPartToken;
+
+type ThinkingFlowSection =
+  | {
+      type: 'thinking';
+      id: string;
+      thinking: boolean;
+      entries: Array<ReasoningToken | PersistedResearchToken | LiveSummaryToken>;
+    }
+  | {
+      type: 'research';
+      id: string;
+      entry: PersistedResearchToken | LiveSummaryToken;
+    }
+  | {
+      type: 'content';
+      id: string;
+      token: PersistedTextToken | LiveTextToken | ToolPartToken;
+    };
+
+function buildThinkingFlowSections(tokens: ThinkingFlowToken[], openTrailingThinkingSection = false): ThinkingFlowSection[] {
+  const sections: ThinkingFlowSection[] = [];
+  let pendingThinkingEntries: Array<ReasoningToken | PersistedResearchToken | LiveSummaryToken> = [];
+  let pendingThinkingId: string | null = null;
+
+  function flushThinkingSection(thinking: boolean) {
+    if (!pendingThinkingEntries.length || !pendingThinkingId) {
+      return;
+    }
+
+    sections.push({
+      type: 'thinking',
+      id: pendingThinkingId,
+      thinking,
+      entries: pendingThinkingEntries
+    });
+    pendingThinkingEntries = [];
+    pendingThinkingId = null;
+  }
+
+  for (const token of tokens) {
+    if (token.kind === 'reasoning') {
+      if (!pendingThinkingEntries.length) {
+        pendingThinkingId = `thinking:${token.id}`;
+      }
+      pendingThinkingEntries.push(token);
+      continue;
+    }
+
+    if (token.kind === 'persisted-research' || token.kind === 'live-summary') {
+      if (pendingThinkingEntries.length > 0) {
+        pendingThinkingEntries.push(token);
+      } else {
+        sections.push({
+          type: 'research',
+          id: `research:${token.id}`,
+          entry: token
+        });
+      }
+      continue;
+    }
+
+    flushThinkingSection(false);
+    sections.push({
+      type: 'content',
+      id: `content:${token.id}`,
+      token
+    });
+  }
+
+  flushThinkingSection(openTrailingThinkingSection);
+
+  return sections;
+}
+
 function useRenderDiagnostic(component: string, key: string, summary: Record<string, unknown>) {
   const mountedRef = useRef(false);
   const previousSummaryRef = useRef<Record<string, unknown> | null>(null);
@@ -346,6 +466,229 @@ const ResearchSummaryLabel = memo(function ResearchSummaryLabel({
   );
 });
 
+const LiveResearchLabel = memo(function LiveResearchLabel({
+  runId,
+  searchEntries,
+  onOpenSearchResult
+}: {
+  runId: string | null;
+  searchEntries: NonNullable<ReturnType<typeof buildResearchStatusLabelViewModel>>;
+  onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
+}) {
+  const isClickable = Boolean(runId && onOpenSearchResult && searchEntries.searchToolCallIds?.length);
+
+  return (
+    <button
+      type="button"
+      disabled={!isClickable}
+      onClick={() => {
+        if (runId && onOpenSearchResult && searchEntries.searchToolCallIds?.length) {
+          onOpenSearchResult(runId, searchEntries.searchToolCallIds);
+        }
+      }}
+      className={clsx(
+        'inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 text-left text-[13px] text-[color:var(--chat-text-tertiary)]',
+        isClickable ? 'transition hover:bg-[var(--chat-hover)] hover:text-[color:var(--chat-text-secondary)]' : 'cursor-default'
+      )}
+    >
+      {searchEntries.isSearching ? (
+        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[color:var(--chat-text-tertiary)]" />
+      ) : (
+        <Search className="h-4 w-4 shrink-0 text-[color:var(--chat-text-tertiary)]" />
+      )}
+      <span className="truncate font-normal">{searchEntries.text}</span>
+      {searchEntries.sources?.length ? (
+        <span className="flex shrink-0 items-center pl-0.5">
+          {searchEntries.sources.map((source, index) => (
+            <SiteIconBadge
+              key={`${source.hostname}:${source.sourceName}`}
+              hostname={source.hostname}
+              label={source.sourceName}
+              className={clsx('h-4 w-4 border border-white', index === 0 ? '' : '-ml-1')}
+              fallbackClassName="bg-indigo-100 text-indigo-700"
+            />
+          ))}
+        </span>
+      ) : null}
+      {!searchEntries.isSearching && isClickable ? (
+        <ChevronRight className="h-4 w-4 shrink-0 text-[color:var(--chat-icon-muted)]" />
+      ) : null}
+    </button>
+  );
+});
+
+function buildPersistedThinkingTokens(items: AssistantTurnItem[], runId: string | null): ThinkingFlowToken[] {
+  const tokens: ThinkingFlowToken[] = [];
+
+  for (const item of items) {
+    if (item.type === 'reasoning') {
+      const text = item.part.textValue?.trim();
+      if (text) {
+        tokens.push({
+          kind: 'reasoning',
+          id: item.id,
+          text
+        });
+      }
+      continue;
+    }
+
+    if (item.type === 'search-status' || item.type === 'search-summary') {
+      tokens.push({
+        kind: 'persisted-research',
+        id: item.id,
+        item,
+        runId
+      });
+      continue;
+    }
+
+    if (item.type === 'text') {
+      tokens.push({
+        kind: 'persisted-text',
+        id: item.id,
+        part: item
+      });
+      continue;
+    }
+
+    tokens.push({
+      kind: 'tool-part',
+      id: item.id,
+      part: item
+    });
+  }
+
+  return tokens;
+}
+
+function buildPersistedThinkingTokensFromBlocks(
+  blocks: Array<Extract<TranscriptBlock, { type: 'assistant-turn' }>>
+): ThinkingFlowToken[] {
+  return blocks.flatMap((block) => buildPersistedThinkingTokens(block.items, block.runId));
+}
+
+function buildLiveThinkingTokens(
+  liveAssistantDraft: LiveAssistantDraft,
+  getLiveSearchPanelData?: (runId: string, toolCallIds: string[]) => ActiveSearchPanelData | null
+): ThinkingFlowToken[] {
+  const tokens: ThinkingFlowToken[] = [];
+  const visibleSegments = buildVisibleLiveAssistantSegments(liveAssistantDraft, getLiveSearchPanelData);
+
+  for (const { segment, searchEntries } of visibleSegments) {
+    const reasoning = segment.reasoning?.trim();
+    if (reasoning) {
+      tokens.push({
+        kind: 'reasoning',
+        id: `${segment.id}:reasoning`,
+        text: reasoning
+      });
+    }
+
+    if (segment.text) {
+      tokens.push({
+        kind: 'live-text',
+        id: `${segment.id}:text`,
+        text: segment.text,
+        cacheKey: `live:${liveAssistantDraft.runId}:${segment.id}`
+      });
+    }
+
+    if (searchEntries) {
+      tokens.push({
+        kind: 'live-summary',
+        id: `${segment.id}:research`,
+        runId: liveAssistantDraft.runId,
+        searchEntries
+      });
+    }
+  }
+
+  return tokens;
+}
+
+const ThinkingTimelinePanel = memo(function ThinkingTimelinePanel({
+  entries,
+  thinking,
+  showPersistedResearchStatus = false,
+  onOpenSearchResult
+}: {
+  entries: Array<ReasoningToken | PersistedResearchToken | LiveSummaryToken>;
+  thinking: boolean;
+  showPersistedResearchStatus?: boolean;
+  onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
+}) {
+  const [expanded, setExpanded] = useState(true);
+
+  useEffect(() => {
+    if (thinking) {
+      setExpanded(true);
+    }
+  }, [thinking]);
+
+  return (
+    <div className="overflow-hidden" data-thinking-container="true">
+      <button
+        type="button"
+        onClick={() => setExpanded((current) => !current)}
+        className="flex w-full items-center justify-between gap-3 py-1 text-left"
+        aria-expanded={expanded}
+      >
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Atom className={clsx('h-4 w-4 text-[color:var(--chat-reasoning-accent)]', thinking && 'animate-pulse')} />
+          <span className="truncate text-sm font-medium text-[color:var(--chat-reasoning-title)]">
+            {thinking ? '思考中...' : '已思考'}
+          </span>
+        </div>
+        {expanded ? (
+          <ChevronDown className="h-4 w-4 text-[color:var(--chat-icon-muted)]" />
+        ) : (
+          <ChevronRight className="h-4 w-4 text-[color:var(--chat-icon-muted)]" />
+        )}
+      </button>
+
+      {expanded ? (
+        <div className="mt-2 space-y-3 border-l border-[color:var(--chat-reasoning-divider)] pl-4">
+          {entries.map((entry) => {
+            if (entry.kind === 'reasoning') {
+              return (
+                <div key={entry.id}>
+                  <MarkdownRenderer
+                    className={reasoningMarkdownClassName}
+                    plainTextClassName={reasoningMarkdownClassName}
+                    text={entry.text}
+                  />
+                </div>
+              );
+            }
+
+            if (entry.kind === 'persisted-research') {
+              return (
+                <ResearchSummaryLabel
+                  key={entry.id}
+                  items={[entry.item]}
+                  onOpenSearchResult={onOpenSearchResult}
+                  runId={entry.runId}
+                  showPersistedResearchStatus={showPersistedResearchStatus}
+                />
+              );
+            }
+
+            return (
+              <LiveResearchLabel
+                key={entry.id}
+                onOpenSearchResult={onOpenSearchResult}
+                runId={entry.runId}
+                searchEntries={entry.searchEntries}
+              />
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+});
+
 const MessagePartView = memo(function MessagePartView({ part, variant = 'assistant', cacheKey }: {
   part: MessagePartDto;
   variant?: 'assistant' | 'user';
@@ -403,22 +746,65 @@ const AssistantTurnContent = memo(function AssistantTurnContent({
   showPersistedResearchStatus?: boolean;
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
 }) {
-  const researchActivity = useMemo(() => buildResearchActivityViewModel(items), [items]);
+  const sections = useMemo(
+    () => buildThinkingFlowSections(buildPersistedThinkingTokens(items, runId), false),
+    [items, runId]
+  );
 
   return (
     <div className="space-y-1.5">
-      <ResearchSummaryLabel
-        items={items}
-        onOpenSearchResult={onOpenSearchResult}
-        runId={runId}
-        showPersistedResearchStatus={showPersistedResearchStatus}
-      />
-      {researchActivity.visibleItems.map((item) => {
-        if (item.type === 'search-status' || item.type === 'search-summary') {
-          return null;
+      {sections.map((section) => {
+        if (section.type === 'thinking') {
+          return (
+            <ThinkingTimelinePanel
+              key={section.id}
+              entries={section.entries}
+              thinking={section.thinking}
+              showPersistedResearchStatus={showPersistedResearchStatus}
+              onOpenSearchResult={onOpenSearchResult}
+            />
+          );
         }
 
-        return <MessagePartView key={item.id} cacheKey={item.type === 'text' ? item.cacheKey : undefined} part={item.part} />;
+        if (section.type === 'research') {
+          return section.entry.kind === 'persisted-research' ? (
+            <ResearchSummaryLabel
+              key={section.id}
+              items={[section.entry.item]}
+              onOpenSearchResult={onOpenSearchResult}
+              runId={section.entry.runId}
+              showPersistedResearchStatus={showPersistedResearchStatus}
+            />
+          ) : (
+            <LiveResearchLabel
+              key={section.id}
+              onOpenSearchResult={onOpenSearchResult}
+              runId={section.entry.runId}
+              searchEntries={section.entry.searchEntries}
+            />
+          );
+        }
+
+        if (section.token.kind === 'persisted-text' || section.token.kind === 'tool-part') {
+          return (
+            <MessagePartView
+              key={section.id}
+              cacheKey={section.token.kind === 'persisted-text' ? section.token.part.cacheKey : undefined}
+              part={section.token.part.part}
+            />
+          );
+        }
+
+        return (
+          <MarkdownRenderer
+            key={section.id}
+            cacheKey={section.token.cacheKey}
+            animateBlocks={false}
+            className="text-[15px] leading-[1.9] text-[color:var(--chat-text)]"
+            plainTextClassName="text-[15px] leading-[1.9] text-[color:var(--chat-text)]"
+            text={section.token.text}
+          />
+        );
       })}
     </div>
   );
@@ -433,64 +819,63 @@ const LiveAssistantContent = memo(function LiveAssistantContent({
   getLiveSearchPanelData?: (runId: string, toolCallIds: string[]) => ActiveSearchPanelData | null;
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
 }) {
-  const visibleSegments = buildVisibleLiveAssistantSegments(liveAssistantDraft, getLiveSearchPanelData);
+  const sections = useMemo(
+    () => buildThinkingFlowSections(buildLiveThinkingTokens(liveAssistantDraft, getLiveSearchPanelData), true),
+    [getLiveSearchPanelData, liveAssistantDraft]
+  );
 
   return (
     <div className="space-y-3">
-      {visibleSegments.map(({ segment, searchEntries }) => {
+      {sections.map((section) => {
+        if (section.type === 'thinking') {
+          return (
+            <ThinkingTimelinePanel
+              key={section.id}
+              entries={section.entries}
+              thinking={section.thinking}
+              showPersistedResearchStatus
+              onOpenSearchResult={onOpenSearchResult}
+            />
+          );
+        }
+
+        if (section.type === 'research') {
+          return section.entry.kind === 'persisted-research' ? (
+            <ResearchSummaryLabel
+              key={section.id}
+              items={[section.entry.item]}
+              onOpenSearchResult={onOpenSearchResult}
+              runId={section.entry.runId}
+              showPersistedResearchStatus
+            />
+          ) : (
+            <LiveResearchLabel
+              key={section.id}
+              onOpenSearchResult={onOpenSearchResult}
+              runId={section.entry.runId}
+              searchEntries={section.entry.searchEntries}
+            />
+          );
+        }
+
+        if (section.token.kind !== 'live-text') {
+          return (
+            <MessagePartView
+              key={section.id}
+              part={section.token.part.part}
+            />
+          );
+        }
+
         return (
-          <div key={segment.id} className="space-y-1.5">
-            {segment.reasoning ? <ReasoningPanel content={segment.reasoning} thinking /> : null}
-            {segment.text ? (
-              <MarkdownRenderer
-                cacheKey={`live:${liveAssistantDraft.runId}:${segment.id}`}
-                animateBlocks={false}
-                className="text-[15px] leading-[1.9] text-[color:var(--chat-text)]"
-                plainTextClassName="text-[15px] leading-[1.9] text-[color:var(--chat-text)]"
-                text={segment.text}
-              />
-            ) : null}
-            {searchEntries ? (
-              <button
-                type="button"
-                disabled={!liveAssistantDraft.runId || !onOpenSearchResult || !searchEntries.searchToolCallIds?.length}
-                onClick={() => {
-                  if (liveAssistantDraft.runId && onOpenSearchResult && searchEntries.searchToolCallIds?.length) {
-                    onOpenSearchResult(liveAssistantDraft.runId, searchEntries.searchToolCallIds);
-                  }
-                }}
-                className={clsx(
-                  'inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 text-left text-[13px] text-[color:var(--chat-text-tertiary)]',
-                  liveAssistantDraft.runId && onOpenSearchResult && searchEntries.searchToolCallIds?.length
-                    ? 'transition hover:bg-[var(--chat-hover)] hover:text-[color:var(--chat-text-secondary)]'
-                    : 'cursor-default'
-                )}
-              >
-                {searchEntries.isSearching ? (
-                  <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[color:var(--chat-text-tertiary)]" />
-                ) : (
-                  <Search className="h-4 w-4 shrink-0 text-[color:var(--chat-text-tertiary)]" />
-                )}
-                <span className="truncate font-normal">{searchEntries.text}</span>
-                {searchEntries.sources?.length ? (
-                  <span className="flex shrink-0 items-center pl-0.5">
-                    {searchEntries.sources.map((source, index) => (
-                      <SiteIconBadge
-                        key={`${source.hostname}:${source.sourceName}`}
-                        hostname={source.hostname}
-                        label={source.sourceName}
-                        className={clsx('h-4 w-4 border border-white', index === 0 ? '' : '-ml-1')}
-                        fallbackClassName="bg-indigo-100 text-indigo-700"
-                      />
-                    ))}
-                  </span>
-                ) : null}
-                {!searchEntries.isSearching && liveAssistantDraft.runId && onOpenSearchResult && searchEntries.searchToolCallIds?.length ? (
-                  <ChevronRight className="h-4 w-4 shrink-0 text-[color:var(--chat-icon-muted)]" />
-                ) : null}
-              </button>
-            ) : null}
-          </div>
+          <MarkdownRenderer
+            key={section.id}
+            cacheKey={section.token.cacheKey}
+            animateBlocks={false}
+            className="text-[15px] leading-[1.9] text-[color:var(--chat-text)]"
+            plainTextClassName="text-[15px] leading-[1.9] text-[color:var(--chat-text)]"
+            text={section.token.text}
+          />
         );
       })}
     </div>
@@ -608,6 +993,10 @@ const AnswerContainerCard = memo(function AnswerContainerCard({
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
 }) {
   const hasVisibleContent = container.blocks.some((block) => block.items.length > 0);
+  const sections = useMemo(
+    () => buildThinkingFlowSections(buildPersistedThinkingTokensFromBlocks(container.blocks), false),
+    [container.blocks]
+  );
   if (!hasVisibleContent) {
     return null;
   }
@@ -620,15 +1009,59 @@ const AnswerContainerCard = memo(function AnswerContainerCard({
       style={transcriptRowPerformanceStyle}
     >
       <div className={clsx('relative flex flex-col gap-3 pt-1.5', ui.assistantBubble)}>
-        {container.blocks.map((block) => (
-          <AssistantTurnContent
-            key={block.id}
-            items={block.items}
-            onOpenSearchResult={onOpenSearchResult}
-            runId={block.runId}
-            showPersistedResearchStatus={showPersistedResearchStatus}
-          />
-        ))}
+        {sections.map((section) => {
+          if (section.type === 'thinking') {
+            return (
+              <ThinkingTimelinePanel
+                key={section.id}
+                entries={section.entries}
+                thinking={section.thinking}
+                showPersistedResearchStatus={showPersistedResearchStatus}
+                onOpenSearchResult={onOpenSearchResult}
+              />
+            );
+          }
+
+          if (section.type === 'research') {
+            return section.entry.kind === 'persisted-research' ? (
+              <ResearchSummaryLabel
+                key={section.id}
+                items={[section.entry.item]}
+                onOpenSearchResult={onOpenSearchResult}
+                runId={section.entry.runId}
+                showPersistedResearchStatus={showPersistedResearchStatus}
+              />
+            ) : (
+              <LiveResearchLabel
+                key={section.id}
+                onOpenSearchResult={onOpenSearchResult}
+                runId={section.entry.runId}
+                searchEntries={section.entry.searchEntries}
+              />
+            );
+          }
+
+          if (section.token.kind === 'persisted-text' || section.token.kind === 'tool-part') {
+            return (
+              <MessagePartView
+                key={section.id}
+                cacheKey={section.token.kind === 'persisted-text' ? section.token.part.cacheKey : undefined}
+                part={section.token.part.part}
+              />
+            );
+          }
+
+          return (
+            <MarkdownRenderer
+              key={section.id}
+              cacheKey={section.token.cacheKey}
+              animateBlocks={false}
+              className="text-[15px] leading-[1.9] text-[color:var(--chat-text)]"
+              plainTextClassName="text-[15px] leading-[1.9] text-[color:var(--chat-text)]"
+              text={section.token.text}
+            />
+          );
+        })}
       </div>
       <MessageActions
         available={actionContext.hasVisibleOperation}
