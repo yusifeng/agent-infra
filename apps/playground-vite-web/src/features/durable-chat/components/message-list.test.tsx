@@ -388,6 +388,103 @@ describe('ChatMessageList', () => {
     expect(markup).toContain('第二段正文。');
   });
 
+  it('does not render raw tool call or tool result JSON inside thinking containers', () => {
+    const assistantMessage = createMessage({
+      id: 'assistant-1',
+      role: 'assistant',
+      runId: 'run-1',
+      seq: 1,
+      parts: [
+        createPart({ id: 'assistant-1:r1', type: 'reasoning', messageId: 'assistant-1', textValue: '我来打开相关页面。' }),
+        createPart({
+          id: 'assistant-1:tool-call',
+          type: 'tool-call',
+          messageId: 'assistant-1',
+          partIndex: 1,
+          jsonValue: {
+            toolName: 'openUrl',
+            toolCallId: 'call-1',
+            input: { url: 'https://example.com/page' }
+          }
+        }),
+        createPart({
+          id: 'assistant-1:tool-result',
+          type: 'tool-result',
+          messageId: 'assistant-1',
+          partIndex: 2,
+          jsonValue: {
+            toolName: 'openUrl',
+            toolCallId: 'call-1',
+            details: {
+              kind: 'open-url-summary',
+              url: 'https://example.com/page',
+              finalUrl: 'https://example.com/page',
+              title: '示例页面',
+              siteName: '示例站点',
+              contentQuality: 'good'
+            }
+          }
+        }),
+        createPart({ id: 'assistant-1:t1', type: 'text', messageId: 'assistant-1', partIndex: 3, textValue: '我已经整理好结果。' })
+      ]
+    });
+
+    const transcriptBlocks: TranscriptBlock[] = [
+      {
+        type: 'assistant-turn',
+        id: 'assistant-turn-1',
+        runId: 'run-1',
+        sourceMessages: [assistantMessage],
+        items: [
+          {
+            type: 'reasoning',
+            id: 'assistant-turn-1:r1',
+            part: assistantMessage.parts[0]!
+          },
+          {
+            type: 'tool-part',
+            id: 'assistant-turn-1:tool-call',
+            part: assistantMessage.parts[1]!
+          },
+          {
+            type: 'tool-part',
+            id: 'assistant-turn-1:tool-result',
+            part: assistantMessage.parts[2]!
+          },
+          {
+            type: 'text',
+            id: 'assistant-turn-1:t1',
+            cacheKey: 'assistant-turn-1:t1',
+            part: assistantMessage.parts[3]!
+          }
+        ]
+      }
+    ];
+
+    const answerContainer: AnswerContainer = {
+      id: 'answer-container:run-1:assistant-turn-1',
+      kind: 'assistant-answer',
+      runId: 'run-1',
+      transcriptBlockIds: ['assistant-turn-1'],
+      blocks: [transcriptBlocks[0] as Extract<TranscriptBlock, { type: 'assistant-turn' }>],
+      actionHostId: 'answer-container:run-1:assistant-turn-1'
+    };
+
+    const markup = renderMessageList({
+      messages: [assistantMessage],
+      transcriptBlocks,
+      answerContainers: [answerContainer],
+      liveAssistantDraft: null
+    });
+
+    expect(markup).toContain('我来打开相关页面。');
+    expect(markup).toContain('我已经整理好结果。');
+    expect(markup).not.toContain('openUrl');
+    expect(markup).not.toContain('tool-call');
+    expect(markup).not.toContain('tool-result');
+    expect(markup).not.toContain('https://example.com/page');
+  });
+
   it('hides actions for search-only assistant blocks', () => {
     const toolMessage = createMessage({
       id: 'tool-1',

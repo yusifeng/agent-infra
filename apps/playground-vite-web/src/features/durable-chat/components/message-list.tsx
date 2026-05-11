@@ -67,19 +67,12 @@ type LiveTextToken = {
   cacheKey: string;
 };
 
-type ToolPartToken = {
-  kind: 'tool-part';
-  id: string;
-  part: Extract<AssistantTurnItem, { type: 'tool-part' }>;
-};
-
 type ThinkingFlowToken =
   | PersistedResearchToken
   | LiveSummaryToken
   | ReasoningToken
   | PersistedTextToken
-  | LiveTextToken
-  | ToolPartToken;
+  | LiveTextToken;
 
 type ThinkingFlowSection =
   | {
@@ -96,7 +89,7 @@ type ThinkingFlowSection =
   | {
       type: 'content';
       id: string;
-      token: PersistedTextToken | LiveTextToken | ToolPartToken;
+      token: PersistedTextToken | LiveTextToken;
     };
 
 function buildThinkingFlowSections(tokens: ThinkingFlowToken[], openTrailingThinkingSection = false): ThinkingFlowSection[] {
@@ -152,6 +145,35 @@ function buildThinkingFlowSections(tokens: ThinkingFlowToken[], openTrailingThin
   flushThinkingSection(openTrailingThinkingSection);
 
   return sections;
+}
+
+function isPersistedResearchEntryVisible(
+  entry: PersistedResearchToken,
+  showPersistedResearchStatus: boolean
+) {
+  const activity = buildResearchActivityViewModel([entry.item]);
+  return Boolean(
+    (showPersistedResearchStatus ? buildResearchStatusLabelViewModel(activity) : null) ||
+      buildResearchSummaryLabelViewModel(activity)
+  );
+}
+
+function isThinkingFlowSectionVisible(section: ThinkingFlowSection, showPersistedResearchStatus: boolean) {
+  if (section.type === 'content') {
+    return true;
+  }
+
+  if (section.type === 'research') {
+    return section.entry.kind === 'live-summary'
+      ? true
+      : isPersistedResearchEntryVisible(section.entry, showPersistedResearchStatus);
+  }
+
+  return section.entries.some((entry) =>
+    entry.kind === 'reasoning' || entry.kind === 'live-summary'
+      ? true
+      : isPersistedResearchEntryVisible(entry, showPersistedResearchStatus)
+  );
 }
 
 function useRenderDiagnostic(component: string, key: string, summary: Record<string, unknown>) {
@@ -552,11 +574,6 @@ function buildPersistedThinkingTokens(items: AssistantTurnItem[], runId: string 
       continue;
     }
 
-    tokens.push({
-      kind: 'tool-part',
-      id: item.id,
-      part: item
-    });
   }
 
   return tokens;
@@ -627,7 +644,7 @@ const ThinkingTimelinePanel = memo(function ThinkingTimelinePanel({
   }, [thinking]);
 
   return (
-    <div className="overflow-hidden" data-thinking-container="true">
+    <div className="overflow-hidden" data-reasoning-panel="true" data-thinking-container="true">
       <button
         type="button"
         onClick={() => setExpanded((current) => !current)}
@@ -747,9 +764,16 @@ const AssistantTurnContent = memo(function AssistantTurnContent({
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
 }) {
   const sections = useMemo(
-    () => buildThinkingFlowSections(buildPersistedThinkingTokens(items, runId), false),
-    [items, runId]
+    () =>
+      buildThinkingFlowSections(buildPersistedThinkingTokens(items, runId), false).filter((section) =>
+        isThinkingFlowSectionVisible(section, showPersistedResearchStatus)
+      ),
+    [items, runId, showPersistedResearchStatus]
   );
+
+  if (sections.length === 0) {
+    return null;
+  }
 
   return (
     <div className="space-y-1.5">
@@ -785,26 +809,30 @@ const AssistantTurnContent = memo(function AssistantTurnContent({
           );
         }
 
-        if (section.token.kind === 'persisted-text' || section.token.kind === 'tool-part') {
+        if (section.token.kind === 'persisted-text') {
           return (
             <MessagePartView
               key={section.id}
-              cacheKey={section.token.kind === 'persisted-text' ? section.token.part.cacheKey : undefined}
+              cacheKey={section.token.part.cacheKey}
               part={section.token.part.part}
             />
           );
         }
 
-        return (
-          <MarkdownRenderer
-            key={section.id}
-            cacheKey={section.token.cacheKey}
-            animateBlocks={false}
-            className="text-[15px] leading-[1.9] text-[color:var(--chat-text)]"
-            plainTextClassName="text-[15px] leading-[1.9] text-[color:var(--chat-text)]"
-            text={section.token.text}
-          />
-        );
+        if (section.token.kind === 'live-text') {
+          return (
+            <MarkdownRenderer
+              key={section.id}
+              cacheKey={section.token.cacheKey}
+              animateBlocks={false}
+              className="text-[15px] leading-[1.9] text-[color:var(--chat-text)]"
+              plainTextClassName="text-[15px] leading-[1.9] text-[color:var(--chat-text)]"
+              text={section.token.text}
+            />
+          );
+        }
+
+        return null;
       })}
     </div>
   );
@@ -858,25 +886,20 @@ const LiveAssistantContent = memo(function LiveAssistantContent({
           );
         }
 
-        if (section.token.kind !== 'live-text') {
+        if (section.token.kind === 'live-text') {
           return (
-            <MessagePartView
+            <MarkdownRenderer
               key={section.id}
-              part={section.token.part.part}
+              cacheKey={section.token.cacheKey}
+              animateBlocks={false}
+              className="text-[15px] leading-[1.9] text-[color:var(--chat-text)]"
+              plainTextClassName="text-[15px] leading-[1.9] text-[color:var(--chat-text)]"
+              text={section.token.text}
             />
           );
         }
 
-        return (
-          <MarkdownRenderer
-            key={section.id}
-            cacheKey={section.token.cacheKey}
-            animateBlocks={false}
-            className="text-[15px] leading-[1.9] text-[color:var(--chat-text)]"
-            plainTextClassName="text-[15px] leading-[1.9] text-[color:var(--chat-text)]"
-            text={section.token.text}
-          />
-        );
+        return null;
       })}
     </div>
   );
@@ -929,7 +952,9 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
   const showActions = props.type === 'persisted-turn' ? props.actionContext.showActions : isCompleted && copyText.length > 0;
   const hasVisibleContent =
     props.type === 'persisted-turn'
-      ? props.block.items.length > 0
+      ? buildThinkingFlowSections(buildPersistedThinkingTokens(props.block.items, props.block.runId), false).some((section) =>
+          isThinkingFlowSectionVisible(section, props.showPersistedResearchStatus ?? false)
+        )
       : hasVisibleLiveAssistantContent(props.liveAssistantDraft);
 
   if (!hasVisibleContent) {
@@ -992,12 +1017,14 @@ const AnswerContainerCard = memo(function AnswerContainerCard({
   showPersistedResearchStatus?: boolean;
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
 }) {
-  const hasVisibleContent = container.blocks.some((block) => block.items.length > 0);
   const sections = useMemo(
-    () => buildThinkingFlowSections(buildPersistedThinkingTokensFromBlocks(container.blocks), false),
-    [container.blocks]
+    () =>
+      buildThinkingFlowSections(buildPersistedThinkingTokensFromBlocks(container.blocks), false).filter((section) =>
+        isThinkingFlowSectionVisible(section, showPersistedResearchStatus)
+      ),
+    [container.blocks, showPersistedResearchStatus]
   );
-  if (!hasVisibleContent) {
+  if (sections.length === 0) {
     return null;
   }
 
@@ -1041,11 +1068,11 @@ const AnswerContainerCard = memo(function AnswerContainerCard({
             );
           }
 
-          if (section.token.kind === 'persisted-text' || section.token.kind === 'tool-part') {
+          if (section.token.kind === 'persisted-text') {
             return (
               <MessagePartView
                 key={section.id}
-                cacheKey={section.token.kind === 'persisted-text' ? section.token.part.cacheKey : undefined}
+                cacheKey={section.token.part.cacheKey}
                 part={section.token.part.part}
               />
             );
