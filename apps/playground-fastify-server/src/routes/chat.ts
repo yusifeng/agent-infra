@@ -1,4 +1,4 @@
-import type { StartTextTurnResult } from '@agent-infra/app';
+import type { PublicChatShareResult, StartTextTurnResult } from '@agent-infra/app';
 import { ChatShareNotFoundError, RunNotFoundError } from '@agent-infra/app';
 import type { RunStreamEventDto, RunStreamFailedEventDto, RuntimePiMetaDto } from '@agent-infra/contracts';
 import type { AgentInfraRepositoryBundle } from '@agent-infra/db';
@@ -121,6 +121,66 @@ function requireAuthenticatedCurrentUser(
 
 function isValidSiteIconHostname(hostname: string) {
   return /^[a-z0-9.-]+$/i.test(hostname) && hostname.includes('.') && !hostname.includes('..');
+}
+
+function asJsonRecord(value: unknown) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function isPolicyToolResultPart(part: { type: string; jsonValue?: Record<string, unknown> | null }) {
+  if (part.type !== 'tool-result') {
+    return false;
+  }
+
+  const details = asJsonRecord(part.jsonValue?.details);
+  return details?.status === 'blocked_by_policy' || details?.status === 'redirected_by_policy';
+}
+
+function readToolCallId(part: { jsonValue?: Record<string, unknown> | null }) {
+  return typeof part.jsonValue?.toolCallId === 'string' ? part.jsonValue.toolCallId : null;
+}
+
+function sanitizeMessagesForUi<TMessage extends { parts: TPart[] }, TPart extends { type: string; jsonValue?: Record<string, unknown> | null }>(
+  messages: TMessage[]
+) {
+  const blockedToolCallIds = new Set(
+    messages
+      .flatMap((message) => message.parts)
+      .filter((part) => isPolicyToolResultPart(part))
+      .map((part) => readToolCallId(part))
+      .filter((toolCallId): toolCallId is string => Boolean(toolCallId))
+  );
+
+  if (blockedToolCallIds.size === 0) {
+    return messages;
+  }
+
+  return messages.flatMap((message) => {
+    const parts = message.parts.filter((part) => {
+      const toolCallId = readToolCallId(part);
+      if (!toolCallId || !blockedToolCallIds.has(toolCallId)) {
+        return true;
+      }
+
+      return part.type !== 'tool-call' && part.type !== 'tool-result';
+    });
+
+    if (parts.length === 0) {
+      return [];
+    }
+
+    return [{ ...message, parts }];
+  });
+}
+
+function sanitizePublicShareForUi(result: PublicChatShareResult): PublicChatShareResult {
+  return {
+    ...result,
+    snapshot: {
+      ...result.snapshot,
+      messages: sanitizeMessagesForUi(result.snapshot.messages)
+    }
+  };
 }
 
 function buildFallbackSiteIconSvg(hostname: string) {
@@ -473,7 +533,7 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
         request.requestTiming.measureAsync('runs.active', () => services.app.runs.getActiveByThread({ threadId: request.params.threadId }))
       ]);
 
-      return reply.send(buildThreadMessagesResponse({ messages, activeRun }));
+      return reply.send(buildThreadMessagesResponse({ messages: sanitizeMessagesForUi(messages), activeRun }));
     } catch (error) {
       return reply.code(getRouteErrorStatus(error)).send(buildThreadMessagesErrorResponse(error, 'failed to load thread messages'));
     }
@@ -587,7 +647,7 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
         services.shares.getPublic({ publicId: request.params.publicId })
       );
 
-      return reply.send(buildPublicChatShareResponse(share));
+      return reply.send(buildPublicChatShareResponse(sanitizePublicShareForUi(share)));
     } catch (error) {
       return reply.code(getRouteErrorStatus(error)).send(buildPublicChatShareErrorResponse(error, 'failed to load public share'));
     }

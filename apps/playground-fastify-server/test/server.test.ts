@@ -578,6 +578,111 @@ describe('playground-fastify-server', () => {
     });
   });
 
+  it('filters policy-only tool attempts from thread messages responses', async () => {
+    const server = await createTestServer({});
+    activeServers.push(server);
+    const sessionCookie = await registerAndSignIn(server, 'policy-filter@example.com');
+    const threadId = await createThread(server, sessionCookie, 'Policy Filter Thread');
+
+    await server.appServices.repos.runRepo.create({
+      id: 'run-policy-1',
+      threadId,
+      triggerMessageId: null,
+      provider: 'deepseek',
+      model: 'deepseek-v4-flash',
+      status: 'completed',
+      usage: null,
+      error: null,
+      startedAt: new Date('2026-05-11T10:00:00.000Z'),
+      finishedAt: new Date('2026-05-11T10:00:02.000Z')
+    });
+
+    await server.appServices.repos.messageRepo.create({
+      id: 'user-policy-1',
+      threadId,
+      runId: null,
+      role: 'user',
+      seq: 1,
+      status: 'completed',
+      metadata: null
+    });
+    await server.appServices.repos.messageRepo.createPart({
+      id: 'user-policy-1:text',
+      messageId: 'user-policy-1',
+      partIndex: 0,
+      type: 'text',
+      textValue: '和我说一说速水玲香这个人物吧',
+      jsonValue: null
+    });
+
+    await server.appServices.repos.messageRepo.create({
+      id: 'tool-policy-call-1',
+      threadId,
+      runId: 'run-policy-1',
+      role: 'tool',
+      seq: 2,
+      status: 'completed',
+      metadata: null
+    });
+    await server.appServices.repos.messageRepo.createPart({
+      id: 'tool-policy-call-1:call',
+      messageId: 'tool-policy-call-1',
+      partIndex: 0,
+      type: 'tool-call',
+      textValue: null,
+      jsonValue: {
+        toolName: 'searchWeb',
+        toolCallId: 'call-policy-1',
+        input: { query: '速水玲香 人物' }
+      }
+    });
+    await server.appServices.repos.messageRepo.create({
+      id: 'tool-policy-result-1',
+      threadId,
+      runId: 'run-policy-1',
+      role: 'tool',
+      seq: 3,
+      status: 'completed',
+      metadata: null
+    });
+    await server.appServices.repos.messageRepo.createPart({
+      id: 'tool-policy-result-1:result',
+      messageId: 'tool-policy-result-1',
+      partIndex: 0,
+      type: 'tool-result',
+      textValue: null,
+      jsonValue: {
+        toolName: 'searchWeb',
+        toolCallId: 'call-policy-1',
+        details: {
+          status: 'blocked_by_policy',
+          reason: 'duplicate_query',
+          message: 'Search results are already available. Open a selected page instead of starting another search.',
+          allowedNextTools: ['openUrl']
+        }
+      }
+    });
+
+    const response = await server.app.inject({
+      method: 'GET',
+      url: `/api/threads/${threadId}/messages`,
+      headers: {
+        cookie: sessionCookie
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      messages: [
+        expect.objectContaining({
+          id: 'user-policy-1',
+          role: 'user'
+        })
+      ],
+      activeRun: null
+    });
+  });
+
   it('loads a single accessible thread without refetching the full thread list', async () => {
     const server = await createTestServer({});
     activeServers.push(server);
@@ -1198,6 +1303,115 @@ describe('playground-fastify-server', () => {
     expect(publicShare.json().share.snapshot.messages.map((message: { role: string }) => message.role)).toEqual([
       'user',
       'assistant'
+    ]);
+  });
+
+  it('filters policy-only tool attempts from public share snapshots', async () => {
+    const server = await createTestServer({});
+    activeServers.push(server);
+    const sessionCookie = await registerAndSignIn(server, 'share-policy-filter@example.com');
+    const threadId = await createThread(server, sessionCookie, 'Public Share Policy Filter');
+
+    await server.appServices.repos.runRepo.create({
+      id: 'run-share-policy-1',
+      threadId,
+      triggerMessageId: null,
+      provider: 'deepseek',
+      model: 'deepseek-v4-flash',
+      status: 'completed',
+      usage: null,
+      error: null,
+      startedAt: new Date('2026-05-11T10:00:00.000Z'),
+      finishedAt: new Date('2026-05-11T10:00:02.000Z')
+    });
+
+    await server.appServices.repos.messageRepo.create({
+      id: 'share-user-1',
+      threadId,
+      runId: null,
+      role: 'user',
+      seq: 1,
+      status: 'completed',
+      metadata: null
+    });
+    await server.appServices.repos.messageRepo.createPart({
+      id: 'share-user-1:text',
+      messageId: 'share-user-1',
+      partIndex: 0,
+      type: 'text',
+      textValue: '和我说一说速水玲香这个人物吧',
+      jsonValue: null
+    });
+
+    await server.appServices.repos.messageRepo.create({
+      id: 'share-tool-policy-call-1',
+      threadId,
+      runId: 'run-share-policy-1',
+      role: 'tool',
+      seq: 2,
+      status: 'completed',
+      metadata: null
+    });
+    await server.appServices.repos.messageRepo.createPart({
+      id: 'share-tool-policy-call-1:call',
+      messageId: 'share-tool-policy-call-1',
+      partIndex: 0,
+      type: 'tool-call',
+      textValue: null,
+      jsonValue: {
+        toolName: 'searchWeb',
+        toolCallId: 'call-share-policy-1',
+        input: { query: '速水玲香 人物' }
+      }
+    });
+    await server.appServices.repos.messageRepo.create({
+      id: 'share-tool-policy-result-1',
+      threadId,
+      runId: 'run-share-policy-1',
+      role: 'tool',
+      seq: 3,
+      status: 'completed',
+      metadata: null
+    });
+    await server.appServices.repos.messageRepo.createPart({
+      id: 'share-tool-policy-result-1:result',
+      messageId: 'share-tool-policy-result-1',
+      partIndex: 0,
+      type: 'tool-result',
+      textValue: null,
+      jsonValue: {
+        toolName: 'searchWeb',
+        toolCallId: 'call-share-policy-1',
+        details: {
+          status: 'redirected_by_policy',
+          message: 'Search results are already available. Open a selected page instead of starting another search.',
+          suggestedToolCall: {
+            name: 'openUrl',
+            args: { url: 'https://example.com/character' }
+          }
+        }
+      }
+    });
+
+    const createdShare = await server.app.inject({
+      method: 'POST',
+      url: `/api/threads/${threadId}/shares`,
+      headers: {
+        cookie: sessionCookie
+      }
+    });
+    const publicId = createdShare.json().share.publicId as string;
+
+    const publicShare = await server.app.inject({
+      method: 'GET',
+      url: `/api/shares/${publicId}`
+    });
+
+    expect(publicShare.statusCode).toBe(200);
+    expect(publicShare.json().share.snapshot.messages).toEqual([
+      expect.objectContaining({
+        role: 'user'
+      })
     ]);
   });
 

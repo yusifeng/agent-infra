@@ -57,7 +57,6 @@ export type ResearchSummaryLabelViewModel = {
     url: string;
     sourceName: string;
   }>;
-  policyMessages: string[];
 };
 
 export type ResearchStatusLabelViewModel = {
@@ -240,9 +239,8 @@ export function buildResearchActivityViewModel(items: AssistantTurnItem[]): Rese
 export function buildResearchSummaryLabelViewModel(summary: ResearchActivityViewModel): ResearchSummaryLabelViewModel | null {
   const totalResults = summary.searches.reduce((total, entry) => total + entry.resultCount, 0);
   const browseCount = summary.openedPages.length;
-  const policyMessages = Array.from(new Set(summary.policyEntries.map((entry) => entry.message).filter(Boolean)));
 
-  if (totalResults === 0 && browseCount === 0 && policyMessages.length === 0) {
+  if (totalResults === 0 && browseCount === 0) {
     return null;
   }
 
@@ -251,9 +249,7 @@ export function buildResearchSummaryLabelViewModel(summary: ResearchActivityView
       ? `搜索到 ${totalResults} 个网页 · 浏览 ${browseCount} 个页面`
       : totalResults > 0
         ? `搜索到 ${totalResults} 个网页`
-        : browseCount > 0
-          ? `浏览 ${browseCount} 个页面`
-          : '搜索策略已收敛本轮检索';
+        : `浏览 ${browseCount} 个页面`;
 
   const searchSources = summary.searches.flatMap((entry) => entry.sources);
   const browseSources = summary.openedPages
@@ -277,8 +273,7 @@ export function buildResearchSummaryLabelViewModel(summary: ResearchActivityView
       title: entry.title,
       url: entry.finalUrl,
       sourceName: entry.siteName || entry.hostname || entry.title
-    })),
-    policyMessages
+    }))
   };
 }
 

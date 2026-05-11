@@ -115,6 +115,35 @@ describe('research-activity', () => {
     });
   });
 
+  it('does not build a user-visible summary from policy-only entries', () => {
+    const items: AssistantTurnItem[] = [
+      {
+        type: 'tool-part',
+        id: 'tool-result-policy-only',
+        part: createPart({
+          id: 'tool-result-policy-only',
+          type: 'tool-result',
+          jsonValue: {
+            toolName: 'searchWeb',
+            toolCallId: 'call-search-2',
+            details: {
+              status: 'blocked_by_policy',
+              reason: 'duplicate_query',
+              message: 'Search results are already available. Open a selected page instead of starting another search.',
+              allowedNextTools: ['openUrl']
+            }
+          }
+        })
+      }
+    ];
+
+    const activity = buildResearchActivityViewModel(items);
+    const summary = buildResearchSummaryLabelViewModel(activity);
+
+    expect(activity.policyEntries).toHaveLength(1);
+    expect(summary).toBeNull();
+  });
+
   it('builds a live research status summary across search and browse tools', () => {
     const status = buildLiveResearchStatusLabelViewModel([
       {

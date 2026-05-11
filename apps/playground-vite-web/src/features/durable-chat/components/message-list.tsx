@@ -322,17 +322,6 @@ const ResearchSummaryLabel = memo(function ResearchSummaryLabel({
                 </div>
               ) : null}
 
-              {summaryViewModel.policyMessages.length > 0 ? (
-                <div className="space-y-1">
-                  <div className="font-medium text-[color:var(--chat-text)]">策略收敛</div>
-                  <ul className="space-y-1">
-                    {summaryViewModel.policyMessages.map((message) => (
-                      <li key={message}>- {message}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-
               {runId && onOpenSearchResult && activity.searchToolCallIds.length > 0 ? (
                 <div>
                   <button
