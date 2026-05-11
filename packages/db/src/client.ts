@@ -164,7 +164,7 @@ async function ensureTursoSchema(connectionString: string, authToken?: string) {
   }
 }
 
-function resolveForcedDbMode(): DbMode | null {
+export function resolveDbModeOverrideFromEnv(): DbMode | null {
   const rawMode = process.env.PLAYGROUND_DB_MODE?.trim().toLowerCase();
   if (!rawMode) {
     return null;
@@ -178,7 +178,7 @@ function resolveForcedDbMode(): DbMode | null {
 }
 
 export function createDbConfigFromEnv(): DbConfig {
-  const forcedMode = resolveForcedDbMode();
+  const forcedMode = resolveDbModeOverrideFromEnv();
   const tursoDatabaseUrl = process.env.TURSO_DATABASE_URL;
   if (forcedMode === 'turso' || (!forcedMode && tursoDatabaseUrl)) {
     if (!tursoDatabaseUrl) {

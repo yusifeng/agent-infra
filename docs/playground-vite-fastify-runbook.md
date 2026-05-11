@@ -85,12 +85,11 @@ They also include these modes automatically when the required env is present:
 
 Modes without the required env are reported as `skipped`, not silently ignored.
 If a mode is available and fails, the command fails.
-Before building the matrix, the scripts load `.env*` files using the same compatibility order already used by the Fastify host:
+Before building the matrix, the scripts load `.env*` files using the same order already used by the Fastify host:
 
 1. `apps/playground-vite-web`
 2. `apps/playground-fastify-server`
 3. repository root
-4. `apps/playground-next-web`
 
 The JSON summary includes `loadedEnvFiles` so you can see which config source the matrix actually consumed.
 
@@ -180,9 +179,8 @@ If browser total is much larger, the missing time is outside the app logic, usua
 
 1. `apps/playground-fastify-server`
 2. repository root
-3. `apps/playground-next-web` as a compatibility fallback
 
-That fallback exists so the Fastify host can reuse the same local runtime/database configuration already used by the Next reference app.
+It does **not** default-read sibling app env such as `apps/playground-next-web/.env*`.
 
 ### Explicit DB bootstrap
 
@@ -203,11 +201,24 @@ Prepared startup wrappers already use these commands:
 
 ### Database selection
 
-The DB mode comes from `createDbConfigFromEnv()` and follows this priority:
+The DB type selector is:
 
-1. `TURSO_DATABASE_URL` (+ `TURSO_AUTH_TOKEN` when needed) -> Turso/libSQL
-2. `DATABASE_URL` -> Postgres
-3. otherwise `SQLITE_PATH` -> local SQLite, defaulting to `./local.db`
+- `PLAYGROUND_DB_MODE`
+
+Allowed values:
+
+- `sqlite`
+- `turso`
+- `postgres`
+
+Connection env only provide details for the selected mode:
+
+- `sqlite` -> optional `SQLITE_PATH`
+- `turso` -> `TURSO_DATABASE_URL` and usually `TURSO_AUTH_TOKEN`
+- `postgres` -> `DATABASE_URL`
+
+If `PLAYGROUND_DB_MODE` is set, it is absolute. The Fastify host should not switch DB type
+just because unrelated env variables also exist.
 
 For the phase-1 smoke and acceptance scripts, the repository intentionally overrides this and uses a temporary sqlite path so validation stays self-contained.
 The DB-matrix smoke commands are the exception: they intentionally preserve `DATABASE_URL` and `TURSO_*` when those modes are being exercised.

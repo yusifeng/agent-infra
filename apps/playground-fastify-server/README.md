@@ -34,9 +34,51 @@ The bootstrap command and the server both load `.env*` files in this priority or
 
 - `apps/playground-fastify-server`
 - repository root
-- `apps/playground-next-web` as a phase-1 compatibility fallback
 
-This keeps the Fastify host usable with the same local runtime/db configuration that the Next reference app already uses.
+They do **not** default-read:
+
+- `apps/playground-next-web/.env*`
+- any other sibling app's `.env*`
+
+The Fastify host now owns its env boundary directly instead of inheriting another app's
+database/runtime configuration implicitly.
+
+## DB mode selection
+
+Use `PLAYGROUND_DB_MODE` as the only DB type selector:
+
+- `sqlite`
+- `turso`
+- `postgres`
+
+Connection variables only provide details for the selected mode:
+
+| `PLAYGROUND_DB_MODE` | Required variables | Optional variables |
+|---|---|---|
+| `sqlite` | none | `SQLITE_PATH` |
+| `turso` | `TURSO_DATABASE_URL` | `TURSO_AUTH_TOKEN` |
+| `postgres` | `DATABASE_URL` | none |
+
+If `PLAYGROUND_DB_MODE` is present, it is absolute. For example:
+
+- `PLAYGROUND_DB_MODE=sqlite` ignores `TURSO_DATABASE_URL` and `DATABASE_URL`
+- `PLAYGROUND_DB_MODE=turso` ignores `SQLITE_PATH` and `DATABASE_URL`
+- `PLAYGROUND_DB_MODE=postgres` ignores `SQLITE_PATH` and `TURSO_DATABASE_URL`
+
+This is the intended contract for deterministic local and production-shaped startup.
+
+## Startup observability
+
+Prepared startup now logs a resolved summary that includes:
+
+- loaded env files
+- resolved DB mode
+- resolved DB connection string/path
+- whether DB mode was forced by `PLAYGROUND_DB_MODE`
+
+Credentials inside non-sqlite connection strings are redacted before logging.
+
+`bootstrap:db` also prints the same summary in its JSON output.
 
 ## Current API surface
 

@@ -27,6 +27,10 @@
   - playground Fastify/Vite 在 `/new` centered landing 上采用的
     DeepSeek 双模式语义、host meta 暴露规则、模式到真实模型的映射，
     以及非 DeepSeek fallback 的降级边界
+- `playground-fastify-env-db-mode.md`
+  - playground Fastify host 的 env 加载边界、`PLAYGROUND_DB_MODE`
+    作为唯一 DB 类型选择器的规则、prepared scripts 约束，
+    以及 `/api/meta` 的 DB 报告必须与真实 `DbConfig` 一致
 
 ## 不适合放在这里的内容
 

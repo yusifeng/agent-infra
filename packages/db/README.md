@@ -4,9 +4,20 @@
 
 ## Modes
 
-- With `TURSO_DATABASE_URL`: uses Turso/libSQL over HTTP. Set `TURSO_AUTH_TOKEN` for remote Turso databases.
-- Otherwise with `DATABASE_URL`: uses PostgreSQL.
-- Otherwise: uses SQLite at `./local.db` (configurable by `SQLITE_PATH`).
+Preferred host contract:
+
+- `PLAYGROUND_DB_MODE=sqlite` -> uses SQLite at `./local.db` by default, configurable with `SQLITE_PATH`
+- `PLAYGROUND_DB_MODE=turso` -> uses Turso/libSQL over HTTP via `TURSO_DATABASE_URL`
+- `PLAYGROUND_DB_MODE=postgres` -> uses PostgreSQL via `DATABASE_URL`
+
+When `PLAYGROUND_DB_MODE` is set, it is the authoritative DB type selector.
+Connection env only provide details for that selected mode.
+
+Legacy fallback behavior still exists for callers that do not set `PLAYGROUND_DB_MODE`:
+
+- with `TURSO_DATABASE_URL`: uses Turso/libSQL
+- otherwise with `DATABASE_URL`: uses PostgreSQL
+- otherwise: uses SQLite
 
 `createDbConfigFromEnv()` only creates a DB config and live client handle. It does **not**
 implicitly create or migrate schema for request-serving code paths.
@@ -51,7 +62,10 @@ pnpm --filter @agent-infra/db db:migrate
 
 Turso/libSQL uses the SQLite schema path in this package.
 
-- `createDbConfigFromEnv()` prefers `TURSO_DATABASE_URL` over `DATABASE_URL`.
+- In hosts that set `PLAYGROUND_DB_MODE=turso`, `TURSO_DATABASE_URL` is the expected
+  connection variable.
+- For callers that still rely on legacy implicit selection, `createDbConfigFromEnv()`
+  prefers `TURSO_DATABASE_URL` over `DATABASE_URL`.
 - For a remote Turso database, set both `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`.
 - For local development without Turso, prefer the existing SQLite mode via `SQLITE_PATH`.
 - For remote/shared environments, prefer running schema bootstrap or migrations as an
