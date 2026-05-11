@@ -233,37 +233,47 @@ async function requestChatCompletion(input: {
   apiKey: string;
   model: string;
   sourceText: string;
+  disableThinking?: boolean;
 }) {
+  const payload = {
+    model: input.model,
+    temperature: 0.2,
+    max_tokens: 48,
+    messages: [
+      {
+        role: 'system',
+        content:
+          'Generate a concise chat thread title from the user request. Return only the title text, without quotes, markdown, or punctuation decoration.'
+      },
+      {
+        role: 'user',
+        content: `User request:\n${input.sourceText}`
+      }
+    ],
+    ...(input.disableThinking
+      ? {
+          thinking: {
+            type: 'disabled'
+          }
+        }
+      : {})
+  };
+
   const response = await fetch(`${input.baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       authorization: `Bearer ${input.apiKey}`,
       'content-type': 'application/json'
     },
-    body: JSON.stringify({
-      model: input.model,
-      temperature: 0.2,
-      max_tokens: 24,
-      messages: [
-        {
-          role: 'system',
-          content:
-            'Generate a concise chat thread title from the user request. Return only the title text, without quotes, markdown, or punctuation decoration.'
-        },
-        {
-          role: 'user',
-          content: `User request:\n${input.sourceText}`
-        }
-      ]
-    })
+    body: JSON.stringify(payload)
   });
 
   if (!response.ok) {
     throw new Error(`thread auto-title request failed (${response.status})`);
   }
 
-  const payload = (await response.json()) as CompletionResponse;
-  return payload.choices?.[0]?.message?.content?.trim() ?? null;
+  const completion = (await response.json()) as CompletionResponse;
+  return completion.choices?.[0]?.message?.content?.trim() ?? null;
 }
 
 export function createEnvThreadTitleGenerator(): ThreadTitleGenerator | null {
@@ -288,7 +298,8 @@ export function createEnvThreadTitleGenerator(): ThreadTitleGenerator | null {
             baseUrl: DEEPSEEK_BASE_URL,
             apiKey: config.apiKey,
             model: config.model,
-            sourceText
+            sourceText,
+            disableThinking: true
           });
         }
       };
