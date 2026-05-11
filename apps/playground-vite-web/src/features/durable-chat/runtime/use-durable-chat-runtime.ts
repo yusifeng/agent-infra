@@ -302,7 +302,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     if (window.innerWidth < 1024) {
       setSidebarOpen(false);
     }
-  }, [setSidebarOpen]);
+  }, []);
 
   function resetDraftThreadState() {
     runResetDraftThreadState({

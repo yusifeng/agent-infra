@@ -54,7 +54,7 @@ export function useChatViewportController({
     return () => {
       viewport.removeEventListener('scroll', handleScroll);
     };
-  }, [setShowScrollToBottom]);
+  }, []);
 
   useEffect(() => {
     const viewport = messagesViewportRef.current;
@@ -66,7 +66,7 @@ export function useChatViewportController({
       viewport.scrollTop = viewport.scrollHeight;
       setShowScrollToBottom(false);
     });
-  }, [activeThreadId, loadingMessages, setShowScrollToBottom]);
+  }, [activeThreadId, loadingMessages]);
 
   useEffect(() => {
     const viewport = messagesViewportRef.current;
@@ -78,7 +78,7 @@ export function useChatViewportController({
       viewport.scrollTop = viewport.scrollHeight;
       setShowScrollToBottom(false);
     });
-  }, [liveDraftMessageId, setShowScrollToBottom]);
+  }, [liveDraftMessageId]);
 
   function capturePrependAnchor() {
     const viewport = messagesViewportRef.current;
