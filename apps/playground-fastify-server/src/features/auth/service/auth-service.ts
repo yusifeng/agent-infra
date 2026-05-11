@@ -183,7 +183,11 @@ export class PlaygroundAuthService {
         code,
         expiresInMinutes: Math.floor(this.config.signupCodeTtlMs / 60000)
       });
-    } catch {
+    } catch (error) {
+      console.error('Failed to send password reset email', {
+        emailNormalized,
+        error
+      });
       await this.emailChallenges.delete(challengeId);
     }
 

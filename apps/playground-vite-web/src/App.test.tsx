@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -291,6 +291,48 @@ describe('App auth gate', () => {
     });
   });
 
+  it('keeps the signup code button disabled for 60 seconds after a successful send', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    try {
+      renderApp(['/register']);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: '完成注册' })).toBeTruthy();
+      });
+
+      fireEvent.change(screen.getByLabelText('邮箱'), {
+        target: {
+          value: 'user@example.com'
+        }
+      });
+      fireEvent.click(screen.getByRole('button', { name: '发送验证码' }));
+
+      await waitFor(() => {
+        expect(authApiMocks.requestSignupCode).toHaveBeenCalledWith('user@example.com');
+        expect((screen.getByRole('button', { name: '60s' }) as HTMLButtonElement).disabled).toBe(true);
+      });
+
+      act(() => {
+        vi.advanceTimersByTime(59000);
+      });
+
+      const signupCountdownButton = screen.getByRole('button', { name: /^\d+s$/ }) as HTMLButtonElement;
+      expect(signupCountdownButton.disabled).toBe(true);
+      expect(signupCountdownButton.textContent).not.toBe('发送验证码');
+
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: '发送验证码' })).toBeTruthy();
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('logs out an authenticated user back to the login page', async () => {
     authApiMocks.fetchAuthMe.mockResolvedValue({
       ok: true,
@@ -368,6 +410,48 @@ describe('App auth gate', () => {
     });
 
     expect(screen.getByRole('link', { name: '去注册' }).getAttribute('href')).toBe('/register?next=%2Fchat%2Fthread-19');
+  });
+
+  it('keeps the password reset code button disabled for 60 seconds after a successful send', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    try {
+      renderApp(['/forgot-password']);
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: '重置密码' })).toBeTruthy();
+      });
+
+      fireEvent.change(screen.getByLabelText('邮箱'), {
+        target: {
+          value: 'user@example.com'
+        }
+      });
+      fireEvent.click(screen.getByRole('button', { name: '发送验证码' }));
+
+      await waitFor(() => {
+        expect(authApiMocks.requestPasswordResetCode).toHaveBeenCalledWith('user@example.com');
+        expect((screen.getByRole('button', { name: '60s' }) as HTMLButtonElement).disabled).toBe(true);
+      });
+
+      act(() => {
+        vi.advanceTimersByTime(59000);
+      });
+
+      const resetCountdownButton = screen.getByRole('button', { name: /^\d+s$/ }) as HTMLButtonElement;
+      expect(resetCountdownButton.disabled).toBe(true);
+      expect(resetCountdownButton.textContent).not.toBe('发送验证码');
+
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: '发送验证码' })).toBeTruthy();
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('returns to the login page even when logout fails', async () => {

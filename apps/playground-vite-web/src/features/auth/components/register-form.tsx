@@ -5,6 +5,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { requestSignupCode, signUp, type AuthUserDto } from '@/features/auth/repo/auth-api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useEmailCodeCooldown } from '@/features/auth/runtime/use-email-code-cooldown';
 
 function presentAuthError(error: string | null) {
   switch (error) {
@@ -27,6 +28,8 @@ function presentAuthError(error: string | null) {
   }
 }
 
+const EMAIL_CODE_COOLDOWN_SECONDS = 60;
+
 export function RegisterForm(props: {
   onAuthenticated: (user: AuthUserDto) => void;
 }) {
@@ -39,6 +42,7 @@ export function RegisterForm(props: {
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { remainingSeconds, isCooldownActive, startCooldown } = useEmailCodeCooldown(EMAIL_CODE_COOLDOWN_SECONDS);
 
   return (
     <form
@@ -100,7 +104,7 @@ export function RegisterForm(props: {
           <div className="h-6 w-px bg-slate-200" />
           <Button
             className="h-[36px] shrink-0 rounded-full px-3.5 text-[13px] font-semibold text-[#4263eb] hover:bg-transparent hover:text-[#3458f4]"
-            disabled={sendingCode}
+            disabled={sendingCode || isCooldownActive}
             size="sm"
             type="button"
             variant="ghost"
@@ -112,10 +116,14 @@ export function RegisterForm(props: {
               try {
                 const result = await requestSignupCode(email);
                 if (!result.ok) {
+                  if (result.error === 'RATE_LIMITED') {
+                    startCooldown();
+                  }
                   setError(presentAuthError(result.error));
                   return;
                 }
 
+                startCooldown();
                 setNotice('验证码已发送，请检查邮箱。');
               } catch {
                 setError('验证码发送失败，请稍后再试。');
@@ -124,7 +132,7 @@ export function RegisterForm(props: {
               }
             }}
           >
-            {sendingCode ? '发送中…' : '发送验证码'}
+            {sendingCode ? '发送中…' : isCooldownActive ? `${remainingSeconds}s` : '发送验证码'}
           </Button>
         </div>
       </div>
