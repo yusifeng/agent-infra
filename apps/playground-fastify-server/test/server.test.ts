@@ -11,6 +11,7 @@ import { buildPlaygroundServer } from '../src/app.js';
 import { APP_ID } from '../src/constants.js';
 import { bootstrapPlaygroundAuthSchema } from '../src/features/auth/repo/schema.js';
 import type { AuthEmailSender, SendSignupCodeEmailInput } from '../src/features/auth/service/email-sender.js';
+import type { ThreadTitleGenerator } from '../src/features/thread-title/auto-thread-title.js';
 import { PlaygroundThreadCatalogRepo } from '../src/features/thread-catalog/repo/thread-catalog-repo.js';
 import { bootstrapPlaygroundThreadCatalog } from '../src/features/thread-catalog/repo/schema.js';
 import { createPlaygroundAppServices } from '../src/playground-base-services.js';
@@ -24,6 +25,48 @@ class RecordingAuthEmailSender implements AuthEmailSender {
 
   async sendSignupCodeEmail(input: SendSignupCodeEmailInput) {
     this.sent.push(input);
+  }
+}
+
+class RecordingThreadTitleGenerator implements ThreadTitleGenerator {
+  readonly calls: Array<{ sourceText: string }> = [];
+
+  constructor(private readonly nextTitle: string | null = '自动生成标题') {}
+
+  async generateTitle(input: { sourceText: string }) {
+    this.calls.push(input);
+    return this.nextTitle;
+  }
+}
+
+class FailingThreadTitleGenerator implements ThreadTitleGenerator {
+  readonly calls: Array<{ sourceText: string }> = [];
+
+  async generateTitle(input: { sourceText: string }) {
+    this.calls.push(input);
+    throw new Error('title generation failed');
+  }
+}
+
+class DeferredThreadTitleGenerator implements ThreadTitleGenerator {
+  readonly calls: Array<{ sourceText: string }> = [];
+  private resolveNext: ((value: string | null) => void) | null = null;
+
+  async generateTitle(input: { sourceText: string }) {
+    this.calls.push(input);
+    return await new Promise<string | null>((resolve) => {
+      this.resolveNext = resolve;
+    });
+  }
+
+  resolve(value: string | null) {
+    if (!this.resolveNext) {
+      throw new Error('No pending title generation to resolve');
+    }
+
+    const resolve = this.resolveNext;
+    this.resolveNext = null;
+    resolve(value);
   }
 }
 
@@ -128,6 +171,7 @@ function createFakeDurableRuntime(mode: 'success' | 'failure' = 'success'): Runt
 async function createTestServer(options: {
   runtimeMode?: 'success' | 'failure';
   metaOverride?: Partial<PlaygroundMeta>;
+  threadTitleGenerator?: ThreadTitleGenerator | null;
 }) {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'playground-fastify-server-test-'));
   const sqlitePath = path.join(tempDir, 'test.db');
@@ -182,7 +226,8 @@ async function createTestServer(options: {
         sessionCookieName: 'sid',
         secureCookies: false,
         allowedOrigins: new Set(['http://localhost:5173'])
-      }
+      },
+      threadTitleGenerator: options.threadTitleGenerator
     });
 
     return {
@@ -819,6 +864,176 @@ describe('playground-fastify-server', () => {
     expect(messages.statusCode).toBe(200);
     expect(messages.json().messages.map((message: { role: string }) => message.role)).toEqual(['user', 'assistant']);
     expect(messages.json().messages[1].parts[0].textValue).toBe('Hello from fake runtime');
+  });
+
+  it('auto-titles a default-title thread after a completed run', async () => {
+    const threadTitleGenerator = new RecordingThreadTitleGenerator('验证码问题排查');
+    const server = await createTestServer({
+      threadTitleGenerator
+    });
+    activeServers.push(server);
+    const sessionCookie = await registerAndSignIn(server, 'auto-title@example.com');
+
+    const created = await server.app.inject({
+      method: 'POST',
+      url: '/api/threads',
+      headers: {
+        cookie: sessionCookie
+      },
+      payload: {}
+    });
+    expect(created.statusCode).toBe(200);
+    const threadId = created.json().thread.id as string;
+    expect(created.json().thread.title).toBe('New Thread');
+
+    const stream = await server.app.inject({
+      method: 'POST',
+      url: `/api/threads/${threadId}/runs/stream`,
+      headers: {
+        cookie: sessionCookie
+      },
+      payload: {
+        text: '这个验证码为什么一直收不到？'
+      }
+    });
+    expect(stream.statusCode).toBe(200);
+
+    await vi.waitFor(async () => {
+      expect(threadTitleGenerator.calls).toHaveLength(1);
+      const thread = await server.appServices.repos.threadRepo.findById(threadId);
+      expect(thread?.title).toBe('验证码问题排查');
+    });
+  });
+
+  it('does not auto-title a thread that already has a non-default title', async () => {
+    const threadTitleGenerator = new RecordingThreadTitleGenerator('不应写回');
+    const server = await createTestServer({
+      threadTitleGenerator
+    });
+    activeServers.push(server);
+    const sessionCookie = await registerAndSignIn(server, 'auto-title-skip@example.com');
+
+    const threadId = await createThread(server, sessionCookie, '手动标题');
+    const stream = await server.app.inject({
+      method: 'POST',
+      url: `/api/threads/${threadId}/runs/stream`,
+      headers: {
+        cookie: sessionCookie
+      },
+      payload: {
+        text: '这是一个已经命名的线程'
+      }
+    });
+    expect(stream.statusCode).toBe(200);
+
+    await vi.waitFor(async () => {
+      const thread = await server.appServices.repos.threadRepo.findById(threadId);
+      expect(thread?.title).toBe('手动标题');
+    });
+    expect(threadTitleGenerator.calls).toHaveLength(0);
+  });
+
+  it('does not overwrite a user rename that happens before auto-title writeback', async () => {
+    const threadTitleGenerator = new DeferredThreadTitleGenerator();
+    const server = await createTestServer({
+      threadTitleGenerator
+    });
+    activeServers.push(server);
+    const sessionCookie = await registerAndSignIn(server, 'auto-title-race@example.com');
+
+    const created = await server.app.inject({
+      method: 'POST',
+      url: '/api/threads',
+      headers: {
+        cookie: sessionCookie
+      },
+      payload: {}
+    });
+    expect(created.statusCode).toBe(200);
+    const threadId = created.json().thread.id as string;
+
+    const stream = await server.app.inject({
+      method: 'POST',
+      url: `/api/threads/${threadId}/runs/stream`,
+      headers: {
+        cookie: sessionCookie
+      },
+      payload: {
+        text: '我想知道验证码的风控规则'
+      }
+    });
+    expect(stream.statusCode).toBe(200);
+
+    await vi.waitFor(() => {
+      expect(threadTitleGenerator.calls).toHaveLength(1);
+    });
+
+    const renamed = await server.app.inject({
+      method: 'PATCH',
+      url: `/api/threads/${threadId}`,
+      headers: {
+        cookie: sessionCookie
+      },
+      payload: {
+        title: '用户手动标题'
+      }
+    });
+    expect(renamed.statusCode).toBe(200);
+
+    threadTitleGenerator.resolve('自动标题候选');
+
+    await vi.waitFor(async () => {
+      const thread = await server.appServices.repos.threadRepo.findById(threadId);
+      expect(thread?.title).toBe('用户手动标题');
+    });
+  });
+
+  it('does not fail the main turn when auto-title generation throws', async () => {
+    const threadTitleGenerator = new FailingThreadTitleGenerator();
+    const server = await createTestServer({
+      threadTitleGenerator
+    });
+    activeServers.push(server);
+    const sessionCookie = await registerAndSignIn(server, 'auto-title-failure@example.com');
+
+    const created = await server.app.inject({
+      method: 'POST',
+      url: '/api/threads',
+      headers: {
+        cookie: sessionCookie
+      },
+      payload: {}
+    });
+    expect(created.statusCode).toBe(200);
+    const threadId = created.json().thread.id as string;
+
+    const stream = await server.app.inject({
+      method: 'POST',
+      url: `/api/threads/${threadId}/runs/stream`,
+      headers: {
+        cookie: sessionCookie
+      },
+      payload: {
+        text: '请解释验证码发送失败的原因'
+      }
+    });
+    expect(stream.statusCode).toBe(200);
+
+    await vi.waitFor(() => {
+      expect(threadTitleGenerator.calls).toHaveLength(1);
+    });
+
+    const messages = await server.app.inject({
+      method: 'GET',
+      url: `/api/threads/${threadId}/messages`,
+      headers: {
+        cookie: sessionCookie
+      }
+    });
+    expect(messages.statusCode).toBe(200);
+
+    const thread = await server.appServices.repos.threadRepo.findById(threadId);
+    expect(thread?.title).toBe('New Thread');
   });
 
   it('emits run.failed when the runtime marks the run as failed', async () => {

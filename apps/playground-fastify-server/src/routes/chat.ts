@@ -42,6 +42,7 @@ import { getPlaygroundAppServices, getPlaygroundAppServicesState } from '../play
 import { getPlaygroundBaseServicesState, type PlaygroundAppServices } from '../playground-base-services.js';
 import { projectPlaygroundThreadDto, projectPlaygroundThreadList } from '../features/thread-catalog/service/project-playground-thread-dto.js';
 import { PlaygroundThreadCatalogService } from '../features/thread-catalog/service/thread-catalog-service.js';
+import { createEnvThreadTitleGenerator, maybeAutoTitleThread, type ThreadTitleGenerator } from '../features/thread-title/auto-thread-title.js';
 import { getPlaygroundMeta, toPlaygroundDbInfo } from '../playground-meta.js';
 import {
   getPlaygroundRuntimeServices,
@@ -64,6 +65,7 @@ export type ChatRouteDependencies = {
   getAppServices?: () => Promise<ChatAppServices>;
   getRuntimeServices?: () => Promise<ChatRuntimeServices>;
   getRuntimeMeta?: () => MaybePromise<ChatRouteMeta>;
+  threadTitleGenerator?: ThreadTitleGenerator | null;
 };
 
 function buildUnavailableMetaFallback(): ChatRouteMeta {
@@ -158,6 +160,10 @@ async function sendSiteIcon(reply: FastifyReply, hostname: string) {
 export async function registerChatRoutes(app: FastifyInstance, dependencies: ChatRouteDependencies = {}) {
   const getAppServices = dependencies.getAppServices ?? getPlaygroundAppServices;
   const getRuntimeServices = dependencies.getRuntimeServices ?? getPlaygroundRuntimeServices;
+  const threadTitleGenerator =
+    Object.prototype.hasOwnProperty.call(dependencies, 'threadTitleGenerator')
+      ? dependencies.threadTitleGenerator ?? null
+      : createEnvThreadTitleGenerator();
   const getRuntimeMeta =
     dependencies.getRuntimeMeta ??
     (async () => {
@@ -663,6 +669,7 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
     };
     const streamState = { closed: false };
     let finalRunSnapshot: RunStreamFailedEventDto['run'] = null;
+    let finalRunCompleted = false;
     let terminalEventSent = false;
 
     reply.hijack();
@@ -699,6 +706,7 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
               }
 
               finalRunSnapshot = toRunDto(update.run);
+              finalRunCompleted = update.run.status === 'completed';
               writeSseEvent(reply, buildRunStateEvent(runId, update.run), streamState);
 
               if (!terminalEventSent) {
@@ -712,6 +720,15 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
           }
         )
       );
+
+      if (finalRunCompleted) {
+        void maybeAutoTitleThread({
+          services: runtimeServices,
+          threadId,
+          generator: threadTitleGenerator,
+          log: app.log
+        });
+      }
     } catch (error) {
       if (!terminalEventSent) {
         terminalEventSent = true;

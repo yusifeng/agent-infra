@@ -36,14 +36,14 @@
   - `null`
   - `''`
   - `'New Thread'`
-- [ ] 明确后端写回前需要再次检查当前 thread title 是否仍处于默认标题态，避免在异步生成期间覆盖用户手动修改。
+- [x] 明确后端写回前需要再次检查当前 thread title 是否仍处于默认标题态，避免在异步生成期间覆盖用户手动修改。
 - [ ] 明确前端动画状态与真实 thread state 分离：
   - 真实数据继续来自 `thread.title`
   - 动画中的可见标题为独立 runtime UI state
 
 ### 1.3 Types / Interfaces
 - [x] 明确单 thread refresh 合约，优先新增 `GET /api/threads/:threadId`，返回与当前 mutation response 一致的单 thread dto。
-- [ ] 明确后端自动标题生成器的输入边界：
+- [x] 明确后端自动标题生成器的输入边界：
   - 至少包含当前 run / thread 的首轮用户问题或可控截断上下文
   - 输出完整标题字符串或 `null`
 - [ ] 明确前端共享动画状态结构，例如：
@@ -55,10 +55,10 @@
 ## 2. Backend / Platform
 
 ### 2.1 Host business flow
-- [ ] 找到 run 完成后的稳定后端挂点，在不阻塞主聊天链路的前提下触发 auto-title 任务。
-- [ ] 用轻量 LLM 生成标题；失败时只记录日志，不影响主聊天成功路径。
-- [ ] 复用现有 title 更新链路写回标题，而不是新增一套 parallel persistence path。
-- [ ] 写回前重新检查当前 title 是否仍然是默认标题态，避免覆盖手动 rename。
+- [x] 找到 run 完成后的稳定后端挂点，在不阻塞主聊天链路的前提下触发 auto-title 任务。
+- [x] 用轻量 LLM 生成标题；失败时只记录日志，不影响主聊天成功路径。
+- [x] 复用现有 title 更新链路写回标题，而不是新增一套 parallel persistence path。
+- [x] 写回前重新检查当前 title 是否仍然是默认标题态，避免覆盖手动 rename。
 
 ### 2.2 Routes
 - [x] 新增单 thread 读取 route：`GET /api/threads/:threadId`。
@@ -66,7 +66,7 @@
 - [x] 让新 route 返回与现有创建/重命名接口相同形状的单 thread dto，方便前端 patch 当前 state。
 
 ### 2.3 Shared boundaries
-- [ ] 只在必要时触碰 `packages/app` / `packages/contracts` / `packages/durable-chat-server`，避免把业务策略提升成 shared 默认行为。
+- [x] 只在必要时触碰 `packages/app` / `packages/contracts` / `packages/durable-chat-server`，避免把业务策略提升成 shared 默认行为。
 - [ ] 如果 route helper / DTO projector 需要复用，优先抽已有 thread dto 组装逻辑，而不是复制一份字段映射。
 
 ## 3. Frontend Boundary
@@ -90,10 +90,10 @@
 ## 4. Tests
 
 ### 4.1 Backend tests
-- [ ] 覆盖 run 完成后默认标题态触发 auto-title 的 happy path。
-- [ ] 覆盖非默认标题态不触发 auto-title。
-- [ ] 覆盖用户已手动 rename 时不会被 auto-title 覆盖。
-- [ ] 覆盖 auto-title 失败不影响主聊天成功路径。
+- [x] 覆盖 run 完成后默认标题态触发 auto-title 的 happy path。
+- [x] 覆盖非默认标题态不触发 auto-title。
+- [x] 覆盖用户已手动 rename 时不会被 auto-title 覆盖。
+- [x] 覆盖 auto-title 失败不影响主聊天成功路径。
 - [x] 覆盖单 thread refresh route 的访问控制与返回 shape。
 
 ### 4.2 Frontend tests
@@ -111,17 +111,17 @@
 - [x] 验证：
   - `pnpm --filter playground-fastify-server test -- <targeted tests>`
   - `pnpm --filter playground-fastify-server typecheck`
-- [ ] 运行 `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`。
-- [ ] review clean 后立即提交。
+- [x] 运行 `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`。
+- [x] review clean 后立即提交。
 
 ### Loop 2
-- [ ] 实现后端 run 完成后的 auto-title 生成与安全写回。
-- [ ] 补 auto-title 触发/不触发/不覆盖 的 focused backend tests。
-- [ ] 验证：
+- [x] 实现后端 run 完成后的 auto-title 生成与安全写回。
+- [x] 补 auto-title 触发/不触发/不覆盖 的 focused backend tests。
+- [x] 验证：
   - `pnpm --filter playground-fastify-server test -- <targeted tests>`
   - `pnpm --filter playground-fastify-server typecheck`
-- [ ] 运行 `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`。
-- [ ] review clean 后立即提交。
+- [x] 运行 `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`。
+- [x] review clean 后立即提交。
 
 ### Loop 3
 - [ ] 前端接入单 thread 定点 refresh 与当前 thread patch。
