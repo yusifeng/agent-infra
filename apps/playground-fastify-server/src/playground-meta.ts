@@ -1,4 +1,4 @@
-import path from 'node:path';
+import type { DurableChatDbInfo } from '@agent-infra/durable-chat-server';
 
 import {
   listAvailableRuntimePiModelOptionsFromEnv,
@@ -32,32 +32,16 @@ function filterDemoModelOptions(
   return deepseekOptions.length > 0 ? deepseekOptions : modelOptions;
 }
 
-export function getPlaygroundDbInfo(): PlaygroundDbInfo {
-  if (process.env.TURSO_DATABASE_URL) {
-    return {
-      mode: 'turso',
-      connectionString: process.env.TURSO_DATABASE_URL
-    };
-  }
-
-  if (process.env.DATABASE_URL) {
-    return {
-      mode: 'postgres',
-      connectionString: process.env.DATABASE_URL
-    };
-  }
-
-  const sqlitePath = path.resolve(process.cwd(), process.env.SQLITE_PATH ?? './local.db');
-
+export function toPlaygroundDbInfo(dbInfo: DurableChatDbInfo): PlaygroundDbInfo {
   return {
-    mode: 'sqlite',
-    connectionString: `file:${sqlitePath}`
+    mode: dbInfo.mode,
+    connectionString: dbInfo.connectionString
   };
 }
 
 export function getPlaygroundMeta(
   preferred: RuntimeSelectionPreference = {},
-  dbInfo: PlaygroundDbInfo = getPlaygroundDbInfo()
+  dbInfo: PlaygroundDbInfo
 ): PlaygroundMeta {
   const modelOptions = filterDemoModelOptions(listAvailableRuntimePiModelOptionsFromEnv());
 

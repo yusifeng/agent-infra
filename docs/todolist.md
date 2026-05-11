@@ -63,9 +63,9 @@
 - [x] 为 env loader 补 focused tests，证明默认不会跨 app 读取
 
 ### 2.2 DB mode and reporting consistency
-- [ ] 保持 [packages/db/src/client.ts](/Users/david/Documents/github/agent-infra/packages/db/src/client.ts) 为唯一 DB 选择事实源
-- [ ] 修改 [playground-meta.ts](/Users/david/Documents/github/agent-infra/apps/playground-fastify-server/src/playground-meta.ts)，让 `dbInfo` 复用真实 `DbConfig`
-- [ ] 为 `/api/meta` 补 focused tests，验证报告结果与真实 DB 选择一致
+- [x] 保持 [packages/db/src/client.ts](/Users/david/Documents/github/agent-infra/packages/db/src/client.ts) 为唯一 DB 选择事实源
+- [x] 修改 [playground-meta.ts](/Users/david/Documents/github/agent-infra/apps/playground-fastify-server/src/playground-meta.ts)，让 `dbInfo` 复用真实 `DbConfig`
+- [x] 为 `/api/meta` 补 focused tests，验证报告结果与真实 DB 选择一致
 
 ### 2.3 Startup clarity
 - [ ] 在 Fastify 启动 / bootstrap 时输出明确的 resolved summary：
@@ -83,17 +83,17 @@
 ## 3. Tests
 
 ### 3.1 Env / DB selection
-- [ ] `PLAYGROUND_DB_MODE=sqlite` + Turso env 共存时，仍然选择 sqlite
-- [ ] `PLAYGROUND_DB_MODE=turso` + sqlite env 共存时，仍然选择 turso
-- [ ] `PLAYGROUND_DB_MODE=postgres` 同理
+- [x] `PLAYGROUND_DB_MODE=sqlite` + Turso env 共存时，仍然选择 sqlite
+- [x] `PLAYGROUND_DB_MODE=turso` + sqlite env 共存时，仍然选择 turso
+- [x] `PLAYGROUND_DB_MODE=postgres` 同理
 
 ### 3.2 Env loader
 - [x] 默认不再读取 `apps/playground-next-web/.env*`
 - [ ] 如果保留显式兼容开关，验证只有开启时才读取
 
 ### 3.3 Meta consistency
-- [ ] `/api/meta` 返回的 `dbMode/dbConnection` 与真实 `DbConfig` 一致
-- [ ] 不再出现“实际 sqlite 但 meta 显示 turso”这种误报
+- [x] `/api/meta` 返回的 `dbMode/dbConnection` 与真实 `DbConfig` 一致
+- [x] 不再出现“实际 sqlite 但 meta 显示 turso”这种误报
 
 ## 4. Recommended Execution Order
 
@@ -104,10 +104,10 @@
 - [x] 运行 `codex review`
 
 ### Loop 2
-- [ ] 收敛 `/api/meta` 的 `dbInfo` 到真实 `DbConfig`
-- [ ] 补 DB mode / meta consistency tests
-- [ ] 跑 targeted verification
-- [ ] 运行 `codex review`
+- [x] 收敛 `/api/meta` 的 `dbInfo` 到真实 `DbConfig`
+- [x] 补 DB mode / meta consistency tests
+- [x] 跑 targeted verification
+- [x] 运行 `codex review`
 
 ### Loop 3
 - [ ] 增加启动期 resolved summary / 可观测性

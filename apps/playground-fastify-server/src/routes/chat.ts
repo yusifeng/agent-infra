@@ -42,7 +42,7 @@ import { getPlaygroundAppServices, getPlaygroundAppServicesState } from '../play
 import { getPlaygroundBaseServicesState, type PlaygroundAppServices } from '../playground-base-services.js';
 import { projectPlaygroundThreadDto, projectPlaygroundThreadList } from '../features/thread-catalog/service/project-playground-thread-dto.js';
 import { PlaygroundThreadCatalogService } from '../features/thread-catalog/service/thread-catalog-service.js';
-import { getPlaygroundDbInfo, getPlaygroundMeta } from '../playground-meta.js';
+import { getPlaygroundMeta, toPlaygroundDbInfo } from '../playground-meta.js';
 import {
   getPlaygroundRuntimeServices,
   getPlaygroundRuntimeServicesState,
@@ -57,12 +57,13 @@ type ChatRuntimeServices = ChatAppServices & {
 };
 
 type ChatRouteMeta = ReturnType<typeof getPlaygroundMeta>;
+type MaybePromise<T> = T | Promise<T>;
 
 export type ChatRouteDependencies = {
   authConfig?: PlaygroundAuthConfig;
   getAppServices?: () => Promise<ChatAppServices>;
   getRuntimeServices?: () => Promise<ChatRuntimeServices>;
-  getRuntimeMeta?: () => ChatRouteMeta;
+  getRuntimeMeta?: () => MaybePromise<ChatRouteMeta>;
 };
 
 function buildUnavailableMetaFallback(): ChatRouteMeta {
@@ -157,7 +158,12 @@ async function sendSiteIcon(reply: FastifyReply, hostname: string) {
 export async function registerChatRoutes(app: FastifyInstance, dependencies: ChatRouteDependencies = {}) {
   const getAppServices = dependencies.getAppServices ?? getPlaygroundAppServices;
   const getRuntimeServices = dependencies.getRuntimeServices ?? getPlaygroundRuntimeServices;
-  const getRuntimeMeta = dependencies.getRuntimeMeta ?? (() => getPlaygroundMeta({}, getPlaygroundDbInfo()));
+  const getRuntimeMeta =
+    dependencies.getRuntimeMeta ??
+    (async () => {
+      const services = await getAppServices();
+      return getPlaygroundMeta({}, toPlaygroundDbInfo(services.dbInfo));
+    });
 
   function createThreadCatalogService(services: ChatAppServices) {
     return new PlaygroundThreadCatalogService(services.dbConfig);
@@ -196,7 +202,7 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
 
   app.get('/api/meta', async (request, reply) => {
     try {
-      const runtime = request.requestTiming.measureSync('meta.resolve', () => getRuntimeMeta());
+      const runtime = await request.requestTiming.measureAsync('meta.resolve', () => Promise.resolve(getRuntimeMeta()));
 
       const response: RuntimePiMetaDto = buildRuntimeMetaResponse({
         dbMode: runtime.dbInfo.mode,

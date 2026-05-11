@@ -376,6 +376,42 @@ describe('playground-fastify-server', () => {
     });
   });
 
+  it('reports db info from resolved app services instead of inferring it from unrelated env vars', async () => {
+    const originalTursoDatabaseUrl = process.env.TURSO_DATABASE_URL;
+    const originalTursoAuthToken = process.env.TURSO_AUTH_TOKEN;
+    process.env.TURSO_DATABASE_URL = 'libsql://shadow-from-other-app.turso.io';
+    process.env.TURSO_AUTH_TOKEN = 'shadow-token';
+
+    try {
+      const server = await createTestServer({});
+      activeServers.push(server);
+
+      const meta = await server.app.inject({
+        method: 'GET',
+        url: '/api/meta'
+      });
+
+      expect(meta.statusCode).toBe(200);
+      expect(meta.json()).toMatchObject({
+        dbMode: 'sqlite'
+      });
+      expect(meta.json().dbConnection).toContain(`${server.tempDir}/test.db`);
+      expect(meta.json().dbConnection).not.toBe('libsql://shadow-from-other-app.turso.io');
+    } finally {
+      if (originalTursoDatabaseUrl === undefined) {
+        delete process.env.TURSO_DATABASE_URL;
+      } else {
+        process.env.TURSO_DATABASE_URL = originalTursoDatabaseUrl;
+      }
+
+      if (originalTursoAuthToken === undefined) {
+        delete process.env.TURSO_AUTH_TOKEN;
+      } else {
+        process.env.TURSO_AUTH_TOKEN = originalTursoAuthToken;
+      }
+    }
+  });
+
   it('returns a 503 meta payload when the meta provider throws', async () => {
     const server = await createTestServer({});
     await server.app.close();
