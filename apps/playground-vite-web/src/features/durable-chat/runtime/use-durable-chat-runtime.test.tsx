@@ -1,6 +1,6 @@
 import type { MessageDto, RunDto } from '@agent-infra/contracts';
 import type { LiveAssistantDraft } from '@agent-infra/durable-chat-client';
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -232,6 +232,27 @@ function wrapper({ children }: { children: React.ReactNode }) {
       <LocationProbe />
       {children}
     </MemoryRouter>
+  );
+}
+
+function RuntimeHarness({ initialThreadId = 'thread-1' as string | null }) {
+  const runtime = useDurableChatRuntime({ initialThreadId });
+
+  return (
+    <div>
+      <div ref={runtime.messagesViewportRef} data-testid="viewport" />
+      <button type="button" onClick={() => runtime.onDraftChange('测试搜索中的滚动行为')}>
+        draft
+      </button>
+      <button type="button" onClick={runtime.onSend}>
+        send
+      </button>
+      <button type="button" onClick={runtime.onScrollToBottom}>
+        follow
+      </button>
+      <div data-testid="follow-state">{runtime.showScrollToBottom ? 'detached' : 'following'}</div>
+      <div data-testid="live-state">{runtime.liveAssistantDraft?.partialText ?? ''}</div>
+    </div>
   );
 }
 
@@ -538,6 +559,103 @@ describe('useDurableChatRuntime', () => {
 
     expect(result.current.currentThreadTitle).toBe('验证码问题排查');
     expect(result.current.threads.find((thread) => thread.id === 'thread-1')?.title).toBe('验证码问题排查');
+  });
+
+  it('scrolls to bottom when a stream starts but does not auto-follow later streaming updates', async () => {
+    let pushLiveUpdate: (() => void) | null = null;
+    durableChatClientMocks.runSendMessageFlow.mockImplementation(async ({ actions }: any) => {
+      actions.setLiveAssistantDraft(createDraft());
+
+      await new Promise<void>((resolve) => {
+        pushLiveUpdate = () => {
+          actions.setLiveAssistantDraft({
+            ...createDraft(),
+            partialText: '新的流式内容',
+            segmentText: '新的流式内容',
+            segments: [
+              {
+                kind: 'text',
+                text: '新的流式内容'
+              }
+            ]
+          });
+          resolve();
+        };
+      });
+    });
+
+    render(<RuntimeHarness />, { wrapper });
+
+    const viewport = screen.getByTestId('viewport');
+    let scrollTop = 0;
+    Object.defineProperty(viewport, 'clientHeight', {
+      configurable: true,
+      value: 200
+    });
+    Object.defineProperty(viewport, 'scrollHeight', {
+      configurable: true,
+      get: () => 1000
+    });
+    Object.defineProperty(viewport, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value: number) => {
+        scrollTop = value;
+      }
+    });
+    const scrollToSpy = vi.fn((options?: ScrollToOptions | number, y?: number) => {
+      if (typeof options === 'number') {
+        scrollTop = y ?? scrollTop;
+        return;
+      }
+
+      if (typeof options?.top === 'number') {
+        scrollTop = options.top;
+      }
+    });
+    Object.defineProperty(viewport, 'scrollTo', {
+      configurable: true,
+      value: scrollToSpy
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('draft'));
+      fireEvent.click(screen.getByText('send'));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(scrollTop).toBe(1000);
+      expect(screen.getByTestId('follow-state').textContent).toBe('following');
+    });
+
+    act(() => {
+      scrollTop = 200;
+      fireEvent.scroll(viewport);
+    });
+
+    expect(screen.getByTestId('follow-state').textContent).toBe('detached');
+
+    await act(async () => {
+      pushLiveUpdate?.();
+      await Promise.resolve();
+    });
+
+    expect(scrollTop).toBe(200);
+    expect(screen.getByTestId('follow-state').textContent).toBe('detached');
+    expect(screen.getByTestId('live-state').textContent).toBe('新的流式内容');
+
+    act(() => {
+      fireEvent.click(screen.getByText('follow'));
+    });
+
+    await waitFor(() => {
+      expect(scrollToSpy).toHaveBeenCalledWith({
+        top: 1000,
+        behavior: 'smooth'
+      });
+      expect(screen.getByTestId('follow-state').textContent).toBe('following');
+    });
   });
 
   it('routes expert mode selection through the real send model option', async () => {

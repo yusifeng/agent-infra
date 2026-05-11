@@ -298,6 +298,40 @@ describe('ChatMessageList', () => {
     expect(markup).toContain('data-message-actions-available="false"');
   });
 
+  it('does not render persisted in-progress research labels from transcript search-status items', () => {
+    const toolMessage = createMessage({
+      id: 'tool-2',
+      role: 'tool',
+      runId: 'run-2',
+      seq: 1
+    });
+
+    const markup = renderMessageList({
+      messages: [toolMessage],
+      transcriptBlocks: [
+        {
+          type: 'assistant-turn',
+          id: 'assistant-turn-search-pending',
+          runId: 'run-2',
+          sourceMessages: [toolMessage],
+          items: [
+            {
+              type: 'search-status',
+              id: 'assistant-turn-search-pending:status',
+              status: {
+                runId: 'run-2',
+                entries: [{ toolCallId: 'call-1', query: '速水玲香 人物' }]
+              }
+            }
+          ]
+        }
+      ],
+      liveAssistantDraft: null
+    });
+
+    expect(markup).not.toContain('正在搜索网页');
+  });
+
   it('renders persisted transcript blocks alongside a live draft with search status', () => {
     const userMessage = createMessage({
       id: 'user-1',

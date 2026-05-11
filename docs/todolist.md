@@ -14,7 +14,7 @@
 - [x] policy message 不再进入任何普通用户可见 transcript projection。
 - [x] research activity UI 只展示用户可理解的研究摘要和必要细项，不展示内部策略解释。
 - [x] live 搜索/浏览状态与 completed summary 分层明确，`searchLabel` 和中间态稳定。
-- [ ] 生成中一旦用户主动向上滚动，就停止自动跟随到底部，直到用户显式恢复跟随。
+- [x] 新 stream 开始时自动定位到底部；streaming 过程中不自动跟随，只有用户点击 `🔽` 时才 smooth 回到底部。
 - [ ] auto-title 失败路径先具备足够 observability，再修复当前未生效问题。
 
 ### 0.3 Non-goals
@@ -51,12 +51,12 @@
 - [x] 定义 completed summary 只来自 transcript 中已经持久化的 search/openUrl 结果。
 - [x] 明确定义当 live 和 completed 同时存在时的优先级和切换规则，避免 summary 到来后 live label 异常消失或残留。
 
-### 1.4 Follow-output state
-- [ ] 定义一个显式的“是否继续跟随输出”状态，而不是只靠 `nearBottom` 推断。
-- [ ] 规则定死：
-  - 初始生成时默认允许跟随。
-  - 用户在生成中手动向上滚动后，立即停止自动跟随。
-  - 只有用户显式点击“回到底部/恢复跟随”后才重新跟随。
+### 1.4 Stream scroll behavior
+- [x] 删除持续 auto-follow 输出这套逻辑，不再让 streaming 过程抢占视口。
+- [x] 规则定死：
+  - [x] 新 stream 开始时自动定位到底部。
+  - [x] streaming 过程中 token 增量不再自动改写 `scrollTop`。
+  - [x] 只有用户显式点击“回到底部/🔽”后才 smooth 回到底部。
 
 ### 1.5 Auto-title observability
 - [ ] 明确定义 auto-title 失败/跳过原因的分类日志：
@@ -95,10 +95,10 @@
 - [x] 修复搜索中的中间状态展示，确保 `searchLabel` 和 browse label 在进行中可稳定出现。
 - [x] 避免 live 状态和 completed summary 相互覆盖造成闪断。
 
-### 3.3 Auto-follow behavior
-- [ ] 重构生成中自动滚动逻辑，改为基于显式 follow-output 状态。
-- [ ] 用户主动上滚后停止自动跟随，不再反复把视口拉回底部。
-- [ ] 保留用户显式恢复跟随的路径。
+### 3.3 Stream scroll behavior
+- [x] 删除生成中持续自动跟随输出的逻辑。
+- [x] 保留“新 stream 开始时自动到底部”的一次性定位。
+- [x] 保留用户显式点击 `🔽` 时的 smooth 回到底部路径。
 
 ## 4. Tests
 
@@ -110,7 +110,7 @@
 ### 4.2 Frontend tests
 - [x] research activity tests：policy entry 继续参与内部逻辑，但不进入用户可见 summary。
 - [x] live status tests：search/browse 进行中 label 稳定显示，completed summary 到来后正确切换。
-- [ ] auto-follow tests：用户滚离底部后，流式更新不再强制滚到底部。
+- [x] stream scroll tests：新 stream 开始时自动定位到底部，但后续流式更新不再强制滚到底部。
 - [ ] replay/shared snapshot tests：不再显示 policy 文案。
 
 ## 5. Recommended Execution Order
@@ -131,9 +131,9 @@
 - [x] clean 后立即提交
 
 ### Loop 3
-- [ ] 重构 follow-output 状态
-- [ ] 修复用户上滚后仍被拖到底部的问题
-- [ ] 跑 targeted tests
+- [x] 删除持续 auto-follow 输出逻辑
+- [x] 修复 streaming 中用户视口被反复拖到底部的问题
+- [x] 跑 targeted tests
 - [ ] 跑 `codex review`
 - [ ] clean 后立即提交
 

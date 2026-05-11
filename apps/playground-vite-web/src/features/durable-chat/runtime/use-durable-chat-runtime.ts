@@ -319,24 +319,27 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       return;
     }
 
-    if (!shouldAutoScrollRef.current) {
-      return;
-    }
-
-    if (liveAssistantDraft) {
-      window.requestAnimationFrame(() => {
-        viewport.scrollTop = viewport.scrollHeight;
-      });
+    if (loadingMessages) {
       return;
     }
 
     window.requestAnimationFrame(() => {
-      viewport.scrollTo({
-        top: viewport.scrollHeight,
-        behavior: messages.length > 0 ? 'smooth' : 'auto'
-      });
+      viewport.scrollTop = viewport.scrollHeight;
+      setShowScrollToBottom(false);
     });
-  }, [messages, liveAssistantDraft?.messageId, liveAssistantDraft?.partialText, liveAssistantDraft?.partialReasoning, activeThreadId, loadingMessages, historyLoading]);
+  }, [activeThreadId, loadingMessages]);
+
+  useEffect(() => {
+    const viewport = messagesViewportRef.current;
+    if (!viewport || !liveAssistantDraft) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      viewport.scrollTop = viewport.scrollHeight;
+      setShowScrollToBottom(false);
+    });
+  }, [liveAssistantDraft?.messageId]);
 
   function scrollToMessagesBottom() {
     const viewport = messagesViewportRef.current;
@@ -345,6 +348,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     }
 
     shouldAutoScrollRef.current = true;
+    setShowScrollToBottom(false);
     viewport.scrollTo({
       top: viewport.scrollHeight,
       behavior: 'smooth'
