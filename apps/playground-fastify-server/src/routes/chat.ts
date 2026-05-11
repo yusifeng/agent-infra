@@ -305,6 +305,30 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
     }
   });
 
+  app.get<{ Params: { threadId: string } }>('/api/threads/:threadId', async (request, reply) => {
+    const currentUser = requireAuthenticatedCurrentUser(request, reply);
+    if (!currentUser) {
+      return;
+    }
+
+    try {
+      request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
+      request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
+      const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      const { thread, catalogRow } = await request.requestTiming.measureAsync('threads_get', () =>
+        loadAccessibleThread(services, request.params.threadId, currentUser.id)
+      );
+
+      return reply.send({
+        thread: projectPlaygroundThreadDto(thread, catalogRow)
+      });
+    } catch (error) {
+      return reply.code(getRouteErrorStatus(error)).send({
+        error: getRouteErrorMessage(error, 'failed to load thread')
+      });
+    }
+  });
+
   app.patch<{ Params: { threadId: string } }>('/api/threads/:threadId', async (request, reply) => {
     const title = parseRenameThreadTitle(request.body);
     const currentUser = requireAuthenticatedCurrentUser(request, reply);

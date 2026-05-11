@@ -533,6 +533,41 @@ describe('playground-fastify-server', () => {
     });
   });
 
+  it('loads a single accessible thread without refetching the full thread list', async () => {
+    const server = await createTestServer({});
+    activeServers.push(server);
+    const sessionCookie = await registerAndSignIn(server, 'thread-get@example.com');
+
+    const created = await server.app.inject({
+      method: 'POST',
+      url: '/api/threads',
+      headers: {
+        cookie: sessionCookie
+      },
+      payload: {
+        title: 'Single Thread Read'
+      }
+    });
+    expect(created.statusCode).toBe(200);
+    const threadId = created.json().thread.id as string;
+
+    const thread = await server.app.inject({
+      method: 'GET',
+      url: `/api/threads/${threadId}`,
+      headers: {
+        cookie: sessionCookie
+      }
+    });
+    expect(thread.statusCode).toBe(200);
+    expect(thread.headers['server-timing']).toContain('threads_get;dur=');
+    expect(thread.json()).toEqual({
+      thread: expect.objectContaining({
+        id: threadId,
+        title: 'Single Thread Read'
+      })
+    });
+  });
+
   it('writes the authenticated owner id into the catalog and isolates threads by owner', async () => {
     const server = await createTestServer({});
     activeServers.push(server);
@@ -576,6 +611,18 @@ describe('playground-fastify-server', () => {
     });
     expect(otherMessages.statusCode).toBe(404);
     expect(otherMessages.json()).toMatchObject({
+      error: `thread ${threadId} not found`
+    });
+
+    const otherThread = await server.app.inject({
+      method: 'GET',
+      url: `/api/threads/${threadId}`,
+      headers: {
+        cookie: otherCookie
+      }
+    });
+    expect(otherThread.statusCode).toBe(404);
+    expect(otherThread.json()).toMatchObject({
       error: `thread ${threadId} not found`
     });
   });
