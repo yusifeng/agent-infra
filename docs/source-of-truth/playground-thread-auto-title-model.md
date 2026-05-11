@@ -98,6 +98,25 @@ auto-title 失败时：
 - 不影响主聊天 run 的成功结果
 - 不阻塞前端消息发送/完成链路
 
+### 4. 可观测性
+
+当前后端会区分 auto-title 的 skip / failure 原因，并记录结构化结果，至少包括：
+
+- `no_generator`
+- `thread_unavailable`
+- `title_no_longer_default`
+- `no_source_text`
+- `normalized_title_empty`
+- `repo_read_failed`
+- `provider_request_failed`
+- `rename_writeback_failed`
+
+它的目标是明确区分：
+
+- 没有触发
+- 触发后生成失败
+- 生成成功但写回被放弃
+
 ## 前端刷新与表现
 
 ### 1. 不做全量 thread list refresh

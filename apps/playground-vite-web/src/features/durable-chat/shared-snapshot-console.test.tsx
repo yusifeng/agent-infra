@@ -125,6 +125,8 @@ describe('SharedSnapshotConsole', () => {
 
     expect(screen.getByText('Shared Claude thread')).toBeTruthy();
     expect(screen.getByText('好的，我来帮你搜索一下。')).toBeTruthy();
+    expect(screen.queryByText(/Search results are already available/i)).toBeNull();
+    expect(screen.queryByText('策略收敛')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: /搜索到 8 个网页/ }));
     fireEvent.click(screen.getByRole('button', { name: '查看搜索结果' }));

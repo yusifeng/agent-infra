@@ -35,7 +35,7 @@ The app currently provides:
 - a single route host that keeps `DurableChatConsole` mounted across `/new` and `/chat/:threadId`, so the first-send handoff preserves in-flight chat state
 - a centered `/new` landing shell that maps `快速模式` to `deepseek-v4-flash` and `专家模式` to `deepseek-v4-pro` when DeepSeek runtime options are available
 - single-thread title refresh after completed runs, so auto-generated titles update the active header and sidebar item without reloading the full thread list
-- aggregated research activity labels that fold repeated `searchWeb` and `openUrl` tool activity into collapsible search/browse summaries instead of flat per-call transcript noise
+- aggregated research activity labels that fold repeated `searchWeb` and `openUrl` tool activity into collapsible search/browse summaries instead of flat per-call transcript noise, while keeping internal policy text out of ordinary transcript UI
 - sidebar + transcript + sticky composer aligned to `playground-next-web`
 - a repeatable phase-1 smoke script that boots Fastify from source on a temporary sqlite DB, runs Vite with the matching proxy target, and verifies the main chat API loop
 - a production-shaped phase-1 smoke script that first builds the required workspace packages, then runs `playground-fastify-server start` plus `vite preview` against the same temporary sqlite-backed main chat loop

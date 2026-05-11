@@ -253,6 +253,8 @@ describe('ReplayConsole', () => {
     );
     expect(screen.getByText(/3 \/ 3 · playing/)).toBeTruthy();
     expect(document.querySelectorAll('[data-message-actions-available="true"]')).toHaveLength(1);
+    expect(screen.queryByText(/Search results are already available/i)).toBeNull();
+    expect(screen.queryByText('策略收敛')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: /搜索到 10 个网页/ }));
     fireEvent.click(screen.getByRole('button', { name: '查看搜索结果' }));

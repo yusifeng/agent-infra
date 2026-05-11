@@ -220,7 +220,14 @@ phase 不是模型口头声明出来的，而是由 controller 根据当前 run 
 
 - query 明细
 - 页面标题 / 站点明细
-- policy 收敛提示
+
+普通用户可见 transcript projection 中不展示：
+
+- `blocked_by_policy` / `redirected_by_policy` 的内部 message
+- “策略收敛”这类内部策略解释文案
+
+这些 policy result 仍然保留在服务端内部执行链路中，继续服务于模型下一步推理，
+但不会进入 live chat、replay、shared snapshot 的默认用户界面。
 
 ### 2. 前端不会为了这件事扩新的流式事件协议
 
@@ -238,7 +245,8 @@ phase 不是模型口头声明出来的，而是由 controller 根据当前 run 
 - live 进行中的搜索/浏览状态
 - 已完成的搜索/浏览摘要
 
-完成态不会继续残留“正在搜索”提示。
+完成态不会继续残留“正在搜索”提示；新 stream 开始时只做一次到底部定位，
+流式生成过程中不再持续抢占视口滚动。
 
 ## 非目标
 
