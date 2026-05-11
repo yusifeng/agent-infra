@@ -956,6 +956,41 @@ describe('ChatMessageList', () => {
     expect(markup).toContain('最终答案开始输出。');
   });
 
+  it('renders a shimmer title for an active thinking container before assistant text appears', () => {
+    const liveAssistantDraft: LiveAssistantDraft = {
+      runId: 'run-live-thinking',
+      messageId: 'assistant-live-thinking',
+      source: 'live',
+      committedText: '',
+      partialText: '',
+      segmentText: '',
+      segmentTextMessageId: null,
+      partialReasoning: null,
+      segmentReasoningMessageId: null,
+      activeTools: [],
+      eventType: 'streaming',
+      segments: [
+        {
+          id: 'segment-thinking-1',
+          messageId: 'assistant-live-thinking',
+          text: '',
+          reasoning: '我先整理一下现有线索。',
+          tools: [],
+          eventType: 'streaming'
+        }
+      ]
+    };
+
+    const markup = renderMessageList({
+      messages: [],
+      transcriptBlocks: [],
+      liveAssistantDraft
+    });
+
+    expect(markup).toContain('思考中...');
+    expect(markup).toContain('chat-reasoning-shimmer-text');
+  });
+
   it('preserves lead-in text before the search summary in both live and persisted rendering', () => {
     const leadIn = '让我先搜索一下速水玲香这个角色的相关信息。';
 

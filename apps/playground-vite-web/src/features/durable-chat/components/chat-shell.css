@@ -82,6 +82,23 @@
   animation: chat-shimmer 2s linear infinite;
 }
 
+.chat-reasoning-shimmer-text {
+  display: inline-block;
+  background: linear-gradient(
+    90deg,
+    var(--chat-reasoning-text) 0%,
+    var(--chat-reasoning-text) 35%,
+    color-mix(in srgb, white 35%, var(--chat-reasoning-text)) 50%,
+    var(--chat-reasoning-text) 65%,
+    var(--chat-reasoning-text) 100%
+  );
+  background-size: 600px 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: chat-shimmer 2s linear infinite;
+}
+
 .chat-shell-theme .markdown-body {
   color: var(--chat-text);
   font-size: 15px;

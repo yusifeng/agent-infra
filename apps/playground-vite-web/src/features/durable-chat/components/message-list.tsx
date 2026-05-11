@@ -292,7 +292,12 @@ const ReasoningPanel = memo(function ReasoningPanel({
       >
         <div className="flex min-w-0 items-center gap-2.5">
           <Atom className={clsx('h-4 w-4 text-[color:var(--chat-reasoning-accent)]', thinking && 'animate-pulse')} />
-          <span className="truncate text-sm font-medium text-[color:var(--chat-reasoning-title)]">
+          <span
+            className={clsx(
+              'truncate text-sm font-medium',
+              thinking ? 'chat-reasoning-shimmer-text' : 'text-[color:var(--chat-reasoning-text)]'
+            )}
+          >
             {thinking ? '思考中...' : '已思考'}
           </span>
         </div>
@@ -653,7 +658,12 @@ const ThinkingTimelinePanel = memo(function ThinkingTimelinePanel({
       >
         <div className="flex min-w-0 items-center gap-2.5">
           <Atom className={clsx('h-4 w-4 text-[color:var(--chat-reasoning-accent)]', thinking && 'animate-pulse')} />
-          <span className="truncate text-sm font-medium text-[color:var(--chat-reasoning-title)]">
+          <span
+            className={clsx(
+              'truncate text-sm font-medium',
+              thinking ? 'chat-reasoning-shimmer-text' : 'text-[color:var(--chat-reasoning-text)]'
+            )}
+          >
             {thinking ? '思考中...' : '已思考'}
           </span>
         </div>
