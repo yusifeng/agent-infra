@@ -79,7 +79,10 @@ describe('live assistant presentation', () => {
     const visibleSegments = buildVisibleLiveAssistantSegments(draft);
     expect(visibleSegments).toHaveLength(1);
     expect(visibleSegments[0]?.segment.id).toBe('seg-search');
-    expect(visibleSegments[0]?.searchEntries).toHaveLength(1);
+    expect(visibleSegments[0]?.searchEntries).toEqual({
+      isSearching: true,
+      text: '正在搜索网页'
+    });
     expect(hasVisibleLiveAssistantContent(draft)).toBe(true);
   });
 });

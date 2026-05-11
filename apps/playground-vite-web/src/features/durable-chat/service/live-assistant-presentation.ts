@@ -1,10 +1,10 @@
 import type { LiveAssistantDraft, LiveAssistantSegment } from '@/features/durable-chat/types/live-assistant-draft';
 
-import { collectLiveSearchEntries } from './live-search-tools';
+import { buildLiveResearchStatusLabelViewModel } from './research-activity';
 
 export type VisibleLiveAssistantSegment = {
   segment: LiveAssistantSegment;
-  searchEntries: ReturnType<typeof collectLiveSearchEntries>;
+  searchEntries: ReturnType<typeof buildLiveResearchStatusLabelViewModel>;
 };
 
 export function collectLiveDraftCopyText(liveAssistantDraft: LiveAssistantDraft) {
@@ -16,8 +16,8 @@ export function collectLiveDraftCopyText(liveAssistantDraft: LiveAssistantDraft)
 
 export function buildVisibleLiveAssistantSegments(liveAssistantDraft: LiveAssistantDraft): VisibleLiveAssistantSegment[] {
   return liveAssistantDraft.segments.flatMap((segment) => {
-    const searchEntries = collectLiveSearchEntries(segment);
-    const hasVisibleContent = Boolean(segment.reasoning || segment.text || searchEntries.length > 0);
+    const searchEntries = buildLiveResearchStatusLabelViewModel(segment.tools);
+    const hasVisibleContent = Boolean(segment.reasoning || segment.text || searchEntries);
     if (!hasVisibleContent) {
       return [];
     }

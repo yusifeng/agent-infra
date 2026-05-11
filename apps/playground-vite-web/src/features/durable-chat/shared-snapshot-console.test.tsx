@@ -126,7 +126,8 @@ describe('SharedSnapshotConsole', () => {
     expect(screen.getByText('Shared Claude thread')).toBeTruthy();
     expect(screen.getByText('好的，我来帮你搜索一下。')).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: /已阅读 8 个网页/ }));
+    fireEvent.click(screen.getByRole('button', { name: /搜索到 8 个网页/ }));
+    fireEvent.click(screen.getByRole('button', { name: '查看搜索结果' }));
 
     expect(onOpenSearchResult).toHaveBeenCalledWith('shared-run-1', ['shared-tool-call-1']);
   });

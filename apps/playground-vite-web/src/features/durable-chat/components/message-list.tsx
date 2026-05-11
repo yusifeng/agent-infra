@@ -17,12 +17,14 @@ import {
   hasVisibleLiveAssistantContent
 } from '@/features/durable-chat/service/live-assistant-presentation';
 import {
-  buildSearchResultLabelViewModel,
-  buildSearchStatusLabelViewModel
-} from '@/features/durable-chat/service/search-label-presentation';
+  buildLiveResearchStatusLabelViewModel,
+  buildResearchActivityViewModel,
+  buildResearchStatusLabelViewModel,
+  buildResearchSummaryLabelViewModel
+} from '@/features/durable-chat/service/research-activity';
 import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
 import type { DurableRecoveryState } from '@/features/durable-chat/types/runtime';
-import type { AssistantTurnItem, SearchSummaryBlock, TranscriptBlock } from '@/features/durable-chat/types/transcript-blocks';
+import type { AssistantTurnItem, TranscriptBlock } from '@/features/durable-chat/types/transcript-blocks';
 import { maxWithTW, messageListMinHeight, ui } from './ui';
 
 const transcriptRowPerformanceStyle: CSSProperties = {
@@ -227,59 +229,125 @@ const MessageActions = memo(function MessageActions({
   );
 });
 
-const SearchResultLabel = memo(function SearchResultLabel({
-  summary,
-  onOpen
+const ResearchSummaryLabel = memo(function ResearchSummaryLabel({
+  items,
+  runId,
+  onOpenSearchResult
 }: {
-  summary: SearchSummaryBlock;
-  onOpen: () => void;
+  items: AssistantTurnItem[];
+  runId: string | null;
+  onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
 }) {
-  const viewModel = buildSearchResultLabelViewModel(summary);
+  const activity = useMemo(() => buildResearchActivityViewModel(items), [items]);
+  const statusViewModel = useMemo(() => buildResearchStatusLabelViewModel(activity), [activity]);
+  const summaryViewModel = useMemo(() => buildResearchSummaryLabelViewModel(activity), [activity]);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    if (!summaryViewModel) {
+      setExpanded(false);
+    }
+  }, [summaryViewModel]);
+
+  if (!statusViewModel && !summaryViewModel) {
+    return null;
+  }
 
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 text-left text-[13px] text-[color:var(--chat-text-tertiary)] transition hover:bg-[var(--chat-hover)] hover:text-[color:var(--chat-text-secondary)]"
-      title="打开搜索结果"
-    >
-      <Search className="h-4 w-4 shrink-0 text-[color:var(--chat-text-tertiary)]" />
-      <span className="truncate font-normal">{viewModel.text}</span>
-      {viewModel.sources.length > 0 ? (
-        <span className="flex shrink-0 items-center pl-0.5">
-          {viewModel.sources.map((source, index) => (
-            <SiteIconBadge
-              key={`${source.hostname}:${source.sourceName}`}
-              hostname={source.hostname}
-              label={source.sourceName}
-              className={clsx('h-4 w-4 border border-white', index === 0 ? '' : '-ml-1')}
-              fallbackClassName="bg-indigo-100 text-indigo-700"
-            />
-          ))}
-        </span>
+    <div className="space-y-1.5 pt-0.5">
+      {statusViewModel ? (
+        <div className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 text-left text-[13px] text-[color:var(--chat-text-tertiary)]">
+          {statusViewModel.isSearching ? (
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[color:var(--chat-text-tertiary)]" />
+          ) : (
+            <Search className="h-4 w-4 shrink-0 text-[color:var(--chat-text-tertiary)]" />
+          )}
+          <span className="truncate font-normal">{statusViewModel.text}</span>
+        </div>
       ) : null}
-    </button>
-  );
-});
 
-const SearchStatusLabel = memo(function SearchStatusLabel({
-  query,
-  state = 'searching'
-}: {
-  query?: string;
-  state?: 'searching' | 'completed' | 'failed';
-}) {
-  const viewModel = buildSearchStatusLabelViewModel(query, state);
-  const icon = viewModel.isSearching ? (
-    <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[color:var(--chat-text-tertiary)]" />
-  ) : (
-    <Search className="h-4 w-4 shrink-0 text-[color:var(--chat-text-tertiary)]" />
-  );
+      {summaryViewModel ? (
+        <div className="space-y-1">
+          <button
+            type="button"
+            onClick={() => setExpanded((current) => !current)}
+            className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 text-left text-[13px] text-[color:var(--chat-text-tertiary)] transition hover:bg-[var(--chat-hover)] hover:text-[color:var(--chat-text-secondary)]"
+            title="查看搜索与浏览摘要"
+          >
+            <Search className="h-4 w-4 shrink-0 text-[color:var(--chat-text-tertiary)]" />
+            <span className="truncate font-normal">{summaryViewModel.text}</span>
+            {summaryViewModel.sources.length > 0 ? (
+              <span className="flex shrink-0 items-center pl-0.5">
+                {summaryViewModel.sources.map((source, index) => (
+                  <SiteIconBadge
+                    key={`${source.hostname}:${source.sourceName}`}
+                    hostname={source.hostname}
+                    label={source.sourceName}
+                    className={clsx('h-4 w-4 border border-white', index === 0 ? '' : '-ml-1')}
+                    fallbackClassName="bg-indigo-100 text-indigo-700"
+                  />
+                ))}
+              </span>
+            ) : null}
+            {expanded ? (
+              <ChevronDown className="h-4 w-4 shrink-0 text-[color:var(--chat-icon-muted)]" />
+            ) : (
+              <ChevronRight className="h-4 w-4 shrink-0 text-[color:var(--chat-icon-muted)]" />
+            )}
+          </button>
 
-  return (
-    <div className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 text-left text-[13px] text-[color:var(--chat-text-tertiary)]">
-      {icon}
-      <span className="truncate font-normal">{viewModel.text}</span>
+          {expanded ? (
+            <div className="space-y-2 border-l border-[color:var(--chat-border)] pl-4 text-[13px] text-[color:var(--chat-text-secondary)]">
+              {summaryViewModel.detailQueries.length > 0 ? (
+                <div className="space-y-1">
+                  <div className="font-medium text-[color:var(--chat-text)]">搜索查询</div>
+                  <ul className="space-y-1">
+                    {summaryViewModel.detailQueries.map((query) => (
+                      <li key={query} className="truncate">- {query}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {summaryViewModel.detailPages.length > 0 ? (
+                <div className="space-y-1">
+                  <div className="font-medium text-[color:var(--chat-text)]">浏览页面</div>
+                  <ul className="space-y-1">
+                    {summaryViewModel.detailPages.map((page) => (
+                      <li key={`${page.url}:${page.title}`} className="truncate">
+                        - {page.sourceName} · {page.title}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {summaryViewModel.policyMessages.length > 0 ? (
+                <div className="space-y-1">
+                  <div className="font-medium text-[color:var(--chat-text)]">策略收敛</div>
+                  <ul className="space-y-1">
+                    {summaryViewModel.policyMessages.map((message) => (
+                      <li key={message}>- {message}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {runId && onOpenSearchResult && activity.searchToolCallIds.length > 0 ? (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => onOpenSearchResult(runId, activity.searchToolCallIds)}
+                    className="text-[13px] font-medium text-[color:var(--chat-link)] transition hover:opacity-80"
+                  >
+                    查看搜索结果
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 });
@@ -339,34 +407,14 @@ const AssistantTurnContent = memo(function AssistantTurnContent({
   runId: string | null;
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
 }) {
+  const researchActivity = useMemo(() => buildResearchActivityViewModel(items), [items]);
+
   return (
     <div className="space-y-1.5">
-      {items.map((item) => {
-        if (item.type === 'search-status') {
-          const latestPendingQuery = item.status.entries[item.status.entries.length - 1]?.query || '';
-          return (
-            <div key={item.id} className="pt-0.5">
-              <SearchStatusLabel query={latestPendingQuery} />
-            </div>
-          );
-        }
-
-        if (item.type === 'search-summary') {
-          return (
-            <div key={item.id} className="pt-0.5">
-              <SearchResultLabel
-                summary={item.summary}
-                onOpen={() => {
-                  if (runId && onOpenSearchResult) {
-                    onOpenSearchResult(
-                      runId,
-                      item.summary.entries.map((entry) => entry.toolCallId)
-                    );
-                  }
-                }}
-              />
-            </div>
-          );
+      <ResearchSummaryLabel items={items} onOpenSearchResult={onOpenSearchResult} runId={runId} />
+      {researchActivity.visibleItems.map((item) => {
+        if (item.type === 'search-status' || item.type === 'search-summary') {
+          return null;
         }
 
         return <MessagePartView key={item.id} cacheKey={item.type === 'text' ? item.cacheKey : undefined} part={item.part} />;
@@ -380,7 +428,8 @@ const LiveAssistantContent = memo(function LiveAssistantContent({ liveAssistantD
 
   return (
     <div className="space-y-3">
-      {visibleSegments.map(({ segment, searchEntries }) => {
+      {visibleSegments.map(({ segment }) => {
+        const statusViewModel = buildLiveResearchStatusLabelViewModel(segment.tools);
         return (
           <div key={segment.id} className="space-y-1.5">
             {segment.reasoning ? <ReasoningPanel content={segment.reasoning} thinking /> : null}
@@ -393,13 +442,12 @@ const LiveAssistantContent = memo(function LiveAssistantContent({ liveAssistantD
                 text={segment.text}
               />
             ) : null}
-            {searchEntries.map((searchEntry) => (
-              <SearchStatusLabel
-                key={searchEntry.toolCallId}
-                query={searchEntry.query}
-                state={searchEntry.state === 'start' ? 'searching' : searchEntry.state}
-              />
-            ))}
+            {statusViewModel ? (
+              <div className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 text-left text-[13px] text-[color:var(--chat-text-tertiary)]">
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[color:var(--chat-text-tertiary)]" />
+                <span className="truncate font-normal">{statusViewModel.text}</span>
+              </div>
+            ) : null}
           </div>
         );
       })}

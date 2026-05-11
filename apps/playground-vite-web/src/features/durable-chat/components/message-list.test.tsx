@@ -127,7 +127,7 @@ describe('ChatMessageList', () => {
 
     expect(markup).toContain('前置说明。');
     expect(markup).toContain('最终总结。');
-    expect(markup).toContain('已阅读 10 个网页');
+    expect(markup).toContain('搜索到 10 个网页');
     expect(markup).toContain('data-message-actions-available="true"');
   });
 
@@ -215,7 +215,7 @@ describe('ChatMessageList', () => {
 
     expect(markup).toContain('前置说明。');
     expect(markup).toContain('最终总结。');
-    expect(markup).toContain('已阅读 10 个网页');
+    expect(markup).toContain('搜索到 10 个网页');
     expect(markup).toContain('data-answer-container-id="answer-container:run-1:assistant-turn-1"');
     expect(markup.match(/data-message-actions-available="true"/g)).toHaveLength(1);
   });
@@ -294,7 +294,7 @@ describe('ChatMessageList', () => {
       liveAssistantDraft: null
     });
 
-    expect(markup).toContain('已阅读 8 个网页');
+    expect(markup).toContain('搜索到 8 个网页');
     expect(markup).toContain('data-message-actions-available="false"');
   });
 
@@ -375,6 +375,6 @@ describe('ChatMessageList', () => {
 
     expect(markup).toContain('这是已经持久化的上一段内容。');
     expect(markup).toContain('好的，我来继续搜索 Claude 的最新新闻。');
-    expect(markup).toContain('正在搜索网页 · Claude latest news');
+    expect(markup).toContain('正在搜索网页');
   });
 });

@@ -103,12 +103,12 @@
 - [x] 连续 policy block 达到阈值后，强制进入 `answer` 倾向，避免死循环重试。
 
 ### 2.2 searchWeb 收敛策略
-- [ ] 增加 query normalize / dedupe 逻辑，先用规则法，不上 embedding。
-- [ ] 定义“近义 query”第一版规则，至少覆盖：
+- [x] 增加 query normalize / dedupe 逻辑，先用规则法，不上 embedding。
+- [x] 定义“近义 query”第一版规则，至少覆盖：
   - 引号清理
   - 多空格折叠
   - 弱修饰词清理（如“人物介绍 / 详细 / 故事 / 登场 / 角色”）
-- [ ] 对重复/近重复 query 返回 `blocked_by_policy`，而不是继续真正搜索。
+- [x] 对重复/近重复 query 返回 `blocked_by_policy`，而不是继续真正搜索。
 
 ### 2.3 openUrl 工具
 - [x] 新增轻量 `openUrl` 工具能力。
@@ -127,28 +127,28 @@
 - [x] 第一版使用 rule-based 排序，不做额外 reranker 模型。
 
 ### 2.5 Contracts / Routes / Integration Points
-- [ ] 确认这些 planner / policy 结构是否仅停留在 host/runtime 内部，避免不必要地抬升到 shared `contracts`。
-- [ ] 只有在前端确实需要读到结构化聚合结果时，才补最小 contract surface。
-- [ ] 明确 `searchWeb` 与 `openUrl` 的 tool result 如何回喂模型，不新增流式事件协议。
+- [x] 确认这些 planner / policy 结构是否仅停留在 host/runtime 内部，避免不必要地抬升到 shared `contracts`。
+- [x] 只有在前端确实需要读到结构化聚合结果时，才补最小 contract surface。
+- [x] 明确 `searchWeb` 与 `openUrl` 的 tool result 如何回喂模型，不新增流式事件协议。
 
 ## 3. Frontend Boundary
 
 ### 3.1 Schema / Repo
-- [ ] 明确前端需要消费的是“聚合后的搜索/浏览展示模型”，不是原始海量 tool call 平铺。
-- [ ] 如果后端需要新增最小响应字段，先在 repo 层做类型收敛，不让 UI 直接碰裸 payload。
+- [x] 明确前端需要消费的是“聚合后的搜索/浏览展示模型”，不是原始海量 tool call 平铺。
+- [x] 如果后端需要新增最小响应字段，先在 repo 层做类型收敛，不让 UI 直接碰裸 payload。
 
 ### 3.2 Service / Runtime
-- [ ] 定义搜索/浏览聚合展示的前端 view model。
-- [ ] 明确一个 run 内如何把多次 `searchWeb` 和 `openUrl` 折叠成：
+- [x] 定义搜索/浏览聚合展示的前端 view model。
+- [x] 明确一个 run 内如何把多次 `searchWeb` 和 `openUrl` 折叠成：
   - `已搜索 N 个网页`
   - `已浏览 M 个页面`
-- [ ] 保留展开查看细项的能力，但默认只展示聚合摘要。
-- [ ] 避免再次把一长串重复 `已思考 / 已阅读 10 个网页` 直接平铺。
+- [x] 保留展开查看细项的能力，但默认只展示聚合摘要。
+- [x] 避免再次把一长串重复 `已思考 / 已阅读 10 个网页` 直接平铺。
 
 ### 3.3 UI
-- [ ] 调整 transcript 中 search / browse 的展示结构，尽量贴近“先搜索、再浏览、再回答”的编排感。
-- [ ] 搜索摘要里支持展示 query 列表，但默认折叠。
-- [ ] 浏览摘要里支持展示已打开页面标题 / 站点，但默认折叠。
+- [x] 调整 transcript 中 search / browse 的展示结构，尽量贴近“先搜索、再浏览、再回答”的编排感。
+- [x] 搜索摘要里支持展示 query 列表，但默认折叠。
+- [x] 浏览摘要里支持展示已打开页面标题 / 站点，但默认折叠。
 
 ## 4. Tests
 
@@ -158,14 +158,14 @@
 - [x] 近重复 query 会被拦截，不执行真实搜索。
 - [x] 搜索后如果已有候选结果，再次 search 会触发 `redirect` 或 `block`，而不是继续无条件搜索。
 - [x] `openUrl` 超预算时返回 `blocked_by_policy`。
-- [ ] 连续 policy block 达阈值后会进入 `answer` 倾向。
+- [x] 连续 policy block 达阈值后会进入 `answer` 倾向。
 - [x] `openUrl` 能正确返回正文文本和质量标记。
 
 ### 4.2 Frontend Tests
-- [ ] 聚合展示模型能把多个 search / browse tool 结果收敛成摘要块。
-- [ ] 默认展示不再平铺大量重复搜索块。
-- [ ] 展开细项后能看到 query / 页面标题等明细。
-- [ ] 不因聚合展示破坏现有 transcript / answer container 行为。
+- [x] 聚合展示模型能把多个 search / browse tool 结果收敛成摘要块。
+- [x] 默认展示不再平铺大量重复搜索块。
+- [x] 展开细项后能看到 query / 页面标题等明细。
+- [x] 不因聚合展示破坏现有 transcript / answer container 行为。
 
 ## 5. Recommended Execution Order
 
@@ -181,11 +181,11 @@
 ### Loop 3
 - [x] 实现轻量 `openUrl`。
 - [x] 接上搜索结果聚合、候选 URL 选择和浏览预算控制。
-- [ ] 跑 targeted tests、review、提交。
+- [x] 跑 targeted tests、review、提交。
 
 ### Loop 4
-- [ ] 做前端聚合展示，而不是平铺原始工具调用。
-- [ ] 跑 targeted tests、review、提交。
+- [x] 做前端聚合展示，而不是平铺原始工具调用。
+- [x] 跑 targeted tests、review、提交。
 
 ### Loop 5
 - [ ] 把稳定事实提升到 `docs/source-of-truth/*`。

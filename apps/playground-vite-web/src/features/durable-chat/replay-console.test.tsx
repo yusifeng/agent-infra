@@ -246,15 +246,16 @@ describe('ReplayConsole', () => {
 
     const transcriptText = document.body.textContent ?? '';
     expect(transcriptText.indexOf('好的，我来搜索一下关于 Claude 的最新新闻。')).toBeLessThan(
-      transcriptText.indexOf('已阅读 10 个网页')
+      transcriptText.indexOf('搜索到 10 个网页')
     );
-    expect(transcriptText.indexOf('已阅读 10 个网页')).toBeLessThan(
+    expect(transcriptText.indexOf('搜索到 10 个网页')).toBeLessThan(
       transcriptText.indexOf('以下是关于 Claude 的最新新闻摘要：')
     );
     expect(screen.getByText(/3 \/ 3 · playing/)).toBeTruthy();
     expect(document.querySelectorAll('[data-message-actions-available="true"]')).toHaveLength(1);
 
-    fireEvent.click(screen.getByRole('button', { name: /已阅读 10 个网页/ }));
+    fireEvent.click(screen.getByRole('button', { name: /搜索到 10 个网页/ }));
+    fireEvent.click(screen.getByRole('button', { name: '查看搜索结果' }));
 
     expect(openSearchResult).toHaveBeenCalledWith('run-1', ['call-1']);
   });
