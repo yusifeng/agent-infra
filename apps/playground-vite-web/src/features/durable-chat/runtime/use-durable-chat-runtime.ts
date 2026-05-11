@@ -13,7 +13,7 @@ import {
   runStopViewingLiveResponse
 } from '@agent-infra/durable-chat-client';
 import type { LoadThreadMessagesResult } from '@agent-infra/durable-chat-client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useSearchPanelState } from '@/features/durable-chat/runtime/use-search-panel-state';
@@ -195,6 +195,16 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   );
   const hasHydratedActiveThread = activeThreadId ? hydratedThreadIdsRef.current.has(activeThreadId) : false;
 
+  function syncTextareaHeight() {
+    const textarea = textareaRef.current;
+    if (!textarea) {
+      return;
+    }
+
+    textarea.style.height = '0px';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 220)}px`;
+  }
+
   function markThreadHydrated(threadId: string) {
     hydratedThreadIdsRef.current.add(threadId);
   }
@@ -215,14 +225,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     messagesRef.current = messages;
   }, [messages]);
 
-  useEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) {
-      return;
-    }
-
-    textarea.style.height = '0px';
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 220)}px`;
+  useLayoutEffect(() => {
+    syncTextareaHeight();
   }, [draft]);
 
   useEffect(() => {

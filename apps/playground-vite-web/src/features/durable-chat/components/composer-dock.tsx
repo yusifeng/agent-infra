@@ -1,6 +1,6 @@
 import type { RuntimePiMetaDto } from '@agent-infra/contracts';
 import clsx from 'clsx';
-import { ArrowUp, Atom, ChevronDown, CircleStop, Globe, Sparkles, Zap } from 'lucide-react';
+import { ArrowUp, Atom, ChevronDown, Globe, Sparkles, Zap } from 'lucide-react';
 import type { MutableRefObject, RefObject } from 'react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import { buildComposerState } from '@/features/durable-chat/service/composer-sta
 import type { DeepseekModePresentation } from '@/features/durable-chat/service/deepseek-mode-presentation';
 import { cn } from '@/lib/utils';
 
-import { DeepseekLogo } from './deepseek-logo';
+import { PureDeepseek } from './pure-deepseek';
 import { composerMaxWithTW, ui } from './ui';
 
 type ComposerDockProps = {
@@ -111,12 +111,12 @@ export function ComposerDock({
         </div>
 
         {showDeepseekLanding ? (
-          <div className="mb-5 flex flex-col items-center gap-4 px-4 text-center">
-            <DeepseekLogo className="h-auto w-[11rem]" title="DeepSeek" />
-            <h2 className="text-[16px] font-semibold tracking-[0.01em] text-[color:var(--chat-text)] md:text-[18px]">
-              {centeredTitle}
-            </h2>
-            <div className="inline-flex items-center rounded-full border border-[color:var(--chat-border)] bg-[var(--chat-surface)] p-1 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+          <div className="mb-[38px] flex flex-col items-center px-4 text-center">
+            <div className="flex items-center gap-2.5 text-[color:var(--chat-text)]">
+              <PureDeepseek className="h-7 w-auto shrink-0" title="DeepSeek" />
+              <h2 className="text-[24px] font-semibold leading-none tracking-[-0.03em]">{centeredTitle}</h2>
+            </div>
+            <div className="mt-[22px] inline-flex items-center rounded-full border border-[color:var(--chat-border)] bg-[var(--chat-surface)] p-0.5 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
               <Button
                 type="button"
                 variant="ghost"
@@ -128,10 +128,10 @@ export function ComposerDock({
                   }
                 }}
                 className={cn(
-                  'h-9 rounded-full px-5 text-[13px] font-semibold shadow-none',
+                  'h-9 min-w-[136px] rounded-full px-5 text-[13px] font-semibold shadow-none',
                   deepseekModePresentation.selectedMode === 'quick'
-                    ? 'bg-[#eef3ff] text-[#3964fe] hover:bg-[#eef3ff] hover:text-[#3964fe]'
-                    : 'text-[color:var(--chat-text-secondary)] hover:bg-transparent hover:text-[color:var(--chat-text)]'
+                    ? 'border border-[#b7c7ff] bg-[#eef3ff] text-[#3964fe] hover:bg-[#eef3ff] hover:text-[#3964fe]'
+                    : 'border border-transparent text-[color:var(--chat-text-secondary)] hover:bg-transparent hover:text-[color:var(--chat-text)]'
                 )}
               >
                 <Zap data-icon="inline-start" />
@@ -148,10 +148,10 @@ export function ComposerDock({
                   }
                 }}
                 className={cn(
-                  'h-9 rounded-full px-5 text-[13px] font-semibold shadow-none',
+                  'h-9 min-w-[136px] rounded-full px-5 text-[13px] font-semibold shadow-none',
                   deepseekModePresentation.selectedMode === 'expert'
-                    ? 'bg-[#eef3ff] text-[#3964fe] hover:bg-[#eef3ff] hover:text-[#3964fe]'
-                    : 'text-[color:var(--chat-text-secondary)] hover:bg-transparent hover:text-[color:var(--chat-text)]'
+                    ? 'border border-[#b7c7ff] bg-[#eef3ff] text-[#3964fe] hover:bg-[#eef3ff] hover:text-[#3964fe]'
+                    : 'border border-transparent text-[color:var(--chat-text-secondary)] hover:bg-transparent hover:text-[color:var(--chat-text)]'
                 )}
               >
                 <Sparkles data-icon="inline-start" />
@@ -276,7 +276,7 @@ export function ComposerDock({
                   className={clsx(
                     ui.composerPrimaryButton,
                     isResponding
-                      ? 'border-[color:var(--destructive)] bg-[color:color-mix(in_srgb,var(--destructive)_12%,white)] text-[color:var(--destructive)] hover:bg-[color:color-mix(in_srgb,var(--destructive)_18%,white)]'
+                      ? 'border-transparent bg-[var(--chat-reasoning-accent)] text-white hover:bg-[var(--chat-reasoning-accent)] hover:opacity-95'
                       : composerState.hasDraftValue
                         ? 'border-transparent bg-[var(--chat-reasoning-accent)] text-white hover:bg-[var(--chat-reasoning-accent)] hover:opacity-95'
                         : 'border-transparent bg-[color:color-mix(in_srgb,var(--chat-reasoning-accent)_28%,white)] text-white',
@@ -285,7 +285,7 @@ export function ComposerDock({
                   title={isResponding ? '停止接收响应' : '发送 (Cmd/Ctrl + Enter)'}
                   aria-label={isResponding ? '停止接收响应' : '发送消息'}
                 >
-                  {isResponding ? <CircleStop className="h-4 w-4" /> : <ArrowUp className="h-5 w-5" />}
+                  {isResponding ? <span aria-hidden="true" className="h-3.5 w-3.5 rounded-[3px] bg-white" /> : <ArrowUp className="h-5 w-5" />}
                 </button>
               </div>
             </div>

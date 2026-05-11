@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import type { ReactNode } from 'react';
-import { Share2 } from 'lucide-react';
+import { Loader2, Share2 } from 'lucide-react';
 
 import type { AuthUserDto } from '@/features/auth/repo/auth-api';
 import { ChatHeader } from './components/chat-header';
@@ -12,7 +12,7 @@ import { IconButton } from './components/shared';
 import { ChatMessageList } from './components/message-list';
 import { SearchResultsPanel } from './components/search-results-panel';
 import { ChatSidebar } from './components/sidebar';
-import { ui } from './components/ui';
+import { maxWithTW, ui } from './components/ui';
 import { useDurableChatRuntime } from './runtime/use-durable-chat-runtime';
 
 export function DurableChatConsole({
@@ -147,61 +147,111 @@ export function DurableChatConsole({
               }
             />
 
-          <div className={clsx('flex min-h-0 flex-1 flex-col overflow-hidden', centeredEmptyState && 'justify-center')}>
+          {centeredEmptyState ? (
             <div
               ref={messagesViewportRef}
               className={clsx(
-                'relative flex min-h-0 flex-1 flex-col overflow-y-auto',
-                centeredEmptyState && 'flex-none overflow-visible',
+                'flex min-h-0 flex-1 flex-col justify-center overflow-hidden pb-16',
                 ui.messageViewport
               )}
             >
-              <ChatMessageList
-                meta={meta}
-                error={error}
-                durableRecoveryState={durableRecoveryState}
-                hasOlderMessages={hasOlderMessages}
-                historyLoading={historyLoading}
-                loadingMessages={loadingMessages}
+              {!meta?.runtimeConfigured && meta?.runtimeConfigError ? (
+                <div className={clsx(`${maxWithTW} mx-auto mb-4 w-full rounded-xl px-4 py-3 text-sm`, ui.warningBanner)}>
+                  {meta.runtimeConfigError}
+                </div>
+              ) : null}
+
+              {durableRecoveryState.phase !== 'idle' && durableRecoveryState.message ? (
+                <div className={clsx(`${maxWithTW} mx-auto mb-4 w-full rounded-xl px-4 py-3 text-sm`, ui.infoBanner)}>
+                  <div className="flex items-center gap-2">
+                    {durableRecoveryState.phase === 'recovering' ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    <span>{durableRecoveryState.message}</span>
+                  </div>
+                </div>
+              ) : null}
+
+              {error ? (
+                <div className={clsx(`${maxWithTW} mx-auto mb-4 w-full rounded-xl px-4 py-3 text-sm`, ui.errorBanner)}>
+                  {error}
+                </div>
+              ) : null}
+
+              <ComposerDock
                 activeThreadId={activeThreadId}
-                messages={displayedMessages}
-                answerContainers={displayedAnswerContainers}
-                transcriptBlocks={displayedTranscriptBlocks}
-                liveAssistantDraft={liveAssistantDraft}
-                showLoadingText={showLoadingText}
-              centeredEmptyState={centeredEmptyState}
-              showWelcomeWhenEmpty={!centeredEmptyState}
-              onLoadOlderMessages={onLoadOlderMessages}
-                onOpenSearchResult={onOpenSearchResult}
+                draft={draft}
+                isResponding={isChatResponding}
+                sendDisabled={sendDisabled}
+                inputLocked={inputLocked}
+                selectedWebSearchEnabled={selectedWebSearchEnabled}
+                selectedThinkingEnabled={selectedThinkingEnabled}
+                selectedReasoningEffort={selectedReasoningEffort}
+                selectedModelOption={selectedModelOption}
+                deepseekModePresentation={deepseekModePresentation}
+                meta={meta}
+                showScrollToBottom={showScrollToBottom}
+                centered
+                textareaRef={textareaRef}
+                sendAbortControllerRef={sendAbortControllerRef}
+                onDraftChange={onDraftChange}
+                onSelectedWebSearchEnabledChange={onSelectedWebSearchEnabledChange}
+                onSelectedThinkingEnabledChange={onSelectedThinkingEnabledChange}
+                onSelectedReasoningEffortChange={onSelectedReasoningEffortChange}
+                onSelectedModelKeyChange={onSelectedModelKeyChange}
+                onSend={onSend}
+                onStop={onStop}
+                onScrollToBottom={onScrollToBottom}
               />
             </div>
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <div ref={messagesViewportRef} className={clsx('relative flex min-h-0 flex-1 flex-col overflow-y-auto', ui.messageViewport)}>
+                <ChatMessageList
+                  meta={meta}
+                  error={error}
+                  durableRecoveryState={durableRecoveryState}
+                  hasOlderMessages={hasOlderMessages}
+                  historyLoading={historyLoading}
+                  loadingMessages={loadingMessages}
+                  activeThreadId={activeThreadId}
+                  messages={displayedMessages}
+                  answerContainers={displayedAnswerContainers}
+                  transcriptBlocks={displayedTranscriptBlocks}
+                  liveAssistantDraft={liveAssistantDraft}
+                  showLoadingText={showLoadingText}
+                  centeredEmptyState={false}
+                  showWelcomeWhenEmpty
+                  onLoadOlderMessages={onLoadOlderMessages}
+                  onOpenSearchResult={onOpenSearchResult}
+                />
+              </div>
 
-            <ComposerDock
-              activeThreadId={activeThreadId}
-              draft={draft}
-              isResponding={isChatResponding}
-              sendDisabled={sendDisabled}
-              inputLocked={inputLocked}
-              selectedWebSearchEnabled={selectedWebSearchEnabled}
-              selectedThinkingEnabled={selectedThinkingEnabled}
-              selectedReasoningEffort={selectedReasoningEffort}
-              selectedModelOption={selectedModelOption}
-              deepseekModePresentation={deepseekModePresentation}
-              meta={meta}
-              showScrollToBottom={showScrollToBottom}
-              centered={centeredEmptyState}
-              textareaRef={textareaRef}
-              sendAbortControllerRef={sendAbortControllerRef}
-              onDraftChange={onDraftChange}
-              onSelectedWebSearchEnabledChange={onSelectedWebSearchEnabledChange}
-              onSelectedThinkingEnabledChange={onSelectedThinkingEnabledChange}
-              onSelectedReasoningEffortChange={onSelectedReasoningEffortChange}
-              onSelectedModelKeyChange={onSelectedModelKeyChange}
-              onSend={onSend}
-              onStop={onStop}
-              onScrollToBottom={onScrollToBottom}
-            />
-          </div>
+              <ComposerDock
+                activeThreadId={activeThreadId}
+                draft={draft}
+                isResponding={isChatResponding}
+                sendDisabled={sendDisabled}
+                inputLocked={inputLocked}
+                selectedWebSearchEnabled={selectedWebSearchEnabled}
+                selectedThinkingEnabled={selectedThinkingEnabled}
+                selectedReasoningEffort={selectedReasoningEffort}
+                selectedModelOption={selectedModelOption}
+                deepseekModePresentation={deepseekModePresentation}
+                meta={meta}
+                showScrollToBottom={showScrollToBottom}
+                centered={false}
+                textareaRef={textareaRef}
+                sendAbortControllerRef={sendAbortControllerRef}
+                onDraftChange={onDraftChange}
+                onSelectedWebSearchEnabledChange={onSelectedWebSearchEnabledChange}
+                onSelectedThinkingEnabledChange={onSelectedThinkingEnabledChange}
+                onSelectedReasoningEffortChange={onSelectedReasoningEffortChange}
+                onSelectedModelKeyChange={onSelectedModelKeyChange}
+                onSend={onSend}
+                onStop={onStop}
+                onScrollToBottom={onScrollToBottom}
+              />
+            </div>
+          )}
         </div>
 
         <SearchResultsPanel
