@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ChatMessageList } from './message-list';
 import type { AnswerContainer } from '@/features/durable-chat/types/answer-containers';
 import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
+import type { ActiveSearchPanelData } from '@/features/durable-chat/types/search';
 import type { TranscriptBlock } from '@/features/durable-chat/types/transcript-blocks';
 
 function createPart(overrides: Partial<MessagePartDto> & Pick<MessagePartDto, 'id' | 'type'>): MessagePartDto {
@@ -37,12 +38,14 @@ function renderMessageList({
   messages,
   transcriptBlocks,
   liveAssistantDraft,
-  answerContainers = []
+  answerContainers = [],
+  getLiveSearchPanelData
 }: {
   messages: MessageDto[];
   transcriptBlocks: TranscriptBlock[];
   liveAssistantDraft: LiveAssistantDraft | null;
   answerContainers?: AnswerContainer[];
+  getLiveSearchPanelData?: (runId: string, toolCallIds: string[]) => ActiveSearchPanelData | null;
 }) {
   return renderToStaticMarkup(
     <ChatMessageList
@@ -60,6 +63,7 @@ function renderMessageList({
       showLoadingText={false}
       centeredEmptyState={false}
       showWelcomeWhenEmpty
+      getLiveSearchPanelData={getLiveSearchPanelData}
       onLoadOlderMessages={vi.fn()}
       onOpenSearchResult={vi.fn()}
     />
@@ -410,5 +414,72 @@ describe('ChatMessageList', () => {
     expect(markup).toContain('这是已经持久化的上一段内容。');
     expect(markup).toContain('好的，我来继续搜索 Claude 的最新新闻。');
     expect(markup).toContain('正在搜索网页');
+  });
+
+  it('renders a clickable live completed search summary when cached panel data is available', () => {
+    const liveAssistantDraft: LiveAssistantDraft = {
+      runId: 'run-live',
+      messageId: 'assistant-live-2',
+      source: 'live',
+      committedText: '',
+      partialText: '我已经查到结果了。',
+      segmentText: '我已经查到结果了。',
+      segmentTextMessageId: 'assistant-live-2',
+      partialReasoning: null,
+      segmentReasoningMessageId: null,
+      activeTools: [],
+      eventType: 'streaming',
+      segments: [
+        {
+          id: 'segment-2',
+          messageId: 'assistant-live-2',
+          text: '我已经查到结果了。',
+          reasoning: null,
+          tools: [
+            {
+              toolCallId: 'call-live-search',
+              toolName: 'searchWeb',
+              phase: 'completed',
+              input: { query: '速水玲香 金田一少年事件簿' }
+            }
+          ],
+          eventType: 'streaming'
+        }
+      ]
+    };
+
+    const markup = renderMessageList({
+      messages: [],
+      transcriptBlocks: [],
+      liveAssistantDraft,
+      getLiveSearchPanelData: () => ({
+        runId: 'run-live',
+        toolCallIds: ['call-live-search'],
+        provider: 'tavily',
+        resultCount: 9,
+        sourceNames: ['百度百科'],
+        sections: [
+          {
+            toolCallId: 'call-live-search',
+            query: '速水玲香 金田一少年事件簿',
+            resultCount: 9,
+            results: [
+              {
+                rank: 1,
+                title: '速水玲香',
+                url: 'https://baike.baidu.com/item/x',
+                snippet: '...',
+                sourceName: '百度百科',
+                hostname: 'baike.baidu.com',
+                publishedAt: null
+              }
+            ]
+          }
+        ]
+      })
+    });
+
+    expect(markup).toContain('搜索到 9 个网页');
+    expect(markup).toContain('百度百科');
   });
 });

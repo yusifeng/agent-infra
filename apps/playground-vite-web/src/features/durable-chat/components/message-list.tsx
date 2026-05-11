@@ -23,6 +23,7 @@ import {
 } from '@/features/durable-chat/service/research-activity';
 import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
 import type { DurableRecoveryState } from '@/features/durable-chat/types/runtime';
+import type { ActiveSearchPanelData } from '@/features/durable-chat/types/search';
 import type { AssistantTurnItem, TranscriptBlock } from '@/features/durable-chat/types/transcript-blocks';
 import { maxWithTW, messageListMinHeight, ui } from './ui';
 
@@ -423,8 +424,16 @@ const AssistantTurnContent = memo(function AssistantTurnContent({
   );
 });
 
-const LiveAssistantContent = memo(function LiveAssistantContent({ liveAssistantDraft }: { liveAssistantDraft: LiveAssistantDraft }) {
-  const visibleSegments = buildVisibleLiveAssistantSegments(liveAssistantDraft);
+const LiveAssistantContent = memo(function LiveAssistantContent({
+  liveAssistantDraft,
+  getLiveSearchPanelData,
+  onOpenSearchResult
+}: {
+  liveAssistantDraft: LiveAssistantDraft;
+  getLiveSearchPanelData?: (runId: string, toolCallIds: string[]) => ActiveSearchPanelData | null;
+  onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
+}) {
+  const visibleSegments = buildVisibleLiveAssistantSegments(liveAssistantDraft, getLiveSearchPanelData);
 
   return (
     <div className="space-y-3">
@@ -442,14 +451,44 @@ const LiveAssistantContent = memo(function LiveAssistantContent({ liveAssistantD
               />
             ) : null}
             {searchEntries ? (
-              <div className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 text-left text-[13px] text-[color:var(--chat-text-tertiary)]">
+              <button
+                type="button"
+                disabled={!liveAssistantDraft.runId || !onOpenSearchResult || !searchEntries.searchToolCallIds?.length}
+                onClick={() => {
+                  if (liveAssistantDraft.runId && onOpenSearchResult && searchEntries.searchToolCallIds?.length) {
+                    onOpenSearchResult(liveAssistantDraft.runId, searchEntries.searchToolCallIds);
+                  }
+                }}
+                className={clsx(
+                  'inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 text-left text-[13px] text-[color:var(--chat-text-tertiary)]',
+                  liveAssistantDraft.runId && onOpenSearchResult && searchEntries.searchToolCallIds?.length
+                    ? 'transition hover:bg-[var(--chat-hover)] hover:text-[color:var(--chat-text-secondary)]'
+                    : 'cursor-default'
+                )}
+              >
                 {searchEntries.isSearching ? (
                   <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[color:var(--chat-text-tertiary)]" />
                 ) : (
                   <Search className="h-4 w-4 shrink-0 text-[color:var(--chat-text-tertiary)]" />
                 )}
                 <span className="truncate font-normal">{searchEntries.text}</span>
-              </div>
+                {searchEntries.sources?.length ? (
+                  <span className="flex shrink-0 items-center pl-0.5">
+                    {searchEntries.sources.map((source, index) => (
+                      <SiteIconBadge
+                        key={`${source.hostname}:${source.sourceName}`}
+                        hostname={source.hostname}
+                        label={source.sourceName}
+                        className={clsx('h-4 w-4 border border-white', index === 0 ? '' : '-ml-1')}
+                        fallbackClassName="bg-indigo-100 text-indigo-700"
+                      />
+                    ))}
+                  </span>
+                ) : null}
+                {!searchEntries.isSearching && liveAssistantDraft.runId && onOpenSearchResult && searchEntries.searchToolCallIds?.length ? (
+                  <ChevronRight className="h-4 w-4 shrink-0 text-[color:var(--chat-icon-muted)]" />
+                ) : null}
+              </button>
             ) : null}
           </div>
         );
@@ -473,6 +512,8 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
     | {
         type: 'live';
         liveAssistantDraft: LiveAssistantDraft;
+        getLiveSearchPanelData?: (runId: string, toolCallIds: string[]) => ActiveSearchPanelData | null;
+        onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
       }
 ) {
   const assistantDiagnosticKey = props.type === 'persisted-turn' ? props.block.id : props.liveAssistantDraft.messageId;
@@ -523,7 +564,11 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
         showPersistedResearchStatus={props.showPersistedResearchStatus}
       />
     ) : (
-      <LiveAssistantContent liveAssistantDraft={props.liveAssistantDraft} />
+      <LiveAssistantContent
+        getLiveSearchPanelData={props.getLiveSearchPanelData}
+        liveAssistantDraft={props.liveAssistantDraft}
+        onOpenSearchResult={props.onOpenSearchResult}
+      />
     );
 
   return (
@@ -687,11 +732,22 @@ const TranscriptBlockCard = memo(function TranscriptBlockCard({
 });
 
 const LiveAssistantCard = memo(function LiveAssistantCard({
-  liveAssistantDraft
+  getLiveSearchPanelData,
+  liveAssistantDraft,
+  onOpenSearchResult
 }: {
   liveAssistantDraft: LiveAssistantDraft;
+  getLiveSearchPanelData?: (runId: string, toolCallIds: string[]) => ActiveSearchPanelData | null;
+  onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
 }) {
-  return <AssistantTranscriptCard liveAssistantDraft={liveAssistantDraft} type="live" />;
+  return (
+    <AssistantTranscriptCard
+      getLiveSearchPanelData={getLiveSearchPanelData}
+      liveAssistantDraft={liveAssistantDraft}
+      onOpenSearchResult={onOpenSearchResult}
+      type="live"
+    />
+  );
 });
 
 const ThinkingIndicator = memo(function ThinkingIndicator() {
@@ -723,6 +779,7 @@ type ChatMessageListProps = {
   showWelcomeWhenEmpty?: boolean;
   onLoadOlderMessages: () => void;
   onOpenSearchResult: (runId: string, toolCallIds: string[]) => void;
+  getLiveSearchPanelData?: (runId: string, toolCallIds: string[]) => ActiveSearchPanelData | null;
 };
 
 export const ChatMessageList = memo(function ChatMessageList({
@@ -742,7 +799,8 @@ export const ChatMessageList = memo(function ChatMessageList({
   showPersistedResearchStatus = false,
   showWelcomeWhenEmpty = true,
   onLoadOlderMessages,
-  onOpenSearchResult
+  onOpenSearchResult,
+  getLiveSearchPanelData
 }: ChatMessageListProps) {
   const assistantTurnActionContexts = useMemo(() => buildAssistantTurnActionContexts(transcriptBlocks), [transcriptBlocks]);
   const answerContainerActionContexts = useMemo(() => buildAnswerContainerActionContexts(answerContainers), [answerContainers]);
@@ -857,7 +915,13 @@ export const ChatMessageList = memo(function ChatMessageList({
                   />
               )
             ))}
-            {liveAssistantDraft ? <LiveAssistantCard liveAssistantDraft={liveAssistantDraft} /> : null}
+            {liveAssistantDraft ? (
+              <LiveAssistantCard
+                getLiveSearchPanelData={getLiveSearchPanelData}
+                liveAssistantDraft={liveAssistantDraft}
+                onOpenSearchResult={onOpenSearchResult}
+              />
+            ) : null}
             {showLoadingText ? <ThinkingIndicator /> : null}
           </div>
         </div>

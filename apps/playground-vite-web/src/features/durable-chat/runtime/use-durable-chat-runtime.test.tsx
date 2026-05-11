@@ -1,6 +1,6 @@
 import type { MessageDto, RunDto } from '@agent-infra/contracts';
 import type { LiveAssistantDraft } from '@agent-infra/durable-chat-client';
-import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -46,6 +46,13 @@ const shareApiMocks = vi.hoisted(() => ({
   createThreadSnapshotShare: vi.fn(),
   fetchCurrentThreadShare: vi.fn(),
   revokeThreadSnapshotShare: vi.fn()
+}));
+
+const searchPanelStateMocks = vi.hoisted(() => ({
+  getCachedSearchResult: vi.fn(),
+  onCloseSearchPanel: vi.fn(),
+  onOpenSearchResult: vi.fn(),
+  prefetchSearchResult: vi.fn()
 }));
 
 vi.mock('@agent-infra/durable-chat-client', async (importOriginal) => {
@@ -116,11 +123,13 @@ vi.mock('@/features/durable-chat/repo/share-api', () => ({
 vi.mock('@/features/durable-chat/runtime/use-search-panel-state', () => ({
   useSearchPanelState: () => ({
     activeSearchResult: null,
+    getCachedSearchResult: (...args: unknown[]) => searchPanelStateMocks.getCachedSearchResult(...args),
+    prefetchSearchResult: (...args: unknown[]) => searchPanelStateMocks.prefetchSearchResult(...args),
     searchPanelError: null,
     searchPanelLoading: false,
     searchPanelOpen: false,
-    onCloseSearchPanel: vi.fn(),
-    onOpenSearchResult: vi.fn()
+    onCloseSearchPanel: (...args: unknown[]) => searchPanelStateMocks.onCloseSearchPanel(...args),
+    onOpenSearchResult: (...args: unknown[]) => searchPanelStateMocks.onOpenSearchResult(...args)
   })
 }));
 
@@ -378,6 +387,8 @@ describe('useDurableChatRuntime', () => {
         share: null
       }
     });
+    searchPanelStateMocks.getCachedSearchResult.mockReturnValue(null);
+    searchPanelStateMocks.prefetchSearchResult.mockResolvedValue(null);
     currentPath = '/chat/thread-1';
   });
 
@@ -656,6 +667,65 @@ describe('useDurableChatRuntime', () => {
       });
       expect(screen.getByTestId('follow-state').textContent).toBe('following');
     });
+  });
+
+  it('prefetches completed live search results for each segment-specific tool-call group', async () => {
+    durableChatClientMocks.runSendMessageFlow.mockImplementation(async ({ actions }: any) => {
+      actions.setLiveAssistantDraft({
+        ...createDraft(),
+        segments: [
+          {
+            id: 'segment-1',
+            messageId: 'assistant-1',
+            text: '',
+            reasoning: '先搜索。',
+            tools: [
+              {
+                toolCallId: 'call-search-1',
+                toolName: 'searchWeb',
+                phase: 'completed',
+                input: { query: '速水玲香 金田一少年事件簿' }
+              }
+            ],
+            eventType: 'searching'
+          },
+          {
+            id: 'segment-2',
+            messageId: 'assistant-1',
+            text: '',
+            reasoning: '再搜索一次。',
+            tools: [
+              {
+                toolCallId: 'call-search-2',
+                toolName: 'searchWeb',
+                phase: 'completed',
+                input: { query: '速水玲香 快懂百科' }
+              }
+            ],
+            eventType: 'searching'
+          }
+        ]
+      });
+    });
+
+    const view = render(<RuntimeHarness />, { wrapper });
+    const scoped = within(view.container);
+
+    await act(async () => {
+      fireEvent.click(scoped.getByText('draft'));
+      fireEvent.click(scoped.getByText('send'));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(searchPanelStateMocks.prefetchSearchResult).toHaveBeenCalled();
+    });
+
+    const callArgs = searchPanelStateMocks.prefetchSearchResult.mock.calls.map((args) => [args[0], args[1]]);
+
+    expect(callArgs).toContainEqual(['run-1', ['call-search-1']]);
+    expect(callArgs).toContainEqual(['run-1', ['call-search-2']]);
+    expect(callArgs).not.toContainEqual(['run-1', ['call-search-1', 'call-search-2']]);
   });
 
   it('routes expert mode selection through the real send model option', async () => {

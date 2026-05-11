@@ -56,6 +56,65 @@ describe('useSearchPanelState', () => {
     });
   });
 
+  it('prefetches panel data into cache and exposes it for live summaries', async () => {
+    const panelData = createPanelData();
+    loadSearchPanelResultMock.mockImplementation(async ({ cache }: { cache: Map<string, ActiveSearchPanelData> }) => {
+      cache.set('run-1:call-1', panelData);
+      return {
+        status: 'loaded',
+        panelData
+      };
+    });
+
+    const { result } = renderHook(({ threadId }) => useSearchPanelState(threadId), {
+      initialProps: { threadId: 'thread-1' as string | null }
+    });
+
+    await act(async () => {
+      await result.current.prefetchSearchResult('run-1', ['call-1']);
+    });
+
+    expect(result.current.getCachedSearchResult('run-1', ['call-1'])).toEqual(panelData);
+  });
+
+  it('deduplicates in-flight prefetch requests for the same cache key', async () => {
+    const panelData = createPanelData();
+    let resolveRequest: ((value: { status: 'loaded'; panelData: ActiveSearchPanelData }) => void) | null = null;
+    loadSearchPanelResultMock.mockImplementation(
+      ({ cache }: { cache: Map<string, ActiveSearchPanelData> }) =>
+        new Promise((resolve) => {
+          resolveRequest = (value) => {
+            cache.set('run-1:call-1', value.panelData);
+            resolve(value);
+          };
+        })
+    );
+
+    const { result } = renderHook(({ threadId }) => useSearchPanelState(threadId), {
+      initialProps: { threadId: 'thread-1' as string | null }
+    });
+
+    let firstRequest: Promise<ActiveSearchPanelData | null> | null = null;
+    let secondRequest: Promise<ActiveSearchPanelData | null> | null = null;
+    await act(async () => {
+      firstRequest = result.current.prefetchSearchResult('run-1', ['call-1']);
+      secondRequest = result.current.prefetchSearchResult('run-1', ['call-1']);
+      await Promise.resolve();
+    });
+
+    expect(loadSearchPanelResultMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveRequest?.({
+        status: 'loaded',
+        panelData
+      });
+      await expect(Promise.all([firstRequest, secondRequest])).resolves.toEqual([panelData, panelData]);
+    });
+
+    expect(result.current.getCachedSearchResult('run-1', ['call-1'])).toEqual(panelData);
+  });
+
   it('resets panel state when the active thread changes', async () => {
     const panelData = createPanelData();
     loadSearchPanelResultMock.mockResolvedValue({

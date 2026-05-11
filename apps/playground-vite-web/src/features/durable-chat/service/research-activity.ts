@@ -62,6 +62,11 @@ export type ResearchSummaryLabelViewModel = {
 export type ResearchStatusLabelViewModel = {
   isSearching: boolean;
   text: string;
+  searchToolCallIds?: string[];
+  sources?: Array<{
+    hostname: string;
+    sourceName: string;
+  }>;
 };
 
 function isSearchSummaryItem(item: AssistantTurnItem): item is Extract<AssistantTurnItem, { type: 'search-summary' }> {
@@ -306,10 +311,10 @@ export type LiveResearchEntry = {
   label: string;
 };
 
-export function collectLiveResearchEntries(tools: LiveAssistantToolState[]): LiveResearchEntry[] {
+export function collectLiveResearchEntries(tools: LiveAssistantToolState[] | undefined): LiveResearchEntry[] {
   const entries: LiveResearchEntry[] = [];
 
-  for (const tool of tools) {
+  for (const tool of tools ?? []) {
     if (tool.toolName === 'searchWeb') {
       entries.push({
         kind: 'search',
@@ -331,6 +336,14 @@ export function collectLiveResearchEntries(tools: LiveAssistantToolState[]): Liv
   }
 
   return entries;
+}
+
+export function collectCompletedLiveSearchToolCallIds(tools: LiveAssistantToolState[]) {
+  return [...new Set(
+    collectLiveResearchEntries(tools)
+      .filter((entry) => entry.kind === 'search' && entry.state === 'completed')
+      .map((entry) => entry.toolCallId)
+  )];
 }
 
 export function buildLiveResearchStatusLabelViewModel(tools: LiveAssistantToolState[]): ResearchStatusLabelViewModel | null {
@@ -370,6 +383,7 @@ export function buildLiveResearchStatusLabelViewModel(tools: LiveAssistantToolSt
 
   return {
     isSearching: false,
+    searchToolCallIds: completedSearchCount > 0 ? collectCompletedLiveSearchToolCallIds(tools) : undefined,
     text: parts.join(' · ')
   };
 }

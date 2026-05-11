@@ -85,6 +85,7 @@ export function DurableChatConsole({
     onSelectedWebSearchEnabledChange,
     onSelectedThinkingEnabledChange,
     onSelectedReasoningEffortChange,
+    getLiveSearchPanelData,
     onOpenSearchResult,
     onCloseSearchPanel,
     onSend,
@@ -220,6 +221,7 @@ export function DurableChatConsole({
                   showLoadingText={showLoadingText}
                   centeredEmptyState={false}
                   showWelcomeWhenEmpty
+                  getLiveSearchPanelData={getLiveSearchPanelData}
                   onLoadOlderMessages={onLoadOlderMessages}
                   onOpenSearchResult={onOpenSearchResult}
                 />

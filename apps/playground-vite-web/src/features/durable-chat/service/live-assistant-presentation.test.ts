@@ -85,4 +85,65 @@ describe('live assistant presentation', () => {
     });
     expect(hasVisibleLiveAssistantContent(draft)).toBe(true);
   });
+
+  it('upgrades completed live search labels with cached panel data', () => {
+    const draft = createLiveDraft({
+      runId: 'run-1',
+      segments: [
+        {
+          id: 'seg-search-completed',
+          messageId: 'message-1',
+          text: '',
+          reasoning: null,
+          tools: [
+            {
+              toolCallId: 'call-1',
+              toolName: 'searchWeb',
+              phase: 'completed',
+              input: { query: '速水玲香 金田一少年事件簿' }
+            }
+          ],
+          eventType: 'streaming'
+        }
+      ]
+    });
+
+    const visibleSegments = buildVisibleLiveAssistantSegments(draft, () => ({
+      runId: 'run-1',
+      toolCallIds: ['call-1'],
+      provider: 'tavily',
+      resultCount: 9,
+      sourceNames: ['百度百科'],
+      sections: [
+        {
+          toolCallId: 'call-1',
+          query: '速水玲香 金田一少年事件簿',
+          resultCount: 9,
+          results: [
+            {
+              rank: 1,
+              title: '速水玲香',
+              url: 'https://baike.baidu.com/item/x',
+              snippet: '...',
+              sourceName: '百度百科',
+              hostname: 'baike.baidu.com',
+              publishedAt: null
+            }
+          ]
+        }
+      ]
+    }));
+
+    expect(visibleSegments[0]?.searchEntries).toEqual({
+      isSearching: false,
+      text: '搜索到 9 个网页',
+      searchToolCallIds: ['call-1'],
+      sources: [
+        {
+          hostname: 'baike.baidu.com',
+          sourceName: '百度百科'
+        }
+      ]
+    });
+  });
 });

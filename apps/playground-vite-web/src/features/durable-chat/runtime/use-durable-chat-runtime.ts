@@ -29,6 +29,7 @@ import {
 } from '@/features/durable-chat/repo/chat-api';
 import { buildChatViewState } from '@/features/durable-chat/service/chat-view-state';
 import { isDefaultThreadTitle } from '@/features/durable-chat/service/default-thread-title';
+import { collectCompletedLiveSearchToolCallIds } from '@/features/durable-chat/service/research-activity';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
 import type { DurableChatRuntimeOptions } from '@/features/durable-chat/types/runtime';
@@ -137,6 +138,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const {
     activeSearchResult,
+    getCachedSearchResult,
+    prefetchSearchResult,
     searchPanelError,
     searchPanelLoading,
     searchPanelOpen,
@@ -263,6 +266,24 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   useLayoutEffect(() => {
     syncTextareaHeight();
   }, [draft]);
+
+  useEffect(() => {
+    const runId = liveAssistantDraft?.runId;
+    if (!runId) {
+      return;
+    }
+
+    const completedSearchToolCallIdGroups = liveAssistantDraft.segments
+      .map((segment) => collectCompletedLiveSearchToolCallIds(segment.tools))
+      .filter((toolCallIds) => toolCallIds.length > 0);
+    if (completedSearchToolCallIdGroups.length === 0) {
+      return;
+    }
+
+    void Promise.all(
+      completedSearchToolCallIdGroups.map((toolCallIds) => prefetchSearchResult(runId, toolCallIds).catch(() => null))
+    );
+  }, [liveAssistantDraft, prefetchSearchResult]);
 
   useEffect(() => {
     return () => {
@@ -1108,6 +1129,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     searchPanelError,
     searchPanelLoading,
     searchPanelOpen,
+    getLiveSearchPanelData: getCachedSearchResult,
     shareDialog,
     showResponseLoading,
     showScrollToBottom,

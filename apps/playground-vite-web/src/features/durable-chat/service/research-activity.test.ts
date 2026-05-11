@@ -183,7 +183,8 @@ describe('research-activity', () => {
 
     expect(status).toEqual({
       isSearching: false,
-      text: '已完成搜索 · 已浏览 1 个页面'
+      text: '已完成搜索 · 已浏览 1 个页面',
+      searchToolCallIds: ['call-search-1']
     });
   });
 
