@@ -19,6 +19,7 @@ function presentAuthError(error: string | null) {
 
 export function LoginForm(props: {
   onAuthenticated: (user: AuthUserDto) => void;
+  notice?: string | null;
 }) {
   const location = useLocation();
   const [email, setEmail] = useState('');
@@ -96,6 +97,7 @@ export function LoginForm(props: {
         </div>
       </div>
 
+      {props.notice ? <p className="text-center text-[13px] text-emerald-700">{props.notice}</p> : null}
       {error ? <p className="text-center text-sm text-rose-600">{error}</p> : null}
 
       <Button
@@ -106,6 +108,12 @@ export function LoginForm(props: {
       >
         {submitting ? '登录中…' : '登录'}
       </Button>
+
+      <div className="-mt-1 flex justify-end">
+        <Link className="text-[13px] font-medium text-slate-500 hover:text-[#4263eb]" to={`/forgot-password${location.search}`}>
+          忘记密码？
+        </Link>
+      </div>
 
       <div className="flex items-center gap-4 pt-3 text-[13px] text-slate-400">
         <div className="h-px flex-1 bg-slate-200/80" />

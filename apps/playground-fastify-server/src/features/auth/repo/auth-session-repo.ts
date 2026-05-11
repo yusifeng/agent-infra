@@ -89,4 +89,22 @@ export class AuthSessionRepo {
       .returning();
     return rows[0] ? toAuthSessionRow(rows[0]) : null;
   }
+
+  async revokeAllActiveByUserId(userId: string, revokedAt: Date) {
+    if (this.dbConfig.mode === 'postgres') {
+      const rows = await this.dbConfig.db
+        .update(authSessionsPg)
+        .set({ revokedAt, updatedAt: revokedAt })
+        .where(and(eq(authSessionsPg.userId, userId), isNull(authSessionsPg.revokedAt)))
+        .returning();
+      return rows.map(toAuthSessionRow);
+    }
+
+    const rows = await this.dbConfig.db
+      .update(authSessionsSqlite)
+      .set({ revokedAt, updatedAt: revokedAt })
+      .where(and(eq(authSessionsSqlite.userId, userId), isNull(authSessionsSqlite.revokedAt)))
+      .returning();
+    return rows.map(toAuthSessionRow);
+  }
 }

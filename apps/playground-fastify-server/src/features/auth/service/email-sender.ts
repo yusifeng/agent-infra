@@ -6,12 +6,23 @@ export type SendSignupCodeEmailInput = {
   expiresInMinutes: number;
 };
 
+export type SendPasswordResetCodeEmailInput = {
+  toEmail: string;
+  code: string;
+  expiresInMinutes: number;
+};
+
 export interface AuthEmailSender {
   sendSignupCodeEmail(input: SendSignupCodeEmailInput): Promise<void>;
+  sendPasswordResetCodeEmail(input: SendPasswordResetCodeEmailInput): Promise<void>;
 }
 
 class MissingAuthEmailSender implements AuthEmailSender {
   async sendSignupCodeEmail() {
+    throw new Error('auth email sender is not configured');
+  }
+
+  async sendPasswordResetCodeEmail() {
     throw new Error('auth email sender is not configured');
   }
 }
@@ -28,6 +39,19 @@ export class ResendAuthEmailSender implements AuthEmailSender {
       to: input.toEmail,
       subject: 'Your sign-up verification code',
       text: `Your verification code is ${input.code}. It expires in ${input.expiresInMinutes} minutes. If you did not request this, you can ignore this email.`
+    });
+
+    if (result.error) {
+      throw new Error(result.error.message);
+    }
+  }
+
+  async sendPasswordResetCodeEmail(input: SendPasswordResetCodeEmailInput) {
+    const result = await this.resend.emails.send({
+      from: this.options.fromEmail,
+      to: input.toEmail,
+      subject: 'Your password reset verification code',
+      text: `Your password reset code is ${input.code}. It expires in ${input.expiresInMinutes} minutes. If you did not request this, you can ignore this email.`
     });
 
     if (result.error) {

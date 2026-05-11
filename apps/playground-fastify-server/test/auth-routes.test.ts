@@ -10,7 +10,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { buildPlaygroundServer } from '../src/app.js';
 import { bootstrapPlaygroundAuthSchema } from '../src/features/auth/repo/schema.js';
-import type { AuthEmailSender, SendSignupCodeEmailInput } from '../src/features/auth/service/email-sender.js';
+import type {
+  AuthEmailSender,
+  SendPasswordResetCodeEmailInput,
+  SendSignupCodeEmailInput
+} from '../src/features/auth/service/email-sender.js';
 import { createPlaygroundAppServices } from '../src/playground-base-services.js';
 import { bootstrapPlaygroundThreadCatalog } from '../src/features/thread-catalog/repo/schema.js';
 
@@ -30,15 +34,24 @@ function createFakeDurableRuntime(): RuntimePiRuntime {
 }
 
 class RecordingAuthEmailSender implements AuthEmailSender {
-  readonly sent: SendSignupCodeEmailInput[] = [];
+  readonly signupSent: SendSignupCodeEmailInput[] = [];
+  readonly resetSent: SendPasswordResetCodeEmailInput[] = [];
 
   async sendSignupCodeEmail(input: SendSignupCodeEmailInput) {
-    this.sent.push(input);
+    this.signupSent.push(input);
+  }
+
+  async sendPasswordResetCodeEmail(input: SendPasswordResetCodeEmailInput) {
+    this.resetSent.push(input);
   }
 }
 
 class FailingAuthEmailSender implements AuthEmailSender {
   async sendSignupCodeEmail() {
+    throw new Error('email unavailable');
+  }
+
+  async sendPasswordResetCodeEmail() {
     throw new Error('email unavailable');
   }
 }
@@ -87,7 +100,8 @@ async function createAuthTestServer(
     sessionCookieName: string;
     secureCookies: boolean;
     allowedOrigins: Set<string>;
-  }> = {}
+  }> = {},
+  now: () => Date = () => new Date()
 ) {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'playground-fastify-auth-routes-'));
   const sqlitePath = path.join(tempDir, 'test.db');
@@ -138,7 +152,8 @@ async function createAuthTestServer(
         secureCookies: false,
         allowedOrigins: new Set(['http://localhost:5173']),
         ...authConfigOverride
-      }
+      },
+      now
     });
 
     return {
@@ -184,8 +199,8 @@ describe('auth routes', () => {
     });
 
     expect(requestCode.statusCode).toBe(200);
-    expect(server.emailSender.sent).toHaveLength(1);
-    expect(server.emailSender.sent[0]).toMatchObject({
+    expect(server.emailSender.signupSent).toHaveLength(1);
+    expect(server.emailSender.signupSent[0]).toMatchObject({
       toEmail: 'user@example.com'
     });
 
@@ -197,7 +212,7 @@ describe('auth routes', () => {
       },
       payload: {
         email: 'user@example.com',
-        code: server.emailSender.sent[0].code,
+        code: server.emailSender.signupSent[0].code,
         password: 'correct horse battery staple'
       }
     });
@@ -368,7 +383,7 @@ describe('auth routes', () => {
 
     expect(requestCode.statusCode).toBe(200);
 
-    const code = server.emailSender instanceof RecordingAuthEmailSender ? server.emailSender.sent[0]?.code : null;
+    const code = server.emailSender instanceof RecordingAuthEmailSender ? server.emailSender.signupSent[0]?.code : null;
     if (!code) {
       throw new Error('Missing signup code');
     }
@@ -445,7 +460,7 @@ describe('auth routes', () => {
 
     expect(requestCode.statusCode).toBe(200);
 
-    const correctCode = server.emailSender instanceof RecordingAuthEmailSender ? server.emailSender.sent[0]?.code : null;
+    const correctCode = server.emailSender instanceof RecordingAuthEmailSender ? server.emailSender.signupSent[0]?.code : null;
     if (!correctCode) {
       throw new Error('Missing signup code');
     }
@@ -525,7 +540,7 @@ describe('auth routes', () => {
     });
     expect(requestCode.statusCode).toBe(200);
 
-    const code = server.emailSender instanceof RecordingAuthEmailSender ? server.emailSender.sent[0]?.code : null;
+    const code = server.emailSender instanceof RecordingAuthEmailSender ? server.emailSender.signupSent[0]?.code : null;
     if (!code) {
       throw new Error('Missing signup code');
     }
@@ -567,5 +582,274 @@ describe('auth routes', () => {
       }
     });
     expect(fallbackCookieMe.json()).toEqual({ user: null });
+  });
+
+  it('returns a generic success response for password reset code requests when the email is unknown', async () => {
+    const server = await createAuthTestServer(new RecordingAuthEmailSender());
+
+    const response = await server.app.inject({
+      method: 'POST',
+      url: '/api/auth/email/request-password-reset-code',
+      headers: {
+        origin: 'http://localhost:5173'
+      },
+      payload: {
+        email: 'missing@example.com'
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ ok: true });
+    expect(server.emailSender.resetSent).toHaveLength(0);
+  });
+
+  it('resets the password, revokes old sessions, and requires a fresh sign-in', async () => {
+    const server = await createAuthTestServer(new RecordingAuthEmailSender());
+
+    const requestSignupCode = await server.app.inject({
+      method: 'POST',
+      url: '/api/auth/email/request-signup-code',
+      headers: {
+        origin: 'http://localhost:5173'
+      },
+      payload: {
+        email: 'user@example.com'
+      }
+    });
+    expect(requestSignupCode.statusCode).toBe(200);
+
+    const signupCode = server.emailSender.signupSent[0]?.code;
+    if (!signupCode) {
+      throw new Error('Missing signup code');
+    }
+
+    const signUp = await server.app.inject({
+      method: 'POST',
+      url: '/api/auth/sign-up',
+      headers: {
+        origin: 'http://localhost:5173'
+      },
+      payload: {
+        email: 'user@example.com',
+        code: signupCode,
+        password: 'old-password-123'
+      }
+    });
+    expect(signUp.statusCode).toBe(200);
+
+    const oldSessionCookie = getSessionCookie(signUp);
+
+    const requestResetCode = await server.app.inject({
+      method: 'POST',
+      url: '/api/auth/email/request-password-reset-code',
+      headers: {
+        origin: 'http://localhost:5173'
+      },
+      payload: {
+        email: 'user@example.com'
+      }
+    });
+    expect(requestResetCode.statusCode).toBe(200);
+    expect(requestResetCode.json()).toEqual({ ok: true });
+
+    const resetCode = server.emailSender.resetSent[0]?.code;
+    if (!resetCode) {
+      throw new Error('Missing reset code');
+    }
+
+    const resetPassword = await server.app.inject({
+      method: 'POST',
+      url: '/api/auth/reset-password',
+      headers: {
+        origin: 'http://localhost:5173',
+        cookie: oldSessionCookie
+      },
+      payload: {
+        email: 'user@example.com',
+        code: resetCode,
+        newPassword: 'new-password-456'
+      }
+    });
+    expect(resetPassword.statusCode).toBe(200);
+    expect(resetPassword.json()).toEqual({ ok: true });
+
+    const meAfterReset = await server.app.inject({
+      method: 'GET',
+      url: '/api/auth/me',
+      headers: {
+        cookie: oldSessionCookie
+      }
+    });
+    expect(meAfterReset.json()).toEqual({ user: null });
+
+    const signInWithOldPassword = await server.app.inject({
+      method: 'POST',
+      url: '/api/auth/sign-in',
+      headers: {
+        origin: 'http://localhost:5173'
+      },
+      payload: {
+        email: 'user@example.com',
+        password: 'old-password-123'
+      }
+    });
+    expect(signInWithOldPassword.statusCode).toBe(401);
+    expect(signInWithOldPassword.json()).toEqual({ error: 'INVALID_CREDENTIALS' });
+
+    const signInWithNewPassword = await server.app.inject({
+      method: 'POST',
+      url: '/api/auth/sign-in',
+      headers: {
+        origin: 'http://localhost:5173'
+      },
+      payload: {
+        email: 'user@example.com',
+        password: 'new-password-456'
+      }
+    });
+    expect(signInWithNewPassword.statusCode).toBe(200);
+    expect(signInWithNewPassword.json()).toMatchObject({
+      user: {
+        email: 'user@example.com'
+      }
+    });
+  });
+
+  it('rejects incorrect password reset codes', async () => {
+    const server = await createAuthTestServer(new RecordingAuthEmailSender());
+
+    const requestSignupCode = await server.app.inject({
+      method: 'POST',
+      url: '/api/auth/email/request-signup-code',
+      headers: {
+        origin: 'http://localhost:5173'
+      },
+      payload: {
+        email: 'user@example.com'
+      }
+    });
+    expect(requestSignupCode.statusCode).toBe(200);
+
+    const signupCode = server.emailSender.signupSent[0]?.code;
+    if (!signupCode) {
+      throw new Error('Missing signup code');
+    }
+
+    const signUp = await server.app.inject({
+      method: 'POST',
+      url: '/api/auth/sign-up',
+      headers: {
+        origin: 'http://localhost:5173'
+      },
+      payload: {
+        email: 'user@example.com',
+        code: signupCode,
+        password: 'correct horse battery staple'
+      }
+    });
+    expect(signUp.statusCode).toBe(200);
+
+    const requestResetCode = await server.app.inject({
+      method: 'POST',
+      url: '/api/auth/email/request-password-reset-code',
+      headers: {
+        origin: 'http://localhost:5173'
+      },
+      payload: {
+        email: 'user@example.com'
+      }
+    });
+    expect(requestResetCode.statusCode).toBe(200);
+
+    const resetPassword = await server.app.inject({
+      method: 'POST',
+      url: '/api/auth/reset-password',
+      headers: {
+        origin: 'http://localhost:5173'
+      },
+      payload: {
+        email: 'user@example.com',
+        code: '000000',
+        newPassword: 'updated-password'
+      }
+    });
+    expect(resetPassword.statusCode).toBe(400);
+    expect(resetPassword.json()).toEqual({
+      ok: false,
+      error: 'INVALID_CODE'
+    });
+  });
+
+  it('rejects expired password reset codes', async () => {
+    let currentTime = new Date('2026-05-11T00:00:00.000Z');
+    const server = await createAuthTestServer(new RecordingAuthEmailSender(), {}, () => currentTime);
+
+    const requestSignupCode = await server.app.inject({
+      method: 'POST',
+      url: '/api/auth/email/request-signup-code',
+      headers: {
+        origin: 'http://localhost:5173'
+      },
+      payload: {
+        email: 'user@example.com'
+      }
+    });
+    expect(requestSignupCode.statusCode).toBe(200);
+
+    const signupCode = server.emailSender.signupSent[0]?.code;
+    if (!signupCode) {
+      throw new Error('Missing signup code');
+    }
+
+    const signUp = await server.app.inject({
+      method: 'POST',
+      url: '/api/auth/sign-up',
+      headers: {
+        origin: 'http://localhost:5173'
+      },
+      payload: {
+        email: 'user@example.com',
+        code: signupCode,
+        password: 'correct horse battery staple'
+      }
+    });
+    expect(signUp.statusCode).toBe(200);
+
+    const requestResetCode = await server.app.inject({
+      method: 'POST',
+      url: '/api/auth/email/request-password-reset-code',
+      headers: {
+        origin: 'http://localhost:5173'
+      },
+      payload: {
+        email: 'user@example.com'
+      }
+    });
+    expect(requestResetCode.statusCode).toBe(200);
+
+    const resetCode = server.emailSender.resetSent[0]?.code;
+    if (!resetCode) {
+      throw new Error('Missing reset code');
+    }
+
+    currentTime = new Date(currentTime.getTime() + 1000 * 60 * 11);
+
+    const resetPassword = await server.app.inject({
+      method: 'POST',
+      url: '/api/auth/reset-password',
+      headers: {
+        origin: 'http://localhost:5173'
+      },
+      payload: {
+        email: 'user@example.com',
+        code: resetCode,
+        newPassword: 'updated-password'
+      }
+    });
+    expect(resetPassword.statusCode).toBe(400);
+    expect(resetPassword.json()).toEqual({
+      ok: false,
+      error: 'CODE_EXPIRED'
+    });
   });
 });

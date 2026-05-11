@@ -134,6 +134,50 @@ export async function signIn(input: {
   };
 }
 
+export async function requestPasswordResetCode(email: string): Promise<AuthResult<{ ok: boolean }>> {
+  const response = await fetch('/api/auth/email/request-password-reset-code', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify({ email })
+  });
+  const raw = await readJson(response);
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    error: readApiError(raw),
+    data: {
+      ok: response.ok
+    }
+  };
+}
+
+export async function resetPassword(input: {
+  email: string;
+  code: string;
+  newPassword: string;
+}): Promise<AuthResult<{ ok: boolean }>> {
+  const response = await fetch('/api/auth/reset-password', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify(input)
+  });
+  const raw = await readJson(response);
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    error: readApiError(raw),
+    data: {
+      ok: response.ok
+    }
+  };
+}
+
 export async function logout(): Promise<AuthResult<{ ok: boolean }>> {
   const response = await fetch('/api/auth/logout', {
     method: 'POST'

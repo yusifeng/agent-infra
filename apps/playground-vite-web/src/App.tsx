@@ -3,6 +3,7 @@ import { LogOut } from 'lucide-react';
 import { Navigate, matchPath, useLocation, useNavigate } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
+import { ForgotPasswordForm } from '@/features/auth/components/forgot-password-form';
 import { LoginForm } from '@/features/auth/components/login-form';
 import { RegisterForm } from '@/features/auth/components/register-form';
 import { logout } from '@/features/auth/repo/auth-api';
@@ -42,8 +43,9 @@ function buildAuthRedirect(pathname: string, search: string) {
 }
 
 function AuthPage(props: {
-  mode: 'login' | 'register';
+  mode: 'login' | 'register' | 'forgot-password';
   onAuthenticated: (user: { id: string; email: string }) => void;
+  notice?: string | null;
 }) {
   return (
     <main className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(66,99,235,0.12),_transparent_20%),linear-gradient(180deg,_#ffffff_0%,_#fbfdff_52%,_#f5f8ff_100%)] px-6 py-10 text-slate-950">
@@ -52,13 +54,21 @@ function AuthPage(props: {
         <section className="w-full">
           <div className="mb-10 flex flex-col items-center gap-3 text-center">
             <DeepseekLogo className="h-auto w-[13.5rem]" title="Playground" />
-            <h1 className="sr-only">{props.mode === 'login' ? '登录到 Playground' : '注册你的 Playground 账号'}</h1>
+            <h1 className="sr-only">
+              {props.mode === 'login'
+                ? '登录到 Playground'
+                : props.mode === 'register'
+                  ? '注册你的 Playground 账号'
+                  : '重置 Playground 密码'}
+            </h1>
           </div>
 
           {props.mode === 'login' ? (
-            <LoginForm onAuthenticated={props.onAuthenticated} />
-          ) : (
+            <LoginForm notice={props.notice} onAuthenticated={props.onAuthenticated} />
+          ) : props.mode === 'register' ? (
             <RegisterForm onAuthenticated={props.onAuthenticated} />
+          ) : (
+            <ForgotPasswordForm />
           )}
         </section>
       </div>
@@ -86,6 +96,7 @@ function App() {
   const shareMatch = matchPath('/share/:publicId', location.pathname);
   const loginRoute = location.pathname === '/login';
   const registerRoute = location.pathname === '/register';
+  const forgotPasswordRoute = location.pathname === '/forgot-password';
   const protectedChatRoute = location.pathname === '/new' || Boolean(chatMatch) || Boolean(replayMatch);
 
   useEffect(() => {
@@ -98,7 +109,15 @@ function App() {
     return <Navigate replace to="/new" />;
   }
 
-  if (location.pathname !== '/new' && !chatMatch && !replayMatch && !shareMatch && !loginRoute && !registerRoute) {
+  if (
+    location.pathname !== '/new' &&
+    !chatMatch &&
+    !replayMatch &&
+    !shareMatch &&
+    !loginRoute &&
+    !registerRoute &&
+    !forgotPasswordRoute
+  ) {
     return <Navigate replace to="/new" />;
   }
 
@@ -122,10 +141,18 @@ function App() {
       });
     };
 
-    return <AuthPage mode={registerRoute ? 'register' : 'login'} onAuthenticated={onAuthenticated} />;
+    const locationState = location.state as { notice?: string } | null;
+
+    return (
+      <AuthPage
+        mode={registerRoute ? 'register' : forgotPasswordRoute ? 'forgot-password' : 'login'}
+        notice={loginRoute ? locationState?.notice ?? null : null}
+        onAuthenticated={onAuthenticated}
+      />
+    );
   }
 
-  if (loginRoute || registerRoute) {
+  if (loginRoute || registerRoute || forgotPasswordRoute) {
     return <Navigate replace to={resolveNextPath(location.search)} />;
   }
 

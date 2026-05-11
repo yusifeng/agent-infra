@@ -51,4 +51,22 @@ export class AuthPasswordRepo {
       .limit(1);
     return rows[0] ? toAuthPasswordRow(rows[0]) : null;
   }
+
+  async updateByUserId(userId: string, input: Pick<AuthPasswordRow, 'passwordHash' | 'passwordAlgo' | 'updatedAt'>) {
+    if (this.dbConfig.mode === 'postgres') {
+      const rows = await this.dbConfig.db
+        .update(authPasswordsPg)
+        .set(input)
+        .where(eq(authPasswordsPg.userId, userId))
+        .returning();
+      return rows[0] ? toAuthPasswordRow(rows[0]) : null;
+    }
+
+    const rows = await this.dbConfig.db
+      .update(authPasswordsSqlite)
+      .set(input)
+      .where(eq(authPasswordsSqlite.userId, userId))
+      .returning();
+    return rows[0] ? toAuthPasswordRow(rows[0]) : null;
+  }
 }

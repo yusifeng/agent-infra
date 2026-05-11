@@ -94,6 +94,36 @@ export async function registerAuthRoutes(app: FastifyInstance, dependencies: Aut
   );
 
   app.post(
+    '/api/auth/email/request-password-reset-code',
+    {
+      config: {
+        rateLimit: {
+          max: 5,
+          timeWindow: '1 minute'
+        }
+      }
+    },
+    async (request, reply) => {
+      try {
+        assertAllowedOrigin(request.headers.origin, authConfig.allowedOrigins);
+      } catch {
+        return reply.code(403).send({ ok: false, error: 'ORIGIN_NOT_ALLOWED' });
+      }
+
+      const body = asRecord(request.body);
+      const authService = await buildAuthService();
+      const result = await authService.requestPasswordResetCode(asString(body.email));
+
+      if (!result.ok) {
+        const statusCode = result.error === 'RATE_LIMITED' ? 429 : 400;
+        return reply.code(statusCode).send({ ok: false, error: result.error });
+      }
+
+      return reply.send({ ok: true });
+    }
+  );
+
+  app.post(
     '/api/auth/sign-up',
     {
       config: {
@@ -167,6 +197,41 @@ export async function registerAuthRoutes(app: FastifyInstance, dependencies: Aut
       return reply.send({
         user: result.data.user
       });
+    }
+  );
+
+  app.post(
+    '/api/auth/reset-password',
+    {
+      config: {
+        rateLimit: {
+          max: 10,
+          timeWindow: '1 minute'
+        }
+      }
+    },
+    async (request, reply) => {
+      try {
+        assertAllowedOrigin(request.headers.origin, authConfig.allowedOrigins);
+      } catch {
+        return reply.code(403).send({ ok: false, error: 'ORIGIN_NOT_ALLOWED' });
+      }
+
+      const body = asRecord(request.body);
+      const authService = await buildAuthService();
+      const result = await authService.resetPassword({
+        email: asString(body.email),
+        code: asString(body.code),
+        newPassword: asString(body.newPassword)
+      });
+
+      if (!result.ok) {
+        const statusCode = result.error === 'RATE_LIMITED' ? 429 : 400;
+        return reply.code(statusCode).send({ ok: false, error: result.error });
+      }
+
+      clearSessionCookie(reply);
+      return reply.send({ ok: true });
     }
   );
 

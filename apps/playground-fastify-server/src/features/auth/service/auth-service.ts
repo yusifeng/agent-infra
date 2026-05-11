@@ -30,6 +30,8 @@ type AuthUserResult = {
   sessionToken: string;
 };
 
+type AuthSuccessResult = { ok: true };
+
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
@@ -120,6 +122,69 @@ export class PlaygroundAuthService {
     } catch {
       await this.emailChallenges.delete(challengeId);
       return { ok: false, error: 'AUTH_EMAIL_UNAVAILABLE' };
+    }
+
+    return { ok: true };
+  }
+
+  async requestPasswordResetCode(email: string): Promise<AuthSuccessResult | { ok: false; error: AuthErrorCode }> {
+    const emailNormalized = normalizeEmail(email);
+    if (!isValidEmail(emailNormalized)) {
+      return { ok: false, error: 'INVALID_EMAIL' };
+    }
+
+    const identity = await this.identities.findByTypeAndValue('email', emailNormalized);
+    if (!identity) {
+      return { ok: true };
+    }
+
+    const [user, password] = await Promise.all([
+      this.users.findById(identity.userId),
+      this.passwords.findByUserId(identity.userId)
+    ]);
+    if (!user || user.status !== 'active' || !password) {
+      return { ok: true };
+    }
+
+    const currentTime = this.now();
+    const latestChallenge = await this.emailChallenges.findLatestByEmailAndPurpose(emailNormalized, 'reset_password');
+    if (
+      latestChallenge &&
+      latestChallenge.lastSentAt.getTime() + this.config.signupCodeCooldownMs > currentTime.getTime()
+    ) {
+      return { ok: true };
+    }
+
+    const challengeId = crypto.randomUUID();
+    const code = createEmailChallengeCode();
+    const codeHmac = hashEmailChallengeCode({
+      challengeId,
+      emailNormalized,
+      purpose: 'reset_password',
+      code,
+      secret: this.config.codeSecret
+    });
+
+    await this.emailChallenges.create({
+      id: challengeId,
+      emailNormalized,
+      purpose: 'reset_password',
+      codeHmac,
+      expiresAt: new Date(currentTime.getTime() + this.config.signupCodeTtlMs),
+      consumedAt: null,
+      attemptCount: 0,
+      lastSentAt: currentTime,
+      createdAt: currentTime
+    });
+
+    try {
+      await this.emailSender.sendPasswordResetCodeEmail({
+        toEmail: emailNormalized,
+        code,
+        expiresInMinutes: Math.floor(this.config.signupCodeTtlMs / 60000)
+      });
+    } catch {
+      await this.emailChallenges.delete(challengeId);
     }
 
     return { ok: true };
@@ -294,6 +359,79 @@ export class PlaygroundAuthService {
         sessionToken
       }
     };
+  }
+
+  async resetPassword(input: {
+    email: string;
+    code: string;
+    newPassword: string;
+  }): Promise<AuthSuccessResult | { ok: false; error: AuthErrorCode }> {
+    const emailNormalized = normalizeEmail(input.email);
+    if (!isValidEmail(emailNormalized)) {
+      return { ok: false, error: 'INVALID_EMAIL' };
+    }
+
+    if (!isValidPassword(input.newPassword)) {
+      return { ok: false, error: 'PASSWORD_TOO_SHORT' };
+    }
+
+    const identity = await this.identities.findByTypeAndValue('email', emailNormalized);
+    if (!identity) {
+      return { ok: false, error: 'INVALID_CODE' };
+    }
+
+    const [user, password] = await Promise.all([
+      this.users.findById(identity.userId),
+      this.passwords.findByUserId(identity.userId)
+    ]);
+    if (!user || user.status !== 'active' || !password) {
+      return { ok: false, error: 'INVALID_CODE' };
+    }
+
+    const currentTime = this.now();
+    const latestChallenge = await this.emailChallenges.findLatestByEmailAndPurpose(emailNormalized, 'reset_password');
+    if (!latestChallenge) {
+      return { ok: false, error: 'INVALID_CODE' };
+    }
+
+    if (latestChallenge.expiresAt.getTime() <= currentTime.getTime()) {
+      return { ok: false, error: 'CODE_EXPIRED' };
+    }
+
+    if (latestChallenge.consumedAt || latestChallenge.attemptCount >= this.config.maxChallengeAttempts) {
+      return { ok: false, error: 'INVALID_CODE' };
+    }
+
+    const expectedCodeHmac = hashEmailChallengeCode({
+      challengeId: latestChallenge.id,
+      emailNormalized,
+      purpose: 'reset_password',
+      code: input.code,
+      secret: this.config.codeSecret
+    });
+
+    if (expectedCodeHmac !== latestChallenge.codeHmac) {
+      await this.emailChallenges.updateAttemptCount(latestChallenge.id, latestChallenge.attemptCount + 1);
+      return { ok: false, error: 'INVALID_CODE' };
+    }
+
+    const passwordHash = await hashPassword(input.newPassword);
+
+    await withDbTransaction(this.dbConfig, async (tx) => {
+      const passwords = new AuthPasswordRepo({ mode: this.dbConfig.mode, db: tx });
+      const challenges = new AuthEmailChallengeRepo({ mode: this.dbConfig.mode, db: tx });
+      const sessions = new AuthSessionRepo({ mode: this.dbConfig.mode, db: tx });
+
+      await passwords.updateByUserId(user.id, {
+        passwordHash,
+        passwordAlgo: PASSWORD_ALGO,
+        updatedAt: currentTime
+      });
+      await sessions.revokeAllActiveByUserId(user.id, currentTime);
+      await challenges.consume(latestChallenge.id, currentTime);
+    });
+
+    return { ok: true };
   }
 
   async getCurrentUser(sessionToken: string | undefined) {

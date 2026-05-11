@@ -7,6 +7,8 @@ import App from './App';
 const authApiMocks = vi.hoisted(() => ({
   fetchAuthMe: vi.fn(),
   requestSignupCode: vi.fn(),
+  requestPasswordResetCode: vi.fn(),
+  resetPassword: vi.fn(),
   signUp: vi.fn(),
   signIn: vi.fn(),
   logout: vi.fn()
@@ -15,6 +17,8 @@ const authApiMocks = vi.hoisted(() => ({
 vi.mock('@/features/auth/repo/auth-api', () => ({
   fetchAuthMe: (...args: unknown[]) => authApiMocks.fetchAuthMe(...args),
   requestSignupCode: (...args: unknown[]) => authApiMocks.requestSignupCode(...args),
+  requestPasswordResetCode: (...args: unknown[]) => authApiMocks.requestPasswordResetCode(...args),
+  resetPassword: (...args: unknown[]) => authApiMocks.resetPassword(...args),
   signUp: (...args: unknown[]) => authApiMocks.signUp(...args),
   signIn: (...args: unknown[]) => authApiMocks.signIn(...args),
   logout: (...args: unknown[]) => authApiMocks.logout(...args)
@@ -67,6 +71,22 @@ describe('App auth gate', () => {
       }
     });
     authApiMocks.requestSignupCode.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        ok: true
+      }
+    });
+    authApiMocks.requestPasswordResetCode.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        ok: true
+      }
+    });
+    authApiMocks.resetPassword.mockResolvedValue({
       ok: true,
       status: 200,
       error: null,
@@ -298,6 +318,56 @@ describe('App auth gate', () => {
     });
 
     expect(screen.getByRole('link', { name: '去注册' }).getAttribute('href')).toBe('/register');
+  });
+
+  it('requests a password reset code and returns to login after a successful reset', async () => {
+    renderApp(['/login?next=%2Fchat%2Fthread-19']);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '登录' })).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole('link', { name: '忘记密码？' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '重置密码' })).toBeTruthy();
+    });
+
+    fireEvent.change(screen.getByLabelText('邮箱'), {
+      target: {
+        value: 'user@example.com'
+      }
+    });
+    fireEvent.click(screen.getByRole('button', { name: '发送验证码' }));
+
+    await waitFor(() => {
+      expect(authApiMocks.requestPasswordResetCode).toHaveBeenCalledWith('user@example.com');
+      expect(screen.getByText('如果该邮箱已注册，我们已发送重置验证码。')).toBeTruthy();
+    });
+
+    fireEvent.change(screen.getByLabelText('邮箱验证码'), {
+      target: {
+        value: '654321'
+      }
+    });
+    fireEvent.change(screen.getByLabelText('新密码'), {
+      target: {
+        value: 'updated-password'
+      }
+    });
+    fireEvent.click(screen.getByRole('button', { name: '重置密码' }));
+
+    await waitFor(() => {
+      expect(authApiMocks.resetPassword).toHaveBeenCalledWith({
+        email: 'user@example.com',
+        code: '654321',
+        newPassword: 'updated-password'
+      });
+      expect(screen.getByRole('button', { name: '登录' })).toBeTruthy();
+      expect(screen.getByText('密码已重置，请使用新密码登录。')).toBeTruthy();
+    });
+
+    expect(screen.getByRole('link', { name: '去注册' }).getAttribute('href')).toBe('/register?next=%2Fchat%2Fthread-19');
   });
 
   it('returns to the login page even when logout fails', async () => {

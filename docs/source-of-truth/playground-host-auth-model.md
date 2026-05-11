@@ -11,10 +11,11 @@ playground host auth 当前已经落地，范围固定为：
 - Fastify host 本地 auth schema
 - 邮箱验证码注册
 - 邮箱 + 密码登录
+- 邮箱验证码重置密码
 - HttpOnly cookie session
 - request-scoped current user
 - thread catalog ownership 绑定到宿主 auth user
-- Vite `/login` / `/register` / auth gate
+- Vite `/login` / `/register` / `/forgot-password` / auth gate
 
 ## 核心边界
 
@@ -103,9 +104,30 @@ playground 的真实 ownership 由宿主表维护：
 - 短信登录
 - OAuth
 - magic link
-- 忘记密码 / 重置密码
 - 修改密码
 - 邀请码校验
+
+### 4. 忘记密码 / 重置密码
+
+忘记密码流程固定为：
+
+1. 用户在 `/forgot-password` 输入邮箱
+2. 服务端按 `purpose = reset_password` 生成 challenge
+3. 邮件发送 6 位重置验证码
+4. 用户提交邮箱、验证码、新密码
+5. 服务端更新 `auth_passwords`
+6. 服务端撤销该用户所有 active session
+7. 前端返回 `/login`，用户使用新密码重新登录
+
+请求重置码时：
+
+- 不暴露邮箱是否存在
+- 对已注册邮箱和未注册邮箱都返回统一成功响应
+
+重置成功后：
+
+- 不自动登录
+- 旧 session 应全部失效
 
 ## 持久化模型
 
@@ -151,9 +173,10 @@ playground 的真实 ownership 由宿主表维护：
 
 ### `auth_email_challenges`
 
-注册验证码 challenge 当前只用于：
+当前 challenge purpose 固定支持：
 
 - `purpose = sign_up`
+- `purpose = reset_password`
 
 当前行为：
 
@@ -163,6 +186,7 @@ playground 的真实 ownership 由宿主表维护：
 - challenge 有过期时间
 - challenge 有 attempt count
 - challenge 成功消费后不可复用
+- 不同 purpose 之间不能复用 challenge
 
 ### `auth_sessions`
 
@@ -219,8 +243,10 @@ Fastify request 在进入受保护路由前，会按下面顺序解析当前用�
 当前 auth host routes 为：
 
 - `POST /api/auth/email/request-signup-code`
+- `POST /api/auth/email/request-password-reset-code`
 - `POST /api/auth/sign-up`
 - `POST /api/auth/sign-in`
+- `POST /api/auth/reset-password`
 - `GET /api/auth/me`
 - `POST /api/auth/logout`
 
@@ -255,7 +281,7 @@ public share route 不依赖当前用户，保持可匿名访问。
 Vite 使用 app-local auth runtime：
 
 - 启动先请求 `/api/auth/me`
-- 未登录进入 `/login` / `/register`
+- 未登录进入 `/login` / `/register` / `/forgot-password`
 - 已登录进入 `/new` / `/chat/:threadId` / `/replay/:threadId`
 
 ### 2. redirect 语义区分主动退出和被动拦截
@@ -283,6 +309,7 @@ Vite 使用 app-local auth runtime：
 - auth 写接口做 rate limit
 - auth 写接口做 `Origin` 校验
 - 登录失败统一返回 `INVALID_CREDENTIALS`
+- 密码重置成功后撤销该用户全部 active session
 
 ## 后续演化约束
 
