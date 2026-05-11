@@ -17,7 +17,6 @@ import {
   hasVisibleLiveAssistantContent
 } from '@/features/durable-chat/service/live-assistant-presentation';
 import {
-  buildLiveResearchStatusLabelViewModel,
   buildResearchActivityViewModel,
   buildResearchStatusLabelViewModel,
   buildResearchSummaryLabelViewModel
@@ -232,14 +231,19 @@ const MessageActions = memo(function MessageActions({
 const ResearchSummaryLabel = memo(function ResearchSummaryLabel({
   items,
   runId,
+  showPersistedResearchStatus = false,
   onOpenSearchResult
 }: {
   items: AssistantTurnItem[];
   runId: string | null;
+  showPersistedResearchStatus?: boolean;
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
 }) {
   const activity = useMemo(() => buildResearchActivityViewModel(items), [items]);
-  const statusViewModel = useMemo(() => buildResearchStatusLabelViewModel(activity), [activity]);
+  const statusViewModel = useMemo(
+    () => (showPersistedResearchStatus ? buildResearchStatusLabelViewModel(activity) : null),
+    [activity, showPersistedResearchStatus]
+  );
   const summaryViewModel = useMemo(() => buildResearchSummaryLabelViewModel(activity), [activity]);
   const [expanded, setExpanded] = useState(false);
 
@@ -267,75 +271,75 @@ const ResearchSummaryLabel = memo(function ResearchSummaryLabel({
       ) : null}
 
       {summaryViewModel ? (
-        <div className="space-y-1">
-          <button
-            type="button"
-            onClick={() => setExpanded((current) => !current)}
-            className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 text-left text-[13px] text-[color:var(--chat-text-tertiary)] transition hover:bg-[var(--chat-hover)] hover:text-[color:var(--chat-text-secondary)]"
-            title="查看搜索与浏览摘要"
-          >
-            <Search className="h-4 w-4 shrink-0 text-[color:var(--chat-text-tertiary)]" />
-            <span className="truncate font-normal">{summaryViewModel.text}</span>
-            {summaryViewModel.sources.length > 0 ? (
-              <span className="flex shrink-0 items-center pl-0.5">
-                {summaryViewModel.sources.map((source, index) => (
-                  <SiteIconBadge
-                    key={`${source.hostname}:${source.sourceName}`}
-                    hostname={source.hostname}
-                    label={source.sourceName}
-                    className={clsx('h-4 w-4 border border-white', index === 0 ? '' : '-ml-1')}
-                    fallbackClassName="bg-indigo-100 text-indigo-700"
-                  />
-                ))}
-              </span>
-            ) : null}
-            {expanded ? (
-              <ChevronDown className="h-4 w-4 shrink-0 text-[color:var(--chat-icon-muted)]" />
-            ) : (
-              <ChevronRight className="h-4 w-4 shrink-0 text-[color:var(--chat-icon-muted)]" />
-            )}
-          </button>
-
-          {expanded ? (
-            <div className="space-y-2 border-l border-[color:var(--chat-border)] pl-4 text-[13px] text-[color:var(--chat-text-secondary)]">
-              {summaryViewModel.detailQueries.length > 0 ? (
-                <div className="space-y-1">
-                  <div className="font-medium text-[color:var(--chat-text)]">搜索查询</div>
-                  <ul className="space-y-1">
-                    {summaryViewModel.detailQueries.map((query) => (
-                      <li key={query} className="truncate">- {query}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-
-              {summaryViewModel.detailPages.length > 0 ? (
-                <div className="space-y-1">
-                  <div className="font-medium text-[color:var(--chat-text)]">浏览页面</div>
-                  <ul className="space-y-1">
-                    {summaryViewModel.detailPages.map((page) => (
-                      <li key={`${page.url}:${page.title}`} className="truncate">
-                        - {page.sourceName} · {page.title}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-
-              {runId && onOpenSearchResult && activity.searchToolCallIds.length > 0 ? (
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => onOpenSearchResult(runId, activity.searchToolCallIds)}
-                    className="text-[13px] font-medium text-[color:var(--chat-link)] transition hover:opacity-80"
-                  >
-                    查看搜索结果
-                  </button>
-                </div>
-              ) : null}
-            </div>
+      <div className="space-y-1">
+        <button
+          type="button"
+          onClick={() => setExpanded((current) => !current)}
+          className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 text-left text-[13px] text-[color:var(--chat-text-tertiary)] transition hover:bg-[var(--chat-hover)] hover:text-[color:var(--chat-text-secondary)]"
+          title="查看搜索与浏览摘要"
+        >
+          <Search className="h-4 w-4 shrink-0 text-[color:var(--chat-text-tertiary)]" />
+          <span className="truncate font-normal">{summaryViewModel.text}</span>
+          {summaryViewModel.sources.length > 0 ? (
+            <span className="flex shrink-0 items-center pl-0.5">
+              {summaryViewModel.sources.map((source, index) => (
+                <SiteIconBadge
+                  key={`${source.hostname}:${source.sourceName}`}
+                  hostname={source.hostname}
+                  label={source.sourceName}
+                  className={clsx('h-4 w-4 border border-white', index === 0 ? '' : '-ml-1')}
+                  fallbackClassName="bg-indigo-100 text-indigo-700"
+                />
+              ))}
+            </span>
           ) : null}
-        </div>
+          {expanded ? (
+            <ChevronDown className="h-4 w-4 shrink-0 text-[color:var(--chat-icon-muted)]" />
+          ) : (
+            <ChevronRight className="h-4 w-4 shrink-0 text-[color:var(--chat-icon-muted)]" />
+          )}
+        </button>
+
+        {expanded ? (
+          <div className="space-y-2 border-l border-[color:var(--chat-border)] pl-4 text-[13px] text-[color:var(--chat-text-secondary)]">
+            {summaryViewModel.detailQueries.length > 0 ? (
+              <div className="space-y-1">
+                <div className="font-medium text-[color:var(--chat-text)]">搜索查询</div>
+                <ul className="space-y-1">
+                  {summaryViewModel.detailQueries.map((query) => (
+                    <li key={query} className="truncate">- {query}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {summaryViewModel.detailPages.length > 0 ? (
+              <div className="space-y-1">
+                <div className="font-medium text-[color:var(--chat-text)]">浏览页面</div>
+                <ul className="space-y-1">
+                  {summaryViewModel.detailPages.map((page) => (
+                    <li key={`${page.url}:${page.title}`} className="truncate">
+                      - {page.sourceName} · {page.title}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {runId && onOpenSearchResult && activity.searchToolCallIds.length > 0 ? (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => onOpenSearchResult(runId, activity.searchToolCallIds)}
+                  className="text-[13px] font-medium text-[color:var(--chat-link)] transition hover:opacity-80"
+                >
+                  查看搜索结果
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
       ) : null}
     </div>
   );
@@ -390,17 +394,24 @@ const assistantActions = [
 const AssistantTurnContent = memo(function AssistantTurnContent({
   items,
   runId,
+  showPersistedResearchStatus = false,
   onOpenSearchResult
 }: {
   items: AssistantTurnItem[];
   runId: string | null;
+  showPersistedResearchStatus?: boolean;
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
 }) {
   const researchActivity = useMemo(() => buildResearchActivityViewModel(items), [items]);
 
   return (
     <div className="space-y-1.5">
-      <ResearchSummaryLabel items={items} onOpenSearchResult={onOpenSearchResult} runId={runId} />
+      <ResearchSummaryLabel
+        items={items}
+        onOpenSearchResult={onOpenSearchResult}
+        runId={runId}
+        showPersistedResearchStatus={showPersistedResearchStatus}
+      />
       {researchActivity.visibleItems.map((item) => {
         if (item.type === 'search-status' || item.type === 'search-summary') {
           return null;
@@ -417,8 +428,7 @@ const LiveAssistantContent = memo(function LiveAssistantContent({ liveAssistantD
 
   return (
     <div className="space-y-3">
-      {visibleSegments.map(({ segment }) => {
-        const statusViewModel = buildLiveResearchStatusLabelViewModel(segment.tools);
+      {visibleSegments.map(({ segment, searchEntries }) => {
         return (
           <div key={segment.id} className="space-y-1.5">
             {segment.reasoning ? <ReasoningPanel content={segment.reasoning} thinking /> : null}
@@ -431,10 +441,10 @@ const LiveAssistantContent = memo(function LiveAssistantContent({ liveAssistantD
                 text={segment.text}
               />
             ) : null}
-            {statusViewModel ? (
+            {searchEntries ? (
               <div className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 text-left text-[13px] text-[color:var(--chat-text-tertiary)]">
                 <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[color:var(--chat-text-tertiary)]" />
-                <span className="truncate font-normal">{statusViewModel.text}</span>
+                <span className="truncate font-normal">{searchEntries.text}</span>
               </div>
             ) : null}
           </div>
@@ -449,6 +459,7 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
     | {
       type: 'persisted-turn';
       block: Extract<TranscriptBlock, { type: 'assistant-turn' }>;
+      showPersistedResearchStatus?: boolean;
       actionContext: {
         copyText: string;
         showActions: boolean;
@@ -501,7 +512,12 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
 
   const content =
     props.type === 'persisted-turn' ? (
-      <AssistantTurnContent items={props.block.items} onOpenSearchResult={props.onOpenSearchResult} runId={props.block.runId} />
+      <AssistantTurnContent
+        items={props.block.items}
+        onOpenSearchResult={props.onOpenSearchResult}
+        runId={props.block.runId}
+        showPersistedResearchStatus={props.showPersistedResearchStatus}
+      />
     ) : (
       <LiveAssistantContent liveAssistantDraft={props.liveAssistantDraft} />
     );
@@ -531,6 +547,7 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
 const AnswerContainerCard = memo(function AnswerContainerCard({
   container,
   actionContext,
+  showPersistedResearchStatus = false,
   onOpenSearchResult
 }: {
   container: AnswerContainer;
@@ -538,6 +555,7 @@ const AnswerContainerCard = memo(function AnswerContainerCard({
     copyText: string;
     hasVisibleOperation: boolean;
   };
+  showPersistedResearchStatus?: boolean;
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
 }) {
   const hasVisibleContent = container.blocks.some((block) => block.items.length > 0);
@@ -554,7 +572,13 @@ const AnswerContainerCard = memo(function AnswerContainerCard({
     >
       <div className={clsx('relative flex flex-col gap-3 pt-1.5', ui.assistantBubble)}>
         {container.blocks.map((block) => (
-          <AssistantTurnContent key={block.id} items={block.items} onOpenSearchResult={onOpenSearchResult} runId={block.runId} />
+          <AssistantTurnContent
+            key={block.id}
+            items={block.items}
+            onOpenSearchResult={onOpenSearchResult}
+            runId={block.runId}
+            showPersistedResearchStatus={showPersistedResearchStatus}
+          />
         ))}
       </div>
       <MessageActions
@@ -631,10 +655,12 @@ const UserMessageBlockCard = memo(function UserMessageBlockCard({
 
 const TranscriptBlockCard = memo(function TranscriptBlockCard({
   block,
+  showPersistedResearchStatus = false,
   actionContext,
   onOpenSearchResult
 }: {
   block: TranscriptBlock;
+  showPersistedResearchStatus?: boolean;
   actionContext?: {
     copyText: string;
     showActions: boolean;
@@ -650,6 +676,7 @@ const TranscriptBlockCard = memo(function TranscriptBlockCard({
       actionContext={actionContext ?? { copyText: '', showActions: false }}
       block={block}
       onOpenSearchResult={onOpenSearchResult}
+      showPersistedResearchStatus={showPersistedResearchStatus}
       type="persisted-turn"
     />
   );
@@ -688,6 +715,7 @@ type ChatMessageListProps = {
   liveAssistantDraft: LiveAssistantDraft | null;
   showLoadingText: boolean;
   centeredEmptyState: boolean;
+  showPersistedResearchStatus?: boolean;
   showWelcomeWhenEmpty?: boolean;
   onLoadOlderMessages: () => void;
   onOpenSearchResult: (runId: string, toolCallIds: string[]) => void;
@@ -707,6 +735,7 @@ export const ChatMessageList = memo(function ChatMessageList({
   liveAssistantDraft,
   showLoadingText,
   centeredEmptyState,
+  showPersistedResearchStatus = false,
   showWelcomeWhenEmpty = true,
   onLoadOlderMessages,
   onOpenSearchResult
@@ -811,15 +840,17 @@ export const ChatMessageList = memo(function ChatMessageList({
                     }
                     container={answerContainerStartByBlockId.get(block.id)!}
                     onOpenSearchResult={onOpenSearchResult}
+                    showPersistedResearchStatus={showPersistedResearchStatus}
                   />
                 ) : null
               ) : (
-                <TranscriptBlockCard
-                  key={block.id}
-                  actionContext={assistantTurnActionContexts.get(block.id)}
-                  block={block}
-                  onOpenSearchResult={onOpenSearchResult}
-                />
+                  <TranscriptBlockCard
+                    key={block.id}
+                    actionContext={assistantTurnActionContexts.get(block.id)}
+                    block={block}
+                    onOpenSearchResult={onOpenSearchResult}
+                    showPersistedResearchStatus={showPersistedResearchStatus}
+                  />
               )
             ))}
             {liveAssistantDraft ? <LiveAssistantCard liveAssistantDraft={liveAssistantDraft} /> : null}

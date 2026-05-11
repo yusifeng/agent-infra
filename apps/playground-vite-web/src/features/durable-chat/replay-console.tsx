@@ -98,6 +98,7 @@ export function ReplayConsole({
                 liveAssistantDraft={null}
                 showLoadingText={false}
                 centeredEmptyState={false}
+                showPersistedResearchStatus
                 showWelcomeWhenEmpty={false}
                 onLoadOlderMessages={() => undefined}
                 onOpenSearchResult={onOpenSearchResult}

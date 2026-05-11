@@ -13,7 +13,7 @@
 ### 0.2 Goals
 - [x] policy message 不再进入任何普通用户可见 transcript projection。
 - [x] research activity UI 只展示用户可理解的研究摘要和必要细项，不展示内部策略解释。
-- [ ] live 搜索/浏览状态与 completed summary 分层明确，`searchLabel` 和中间态稳定。
+- [x] live 搜索/浏览状态与 completed summary 分层明确，`searchLabel` 和中间态稳定。
 - [ ] 生成中一旦用户主动向上滚动，就停止自动跟随到底部，直到用户显式恢复跟随。
 - [ ] auto-title 失败路径先具备足够 observability，再修复当前未生效问题。
 
@@ -47,9 +47,9 @@
   - 不包含 policy explanation text
 
 ### 1.3 Live vs completed activity state
-- [ ] 定义 live research status 只来自运行中状态源，例如 `liveAssistantDraft.tools`。
-- [ ] 定义 completed summary 只来自 transcript 中已经持久化的 search/openUrl 结果。
-- [ ] 明确定义当 live 和 completed 同时存在时的优先级和切换规则，避免 summary 到来后 live label 异常消失或残留。
+- [x] 定义 live research status 只来自运行中状态源，例如 `liveAssistantDraft.tools`。
+- [x] 定义 completed summary 只来自 transcript 中已经持久化的 search/openUrl 结果。
+- [x] 明确定义当 live 和 completed 同时存在时的优先级和切换规则，避免 summary 到来后 live label 异常消失或残留。
 
 ### 1.4 Follow-output state
 - [ ] 定义一个显式的“是否继续跟随输出”状态，而不是只靠 `nearBottom` 推断。
@@ -91,9 +91,9 @@
 - [x] 确保 replay / shared snapshot 也遵守同一可见性规则。
 
 ### 3.2 Live status rendering
-- [ ] 把 live status 与 completed summary 渲染逻辑拆开。
-- [ ] 修复搜索中的中间状态展示，确保 `searchLabel` 和 browse label 在进行中可稳定出现。
-- [ ] 避免 live 状态和 completed summary 相互覆盖造成闪断。
+- [x] 把 live status 与 completed summary 渲染逻辑拆开。
+- [x] 修复搜索中的中间状态展示，确保 `searchLabel` 和 browse label 在进行中可稳定出现。
+- [x] 避免 live 状态和 completed summary 相互覆盖造成闪断。
 
 ### 3.3 Auto-follow behavior
 - [ ] 重构生成中自动滚动逻辑，改为基于显式 follow-output 状态。
@@ -109,7 +109,7 @@
 
 ### 4.2 Frontend tests
 - [x] research activity tests：policy entry 继续参与内部逻辑，但不进入用户可见 summary。
-- [ ] live status tests：search/browse 进行中 label 稳定显示，completed summary 到来后正确切换。
+- [x] live status tests：search/browse 进行中 label 稳定显示，completed summary 到来后正确切换。
 - [ ] auto-follow tests：用户滚离底部后，流式更新不再强制滚到底部。
 - [ ] replay/shared snapshot tests：不再显示 policy 文案。
 
@@ -124,11 +124,11 @@
 - [x] clean 后立即提交
 
 ### Loop 2
-- [ ] 拆分 live status 与 completed summary
-- [ ] 修复 `searchLabel` / browse 中间态回归
-- [ ] 跑 targeted tests
-- [ ] 跑 `codex review`
-- [ ] clean 后立即提交
+- [x] 拆分 live status 与 completed summary
+- [x] 修复 `searchLabel` / browse 中间态回归
+- [x] 跑 targeted tests
+- [x] 跑 `codex review`
+- [x] clean 后立即提交
 
 ### Loop 3
 - [ ] 重构 follow-output 状态

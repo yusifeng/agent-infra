@@ -5,7 +5,6 @@ import type { MessagePartDto } from '@agent-infra/contracts';
 import {
   buildLiveResearchStatusLabelViewModel,
   buildResearchActivityViewModel,
-  buildResearchStatusLabelViewModel,
   buildResearchSummaryLabelViewModel
 } from '@/features/durable-chat/service/research-activity';
 import type { AssistantTurnItem } from '@/features/durable-chat/types/transcript-blocks';
@@ -166,7 +165,7 @@ describe('research-activity', () => {
     });
   });
 
-  it('clears pending search entries when a matching summary arrives', () => {
+  it('keeps pending entries internal when a matching summary arrives without exposing a persisted status label', () => {
     const items: AssistantTurnItem[] = [
       {
         type: 'search-status',
@@ -195,9 +194,8 @@ describe('research-activity', () => {
     ];
 
     const activity = buildResearchActivityViewModel(items);
-    const status = buildResearchStatusLabelViewModel(activity);
 
     expect(activity.pendingEntries).toHaveLength(0);
-    expect(status).toBeNull();
+    expect(buildResearchSummaryLabelViewModel(activity)?.text).toBe('搜索到 10 个网页');
   });
 });
