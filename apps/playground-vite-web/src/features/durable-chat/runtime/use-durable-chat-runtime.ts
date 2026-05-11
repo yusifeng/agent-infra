@@ -323,13 +323,20 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       return;
     }
 
+    if (liveAssistantDraft) {
+      window.requestAnimationFrame(() => {
+        viewport.scrollTop = viewport.scrollHeight;
+      });
+      return;
+    }
+
     window.requestAnimationFrame(() => {
       viewport.scrollTo({
         top: viewport.scrollHeight,
         behavior: messages.length > 0 ? 'smooth' : 'auto'
       });
     });
-  }, [messages, liveAssistantDraft?.partialText, liveAssistantDraft?.partialReasoning, activeThreadId, loadingMessages, historyLoading]);
+  }, [messages, liveAssistantDraft?.messageId, liveAssistantDraft?.partialText, liveAssistantDraft?.partialReasoning, activeThreadId, loadingMessages, historyLoading]);
 
   function scrollToMessagesBottom() {
     const viewport = messagesViewportRef.current;

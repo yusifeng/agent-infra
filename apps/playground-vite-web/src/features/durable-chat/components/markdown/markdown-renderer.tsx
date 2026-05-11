@@ -47,6 +47,9 @@ export function MarkdownRenderer({
     if (!prepared) return;
 
     const { cached, hasCodeBlocks, key, hash, safeBaseHtml, rawHtml } = prepared;
+    if (!animateBlocks) {
+      return;
+    }
 
     if (cached) {
       touchMarkdownCache(key, cached);
@@ -102,7 +105,7 @@ export function MarkdownRenderer({
       workerAbortController.abort();
       cancelScheduled();
     };
-  }, [prepared, text]);
+  }, [animateBlocks, prepared, text]);
 
   useEffect(() => {
     const root = rootRef.current;
