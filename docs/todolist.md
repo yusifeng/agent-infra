@@ -41,7 +41,7 @@
 - [x] `useChatSessionController` remains the owner of durable chat session state for this task.
 - [x] `sendMessage`, `runSendMessageFlow`, and `runReconcileCompletedTurn` remain behaviorally intact during the first low-risk slices.
 - [x] Extract DOM/viewport refs and effects into a dedicated controller hook.
-- [ ] Extract auto-title refresh and title typing refs/effects into a dedicated controller hook.
+- [x] Extract auto-title refresh and title typing refs/effects into a dedicated controller hook.
 - [x] Extract thread menu/rename/archive/pin action state into a dedicated controller hook after lower-risk slices are stable.
 
 ### 1.3 Types / Interfaces
@@ -61,13 +61,13 @@
 - [x] Do not convert runtime control refs into React state unless tests prove the behavior remains correct.
 
 ### 2.2 Components
-- [ ] Keep `DurableChatConsole` behavior unchanged while `useDurableChatRuntime` remains the facade.
-- [ ] Defer `message-list.tsx` splitting until runtime controller extraction has completed.
-- [ ] If `message-list.tsx` is later split, preserve `ChatMessageList` props and current test-visible markup semantics.
+- [x] Keep `DurableChatConsole` behavior unchanged while `useDurableChatRuntime` remains the facade.
+- [x] Defer `message-list.tsx` splitting until runtime controller extraction has completed.
+- [x] If `message-list.tsx` is later split, preserve `ChatMessageList` props and current test-visible markup semantics.
 
 ### 2.3 Services and Repo
 - [x] No repo/API changes are planned for the first controller extraction loop.
-- [ ] Only change service or repo modules if a controller extraction exposes a small, clearly reusable pure helper.
+- [x] Only change service or repo modules if a controller extraction exposes a small, clearly reusable pure helper.
 
 ## 3. Tests
 
@@ -102,7 +102,7 @@ pnpm --dir apps/playground-vite-web exec vitest run src/features/durable-chat/ru
 pnpm --dir apps/playground-vite-web exec vitest run src/features/durable-chat/runtime/<new-controller>.test.tsx
 ```
 
-- [ ] Run component regression tests when touching message list or shell wiring:
+- [x] Run component regression tests when touching message list or shell wiring:
 
 ```sh
 pnpm --dir apps/playground-vite-web exec vitest run src/features/durable-chat/components/message-list.test.tsx
@@ -154,16 +154,16 @@ codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="m
 - [x] Preserve share action behavior through the existing share dialog hook.
 - [x] Run targeted tests and typecheck.
 - [x] Run `codex review` for the slice.
-- [ ] Commit the clean slice if tests and review pass.
+- [x] Commit the clean slice if tests and review pass.
 
 ### Loop 4: Message List Maintainability Assessment
-- [ ] Re-check `message-list.tsx` after runtime extraction.
-- [ ] Identify whether the highest-value split is pure thinking-flow helpers, subcomponents, or both.
-- [ ] Add focused tests only if current `message-list.test.tsx` does not protect the intended split.
-- [ ] Extract pure helpers before extracting rendered subcomponents.
-- [ ] Preserve `ChatMessageList` public props.
-- [ ] Run message-list tests and typecheck.
-- [ ] Run `codex review` for the slice.
+- [x] Re-check `message-list.tsx` after runtime extraction.
+- [x] Identify whether the highest-value split is pure thinking-flow helpers, subcomponents, or both.
+- [x] Add focused tests only if current `message-list.test.tsx` does not protect the intended split.
+- [x] Extract pure helpers before extracting rendered subcomponents.
+- [x] Preserve `ChatMessageList` public props.
+- [x] Run message-list tests and typecheck.
+- [x] Run `codex review` for the slice.
 - [ ] Commit the clean slice if tests and review pass.
 
 ### Loop 5: Server-state Library Re-evaluation
