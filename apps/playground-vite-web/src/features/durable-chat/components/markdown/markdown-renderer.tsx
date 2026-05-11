@@ -109,6 +109,7 @@ export function MarkdownRenderer({
 
   useEffect(() => {
     const root = rootRef.current;
+    const copyTimeouts = copyTimeoutsRef.current;
     if (!root) return;
 
     const onClick = async (event: MouseEvent) => {
@@ -135,7 +136,7 @@ export function MarkdownRenderer({
       button.setAttribute('aria-label', 'Copied');
       button.setAttribute('title', 'Copied');
 
-      const existing = copyTimeoutsRef.current.get(button);
+      const existing = copyTimeouts.get(button);
       if (existing) clearTimeout(existing);
 
       const timeout = setTimeout(() => {
@@ -145,17 +146,17 @@ export function MarkdownRenderer({
         button.setAttribute('title', 'Copy code');
       }, 2000);
 
-      copyTimeoutsRef.current.set(button, timeout);
+      copyTimeouts.set(button, timeout);
     };
 
     root.addEventListener('click', onClick);
 
     return () => {
       root.removeEventListener('click', onClick);
-      for (const timeout of copyTimeoutsRef.current.values()) {
+      for (const timeout of copyTimeouts.values()) {
         clearTimeout(timeout);
       }
-      copyTimeoutsRef.current.clear();
+      copyTimeouts.clear();
     };
   }, [html]);
 

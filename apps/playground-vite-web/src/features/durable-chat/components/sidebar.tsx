@@ -95,9 +95,9 @@ export function ChatSidebar({
 }: ChatSidebarProps) {
   const [historyExpanded, setHistoryExpanded] = useState(true);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  const pinnedSet = new Set(pinnedThreadIds);
 
   const groupedThreads = useMemo(() => {
+    const pinnedSet = new Set(pinnedThreadIds);
     const activeThreads = threads.filter((thread) => thread.status === 'active');
     const pinnedThreads = activeThreads.filter((thread) => pinnedSet.has(thread.id));
     const unpinnedThreads = activeThreads.filter((thread) => !pinnedSet.has(thread.id));
@@ -119,7 +119,7 @@ export function ChatSidebar({
       .filter((group) => group.threads.length > 0);
 
     return { pinnedThreads, groupedUnpinned };
-  }, [pinnedSet, threads]);
+  }, [pinnedThreadIds, threads]);
 
   return (
     <>

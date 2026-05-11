@@ -107,7 +107,7 @@ export function useChatRuntimeLifecycle({ deps, actions, refs }: UseChatRuntimeL
       message: null
     });
     actionsRef.current.setError(null);
-  }, [initialThreadId]);
+  }, [initialThreadId, routeChangeRequestIdRef, runtimeBootstrappedRef]);
 
   useEffect(
     () => () => {
@@ -117,6 +117,6 @@ export function useChatRuntimeLifecycle({ deps, actions, refs }: UseChatRuntimeL
       logInspectorAbortControllerRef.current?.abort();
       timelineAbortControllerRef.current?.abort();
     },
-    []
+    [logInspectorAbortControllerRef, messagesAbortControllerRef, sendAbortControllerRef, timelineAbortControllerRef]
   );
 }

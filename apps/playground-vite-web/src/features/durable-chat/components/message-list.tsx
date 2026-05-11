@@ -255,14 +255,9 @@ const ReasoningPanel = memo(function ReasoningPanel({
   content: string;
   thinking?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(thinking);
+  const [manualExpanded, setManualExpanded] = useState(thinking);
   const contentRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (thinking) {
-      setExpanded(true);
-    }
-  }, [thinking]);
+  const expanded = thinking || manualExpanded;
 
   useEffect(() => {
     if (!thinking || !expanded) {
@@ -286,7 +281,11 @@ const ReasoningPanel = memo(function ReasoningPanel({
     <div className="overflow-hidden" data-reasoning-panel="true">
       <button
         type="button"
-        onClick={() => setExpanded((current) => !current)}
+        onClick={() => {
+          if (!thinking) {
+            setManualExpanded((current) => !current);
+          }
+        }}
         className="flex w-full items-center justify-between gap-3 py-1 text-left"
         aria-expanded={expanded}
       >
@@ -394,12 +393,6 @@ const ResearchSummaryLabel = memo(function ResearchSummaryLabel({
   );
   const summaryViewModel = useMemo(() => buildResearchSummaryLabelViewModel(activity), [activity]);
   const [expanded, setExpanded] = useState(false);
-
-  useEffect(() => {
-    if (!summaryViewModel) {
-      setExpanded(false);
-    }
-  }, [summaryViewModel]);
 
   if (!statusViewModel && !summaryViewModel) {
     return null;
@@ -640,19 +633,18 @@ const ThinkingTimelinePanel = memo(function ThinkingTimelinePanel({
   showPersistedResearchStatus?: boolean;
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
 }) {
-  const [expanded, setExpanded] = useState(true);
-
-  useEffect(() => {
-    if (thinking) {
-      setExpanded(true);
-    }
-  }, [thinking]);
+  const [manualExpanded, setManualExpanded] = useState(true);
+  const expanded = thinking || manualExpanded;
 
   return (
     <div className="overflow-hidden" data-reasoning-panel="true" data-thinking-container="true">
       <button
         type="button"
-        onClick={() => setExpanded((current) => !current)}
+        onClick={() => {
+          if (!thinking) {
+            setManualExpanded((current) => !current);
+          }
+        }}
         className="flex w-full items-center justify-between gap-3 py-1 text-left"
         aria-expanded={expanded}
       >

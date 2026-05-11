@@ -214,6 +214,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     ]
   );
   const hasHydratedActiveThread = activeThreadId ? hydratedThreadIdsRef.current.has(activeThreadId) : false;
+  const liveDraftMessageId = liveAssistantDraft?.messageId ?? null;
 
   function syncTextareaHeight() {
     const textarea = textareaRef.current;
@@ -302,7 +303,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     if (window.innerWidth < 1024) {
       setSidebarOpen(false);
     }
-  }, []);
+  }, [setSidebarOpen]);
 
   useEffect(() => {
     const viewport = messagesViewportRef.current;
@@ -322,7 +323,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     return () => {
       viewport.removeEventListener('scroll', handleScroll);
     };
-  }, []);
+  }, [setShowScrollToBottom]);
 
   useEffect(() => {
     const viewport = messagesViewportRef.current;
@@ -348,11 +349,11 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       viewport.scrollTop = viewport.scrollHeight;
       setShowScrollToBottom(false);
     });
-  }, [activeThreadId, loadingMessages]);
+  }, [activeThreadId, loadingMessages, setShowScrollToBottom]);
 
   useEffect(() => {
     const viewport = messagesViewportRef.current;
-    if (!viewport || !liveAssistantDraft) {
+    if (!viewport || !liveDraftMessageId) {
       return;
     }
 
@@ -360,7 +361,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       viewport.scrollTop = viewport.scrollHeight;
       setShowScrollToBottom(false);
     });
-  }, [liveAssistantDraft?.messageId]);
+  }, [liveDraftMessageId, setShowScrollToBottom]);
 
   function scrollToMessagesBottom() {
     const viewport = messagesViewportRef.current;

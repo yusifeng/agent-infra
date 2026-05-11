@@ -74,15 +74,17 @@ export function startRestoredLiveDraftRefreshLoop(args: {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
   const run = async () => {
+    if (cancelled) {
+      return;
+    }
+
     try {
       await refresh();
     } catch {
       // Ignore transient refresh failures; the next scheduled pass will retry.
-    } finally {
-      if (cancelled) {
-        return;
-      }
+    }
 
+    if (!cancelled) {
       timeoutId = setTimeout(() => {
         void run();
       }, intervalMs);
