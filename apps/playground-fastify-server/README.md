@@ -27,6 +27,7 @@ Current purpose:
 
 The prepared commands are the validated default path. They run DB bootstrap explicitly before the host starts serving requests.
 The `:sqlite` and `:turso` variants also force DB mode explicitly via `PLAYGROUND_DB_MODE`, so `.env` loading cannot silently switch the runtime to another backend.
+After bootstrap succeeds, the prepared dev scripts `exec` into the watcher so `Ctrl+C` targets the live watch process directly instead of leaving an extra shell layer behind.
 
 ## Env loading
 

@@ -47,6 +47,7 @@ When you need deterministic local DB selection during development, use the expli
 
 - `dev:prepared:sqlite` forces `PLAYGROUND_DB_MODE=sqlite`
 - `dev:prepared:turso` forces `PLAYGROUND_DB_MODE=turso`
+- the prepared dev scripts `exec` into `tsx watch`, so a normal `Ctrl+C` should stop the active watcher instead of leaving a wrapper shell behind
 
 This avoids `.env` files reintroducing `TURSO_DATABASE_URL` or `DATABASE_URL` after startup.
 
