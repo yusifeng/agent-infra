@@ -15,7 +15,7 @@
 - [x] research activity UI 只展示用户可理解的研究摘要和必要细项，不展示内部策略解释。
 - [x] live 搜索/浏览状态与 completed summary 分层明确，`searchLabel` 和中间态稳定。
 - [x] 新 stream 开始时自动定位到底部；streaming 过程中不自动跟随，只有用户点击 `🔽` 时才 smooth 回到底部。
-- [ ] auto-title 失败路径先具备足够 observability，再修复当前未生效问题。
+- [x] auto-title 失败路径先具备足够 observability，再修复当前未生效问题。
 
 ### 0.3 Non-goals
 - [x] 不修改 shared infra 的 planner / policy result 基本语义。
@@ -59,17 +59,17 @@
   - [x] 只有用户显式点击“回到底部/🔽”后才 smooth 回到底部。
 
 ### 1.5 Auto-title observability
-- [ ] 明确定义 auto-title 失败/跳过原因的分类日志：
-  - no generator
-  - no source text
-  - title no longer default
-  - provider request failed
-  - normalized title empty
-  - rename/writeback failed
-- [ ] 明确观测目标：
-  - 能分辨“没有触发”
-  - “触发但生成失败”
-  - “生成成功但写回放弃”
+- [x] 明确定义 auto-title 失败/跳过原因的分类日志：
+  - [x] no generator
+  - [x] no source text
+  - [x] title no longer default
+  - [x] provider request failed
+  - [x] normalized title empty
+  - [x] rename/writeback failed
+- [x] 明确观测目标：
+  - [x] 能分辨“没有触发”
+  - [x] “触发但生成失败”
+  - [x] “生成成功但写回放弃”
 
 ## 2. Backend / Platform
 
@@ -79,9 +79,9 @@
 - [x] 保证 policy result 仍可继续留在服务端内部链路，供模型下一步推理使用。
 
 ### 2.2 Auto-title observability and fix
-- [ ] 为 auto-title 增加结构化日志和失败原因分类。
-- [ ] 用 thread `ab13ac5b-a22e-4352-9d5e-37a97756a8b8` 这类默认标题 case 验证真实失败点。
-- [ ] 在确认失败根因后，补最小修复，确保 completed run 的默认标题 thread 能正常自动改名。
+- [x] 为 auto-title 增加结构化日志和失败原因分类。
+- [x] 用 thread `ab13ac5b-a22e-4352-9d5e-37a97756a8b8` 这类默认标题 case 验证真实失败点。
+- [x] 在确认失败根因后，补最小修复，确保 completed run 的默认标题 thread 能正常自动改名。
 
 ## 3. Frontend Boundary
 
@@ -104,8 +104,8 @@
 
 ### 4.1 Backend tests
 - [x] 为 transcript projection 增加测试，确认 policy message 不再进入普通用户可见响应。
-- [ ] 为 auto-title observability 增加 focused tests，覆盖主要 skip/failure 分类。
-- [ ] 为 auto-title 修复补回归测试，覆盖 completed run 后默认标题 thread 被写回的路径。
+- [x] 为 auto-title observability 增加 focused tests，覆盖主要 skip/failure 分类。
+- [x] 为 auto-title 修复补回归测试，覆盖 completed run 后默认标题 thread 被写回的路径。
 
 ### 4.2 Frontend tests
 - [x] research activity tests：policy entry 继续参与内部逻辑，但不进入用户可见 summary。
@@ -134,15 +134,15 @@
 - [x] 删除持续 auto-follow 输出逻辑
 - [x] 修复 streaming 中用户视口被反复拖到底部的问题
 - [x] 跑 targeted tests
-- [ ] 跑 `codex review`
-- [ ] clean 后立即提交
+- [x] 跑 `codex review`
+- [x] clean 后立即提交
 
 ### Loop 4
-- [ ] 补强 auto-title observability
-- [ ] 定位并修复默认标题 thread 的 auto-title 失效问题
-- [ ] 跑 targeted tests
-- [ ] 跑 `codex review`
-- [ ] clean 后立即提交
+- [x] 补强 auto-title observability
+- [x] 定位并修复默认标题 thread 的 auto-title 失效问题
+- [x] 跑 targeted tests
+- [x] 跑 `codex review`
+- [x] clean 后立即提交
 
 ### Loop 5
 - [ ] 更新 source-of-truth / README

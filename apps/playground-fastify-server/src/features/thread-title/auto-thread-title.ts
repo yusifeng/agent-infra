@@ -11,6 +11,22 @@ export type ThreadTitleGenerator = {
   generateTitle(input: { sourceText: string }): Promise<string | null>;
 };
 
+export type AutoThreadTitleResult =
+  | { outcome: 'skipped'; reason: 'no_generator' }
+  | { outcome: 'skipped'; reason: 'thread_unavailable'; stage: 'initial_check' | 'before_writeback' }
+  | { outcome: 'skipped'; reason: 'title_no_longer_default'; stage: 'initial_check' | 'before_writeback' }
+  | { outcome: 'skipped'; reason: 'no_source_text' }
+  | { outcome: 'skipped'; reason: 'normalized_title_empty' }
+  | { outcome: 'failed'; reason: 'repo_read_failed' }
+  | { outcome: 'failed'; reason: 'provider_request_failed' }
+  | { outcome: 'failed'; reason: 'rename_writeback_failed' }
+  | { outcome: 'renamed'; title: string };
+
+type AutoThreadTitleLogger = {
+  info?: (payload: Record<string, unknown>, message: string) => void;
+  error?: (payload: Record<string, unknown>, message: string) => void;
+};
+
 export function extractAutoTitleSourceText(
   messages: Array<{ role: string; parts: Array<{ type: string; textValue?: string | null }> }>
 ) {
@@ -50,49 +66,157 @@ export async function maybeAutoTitleThread(args: {
   services: PlaygroundAppServices;
   threadId: string;
   generator: ThreadTitleGenerator | null;
-  log?: {
-    error: (payload: Record<string, unknown>, message: string) => void;
-  };
-}) {
+  log?: AutoThreadTitleLogger;
+}): Promise<AutoThreadTitleResult> {
   const { services, threadId, generator, log } = args;
   if (!generator) {
-    return;
-  }
-
-  const initialThread = await services.repos.threadRepo.findById(threadId);
-  if (!initialThread || !isDefaultThreadTitle(initialThread.title)) {
-    return;
-  }
-
-  const messages = await services.repos.messageRepo.listByThread(threadId);
-  const sourceText = extractAutoTitleSourceText(messages);
-  if (!sourceText) {
-    return;
+    log?.info?.(
+      {
+        outcome: 'skipped',
+        reason: 'no_generator',
+        threadId
+      },
+      'Skipped auto-title thread'
+    );
+    return { outcome: 'skipped', reason: 'no_generator' };
   }
 
   try {
-    const generatedTitle = normalizeGeneratedThreadTitle(await generator.generateTitle({ sourceText }));
+    const initialThread = await services.repos.threadRepo.findById(threadId);
+    if (!initialThread) {
+      log?.info?.(
+        {
+          outcome: 'skipped',
+          reason: 'thread_unavailable',
+          stage: 'initial_check',
+          threadId
+        },
+        'Skipped auto-title thread'
+      );
+      return { outcome: 'skipped', reason: 'thread_unavailable', stage: 'initial_check' };
+    }
+    if (!isDefaultThreadTitle(initialThread.title)) {
+      log?.info?.(
+        {
+          outcome: 'skipped',
+          reason: 'title_no_longer_default',
+          stage: 'initial_check',
+          threadId,
+          title: initialThread.title
+        },
+        'Skipped auto-title thread'
+      );
+      return { outcome: 'skipped', reason: 'title_no_longer_default', stage: 'initial_check' };
+    }
+
+    const messages = await services.repos.messageRepo.listByThread(threadId);
+    const sourceText = extractAutoTitleSourceText(messages);
+    if (!sourceText) {
+      log?.info?.(
+        {
+          outcome: 'skipped',
+          reason: 'no_source_text',
+          threadId
+        },
+        'Skipped auto-title thread'
+      );
+      return { outcome: 'skipped', reason: 'no_source_text' };
+    }
+
+    let generatedTitle: string | null;
+    try {
+      generatedTitle = normalizeGeneratedThreadTitle(await generator.generateTitle({ sourceText }));
+    } catch (error) {
+      log?.error?.(
+        {
+          outcome: 'failed',
+          reason: 'provider_request_failed',
+          err: error,
+          threadId
+        },
+        'Failed to auto-title thread'
+      );
+      return { outcome: 'failed', reason: 'provider_request_failed' };
+    }
+
     if (!generatedTitle) {
-      return;
+      log?.info?.(
+        {
+          outcome: 'skipped',
+          reason: 'normalized_title_empty',
+          threadId
+        },
+        'Skipped auto-title thread'
+      );
+      return { outcome: 'skipped', reason: 'normalized_title_empty' };
     }
 
     const latestThread = await services.repos.threadRepo.findById(threadId);
-    if (!latestThread || !isDefaultThreadTitle(latestThread.title)) {
-      return;
+    if (!latestThread) {
+      log?.info?.(
+        {
+          outcome: 'skipped',
+          reason: 'thread_unavailable',
+          stage: 'before_writeback',
+          threadId
+        },
+        'Skipped auto-title thread'
+      );
+      return { outcome: 'skipped', reason: 'thread_unavailable', stage: 'before_writeback' };
+    }
+    if (!isDefaultThreadTitle(latestThread.title)) {
+      log?.info?.(
+        {
+          outcome: 'skipped',
+          reason: 'title_no_longer_default',
+          stage: 'before_writeback',
+          threadId,
+          title: latestThread.title
+        },
+        'Skipped auto-title thread'
+      );
+      return { outcome: 'skipped', reason: 'title_no_longer_default', stage: 'before_writeback' };
     }
 
-    await services.app.threads.rename({
-      threadId,
-      title: generatedTitle
-    });
-  } catch (error) {
-    log?.error(
+    try {
+      await services.app.threads.rename({
+        threadId,
+        title: generatedTitle
+      });
+    } catch (error) {
+      log?.error?.(
+        {
+          outcome: 'failed',
+          reason: 'rename_writeback_failed',
+          err: error,
+          threadId,
+          title: generatedTitle
+        },
+        'Failed to auto-title thread'
+      );
+      return { outcome: 'failed', reason: 'rename_writeback_failed' };
+    }
+
+    log?.info?.(
       {
+        outcome: 'renamed',
+        threadId,
+        title: generatedTitle
+      },
+      'Auto-titled thread'
+    );
+    return { outcome: 'renamed', title: generatedTitle };
+  } catch (error) {
+    log?.error?.(
+      {
+        outcome: 'failed',
+        reason: 'repo_read_failed',
         err: error,
         threadId
       },
       'Failed to auto-title thread'
     );
+    return { outcome: 'failed', reason: 'repo_read_failed' };
   }
 }
 
