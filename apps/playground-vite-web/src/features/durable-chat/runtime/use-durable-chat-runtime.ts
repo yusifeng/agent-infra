@@ -13,7 +13,7 @@ import {
   runStopViewingLiveResponse
 } from '@agent-infra/durable-chat-client';
 import type { LoadThreadMessagesResult } from '@agent-infra/durable-chat-client';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useSearchPanelState } from '@/features/durable-chat/runtime/use-search-panel-state';
@@ -36,6 +36,7 @@ import type { DurableChatRuntimeOptions } from '@/features/durable-chat/types/ru
 import { useLiveDraftOrchestration } from '@/features/durable-chat/runtime/use-live-draft-orchestration';
 import { useChatRuntimeLifecycle } from '@/features/durable-chat/runtime/use-chat-runtime-lifecycle';
 import { useShareDialogState } from '@/features/durable-chat/runtime/use-share-dialog-state';
+import { useChatViewportController } from '@/features/durable-chat/runtime/use-chat-viewport-controller';
 import type { PlaygroundThreadDto } from '@/features/durable-chat/types/thread';
 
 const PENDING_NEW_THREAD_LOADING_ID = '__pending-new-thread__';
@@ -132,10 +133,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const autoTitleRefreshRequestIdRef = useRef(0);
   const autoTitleRefreshAbortControllerRef = useRef<AbortController | null>(null);
   const titleTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const messagesViewportRef = useRef<HTMLDivElement>(null);
-  const pendingPrependAnchorRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
-  const shouldAutoScrollRef = useRef(true);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const {
     activeSearchResult,
     getCachedSearchResult,
@@ -215,16 +212,21 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   );
   const hasHydratedActiveThread = activeThreadId ? hydratedThreadIdsRef.current.has(activeThreadId) : false;
   const liveDraftMessageId = liveAssistantDraft?.messageId ?? null;
-
-  function syncTextareaHeight() {
-    const textarea = textareaRef.current;
-    if (!textarea) {
-      return;
-    }
-
-    textarea.style.height = '0px';
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 220)}px`;
-  }
+  const {
+    capturePrependAnchor,
+    clearPrependAnchor,
+    messagesViewportRef,
+    restorePrependAnchor,
+    scrollToMessagesBottom,
+    shouldAutoScrollRef,
+    textareaRef
+  } = useChatViewportController({
+    activeThreadId,
+    draft,
+    liveDraftMessageId,
+    loadingMessages,
+    setShowScrollToBottom
+  });
 
   function markThreadHydrated(threadId: string) {
     hydratedThreadIdsRef.current.add(threadId);
@@ -264,10 +266,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     }
   }, [activeThreadId, typingTitleState]);
 
-  useLayoutEffect(() => {
-    syncTextareaHeight();
-  }, [draft]);
-
   useEffect(() => {
     const runId = liveAssistantDraft?.runId;
     if (!runId) {
@@ -304,78 +302,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       setSidebarOpen(false);
     }
   }, [setSidebarOpen]);
-
-  useEffect(() => {
-    const viewport = messagesViewportRef.current;
-    if (!viewport) {
-      return;
-    }
-
-    const handleScroll = () => {
-      const distance = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
-      const nearBottom = distance < 140;
-      shouldAutoScrollRef.current = nearBottom;
-      setShowScrollToBottom(!nearBottom);
-    };
-
-    handleScroll();
-    viewport.addEventListener('scroll', handleScroll);
-    return () => {
-      viewport.removeEventListener('scroll', handleScroll);
-    };
-  }, [setShowScrollToBottom]);
-
-  useEffect(() => {
-    const viewport = messagesViewportRef.current;
-    if (!viewport) {
-      return;
-    }
-
-    const pendingAnchor = pendingPrependAnchorRef.current;
-    if (pendingAnchor) {
-      pendingPrependAnchorRef.current = null;
-      window.requestAnimationFrame(() => {
-        const heightDelta = viewport.scrollHeight - pendingAnchor.scrollHeight;
-        viewport.scrollTop = pendingAnchor.scrollTop + heightDelta;
-      });
-      return;
-    }
-
-    if (loadingMessages) {
-      return;
-    }
-
-    window.requestAnimationFrame(() => {
-      viewport.scrollTop = viewport.scrollHeight;
-      setShowScrollToBottom(false);
-    });
-  }, [activeThreadId, loadingMessages, setShowScrollToBottom]);
-
-  useEffect(() => {
-    const viewport = messagesViewportRef.current;
-    if (!viewport || !liveDraftMessageId) {
-      return;
-    }
-
-    window.requestAnimationFrame(() => {
-      viewport.scrollTop = viewport.scrollHeight;
-      setShowScrollToBottom(false);
-    });
-  }, [liveDraftMessageId, setShowScrollToBottom]);
-
-  function scrollToMessagesBottom() {
-    const viewport = messagesViewportRef.current;
-    if (!viewport) {
-      return;
-    }
-
-    shouldAutoScrollRef.current = true;
-    setShowScrollToBottom(false);
-    viewport.scrollTo({
-      top: viewport.scrollHeight,
-      behavior: 'smooth'
-    });
-  }
 
   function resetDraftThreadState() {
     runResetDraftThreadState({
@@ -731,14 +657,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       return;
     }
 
-    const viewport = messagesViewportRef.current;
-    if (viewport) {
-      pendingPrependAnchorRef.current = {
-        scrollHeight: viewport.scrollHeight,
-        scrollTop: viewport.scrollTop
-      };
-    }
-    shouldAutoScrollRef.current = false;
+    capturePrependAnchor();
     const didApply = await runLoadOlderMessages({
       threadId,
       beforeCursor,
@@ -755,8 +674,10 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       }
     });
 
-    if (!didApply) {
-      pendingPrependAnchorRef.current = null;
+    if (didApply) {
+      restorePrependAnchor();
+    } else {
+      clearPrependAnchor();
     }
   }
 
