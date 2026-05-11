@@ -90,6 +90,8 @@ Recent history favors short, imperative commit subjects, for example `Add Pi Nar
 - For multi-loop implementation work, run `codex review` at the end of each meaningful functional slice instead of waiting for the entire todo to be finished.
 - A meaningful slice should usually map to one bounded feature area, such as schema/bootstrap, one route/service cluster, or one frontend flow.
 - Do not defer review until a large cross-cutting diff has accumulated, but also do not run review for every tiny 1-2 file micro-edit when the slice is still incomplete.
+- After a clean slice-level review and passing targeted verification, commit that slice immediately by default.
+- Do not keep accumulating additional implementation work in the same uncommitted diff after review unless the user explicitly asks to batch multiple loop items together.
 
 - **Commit workflow (when user says “commit”)**: assume the user already ran `git add`. Do:
   - `git status --short` and `git diff --cached` (or `git diff --cached --stat`)
