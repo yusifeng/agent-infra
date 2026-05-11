@@ -8,8 +8,8 @@ import type { ToolInvocationDto } from '@agent-infra/contracts';
 
 import {
   normalizeCreateThreadResponse,
-  normalizeThreadsResponse,
-  normalizeUpdateThreadResponse
+  normalizeUpdateThreadResponse,
+  normalizeThreadsResponse
 } from '@/features/durable-chat/schema/thread-management';
 import type {
   PlaygroundCreateThreadResponseDto,
@@ -67,6 +67,13 @@ export async function fetchThreads(signal?: AbortSignal): Promise<ThreadsResult>
     error: data.error ?? null,
     data
   };
+}
+
+export async function fetchThread(threadId: string, signal?: AbortSignal): Promise<UpdateThreadResult> {
+  return fetchThreadMutation(`/api/threads/${threadId}`, {
+    method: 'GET',
+    signal
+  });
 }
 
 export async function createThread(): Promise<CreateThreadResult> {

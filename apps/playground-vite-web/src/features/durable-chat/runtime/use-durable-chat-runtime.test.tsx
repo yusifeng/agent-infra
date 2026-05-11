@@ -2,7 +2,7 @@ import type { MessageDto, RunDto } from '@agent-infra/contracts';
 import type { LiveAssistantDraft } from '@agent-infra/durable-chat-client';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useDurableChatRuntime } from '@/features/durable-chat/runtime/use-durable-chat-runtime';
 
@@ -33,6 +33,7 @@ const liveDraftPersistenceMocks = vi.hoisted(() => ({
 
 const chatApiMocks = vi.hoisted(() => ({
   createThread: vi.fn(),
+  fetchThread: vi.fn(),
   fetchThreads: vi.fn(),
   fetchThreadMessages: vi.fn(),
   renameThread: vi.fn(),
@@ -97,6 +98,7 @@ vi.mock('@/features/durable-chat/runtime/live-draft-persistence', () => ({
 
 vi.mock('@/features/durable-chat/repo/chat-api', () => ({
   createThread: (...args: unknown[]) => chatApiMocks.createThread(...args),
+  fetchThread: (...args: unknown[]) => chatApiMocks.fetchThread(...args),
   fetchThreads: (...args: unknown[]) => chatApiMocks.fetchThreads(...args),
   fetchThreadMessages: (...args: unknown[]) => chatApiMocks.fetchThreadMessages(...args),
   renameThread: (...args: unknown[]) => chatApiMocks.renameThread(...args),
@@ -234,6 +236,10 @@ function wrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe('useDurableChatRuntime', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     durableChatClientMocks.runRefreshMeta.mockResolvedValue(undefined);
@@ -246,6 +252,14 @@ describe('useDurableChatRuntime', () => {
           createThread({ id: 'thread-1', title: '第一个会话', updatedAt: '2026-01-01T00:00:01.000Z' }),
           createThread({ id: 'thread-2', title: '第二个会话', updatedAt: '2026-01-01T00:00:02.000Z' })
         ]
+      }
+    });
+    chatApiMocks.fetchThread.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        thread: createThread({ id: 'thread-1', title: '验证码问题排查', updatedAt: '2026-01-01T00:00:04.000Z' })
       }
     });
     chatApiMocks.createThread.mockResolvedValue({
@@ -347,9 +361,13 @@ describe('useDurableChatRuntime', () => {
   });
 
   it('restores an active live draft and starts its refresh loop after thread hydration', async () => {
-    const { result } = renderHook(() => useDurableChatRuntime({ initialThreadId: 'thread-1' }), {
-      wrapper
-    });
+    const { result } = renderHook(
+      ({ initialThreadId }) => useDurableChatRuntime({ initialThreadId }),
+      {
+        initialProps: { initialThreadId: 'thread-1' as string | null },
+        wrapper
+      }
+    );
 
     await waitFor(() => {
       expect(result.current.activeThreadId).toBe('thread-1');
@@ -422,9 +440,13 @@ describe('useDurableChatRuntime', () => {
       await operations.reconcileCompletedTurn('thread-1', 'run-1', 7);
     });
 
-    const { result } = renderHook(() => useDurableChatRuntime({ initialThreadId: 'thread-1' }), {
-      wrapper
-    });
+    const { result } = renderHook(
+      ({ initialThreadId }) => useDurableChatRuntime({ initialThreadId }),
+      {
+        initialProps: { initialThreadId: 'thread-1' as string | null },
+        wrapper
+      }
+    );
 
     await waitFor(() => {
       expect(result.current.activeThreadId).toBe('thread-1');
@@ -443,6 +465,79 @@ describe('useDurableChatRuntime', () => {
       expect(result.current.liveAssistantDraft).toBeNull();
       expect(result.current.displayedMessages).toEqual([expect.objectContaining({ id: 'assistant-message-1' })]);
     });
+  });
+
+  it('refreshes only the active thread after a completed run and shares the typing title', async () => {
+    chatApiMocks.fetchThreads.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        threads: [
+          createThread({ id: 'thread-1', title: 'New Thread', updatedAt: '2026-01-01T00:00:01.000Z' }),
+          createThread({ id: 'thread-2', title: '第二个会话', updatedAt: '2026-01-01T00:00:02.000Z' })
+        ]
+      }
+    });
+    durableChatClientMocks.runReconcileCompletedTurn.mockImplementation(async ({ actions }: any) => {
+      actions.setActiveResponseRun(createRun({ status: 'completed' }));
+      actions.setMessages([createMessage()]);
+      actions.setLiveAssistantDraft(null);
+    });
+    durableChatClientMocks.runSendMessageFlow.mockImplementation(async ({ actions, operations }: any) => {
+      actions.setLiveAssistantDraft(createDraft());
+      await operations.reconcileCompletedTurn('thread-1', 'run-1', 7);
+    });
+
+    const { result } = renderHook(
+      ({ initialThreadId }) => useDurableChatRuntime({ initialThreadId }),
+      {
+        initialProps: { initialThreadId: 'thread-1' as string | null },
+        wrapper
+      }
+    );
+
+    await waitFor(() => {
+      expect(result.current.activeThreadId).toBe('thread-1');
+      expect(result.current.threads.find((thread) => thread.id === 'thread-1')?.title).toBe('New Thread');
+    });
+
+    vi.useFakeTimers();
+
+    act(() => {
+      result.current.onDraftChange('请帮我排查验证码问题');
+    });
+
+    act(() => {
+      result.current.onSend();
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(chatApiMocks.fetchThread).toHaveBeenCalledWith('thread-1', expect.any(AbortSignal));
+
+    expect(chatApiMocks.fetchThreads).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      vi.advanceTimersByTime(40);
+    });
+
+    expect(result.current.currentThreadTitle.length).toBeGreaterThan(0);
+    expect(result.current.currentThreadTitle.length).toBeLessThan('验证码问题排查'.length);
+    expect(result.current.threads.find((thread) => thread.id === 'thread-1')?.title).toBe(result.current.currentThreadTitle);
+
+    act(() => {
+      vi.runAllTimers();
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(result.current.currentThreadTitle).toBe('验证码问题排查');
+    expect(result.current.threads.find((thread) => thread.id === 'thread-1')?.title).toBe('验证码问题排查');
   });
 
   it('routes expert mode selection through the real send model option', async () => {
@@ -494,9 +589,13 @@ describe('useDurableChatRuntime', () => {
   });
 
   it('renames a thread and updates the visible thread title', async () => {
-    const { result } = renderHook(() => useDurableChatRuntime({ initialThreadId: 'thread-1' }), {
-      wrapper
-    });
+    const { result } = renderHook(
+      ({ initialThreadId }) => useDurableChatRuntime({ initialThreadId }),
+      {
+        initialProps: { initialThreadId: 'thread-1' as string | null },
+        wrapper
+      }
+    );
 
     await waitFor(() => {
       expect(result.current.threads.map((thread) => thread.id)).toEqual(['thread-2', 'thread-1']);
@@ -514,7 +613,169 @@ describe('useDurableChatRuntime', () => {
     await waitFor(() => {
       expect(chatApiMocks.renameThread).toHaveBeenCalledWith('thread-1', '已重命名');
       expect(result.current.threads.find((thread) => thread.id === 'thread-1')?.title).toBe('已重命名');
+      expect(result.current.currentThreadTitle).toBe('已重命名');
       expect(result.current.renameDialogThreadId).toBeNull();
+    });
+  });
+
+  it('does not animate a title update after the user switches away before refresh resolves', async () => {
+    let resolveFetchThread: ((value: unknown) => void) | null = null;
+    chatApiMocks.fetchThreads.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        threads: [
+          createThread({ id: 'thread-1', title: 'New Thread', updatedAt: '2026-01-01T00:00:01.000Z' }),
+          createThread({ id: 'thread-2', title: '第二个会话', updatedAt: '2026-01-01T00:00:02.000Z' })
+        ]
+      }
+    });
+    chatApiMocks.fetchThread.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveFetchThread = resolve;
+        })
+    );
+    durableChatClientMocks.runReconcileCompletedTurn.mockImplementation(async ({ actions }: any) => {
+      actions.setActiveResponseRun(createRun({ status: 'completed' }));
+      actions.setMessages([createMessage()]);
+      actions.setLiveAssistantDraft(null);
+    });
+    durableChatClientMocks.runSendMessageFlow.mockImplementation(async ({ actions, operations }: any) => {
+      actions.setLiveAssistantDraft(createDraft());
+      await operations.reconcileCompletedTurn('thread-1', 'run-1', 7);
+    });
+
+    const { result, rerender } = renderHook(
+      ({ initialThreadId }) => useDurableChatRuntime({ initialThreadId }),
+      {
+        initialProps: { initialThreadId: 'thread-1' as string | null },
+        wrapper
+      }
+    );
+
+    await waitFor(() => {
+      expect(result.current.activeThreadId).toBe('thread-1');
+    });
+
+    act(() => {
+      result.current.onDraftChange('请帮我排查验证码问题');
+    });
+
+    act(() => {
+      result.current.onSend();
+    });
+
+    await waitFor(() => {
+      expect(resolveFetchThread).not.toBeNull();
+    });
+
+    rerender({ initialThreadId: 'thread-2' });
+
+    await waitFor(() => {
+      expect(result.current.activeThreadId).toBe('thread-2');
+      expect(result.current.currentThreadTitle).toBe('第二个会话');
+    });
+
+    await act(async () => {
+      resolveFetchThread?.({
+        ok: true,
+        status: 200,
+        error: null,
+        data: {
+          thread: createThread({ id: 'thread-1', title: '验证码问题排查', updatedAt: '2026-01-01T00:00:04.000Z' })
+        }
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.threads.find((thread) => thread.id === 'thread-1')?.title).toBe('验证码问题排查');
+      expect(result.current.currentThreadTitle).toBe('第二个会话');
+    });
+  });
+
+  it('does not let an in-flight auto-title refresh overwrite a manual rename', async () => {
+    let resolveFetchThread: ((value: unknown) => void) | null = null;
+    chatApiMocks.fetchThreads.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        threads: [createThread({ id: 'thread-1', title: 'New Thread', updatedAt: '2026-01-01T00:00:01.000Z' })]
+      }
+    });
+    chatApiMocks.fetchThread.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveFetchThread = resolve;
+        })
+    );
+    chatApiMocks.renameThread.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        thread: createThread({ id: 'thread-1', title: '用户手动标题', updatedAt: '2026-01-01T00:00:03.000Z' })
+      }
+    });
+    durableChatClientMocks.runReconcileCompletedTurn.mockImplementation(async ({ actions }: any) => {
+      actions.setActiveResponseRun(createRun({ status: 'completed' }));
+      actions.setMessages([createMessage()]);
+      actions.setLiveAssistantDraft(null);
+    });
+    durableChatClientMocks.runSendMessageFlow.mockImplementation(async ({ actions, operations }: any) => {
+      actions.setLiveAssistantDraft(createDraft());
+      await operations.reconcileCompletedTurn('thread-1', 'run-1', 7);
+    });
+
+    const { result } = renderHook(() => useDurableChatRuntime({ initialThreadId: 'thread-1' }), {
+      wrapper
+    });
+
+    await waitFor(() => {
+      expect(result.current.activeThreadId).toBe('thread-1');
+    });
+
+    act(() => {
+      result.current.onDraftChange('请帮我排查验证码问题');
+    });
+
+    act(() => {
+      result.current.onSend();
+    });
+
+    await waitFor(() => {
+      expect(resolveFetchThread).not.toBeNull();
+    });
+
+    act(() => {
+      result.current.onOpenRenameThread('thread-1');
+      result.current.onRenameDraftTitleChange('用户手动标题');
+    });
+
+    act(() => {
+      result.current.onConfirmRenameThread();
+    });
+
+    await waitFor(() => {
+      expect(result.current.currentThreadTitle).toBe('用户手动标题');
+    });
+
+    await act(async () => {
+      resolveFetchThread?.({
+        ok: true,
+        status: 200,
+        error: null,
+        data: {
+          thread: createThread({ id: 'thread-1', title: '验证码问题排查', updatedAt: '2026-01-01T00:00:04.000Z' })
+        }
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.currentThreadTitle).toBe('用户手动标题');
+      expect(result.current.threads.find((thread) => thread.id === 'thread-1')?.title).toBe('用户手动标题');
     });
   });
 

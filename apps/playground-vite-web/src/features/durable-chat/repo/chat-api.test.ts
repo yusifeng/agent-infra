@@ -143,6 +143,41 @@ describe('chat api repo facade', () => {
     });
   });
 
+  it('fetches a single thread through the thread management route', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        thread: {
+          id: 'thread-1',
+          appId: 'playground-vite-web',
+          title: 'Fetched thread',
+          status: 'active',
+          metadata: null,
+          createdAt: '2026-05-09T00:00:00.000Z',
+          updatedAt: '2026-05-09T00:01:00.000Z',
+          archivedAt: null
+        }
+      })
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { fetchThread } = await import('@/features/durable-chat/repo/chat-api');
+    const signal = new AbortController().signal;
+    const result = await fetchThread('thread-1', signal);
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/threads/thread-1', {
+      method: 'GET',
+      signal
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        thread: expect.objectContaining({ id: 'thread-1', title: 'Fetched thread' })
+      }
+    });
+  });
+
   it('archives threads through the thread management route', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
