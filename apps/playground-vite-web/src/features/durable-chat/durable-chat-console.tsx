@@ -2,6 +2,7 @@ import clsx from 'clsx';
 import type { ReactNode } from 'react';
 import { Share2 } from 'lucide-react';
 
+import type { AuthUserDto } from '@/features/auth/repo/auth-api';
 import { ChatHeader } from './components/chat-header';
 import { ComposerDock } from './components/composer-dock';
 import { ShareDialog } from './components/share-dialog';
@@ -16,9 +17,13 @@ import { useDurableChatRuntime } from './runtime/use-durable-chat-runtime';
 
 export function DurableChatConsole({
   initialThreadId,
+  currentUser,
+  onLogout,
   headerTrailingContent = null
 }: {
   initialThreadId: string | null;
+  currentUser: AuthUserDto;
+  onLogout: () => void | Promise<void>;
   headerTrailingContent?: ReactNode;
 }) {
   const runtime = useDurableChatRuntime({ initialThreadId });
@@ -68,6 +73,7 @@ export function DurableChatConsole({
     selectedThinkingEnabled,
     selectedReasoningEffort,
     selectedModelOption,
+    deepseekModePresentation,
     activeSearchResult,
     searchPanelError,
     searchPanelLoading,
@@ -86,7 +92,8 @@ export function DurableChatConsole({
     onScrollToBottom,
     showResponseLoading,
     shareDialog,
-    onOpenShareThread
+    onOpenShareThread,
+    onSelectedModelKeyChange
   } = runtime;
   const showLoadingText =
     showResponseLoading &&
@@ -101,11 +108,13 @@ export function DurableChatConsole({
     <main className={clsx('chat-shell-theme chat-shell-scrollbars flex h-full min-h-0 overflow-hidden', ui.shell)}>
       <ChatSidebar
         sidebarOpen={sidebarOpen}
+        currentUser={currentUser}
         threads={threads}
         pinnedThreadIds={pinnedThreadIds}
         activeThreadId={activeThreadId}
         openThreadMenuId={openThreadMenuId}
         onClose={onCloseSidebar}
+        onLogout={onLogout}
         onNewChat={onNewChat}
         onOpenThread={onOpenThread}
         onOpenThreadMenu={onOpenThreadMenu}
@@ -160,8 +169,9 @@ export function DurableChatConsole({
                 transcriptBlocks={displayedTranscriptBlocks}
                 liveAssistantDraft={liveAssistantDraft}
                 showLoadingText={showLoadingText}
-                centeredEmptyState={centeredEmptyState}
-                onLoadOlderMessages={onLoadOlderMessages}
+              centeredEmptyState={centeredEmptyState}
+              showWelcomeWhenEmpty={!centeredEmptyState}
+              onLoadOlderMessages={onLoadOlderMessages}
                 onOpenSearchResult={onOpenSearchResult}
               />
             </div>
@@ -176,6 +186,7 @@ export function DurableChatConsole({
               selectedThinkingEnabled={selectedThinkingEnabled}
               selectedReasoningEffort={selectedReasoningEffort}
               selectedModelOption={selectedModelOption}
+              deepseekModePresentation={deepseekModePresentation}
               meta={meta}
               showScrollToBottom={showScrollToBottom}
               centered={centeredEmptyState}
@@ -185,6 +196,7 @@ export function DurableChatConsole({
               onSelectedWebSearchEnabledChange={onSelectedWebSearchEnabledChange}
               onSelectedThinkingEnabledChange={onSelectedThinkingEnabledChange}
               onSelectedReasoningEffortChange={onSelectedReasoningEffortChange}
+              onSelectedModelKeyChange={onSelectedModelKeyChange}
               onSend={onSend}
               onStop={onStop}
               onScrollToBottom={onScrollToBottom}

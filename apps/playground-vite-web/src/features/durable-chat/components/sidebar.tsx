@@ -2,12 +2,14 @@ import clsx from 'clsx';
 import {
   Archive,
   ChevronDown,
+  LogOut,
   PanelLeftClose,
   MoreHorizontal,
   MessageSquarePlus,
   PencilLine,
   Pin,
   PinOff,
+  Settings2,
   Share2
 } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
@@ -17,9 +19,11 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import type { PlaygroundThreadDto } from '@/features/durable-chat/types/thread';
+import type { AuthUserDto } from '@/features/auth/repo/auth-api';
 
 import { ChatAvatar, IconButton } from './shared';
 import { ui } from './ui';
@@ -54,11 +58,13 @@ function formatGroupLabel(date: Date) {
 
 type ChatSidebarProps = {
   sidebarOpen: boolean;
+  currentUser: AuthUserDto | null;
   threads: PlaygroundThreadDto[];
   pinnedThreadIds: string[];
   activeThreadId: string | null;
   openThreadMenuId: string | null;
   onClose: () => void;
+  onLogout: () => void | Promise<void>;
   onNewChat: () => void;
   onOpenThread: (threadId: string) => void;
   onOpenThreadMenu: (threadId: string) => void;
@@ -71,11 +77,13 @@ type ChatSidebarProps = {
 
 export function ChatSidebar({
   sidebarOpen,
+  currentUser,
   threads,
   pinnedThreadIds,
   activeThreadId,
   openThreadMenuId,
   onClose,
+  onLogout,
   onNewChat,
   onOpenThread,
   onOpenThreadMenu,
@@ -201,28 +209,89 @@ export function ChatSidebar({
               {historyExpanded ? null : null}
             </div>
 
-            <div className="shrink-0 border-t border-[color:var(--chat-border)] px-3 py-4">
-              <button
-                type="button"
-                onClick={() => setAccountMenuOpen((current) => !current)}
-                className="flex w-full items-center justify-between rounded-2xl px-2 py-1.5 text-left transition hover:bg-[var(--chat-hover)]"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-[#dcedb8] text-sm font-semibold text-[#7a8b39]">
-                    A
-                  </div>
-                  <div className="min-w-0">
-                    <div className="truncate text-[15px] font-medium text-[color:var(--chat-text)]">工作区</div>
-                    <div className="truncate text-xs text-[color:var(--chat-text-tertiary)]">账户与设置</div>
-                  </div>
-                </div>
-                <ChevronDown className={clsx('h-4 w-4 shrink-0 text-[color:var(--chat-text-tertiary)] transition-transform', accountMenuOpen && 'rotate-180')} />
-              </button>
+            <div className="shrink-0 border-t border-[color:var(--chat-border)] px-2 py-2">
+              <AccountMenuCard currentUser={currentUser} menuOpen={accountMenuOpen} onLogout={onLogout} onOpenChange={setAccountMenuOpen} />
             </div>
           </div>
         </aside>
       </div>
     </>
+  );
+}
+
+function deriveAccountDisplayName(email: string) {
+  const localPart = email.split('@')[0]?.trim();
+  return localPart || email;
+}
+
+function deriveAccountMonogram(email: string) {
+  const displayName = deriveAccountDisplayName(email);
+  const match = displayName.match(/[A-Za-z0-9\u4e00-\u9fff]/u);
+  return (match?.[0] ?? '?').toUpperCase();
+}
+
+function AccountMenuCard({
+  currentUser,
+  menuOpen,
+  onLogout,
+  onOpenChange
+}: {
+  currentUser: AuthUserDto | null;
+  menuOpen: boolean;
+  onLogout: () => void | Promise<void>;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const email = currentUser?.email ?? '未登录';
+  const displayName = deriveAccountDisplayName(email);
+  const monogram = deriveAccountMonogram(email);
+
+  return (
+    <DropdownMenu open={menuOpen} onOpenChange={onOpenChange}>
+      <DropdownMenuTrigger asChild>
+        <button
+          aria-label="账户菜单"
+          className={clsx(
+            'flex h-11 w-full items-center rounded-2xl px-3 text-[color:var(--chat-text)] transition',
+            menuOpen ? 'bg-[color:var(--chat-hover)]' : 'hover:bg-[color:var(--chat-hover)]'
+          )}
+          type="button"
+        >
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <div className="flex size-8 items-center justify-center rounded-full bg-[linear-gradient(135deg,#d7e3ff_0%,#edf3ff_100%)] text-sm font-semibold text-[#4263eb]">
+              {monogram}
+            </div>
+            <div className="min-w-0 truncate text-[15px] font-medium text-[color:var(--chat-text)]" title={email}>
+              {displayName}
+            </div>
+          </div>
+
+          <span
+            aria-hidden="true"
+            className="ml-2 flex size-8 items-center justify-center rounded-full text-[color:var(--chat-text-tertiary)] transition"
+          >
+            <MoreHorizontal className="size-4.5" />
+          </span>
+        </button>
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent align="start" className="w-48" side="top">
+        <DropdownMenuItem disabled>
+          <Settings2 className="h-4 w-4" />
+          <span>系统设置</span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          data-account-menu-logout
+          variant="destructive"
+          onSelect={() => {
+            void onLogout();
+          }}
+        >
+          <LogOut className="h-4 w-4" />
+          <span>退出登录</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -9,6 +9,11 @@ import type { PlaygroundThreadDto } from '@/features/durable-chat/types/thread';
 function openMenu(trigger: HTMLElement) {
   fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
 }
+
+const currentUser = {
+  id: 'user-1',
+  email: 'zdw189803631@gmail.com'
+};
 
 function createThread(overrides: Partial<PlaygroundThreadDto> = {}): PlaygroundThreadDto {
   return {
@@ -38,11 +43,13 @@ describe('ChatSidebar', () => {
       return (
         <ChatSidebar
           sidebarOpen
+          currentUser={currentUser}
           threads={[createThread({ id: 'thread-1', title: '速度与激情' })]}
           pinnedThreadIds={[]}
           activeThreadId="thread-1"
           openThreadMenuId={openThreadMenuId}
           onClose={vi.fn()}
+          onLogout={vi.fn()}
           onNewChat={vi.fn()}
           onOpenThread={vi.fn()}
           onOpenThreadMenu={setOpenThreadMenuId}
@@ -98,11 +105,13 @@ describe('ChatSidebar', () => {
       return (
         <ChatSidebar
           sidebarOpen
+          currentUser={currentUser}
           threads={threads}
           pinnedThreadIds={pinnedThreadIds}
           activeThreadId={null}
           openThreadMenuId={openThreadMenuId}
           onClose={vi.fn()}
+          onLogout={vi.fn()}
           onNewChat={vi.fn()}
           onOpenThread={vi.fn()}
           onOpenThreadMenu={setOpenThreadMenuId}
@@ -136,5 +145,39 @@ describe('ChatSidebar', () => {
     openMenu(container.querySelector('[data-thread-menu-button="thread-1"]') as HTMLElement);
     fireEvent.click(screen.getByRole('menuitem', { name: '取消置顶' }));
     expect(getTitles()).toEqual(['第二条', '第一条']);
+  });
+
+  it('renders the authenticated account card and routes logout through the account menu', () => {
+    const logoutSpy = vi.fn();
+
+    const { container } = render(
+      <ChatSidebar
+        sidebarOpen
+        currentUser={currentUser}
+        threads={[]}
+        pinnedThreadIds={[]}
+        activeThreadId={null}
+        openThreadMenuId={null}
+        onClose={vi.fn()}
+        onLogout={logoutSpy}
+        onNewChat={vi.fn()}
+        onOpenThread={vi.fn()}
+        onOpenThreadMenu={vi.fn()}
+        onCloseThreadMenu={vi.fn()}
+        onRenameThread={vi.fn()}
+        onTogglePinThread={vi.fn()}
+        onShareThread={vi.fn()}
+        onArchiveThread={vi.fn()}
+      />
+    );
+
+    expect(screen.getAllByText('zdw189803631').length).toBeGreaterThan(0);
+
+    openMenu(within(container).getByRole('button', { name: '账户菜单' }));
+    expect(screen.getByRole('menuitem', { name: '退出登录' })).toBeTruthy();
+    expect(screen.getByText('系统设置')).toBeTruthy();
+
+    fireEvent.click(screen.getByText('退出登录'));
+    expect(logoutSpy).toHaveBeenCalledTimes(1);
   });
 });

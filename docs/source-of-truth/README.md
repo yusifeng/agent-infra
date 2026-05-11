@@ -23,6 +23,10 @@
 - `playground-host-auth-model.md`
   - playground Fastify/Vite 宿主侧 auth 的边界、ownership 规则、
     session/cookie 模型、受保护路由语义，以及为什么它不进入 shared packages
+- `playground-chat-mode-model.md`
+  - playground Fastify/Vite 在 `/new` centered landing 上采用的
+    DeepSeek 双模式语义、host meta 暴露规则、模式到真实模型的映射，
+    以及非 DeepSeek fallback 的降级边界
 
 ## 不适合放在这里的内容
 

@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
-import { LogOut } from 'lucide-react';
 import { Navigate, matchPath, useLocation, useNavigate } from 'react-router-dom';
 
-import { Button } from '@/components/ui/button';
 import { ForgotPasswordForm } from '@/features/auth/components/forgot-password-form';
 import { LoginForm } from '@/features/auth/components/login-form';
 import { RegisterForm } from '@/features/auth/components/register-form';
@@ -99,6 +97,17 @@ function App() {
   const forgotPasswordRoute = location.pathname === '/forgot-password';
   const protectedChatRoute = location.pathname === '/new' || Boolean(chatMatch) || Boolean(replayMatch);
 
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch {
+      // Keep local auth UI consistent even if the server-side revoke call fails.
+    } finally {
+      setLogoutRedirecting(true);
+      setUnauthenticated();
+    }
+  };
+
   useEffect(() => {
     if (logoutRedirecting && loginRoute) {
       setLogoutRedirecting(false);
@@ -157,31 +166,20 @@ function App() {
   }
 
   if (replayMatch) {
-    return <ReplayConsole initialThreadId={resolvePathParam(location.pathname, '/replay/:threadId', 'threadId')} />;
+    return (
+      <ReplayConsole
+        currentUser={state.user}
+        initialThreadId={resolvePathParam(location.pathname, '/replay/:threadId', 'threadId')}
+        onLogout={handleLogout}
+      />
+    );
   }
 
   return (
     <DurableChatConsole
+      currentUser={state.user}
       initialThreadId={resolvePathParam(location.pathname, '/chat/:threadId', 'threadId')}
-      headerTrailingContent={
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={async () => {
-            try {
-              await logout();
-            } catch {
-              // Keep local auth UI consistent even if the server-side revoke call fails.
-            } finally {
-              setLogoutRedirecting(true);
-              setUnauthenticated();
-            }
-          }}
-        >
-          <LogOut />
-          退出
-        </Button>
-      }
+      onLogout={handleLogout}
     />
   );
 }

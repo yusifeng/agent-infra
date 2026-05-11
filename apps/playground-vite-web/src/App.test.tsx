@@ -27,14 +27,14 @@ vi.mock('@/features/auth/repo/auth-api', () => ({
 vi.mock('@/features/durable-chat/durable-chat-console', () => ({
   DurableChatConsole: ({
     initialThreadId,
-    headerTrailingContent
+    onLogout
   }: {
     initialThreadId: string | null;
-    headerTrailingContent?: React.ReactNode;
+    onLogout?: () => void | Promise<void>;
   }) => (
     <div>
       <div data-testid="durable-chat-console">{initialThreadId ?? 'new-thread'}</div>
-      {headerTrailingContent}
+      {onLogout ? <button onClick={() => void onLogout()}>退出登录</button> : null}
     </div>
   )
 }));
@@ -352,7 +352,7 @@ describe('App auth gate', () => {
       expect(screen.getByTestId('durable-chat-console').textContent).toBe('thread-7');
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '退出' }));
+    fireEvent.click(screen.getByRole('button', { name: '退出登录' }));
 
     await waitFor(() => {
       expect(authApiMocks.logout).toHaveBeenCalledTimes(1);
@@ -474,7 +474,7 @@ describe('App auth gate', () => {
       expect(screen.getByTestId('durable-chat-console').textContent).toBe('thread-8');
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '退出' }));
+    fireEvent.click(screen.getByRole('button', { name: '退出登录' }));
 
     await waitFor(() => {
       expect(authApiMocks.logout).toHaveBeenCalledTimes(1);

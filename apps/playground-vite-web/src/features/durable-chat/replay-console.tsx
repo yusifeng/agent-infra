@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 
+import type { AuthUserDto } from '@/features/auth/repo/auth-api';
 import { ChatHeader } from './components/chat-header';
 import { ChatMessageList } from './components/message-list';
 import { ReplayControlBar } from './components/replay-control-bar';
@@ -13,7 +14,15 @@ const idleDurableRecoveryState = {
   message: null
 };
 
-export function ReplayConsole({ initialThreadId }: { initialThreadId: string | null }) {
+export function ReplayConsole({
+  initialThreadId,
+  currentUser,
+  onLogout
+}: {
+  initialThreadId: string | null;
+  currentUser: AuthUserDto;
+  onLogout: () => void | Promise<void>;
+}) {
   const runtime = useReplayConsoleRuntime({ initialThreadId });
   const {
     sidebarOpen,
@@ -48,11 +57,13 @@ export function ReplayConsole({ initialThreadId }: { initialThreadId: string | n
     <main className={clsx('chat-shell-theme chat-shell-scrollbars flex h-full min-h-0 overflow-hidden', ui.shell)}>
       <ChatSidebar
         sidebarOpen={sidebarOpen}
+        currentUser={currentUser}
         threads={threads}
         pinnedThreadIds={[]}
         activeThreadId={activeThreadId}
         openThreadMenuId={null}
         onClose={onCloseSidebar}
+        onLogout={onLogout}
         onNewChat={onNewChat}
         onOpenThread={onOpenThread}
         onOpenThreadMenu={() => undefined}

@@ -189,6 +189,34 @@ function createDraft(): LiveAssistantDraft {
   };
 }
 
+function createMeta() {
+  return {
+    dbMode: 'sqlite' as const,
+    dbConnection: 'local',
+    runtimeConfigured: true,
+    runtimeProvider: 'deepseek',
+    runtimeModel: 'deepseek-v4-flash',
+    defaultModelKey: 'deepseek:deepseek-v4-flash',
+    modelOptions: [
+      {
+        key: 'deepseek:deepseek-v4-flash',
+        provider: 'deepseek' as const,
+        model: 'deepseek-v4-flash',
+        label: 'DeepSeek Flash',
+        description: 'Fast mode'
+      },
+      {
+        key: 'deepseek:deepseek-v4-pro',
+        provider: 'deepseek' as const,
+        model: 'deepseek-v4-pro',
+        label: 'DeepSeek Pro',
+        description: 'Expert mode'
+      }
+    ],
+    runtimeConfigError: null
+  };
+}
+
 let currentPath = '';
 
 function LocationProbe() {
@@ -414,6 +442,54 @@ describe('useDurableChatRuntime', () => {
       expect(durableChatClientMocks.runReconcileCompletedTurn).toHaveBeenCalledTimes(1);
       expect(result.current.liveAssistantDraft).toBeNull();
       expect(result.current.displayedMessages).toEqual([expect.objectContaining({ id: 'assistant-message-1' })]);
+    });
+  });
+
+  it('routes expert mode selection through the real send model option', async () => {
+    const meta = createMeta();
+    durableChatClientMocks.runRefreshMeta.mockImplementation(async ({ actions }: any) => {
+      actions.setMeta(meta);
+      actions.setSelectedModelKey(meta.defaultModelKey);
+    });
+
+    const { result } = renderHook(() => useDurableChatRuntime({ initialThreadId: null }), {
+      wrapper
+    });
+
+    await waitFor(() => {
+      expect(result.current.meta?.modelOptions).toHaveLength(2);
+      expect(result.current.selectedModelKey).toBe('deepseek:deepseek-v4-flash');
+    });
+
+    act(() => {
+      result.current.onSelectedModelKeyChange('deepseek:deepseek-v4-pro');
+    });
+
+    await waitFor(() => {
+      expect(result.current.selectedModelKey).toBe('deepseek:deepseek-v4-pro');
+      expect(result.current.selectedModelOption?.model).toBe('deepseek-v4-pro');
+    });
+
+    act(() => {
+      result.current.onDraftChange('Explain batch normalization.');
+    });
+
+    act(() => {
+      result.current.onSend();
+    });
+
+    await waitFor(() => {
+      expect(durableChatClientMocks.runSendMessageFlow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          state: expect.objectContaining({
+            selectedModelOption: expect.objectContaining({
+              key: 'deepseek:deepseek-v4-pro',
+              model: 'deepseek-v4-pro',
+              provider: 'deepseek'
+            })
+          })
+        })
+      );
     });
   });
 

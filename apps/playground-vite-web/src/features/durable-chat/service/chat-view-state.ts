@@ -2,6 +2,7 @@ import type { MessageDto, RunDto, RuntimePiMetaDto, ThreadMessagesPageInfoDto } 
 import { deriveMainChatResponseStatus, shouldShowMainChatLoading } from '@agent-infra/durable-chat-client';
 
 import { buildAnswerContainers } from '@/features/durable-chat/service/build-answer-containers';
+import { buildDeepseekModePresentation } from '@/features/durable-chat/service/deepseek-mode-presentation';
 import { buildOrderedThreads } from '@/features/durable-chat/service/thread-list-presentation';
 import { buildTranscriptPresentation } from '@/features/durable-chat/service/transcript-presentation';
 import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
@@ -48,6 +49,10 @@ export function buildChatViewState(args: BuildChatViewStateArgs) {
   const displayedThreads = buildOrderedThreads({ threads, pinnedThreadIds });
   const activeThread = threads.find((thread) => thread.id === activeThreadId) ?? null;
   const selectedModelOption = meta?.modelOptions.find((option) => option.key === selectedModelKey) ?? meta?.modelOptions[0] ?? null;
+  const deepseekModePresentation = buildDeepseekModePresentation({
+    modelOptions: meta?.modelOptions ?? [],
+    selectedModelKey
+  });
   const currentThreadTitle = activeThread?.title?.trim() || activeThreadId || 'New chat';
   const responseStatus = deriveMainChatResponseStatus({
     activeResponseRun,
@@ -73,6 +78,7 @@ export function buildChatViewState(args: BuildChatViewStateArgs) {
     activeThread,
     displayedThreads,
     selectedModelOption,
+    deepseekModePresentation,
     currentThreadTitle,
     responseStatus,
     isChatResponding,

@@ -115,6 +115,7 @@ describe('buildChatViewState', () => {
     expect(result.activeThread?.id).toBe('thread-1');
     expect(result.displayedThreads).toHaveLength(1);
     expect(result.selectedModelOption?.key).toBe('gpt-5.5');
+    expect(result.deepseekModePresentation.selectedMode).toBeNull();
     expect(result.currentThreadTitle).toBe('Thread title');
     expect(result.isChatResponding).toBe(false);
     expect(result.sendDisabled).toBe(false);

@@ -28,8 +28,8 @@ export type PlaygroundMeta = {
 function filterDemoModelOptions(
   modelOptions: ReturnType<typeof listAvailableRuntimePiModelOptionsFromEnv>
 ) {
-  const flashOption = modelOptions.find((option) => option.provider === 'deepseek' && option.model === 'deepseek-v4-flash');
-  return flashOption ? [flashOption] : modelOptions;
+  const deepseekOptions = modelOptions.filter((option) => option.provider === 'deepseek');
+  return deepseekOptions.length > 0 ? deepseekOptions : modelOptions;
 }
 
 export function getPlaygroundDbInfo(): PlaygroundDbInfo {

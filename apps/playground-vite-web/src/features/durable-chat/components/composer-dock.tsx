@@ -1,13 +1,15 @@
 import type { RuntimePiMetaDto } from '@agent-infra/contracts';
 import clsx from 'clsx';
-import { ArrowUp, Atom, ChevronDown, CircleStop, Globe } from 'lucide-react';
+import { ArrowUp, Atom, ChevronDown, CircleStop, Globe, Sparkles, Zap } from 'lucide-react';
 import type { MutableRefObject, RefObject } from 'react';
 
-import { buttonVariants } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { buildComposerState } from '@/features/durable-chat/service/composer-state';
+import type { DeepseekModePresentation } from '@/features/durable-chat/service/deepseek-mode-presentation';
 import { cn } from '@/lib/utils';
 
+import { DeepseekLogo } from './deepseek-logo';
 import { composerMaxWithTW, ui } from './ui';
 
 type ComposerDockProps = {
@@ -20,6 +22,8 @@ type ComposerDockProps = {
   selectedThinkingEnabled: boolean;
   selectedReasoningEffort: 'high' | 'max';
   selectedModelOption: RuntimePiMetaDto['modelOptions'][number] | null;
+  deepseekModePresentation: DeepseekModePresentation;
+  onSelectedModelKeyChange: (value: string) => void;
   meta: RuntimePiMetaDto | null;
   showScrollToBottom: boolean;
   centered: boolean;
@@ -44,6 +48,8 @@ export function ComposerDock({
   selectedThinkingEnabled,
   selectedReasoningEffort,
   selectedModelOption,
+  deepseekModePresentation,
+  onSelectedModelKeyChange,
   meta,
   showScrollToBottom,
   centered,
@@ -66,6 +72,18 @@ export function ComposerDock({
     selectedModelOption,
     meta
   });
+  const showDeepseekLanding = centered && (deepseekModePresentation.flashOption || deepseekModePresentation.proOption);
+  const centeredTitle =
+    deepseekModePresentation.selectedMode === 'expert' ? '使用专家模式开始对话' : '使用快速模式开始对话';
+  const centeredPlaceholder =
+    deepseekModePresentation.selectedMode === 'expert' ? '给 DeepSeek 专家模式发送消息' : '给 DeepSeek 快速模式发送消息';
+  const placeholder = showDeepseekLanding
+    ? centeredPlaceholder
+    : activeThreadId
+      ? '继续这个 durable thread...'
+      : centered
+        ? '开始一个新对话'
+        : '给 durable chat 发送消息';
 
   return (
     <div
@@ -92,8 +110,62 @@ export function ComposerDock({
           </button>
         </div>
 
+        {showDeepseekLanding ? (
+          <div className="mb-5 flex flex-col items-center gap-4 px-4 text-center">
+            <DeepseekLogo className="h-auto w-[11rem]" title="DeepSeek" />
+            <h2 className="text-[16px] font-semibold tracking-[0.01em] text-[color:var(--chat-text)] md:text-[18px]">
+              {centeredTitle}
+            </h2>
+            <div className="inline-flex items-center rounded-full border border-[color:var(--chat-border)] bg-[var(--chat-surface)] p-1 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={!deepseekModePresentation.flashOption}
+                onClick={() => {
+                  if (deepseekModePresentation.flashOption) {
+                    onSelectedModelKeyChange(deepseekModePresentation.flashOption.key);
+                  }
+                }}
+                className={cn(
+                  'h-9 rounded-full px-5 text-[13px] font-semibold shadow-none',
+                  deepseekModePresentation.selectedMode === 'quick'
+                    ? 'bg-[#eef3ff] text-[#3964fe] hover:bg-[#eef3ff] hover:text-[#3964fe]'
+                    : 'text-[color:var(--chat-text-secondary)] hover:bg-transparent hover:text-[color:var(--chat-text)]'
+                )}
+              >
+                <Zap data-icon="inline-start" />
+                快速模式
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={!deepseekModePresentation.proOption}
+                onClick={() => {
+                  if (deepseekModePresentation.proOption) {
+                    onSelectedModelKeyChange(deepseekModePresentation.proOption.key);
+                  }
+                }}
+                className={cn(
+                  'h-9 rounded-full px-5 text-[13px] font-semibold shadow-none',
+                  deepseekModePresentation.selectedMode === 'expert'
+                    ? 'bg-[#eef3ff] text-[#3964fe] hover:bg-[#eef3ff] hover:text-[#3964fe]'
+                    : 'text-[color:var(--chat-text-secondary)] hover:bg-transparent hover:text-[color:var(--chat-text)]'
+                )}
+              >
+                <Sparkles data-icon="inline-start" />
+                专家模式
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
         <form
-          className={ui.composerCard}
+          className={clsx(
+            ui.composerCard,
+            centered && 'rounded-[28px] border-[color:color-mix(in_srgb,var(--chat-border)_78%,white)] shadow-[0_24px_64px_rgba(15,23,42,0.08)]'
+          )}
           onSubmit={(event) => {
             event.preventDefault();
             if (!sendDisabled) {
@@ -116,7 +188,7 @@ export function ComposerDock({
                   }
                 }}
                 rows={3}
-                placeholder={activeThreadId ? '继续这个 durable thread...' : '给 durable chat 发送消息'}
+                placeholder={placeholder}
                 disabled={composerState.textareaDisabled}
                 className={clsx('w-full resize-none overflow-y-auto text-sm leading-relaxed', ui.textarea)}
                 style={{

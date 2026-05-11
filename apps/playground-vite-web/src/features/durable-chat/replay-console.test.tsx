@@ -6,6 +6,11 @@ import { ReplayConsole } from '@/features/durable-chat/replay-console';
 import type { AnswerContainer } from '@/features/durable-chat/types/answer-containers';
 import type { TranscriptBlock } from '@/features/durable-chat/types/transcript-blocks';
 
+const currentUser = {
+  id: 'user-1',
+  email: 'user@example.com'
+};
+
 const replayConsoleRuntimeMocks = vi.hoisted(() => ({
   useReplayConsoleRuntime: vi.fn()
 }));
@@ -237,7 +242,7 @@ describe('ReplayConsole', () => {
       })
     );
 
-    render(<ReplayConsole initialThreadId="thread-1" />);
+    render(<ReplayConsole currentUser={currentUser} initialThreadId="thread-1" onLogout={vi.fn()} />);
 
     const transcriptText = document.body.textContent ?? '';
     expect(transcriptText.indexOf('好的，我来搜索一下关于 Claude 的最新新闻。')).toBeLessThan(
@@ -293,7 +298,7 @@ describe('ReplayConsole', () => {
       })
     );
 
-    render(<ReplayConsole initialThreadId="thread-1" />);
+    render(<ReplayConsole currentUser={currentUser} initialThreadId="thread-1" onLogout={vi.fn()} />);
 
     expect(screen.getByText(/正在搜索网页/)).toBeTruthy();
     expect(screen.getByText(/1 \/ 1 · paused/)).toBeTruthy();

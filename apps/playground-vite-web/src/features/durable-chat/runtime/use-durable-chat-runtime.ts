@@ -145,6 +145,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   );
   const {
     selectedModelOption,
+    deepseekModePresentation,
     currentThreadTitle,
     responseStatus,
     isChatResponding,
@@ -923,6 +924,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     selectedThinkingEnabled,
     selectedReasoningEffort,
     selectedModelOption,
+    deepseekModePresentation,
     sendAbortControllerRef,
     sendDisabled,
     searchPanelError,
