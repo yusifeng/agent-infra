@@ -50,10 +50,16 @@ async function buildPlaygroundRuntimeServices(): Promise<PlaygroundRuntimeServic
   const startedAt = performance.now();
   const base = await getPlaygroundBaseServices();
   const durableRuntime = createLazyPiRuntime(async () => {
-    const [{ TavilySearchProvider }, { createRunSearchPlannerState }, { createPolicyAwareSearchWebTool, resolveSearchPlannerMode }] = await Promise.all([
+    const [
+      { TavilySearchProvider },
+      { createRunSearchPlannerState },
+      { createPolicyAwareSearchWebTool, resolveSearchPlannerMode },
+      { createOpenUrlTool }
+    ] = await Promise.all([
       import('./search/tavily-provider.js'),
       import('./tools/search-planner.js'),
-      import('./tools/search-web-with-policy.js')
+      import('./tools/search-web-with-policy.js'),
+      import('./tools/open-url.js')
     ]);
     const tavilyApiKey = process.env.TAVILY_API_KEY?.trim();
 
@@ -71,6 +77,9 @@ async function buildPlaygroundRuntimeServices(): Promise<PlaygroundRuntimeServic
             provider: new TavilySearchProvider({
               apiKey: tavilyApiKey
             })
+          }),
+          createOpenUrlTool({
+            plannerState
           })
         ];
       }

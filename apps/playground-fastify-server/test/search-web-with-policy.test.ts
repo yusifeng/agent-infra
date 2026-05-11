@@ -122,6 +122,88 @@ describe('searchWeb policy gate', () => {
     expect(state.consecutivePolicyBlocks).toBe(1);
   });
 
+  it('skips already-opened candidates using normalized URL identity', async () => {
+    const provider = createProvider();
+    const state = createRunSearchPlannerState('expert');
+    state.searchCalls = 1;
+    state.latestSearchResults = [
+      {
+        url: 'https://example.com/wiki/hayami#intro',
+        title: '速水玲香 - 百科',
+        snippet: '《金田一少年之事件簿》中的角色。',
+        domain: 'example.com'
+      },
+      {
+        url: 'https://fandom.example/hayami',
+        title: '速水玲香 - Fandom',
+        snippet: '角色介绍。',
+        domain: 'fandom.example'
+      }
+    ];
+    state.openedUrls = ['https://example.com/wiki/hayami'];
+    state.phase = 'browse';
+    const tool = createPolicyAwareSearchWebTool({
+      provider,
+      plannerState: state
+    });
+
+    const result = await tool.execute('tool-call-1', {
+      query: '速水玲香 登场事件'
+    });
+
+    expect(provider.search).not.toHaveBeenCalled();
+    expect(result.details).toMatchObject({
+      status: 'redirected_by_policy',
+      suggestedToolCall: {
+        name: 'openUrl',
+        args: {
+          url: 'https://fandom.example/hayami'
+        }
+      }
+    });
+  });
+
+  it('skips candidates whose domain was already opened when redirecting to browse', async () => {
+    const provider = createProvider();
+    const state = createRunSearchPlannerState('expert');
+    state.searchCalls = 1;
+    state.latestSearchResults = [
+      {
+        url: 'https://example.com/wiki/hayami-alt',
+        title: '速水玲香 - 另一个 example 页面',
+        snippet: '同域名页面。',
+        domain: 'example.com'
+      },
+      {
+        url: 'https://fandom.example/hayami',
+        title: '速水玲香 - Fandom',
+        snippet: '角色介绍。',
+        domain: 'fandom.example'
+      }
+    ];
+    state.openedDomains = ['example.com'];
+    state.phase = 'browse';
+    const tool = createPolicyAwareSearchWebTool({
+      provider,
+      plannerState: state
+    });
+
+    const result = await tool.execute('tool-call-1', {
+      query: '速水玲香 登场事件'
+    });
+
+    expect(provider.search).not.toHaveBeenCalled();
+    expect(result.details).toMatchObject({
+      status: 'redirected_by_policy',
+      suggestedToolCall: {
+        name: 'openUrl',
+        args: {
+          url: 'https://fandom.example/hayami'
+        }
+      }
+    });
+  });
+
   it('blocks search when the remaining search budget is exhausted and there are no candidates to browse', async () => {
     const provider = createProvider();
     const state = createRunSearchPlannerState('quick');

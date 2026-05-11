@@ -1,5 +1,3 @@
-import { URL } from 'node:url';
-
 import type { AgentTool } from '@mariozechner/pi-agent-core';
 
 import type { WebSearchProvider, WebSearchResponse } from '../search/provider.js';
@@ -11,29 +9,18 @@ import {
   type SearchPlannerMode,
   createBlockedPolicyToolResult,
   createRedirectedPolicyToolResult,
+  derivePlannerDomain,
   deriveSearchPhase,
   getRemainingBudget,
+  normalizePlannerUrl,
   normalizeSearchQuery
 } from './search-planner.js';
 import { buildSummary, normalizeSearchRequest, searchWebParameters } from './search-web.js';
 
-function normalizeUrlForDedup(url: string) {
-  try {
-    const parsed = new URL(url);
-    parsed.hash = '';
-    if ((parsed.protocol === 'http:' && parsed.port === '80') || (parsed.protocol === 'https:' && parsed.port === '443')) {
-      parsed.port = '';
-    }
-
-    return parsed.toString();
-  } catch {
-    return url.trim();
-  }
-}
-
 function mapSearchCandidates(response: WebSearchResponse): SearchCandidate[] {
   const candidates: SearchCandidate[] = [];
   const seenUrls = new Set<string>();
+  const seenDomains = new Set<string>();
 
   for (const result of response.results) {
     const url = result.url.trim();
@@ -41,18 +28,28 @@ function mapSearchCandidates(response: WebSearchResponse): SearchCandidate[] {
       continue;
     }
 
-    const normalizedUrl = normalizeUrlForDedup(url);
+    const normalizedUrl = normalizePlannerUrl(url);
     if (seenUrls.has(normalizedUrl)) {
       continue;
     }
 
     seenUrls.add(normalizedUrl);
+    const domain = result.hostname.trim().toLowerCase() || derivePlannerDomain(url);
+    if (!domain || seenDomains.has(domain)) {
+      continue;
+    }
+
+    seenDomains.add(domain);
     candidates.push({
       url,
       title: result.title.trim(),
       snippet: result.snippet.trim() || null,
-      domain: result.hostname.trim().toLowerCase()
+      domain
     });
+
+    if (candidates.length >= 3) {
+      break;
+    }
   }
 
   return candidates;
@@ -72,7 +69,12 @@ export function evaluateSearchWebPolicy(input: {
   const remainingBudget = getRemainingBudget(state);
 
   if (state.phase === 'browse' && state.latestSearchResults.length > 0) {
-    const candidate = state.latestSearchResults.find((item) => !state.openedUrls.includes(item.url)) ?? state.latestSearchResults[0] ?? null;
+    const candidate =
+      state.latestSearchResults.find(
+        (item) =>
+          !state.openedUrls.includes(normalizePlannerUrl(item.url)) &&
+          !state.openedDomains.includes(item.domain)
+      ) ?? state.latestSearchResults[0] ?? null;
     if (candidate) {
       return {
         action: 'redirect',

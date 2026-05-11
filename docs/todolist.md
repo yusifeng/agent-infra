@@ -96,7 +96,7 @@
   - budget 是否超限
   - query 是否和历史 query 高度重复
   - 当前 phase 是否仍允许 search
-- [ ] 在执行 `openUrl` 前检查：
+- [x] 在执行 `openUrl` 前检查：
   - budget 是否超限
   - url/domain 是否重复
   - 当前 phase 是否允许 browse
@@ -111,20 +111,20 @@
 - [ ] 对重复/近重复 query 返回 `blocked_by_policy`，而不是继续真正搜索。
 
 ### 2.3 openUrl 工具
-- [ ] 新增轻量 `openUrl` 工具能力。
-- [ ] 第一版使用 HTTP fetch + 正文抽取，不引入 Playwright。
-- [ ] 从页面中提取：
+- [x] 新增轻量 `openUrl` 工具能力。
+- [x] 第一版使用 HTTP fetch + 正文抽取，不引入 Playwright。
+- [x] 从页面中提取：
   - 标题
   - 站点名（如果容易拿到）
   - 正文文本
   - 质量标记
-- [ ] 对明显失败或正文过短的页面返回 `contentQuality = 'failed' | 'partial'`。
+- [x] 对明显失败或正文过短的页面返回 `contentQuality = 'failed' | 'partial'`。
 
 ### 2.4 Search Result Aggregation
-- [ ] 对 `searchWeb` 返回结果做 URL normalize / 去重。
-- [ ] 限制同域名候选数量，避免百科镜像/重复域名挤满结果。
-- [ ] 生成推荐 `openUrl` 候选列表，供 policy redirect 或模型下一步使用。
-- [ ] 第一版使用 rule-based 排序，不做额外 reranker 模型。
+- [x] 对 `searchWeb` 返回结果做 URL normalize / 去重。
+- [x] 限制同域名候选数量，避免百科镜像/重复域名挤满结果。
+- [x] 生成推荐 `openUrl` 候选列表，供 policy redirect 或模型下一步使用。
+- [x] 第一版使用 rule-based 排序，不做额外 reranker 模型。
 
 ### 2.5 Contracts / Routes / Integration Points
 - [ ] 确认这些 planner / policy 结构是否仅停留在 host/runtime 内部，避免不必要地抬升到 shared `contracts`。
@@ -157,9 +157,9 @@
 - [x] `searchWeb` 超预算时返回 `blocked_by_policy`。
 - [x] 近重复 query 会被拦截，不执行真实搜索。
 - [x] 搜索后如果已有候选结果，再次 search 会触发 `redirect` 或 `block`，而不是继续无条件搜索。
-- [ ] `openUrl` 超预算时返回 `blocked_by_policy`。
+- [x] `openUrl` 超预算时返回 `blocked_by_policy`。
 - [ ] 连续 policy block 达阈值后会进入 `answer` 倾向。
-- [ ] `openUrl` 能正确返回正文文本和质量标记。
+- [x] `openUrl` 能正确返回正文文本和质量标记。
 
 ### 4.2 Frontend Tests
 - [ ] 聚合展示模型能把多个 search / browse tool 结果收敛成摘要块。
@@ -179,8 +179,8 @@
 - [x] 让 `searchWeb` 先支持 `allow / block / redirect`。
 
 ### Loop 3
-- [ ] 实现轻量 `openUrl`。
-- [ ] 接上搜索结果聚合、候选 URL 选择和浏览预算控制。
+- [x] 实现轻量 `openUrl`。
+- [x] 接上搜索结果聚合、候选 URL 选择和浏览预算控制。
 - [ ] 跑 targeted tests、review、提交。
 
 ### Loop 4

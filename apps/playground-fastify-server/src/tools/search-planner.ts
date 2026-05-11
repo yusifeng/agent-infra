@@ -162,6 +162,28 @@ export function normalizeSearchQuery(query: string) {
   return normalized.replace(/\s+/g, ' ').trim();
 }
 
+export function normalizePlannerUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    parsed.hash = '';
+    if ((parsed.protocol === 'http:' && parsed.port === '80') || (parsed.protocol === 'https:' && parsed.port === '443')) {
+      parsed.port = '';
+    }
+
+    return parsed.toString();
+  } catch {
+    return url.trim();
+  }
+}
+
+export function derivePlannerDomain(url: string) {
+  try {
+    return new URL(url).hostname.trim().toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
 export function createBlockedPolicyToolResult(args: {
   state: RunSearchPlannerState;
   reason: SearchPolicyBlockReason;
