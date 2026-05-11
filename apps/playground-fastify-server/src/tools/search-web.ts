@@ -5,7 +5,14 @@ import { Type } from '@sinclair/typebox';
 
 import type { WebSearchProvider, WebSearchRequest, WebSearchResponse } from '../search/provider.js';
 
-function normalizeSearchRequest(input: {
+export const searchWebParameters = Type.Object({
+  query: Type.String({ description: 'A concise web search query.' }),
+  maxResults: Type.Optional(Type.Number({ description: 'Maximum number of results to return, from 1 to 10.' })),
+  topic: Type.Optional(Type.Union([Type.Literal('general'), Type.Literal('news')], { description: 'Search focus.' })),
+  searchDepth: Type.Optional(Type.Union([Type.Literal('basic'), Type.Literal('advanced')], { description: 'Search depth.' }))
+});
+
+export function normalizeSearchRequest(input: {
   query?: string;
   maxResults?: number;
   topic?: string;
@@ -25,7 +32,7 @@ function normalizeSearchRequest(input: {
   };
 }
 
-function buildSummary(response: WebSearchResponse) {
+export function buildSummary(response: WebSearchResponse) {
   const sources = Array.from(
     new Map(
       response.results
@@ -73,12 +80,7 @@ export function createSearchWebTool(options: {
     label: 'Search the Web',
     description:
       'Search the web for recent or external information. Use this when the answer depends on current events, factual updates, or information not already present in the conversation. Do not use it for questions that can be answered directly from existing context or general knowledge.',
-    parameters: Type.Object({
-      query: Type.String({ description: 'A concise web search query.' }),
-      maxResults: Type.Optional(Type.Number({ description: 'Maximum number of results to return, from 1 to 10.' })),
-      topic: Type.Optional(Type.Union([Type.Literal('general'), Type.Literal('news')], { description: 'Search focus.' })),
-      searchDepth: Type.Optional(Type.Union([Type.Literal('basic'), Type.Literal('advanced')], { description: 'Search depth.' }))
-    }),
+    parameters: searchWebParameters,
     async execute(toolCallId: string, params: unknown) {
       const request = normalizeSearchRequest((params ?? {}) as { query?: string; maxResults?: number; topic?: string; searchDepth?: string });
       const response = await options.provider.search(request);

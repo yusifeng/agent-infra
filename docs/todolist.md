@@ -89,10 +89,10 @@
 ## 2. Backend / Platform
 
 ### 2.1 Planner / Policy Gate
-- [ ] 在 host/runtime 执行层增加 tool execution gate，不允许模型直接执行裸 `searchWeb`。
-- [ ] 在每个 run 内维护 `RunSearchPlannerState`。
-- [ ] 实现 `derivePhase(runState)`，由 controller 自动派生 `search / browse / answer`。
-- [ ] 在执行 `searchWeb` 前检查：
+- [x] 在 host/runtime 执行层增加 tool execution gate，不允许模型直接执行裸 `searchWeb`。
+- [x] 在每个 run 内维护 `RunSearchPlannerState`。
+- [x] 实现 `derivePhase(runState)`，由 controller 自动派生 `search / browse / answer`。
+- [x] 在执行 `searchWeb` 前检查：
   - budget 是否超限
   - query 是否和历史 query 高度重复
   - 当前 phase 是否仍允许 search
@@ -100,7 +100,7 @@
   - budget 是否超限
   - url/domain 是否重复
   - 当前 phase 是否允许 browse
-- [ ] 连续 policy block 达到阈值后，强制进入 `answer` 倾向，避免死循环重试。
+- [x] 连续 policy block 达到阈值后，强制进入 `answer` 倾向，避免死循环重试。
 
 ### 2.2 searchWeb 收敛策略
 - [ ] 增加 query normalize / dedupe 逻辑，先用规则法，不上 embedding。
@@ -154,9 +154,9 @@
 
 ### 4.1 Backend / Runtime Tests
 - [x] `derivePhase()` 在不同 run state 下能正确返回 `search / browse / answer`。
-- [ ] `searchWeb` 超预算时返回 `blocked_by_policy`。
-- [ ] 近重复 query 会被拦截，不执行真实搜索。
-- [ ] 搜索后如果已有候选结果，再次 search 会触发 `redirect` 或 `block`，而不是继续无条件搜索。
+- [x] `searchWeb` 超预算时返回 `blocked_by_policy`。
+- [x] 近重复 query 会被拦截，不执行真实搜索。
+- [x] 搜索后如果已有候选结果，再次 search 会触发 `redirect` 或 `block`，而不是继续无条件搜索。
 - [ ] `openUrl` 超预算时返回 `blocked_by_policy`。
 - [ ] 连续 policy block 达阈值后会进入 `answer` 倾向。
 - [ ] `openUrl` 能正确返回正文文本和质量标记。
@@ -174,9 +174,9 @@
 - [x] 写 focused tests，先把 phase / budget / policy 结构定死。
 
 ### Loop 2
-- [ ] 在 host/runtime 落 tool execution gate。
-- [ ] 接入 `searchWeb` budget、query dedupe、phase 派生。
-- [ ] 让 `searchWeb` 先支持 `allow / block / redirect`。
+- [x] 在 host/runtime 落 tool execution gate。
+- [x] 接入 `searchWeb` budget、query dedupe、phase 派生。
+- [x] 让 `searchWeb` 先支持 `allow / block / redirect`。
 
 ### Loop 3
 - [ ] 实现轻量 `openUrl`。
