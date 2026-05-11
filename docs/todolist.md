@@ -42,7 +42,7 @@
 - [x] `sendMessage`, `runSendMessageFlow`, and `runReconcileCompletedTurn` remain behaviorally intact during the first low-risk slices.
 - [x] Extract DOM/viewport refs and effects into a dedicated controller hook.
 - [ ] Extract auto-title refresh and title typing refs/effects into a dedicated controller hook.
-- [ ] Extract thread menu/rename/archive/pin action state into a dedicated controller hook after lower-risk slices are stable.
+- [x] Extract thread menu/rename/archive/pin action state into a dedicated controller hook after lower-risk slices are stable.
 
 ### 1.3 Types / Interfaces
 - [x] Keep `useDurableChatRuntime` return fields stable for `DurableChatConsole`.
@@ -56,7 +56,7 @@
 ### 2.1 Runtime
 - [x] Identify the exact viewport/scroll/textarea code to extract from `use-durable-chat-runtime.ts`.
 - [x] Identify the exact auto-title refresh/title typing code to extract from `use-durable-chat-runtime.ts`.
-- [ ] Identify the exact thread action state and handlers to extract after the first two slices.
+- [x] Identify the exact thread action state and handlers to extract after the first two slices.
 - [x] Preserve existing ref-based guards where they protect async races.
 - [x] Do not convert runtime control refs into React state unless tests prove the behavior remains correct.
 
@@ -84,10 +84,10 @@
 - [x] Add or confirm tests for title refresh cleanup on unmount.
 - [x] Add or confirm tests for auto-title fetch failures not mutating thread state.
 - [x] Add or confirm tests for non-default titles not starting title typing animation.
-- [ ] Add or confirm tests for archiving the active thread resetting runtime and navigating to `/new`.
-- [ ] Add or confirm tests for archiving a non-active thread only removing that thread from the list.
-- [ ] Add or confirm tests for pin/unpin failures surfacing `threadActionError` without mutating thread order.
-- [ ] Add or confirm tests for empty rename titles not calling the rename API.
+- [x] Add or confirm tests for archiving the active thread resetting runtime and navigating to `/new`.
+- [x] Add or confirm tests for archiving a non-active thread only removing that thread from the list.
+- [x] Add or confirm tests for pin/unpin failures surfacing `threadActionError` without mutating thread order.
+- [x] Add or confirm tests for empty rename titles not calling the rename API.
 
 ### 3.3 Verification commands
 - [x] Run targeted runtime tests for each loop:
@@ -143,17 +143,17 @@ codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="m
 - [x] Expose only the small API needed by `useDurableChatRuntime`, such as current visible title data, visible thread patching data, stop typing, and refresh-after-run.
 - [x] Run targeted tests and typecheck.
 - [x] Run `codex review` for the slice.
-- [ ] Commit the clean slice if tests and review pass.
+- [x] Commit the clean slice if tests and review pass.
 
 ### Loop 3: Thread Actions Controller
-- [ ] Add or confirm missing archive, pin/unpin failure, and empty rename tests.
-- [ ] Create a dedicated thread actions controller hook under `runtime`.
-- [ ] Move open menu, rename dialog, archive dialog, action loading, and action error state into the controller.
-- [ ] Move rename/archive/pin/unpin handlers into the controller.
-- [ ] Preserve active-thread archive behavior: stop live response, reset draft thread state, clear recovery state, and navigate to `/new`.
-- [ ] Preserve share action behavior through the existing share dialog hook.
-- [ ] Run targeted tests and typecheck.
-- [ ] Run `codex review` for the slice.
+- [x] Add or confirm missing archive, pin/unpin failure, and empty rename tests.
+- [x] Create a dedicated thread actions controller hook under `runtime`.
+- [x] Move open menu, rename dialog, archive dialog, action loading, and action error state into the controller.
+- [x] Move rename/archive/pin/unpin handlers into the controller.
+- [x] Preserve active-thread archive behavior: stop live response, reset draft thread state, clear recovery state, and navigate to `/new`.
+- [x] Preserve share action behavior through the existing share dialog hook.
+- [x] Run targeted tests and typecheck.
+- [x] Run `codex review` for the slice.
 - [ ] Commit the clean slice if tests and review pass.
 
 ### Loop 4: Message List Maintainability Assessment

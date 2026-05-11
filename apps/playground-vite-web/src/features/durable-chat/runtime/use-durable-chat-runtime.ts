@@ -13,19 +13,15 @@ import {
   runStopViewingLiveResponse
 } from '@agent-infra/durable-chat-client';
 import type { LoadThreadMessagesResult } from '@agent-infra/durable-chat-client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useSearchPanelState } from '@/features/durable-chat/runtime/use-search-panel-state';
 import {
-  archiveThread,
   createThread,
   fetchThread,
   fetchThreadMessages,
-  fetchThreads,
-  pinThread as pinThreadRequest,
-  renameThread,
-  unpinThread as unpinThreadRequest
+  fetchThreads
 } from '@/features/durable-chat/repo/chat-api';
 import { buildChatViewState } from '@/features/durable-chat/service/chat-view-state';
 import { isDefaultThreadTitle } from '@/features/durable-chat/service/default-thread-title';
@@ -37,6 +33,7 @@ import { useLiveDraftOrchestration } from '@/features/durable-chat/runtime/use-l
 import { useChatRuntimeLifecycle } from '@/features/durable-chat/runtime/use-chat-runtime-lifecycle';
 import { useShareDialogState } from '@/features/durable-chat/runtime/use-share-dialog-state';
 import { useChatViewportController } from '@/features/durable-chat/runtime/use-chat-viewport-controller';
+import { useThreadActionsController } from '@/features/durable-chat/runtime/use-thread-actions-controller';
 import { useThreadTitleRefreshController } from '@/features/durable-chat/runtime/use-thread-title-refresh-controller';
 import type { PlaygroundThreadDto } from '@/features/durable-chat/types/thread';
 
@@ -133,13 +130,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     onOpenSearchResult
   } = useSearchPanelState(activeThreadId);
   const shareDialog = useShareDialogState();
-  const [openThreadMenuId, setOpenThreadMenuId] = useState<string | null>(null);
-  const [renameDialogThreadId, setRenameDialogThreadId] = useState<string | null>(null);
-  const [renameDraftTitle, setRenameDraftTitle] = useState('');
-  const [archiveDialogThreadId, setArchiveDialogThreadId] = useState<string | null>(null);
-  const [threadActionError, setThreadActionError] = useState<string | null>(null);
-  const [renamingThreadId, setRenamingThreadId] = useState<string | null>(null);
-  const [archivingThreadId, setArchivingThreadId] = useState<string | null>(null);
   const pinnedThreadIds = useMemo(
     () =>
       threads
@@ -228,6 +218,38 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     fetchThreadById: async (threadId, signal) => fetchThread(threadId, signal).catch(() => null),
     isDefaultTitle: isDefaultThreadTitle,
     setThreads
+  });
+  const {
+    archiveDialogThreadId,
+    archivingThreadId,
+    closeArchiveDialog,
+    closeRenameDialog,
+    closeThreadMenu,
+    onConfirmArchiveThread,
+    onConfirmRenameThread,
+    onOpenArchiveThread,
+    onOpenRenameThread,
+    onOpenShareThread,
+    onOpenThreadMenu,
+    onPinThread,
+    onRenameDraftTitleChange,
+    onUnpinThread,
+    openThreadMenuId,
+    renameDialogThreadId,
+    renameDraftTitle,
+    renamingThreadId,
+    threadActionError
+  } = useThreadActionsController({
+    activeThreadIdRef,
+    navigateToNewChat: () => navigateToNewChat({ replace: true }),
+    onOpenShareDialogForThread: shareDialog.onOpenForThread,
+    resetDraftThreadState,
+    setDurableRecoveryState,
+    setThreads,
+    stopTypingTitleAnimation,
+    stopViewingLiveResponse,
+    threads,
+    typingTitleThreadId
   });
 
   function markThreadHydrated(threadId: string) {
@@ -700,150 +722,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     navigateToThread(threadId);
   }
 
-  function openThreadMenu(threadId: string) {
-    setOpenThreadMenuId(threadId);
-    setThreadActionError(null);
-  }
-
-  function closeThreadMenu() {
-    setOpenThreadMenuId(null);
-  }
-
-  function beginRenameThread(threadId: string) {
-    const thread = threads.find((candidate) => candidate.id === threadId);
-    setRenameDialogThreadId(threadId);
-    setRenameDraftTitle(thread?.title ?? '');
-    setThreadActionError(null);
-    setOpenThreadMenuId(null);
-  }
-
-  function closeRenameDialog() {
-    setRenameDialogThreadId(null);
-    setRenameDraftTitle('');
-    setThreadActionError(null);
-  }
-
-  async function submitRenameThread() {
-    const threadId = renameDialogThreadId;
-    const title = renameDraftTitle.trim();
-    if (!threadId || !title) {
-      setThreadActionError('请输入会话标题。');
-      return false;
-    }
-
-    setRenamingThreadId(threadId);
-    setThreadActionError(null);
-
-    try {
-      const result = await renameThread(threadId, title);
-      if (!result.ok || !result.data.thread) {
-        throw new Error(result.error ?? `Failed to rename thread (${result.status})`);
-      }
-
-      if (typingTitleThreadId === threadId) {
-        stopTypingTitleAnimation();
-      }
-      setThreads((current) => current.map((thread) => (thread.id === threadId ? result.data.thread ?? thread : thread)));
-      closeRenameDialog();
-      return true;
-    } catch (nextError) {
-      setThreadActionError(nextError instanceof Error ? nextError.message : '重命名会话失败。');
-      return false;
-    } finally {
-      setRenamingThreadId(null);
-    }
-  }
-
-  function beginArchiveThread(threadId: string) {
-    setArchiveDialogThreadId(threadId);
-    setThreadActionError(null);
-    setOpenThreadMenuId(null);
-  }
-
-  function closeArchiveDialog() {
-    setArchiveDialogThreadId(null);
-    setThreadActionError(null);
-  }
-
-  async function submitArchiveThread() {
-    const threadId = archiveDialogThreadId;
-    if (!threadId) {
-      return false;
-    }
-
-    setArchivingThreadId(threadId);
-    setThreadActionError(null);
-
-    try {
-      const result = await archiveThread(threadId);
-      if (!result.ok) {
-        throw new Error(result.error ?? `Failed to archive thread (${result.status})`);
-      }
-
-      setThreads((current) => current.filter((thread) => thread.id !== threadId));
-      closeArchiveDialog();
-
-      if (activeThreadIdRef.current === threadId) {
-        stopViewingLiveResponse();
-        setDurableRecoveryState({
-          phase: 'idle',
-          message: null
-        });
-        resetDraftThreadState();
-        navigateToNewChat({ replace: true });
-      }
-
-      return true;
-    } catch (nextError) {
-      setThreadActionError(nextError instanceof Error ? nextError.message : '删除会话失败。');
-      return false;
-    } finally {
-      setArchivingThreadId(null);
-    }
-  }
-
-  function pinThread(threadId: string) {
-    void (async () => {
-      try {
-        const result = await pinThreadRequest(threadId);
-        if (!result.ok || !result.data.thread) {
-          throw new Error(result.error ?? 'Failed to pin thread');
-        }
-
-        setThreads((current) => [
-          result.data.thread as (typeof current)[number],
-          ...current
-            .map((thread) => (thread.id === threadId ? result.data.thread ?? thread : thread))
-            .filter((thread) => thread.id !== threadId)
-        ]);
-        setOpenThreadMenuId(null);
-      } catch (error) {
-        setThreadActionError(error instanceof Error ? error.message : '置顶会话失败。');
-      }
-    })();
-  }
-
-  function unpinThread(threadId: string) {
-    void (async () => {
-      try {
-        const result = await unpinThreadRequest(threadId);
-        if (!result.ok || !result.data.thread) {
-          throw new Error(result.error ?? 'Failed to unpin thread');
-        }
-
-        setThreads((current) => current.map((thread) => (thread.id === threadId ? result.data.thread ?? thread : thread)));
-        setOpenThreadMenuId(null);
-      } catch (error) {
-        setThreadActionError(error instanceof Error ? error.message : '取消置顶失败。');
-      }
-    })();
-  }
-
-  function openShareThread(threadId: string) {
-    setOpenThreadMenuId(null);
-    shareDialog.onOpenForThread(threadId);
-  }
-
   return {
     activeThreadId,
     archiveDialogThreadId,
@@ -867,25 +745,21 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     messagesViewportRef,
     meta,
     onCloseSidebar: () => {
-      setOpenThreadMenuId(null);
+      closeThreadMenu();
       setSidebarOpen(false);
     },
-    onConfirmArchiveThread: () => {
-      void submitArchiveThread();
-    },
-    onConfirmRenameThread: () => {
-      void submitRenameThread();
-    },
+    onConfirmArchiveThread,
+    onConfirmRenameThread,
     onDraftChange: setDraft,
-    onOpenArchiveThread: beginArchiveThread,
-    onOpenRenameThread: beginRenameThread,
+    onOpenArchiveThread,
+    onOpenRenameThread,
     onNewChat: startNewChat,
     onOpenSidebar: () => setSidebarOpen(true),
-    onOpenShareThread: openShareThread,
-    onOpenThreadMenu: openThreadMenu,
+    onOpenShareThread,
+    onOpenThreadMenu,
     onOpenThread: openThread,
-    onPinThread: pinThread,
-    onRenameDraftTitleChange: setRenameDraftTitle,
+    onPinThread,
+    onRenameDraftTitleChange,
     onLoadOlderMessages: () => {
       void loadOlderMessages();
     },
@@ -900,7 +774,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       void sendMessage();
     },
     onStop: stopViewingLiveResponse,
-    onUnpinThread: unpinThread,
+    onUnpinThread,
     openThreadMenuId,
     persistingTurn,
     pinnedThreadIds,
