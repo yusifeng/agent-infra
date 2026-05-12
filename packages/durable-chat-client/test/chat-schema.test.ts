@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { normalizeRuntimeMetaResponse, normalizeThreadMessagesResponse, normalizeThreadRunsResponse } from '../src/schema/api';
-import { normalizeRunStreamEvent } from '../src/schema/run-stream';
+import { normalizeRunAttachStreamEvent, normalizeRunStreamEvent } from '../src/schema/run-stream';
 import { normalizeStoredRunId } from '../src/schema/storage';
 
 describe('durable-chat-client schema', () => {
@@ -163,6 +163,134 @@ describe('durable-chat-client schema', () => {
           toolName: 'searchWeb',
           phase: 'unexpected'
         }
+      })
+    ).toBeNull();
+  });
+
+  it('normalizes attach stream snapshot and versioned events', () => {
+    const run = {
+      id: 'run-1',
+      threadId: 'thread-1',
+      triggerMessageId: null,
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+      status: 'running',
+      usage: null,
+      error: null,
+      startedAt: null,
+      finishedAt: null,
+      createdAt: '2026-01-01T00:00:00.000Z'
+    };
+
+    expect(
+      normalizeRunAttachStreamEvent({
+        type: 'run.snapshot',
+        runId: 'run-1',
+        run,
+        version: 3,
+        assistant: {
+          liveDraftId: 'assistant-1',
+          messageId: 'assistant-1',
+          text: 'hello',
+          reasoning: null,
+          activeTools: [],
+          eventType: 'streaming',
+          segments: [
+            {
+              id: 'segment-1',
+              messageId: 'assistant-1',
+              text: 'hello',
+              reasoning: null,
+              tools: [],
+              eventType: 'streaming'
+            }
+          ]
+        }
+      })
+    ).toMatchObject({
+      type: 'run.snapshot',
+      runId: 'run-1',
+      version: 3,
+      assistant: {
+        liveDraftId: 'assistant-1',
+        text: 'hello'
+      }
+    });
+
+    expect(
+      normalizeRunAttachStreamEvent({
+        type: 'run.assistant',
+        runId: 'run-1',
+        version: 4,
+        assistant: {
+          messageId: 'assistant-1',
+          kind: 'assistant_delta',
+          textDelta: ' world'
+        }
+      })
+    ).toEqual({
+      type: 'run.assistant',
+      runId: 'run-1',
+      version: 4,
+      assistant: {
+        messageId: 'assistant-1',
+        kind: 'assistant_delta',
+        textDelta: ' world'
+      }
+    });
+
+    expect(
+      normalizeRunAttachStreamEvent({
+        type: 'run.assistant',
+        runId: 'run-1',
+        assistant: {
+          messageId: 'assistant-1',
+          kind: 'assistant_delta',
+          textDelta: 'missing version'
+        }
+      })
+    ).toBeNull();
+  });
+
+  it('normalizes attach stream unavailable reasons', () => {
+    expect(
+      normalizeRunAttachStreamEvent({
+        type: 'run.attach_unavailable',
+        runId: 'run-1',
+        reason: 'stream_session_gone',
+        message: 'session expired'
+      })
+    ).toEqual({
+      type: 'run.attach_unavailable',
+      runId: 'run-1',
+      reason: 'stream_session_gone',
+      run: undefined,
+      message: 'session expired'
+    });
+
+    expect(
+      normalizeRunAttachStreamEvent({
+        type: 'run.attach_unavailable',
+        runId: 'run-1',
+        reason: 'unknown'
+      })
+    ).toBeNull();
+
+    expect(
+      normalizeRunAttachStreamEvent({
+        type: 'run.attach_unavailable',
+        runId: 'run-1',
+        reason: 'stream_session_gone',
+        run: { id: 'run-1' }
+      })
+    ).toBeNull();
+
+    expect(
+      normalizeRunAttachStreamEvent({
+        type: 'run.attach_unavailable',
+        runId: 'run-1',
+        reason: 'stream_session_gone',
+        message: 42
       })
     ).toBeNull();
   });

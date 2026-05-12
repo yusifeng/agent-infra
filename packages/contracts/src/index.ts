@@ -358,6 +358,81 @@ export type RunStreamEventDto =
   | RunStreamCompletedEventDto
   | RunStreamFailedEventDto;
 
+export type RunStreamSnapshotEventTypeDto = 'start' | 'thinking' | 'streaming' | 'searching';
+
+export interface RunStreamAssistantSnapshotToolDto {
+  toolCallId: string;
+  toolName: string;
+  phase: 'start' | 'completed' | 'failed';
+  input?: Record<string, unknown> | null;
+}
+
+export interface RunStreamAssistantSnapshotSegmentDto {
+  id: string;
+  messageId: string;
+  text: string;
+  reasoning: string | null;
+  tools: RunStreamAssistantSnapshotToolDto[];
+  eventType: RunStreamSnapshotEventTypeDto;
+}
+
+export interface RunStreamAssistantSnapshotDto {
+  liveDraftId: string;
+  messageId: string | null;
+  text: string;
+  reasoning: string | null;
+  activeTools: RunStreamAssistantSnapshotToolDto[];
+  eventType: RunStreamSnapshotEventTypeDto;
+  segments: RunStreamAssistantSnapshotSegmentDto[];
+}
+
+export interface RunStreamSnapshotEventDto {
+  type: 'run.snapshot';
+  runId: string;
+  run: RunDto;
+  version: number;
+  assistant: RunStreamAssistantSnapshotDto | null;
+}
+
+export interface RunAttachStreamStateEventDto extends RunStreamStateEventDto {
+  version: number;
+}
+
+export interface RunAttachStreamAssistantEventDto extends RunStreamAssistantEventDto {
+  version: number;
+}
+
+export interface RunAttachStreamCompletedEventDto extends RunStreamCompletedEventDto {
+  version: number;
+}
+
+export interface RunAttachStreamFailedEventDto extends RunStreamFailedEventDto {
+  version: number;
+}
+
+export type RunAttachStreamUnavailableReasonDto =
+  | 'run_not_found'
+  | 'run_not_active'
+  | 'stream_session_gone'
+  | 'thread_run_mismatch'
+  | 'not_authorized';
+
+export interface RunAttachStreamUnavailableEventDto {
+  type: 'run.attach_unavailable';
+  runId: string;
+  reason: RunAttachStreamUnavailableReasonDto;
+  run?: RunDto | null;
+  message?: string | null;
+}
+
+export type RunAttachStreamEventDto =
+  | RunStreamSnapshotEventDto
+  | RunAttachStreamStateEventDto
+  | RunAttachStreamAssistantEventDto
+  | RunAttachStreamCompletedEventDto
+  | RunAttachStreamFailedEventDto
+  | RunAttachStreamUnavailableEventDto;
+
 export type RuntimePiThreadsResponseDto = ThreadsResponseDto;
 export type RuntimePiCreateThreadResponseDto = CreateThreadResponseDto;
 export type RuntimePiMessagesResponseDto = ThreadMessagesResponseDto;
