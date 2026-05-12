@@ -390,6 +390,7 @@ describe('useDurableChatRuntime', () => {
     searchPanelStateMocks.getCachedSearchResult.mockReturnValue(null);
     searchPanelStateMocks.prefetchSearchResult.mockResolvedValue(null);
     currentPath = '/chat/thread-1';
+    document.title = 'playground-vite-web';
   });
 
   it('restores an active live draft and starts its refresh loop after thread hydration', async () => {
@@ -459,6 +460,23 @@ describe('useDurableChatRuntime', () => {
       expect(durableChatClientMocks.runRefreshMeta).toHaveBeenCalledTimes(1);
       expect(durableChatClientMocks.runInitializeRuntime).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('restores the previous document title when the chat runtime unmounts', async () => {
+    document.title = 'Previous page';
+
+    const { result, unmount } = renderHook(() => useDurableChatRuntime({ initialThreadId: 'thread-1' }), {
+      wrapper
+    });
+
+    await waitFor(() => {
+      expect(result.current.currentThreadTitle).toBe('第一个会话');
+      expect(document.title).toBe('第一个会话');
+    });
+
+    unmount();
+
+    expect(document.title).toBe('Previous page');
   });
 
   it('renders the /new runtime once on narrow viewports without re-triggering boot effects', async () => {
@@ -594,17 +612,15 @@ describe('useDurableChatRuntime', () => {
     expect(result.current.currentThreadTitle.length).toBeGreaterThan(0);
     expect(result.current.currentThreadTitle.length).toBeLessThan('验证码问题排查'.length);
     expect(result.current.threads.find((thread) => thread.id === 'thread-1')?.title).toBe(result.current.currentThreadTitle);
-
-    act(() => {
-      vi.runAllTimers();
-    });
+    expect(document.title).toBe(result.current.currentThreadTitle);
 
     await act(async () => {
-      await Promise.resolve();
+      await vi.runAllTimersAsync();
     });
 
     expect(result.current.currentThreadTitle).toBe('验证码问题排查');
     expect(result.current.threads.find((thread) => thread.id === 'thread-1')?.title).toBe('验证码问题排查');
+    expect(document.title).toBe('验证码问题排查');
   });
 
   it('scrolls to bottom when a stream starts but does not auto-follow later streaming updates', async () => {

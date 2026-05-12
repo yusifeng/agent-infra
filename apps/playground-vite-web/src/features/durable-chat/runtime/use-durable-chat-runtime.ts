@@ -38,6 +38,7 @@ import { useThreadTitleRefreshController } from '@/features/durable-chat/runtime
 import type { PlaygroundThreadDto } from '@/features/durable-chat/types/thread';
 
 const PENDING_NEW_THREAD_LOADING_ID = '__pending-new-thread__';
+const DEFAULT_DOCUMENT_TITLE = 'playground-vite-web';
 
 export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRuntimeOptions) {
   const navigate = useNavigate();
@@ -119,6 +120,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const sendRequestIdRef = useRef(0);
   const sendAbortControllerRef = useRef<AbortController | null>(null);
   const reconcileRequestIdRef = useRef(0);
+  const previousDocumentTitleRef = useRef<string | null>(null);
   const {
     activeSearchResult,
     getCachedSearchResult,
@@ -219,6 +221,19 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     isDefaultTitle: isDefaultThreadTitle,
     setThreads
   });
+
+  useEffect(() => {
+    previousDocumentTitleRef.current = document.title;
+
+    return () => {
+      document.title = previousDocumentTitleRef.current || DEFAULT_DOCUMENT_TITLE;
+      previousDocumentTitleRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    document.title = currentVisibleThreadTitle || DEFAULT_DOCUMENT_TITLE;
+  }, [currentVisibleThreadTitle]);
   const {
     archiveDialogThreadId,
     archivingThreadId,
