@@ -30,7 +30,7 @@ import { ui } from './ui';
 
 function ThreadTitle({ thread }: { thread: PlaygroundThreadDto }) {
   const title = thread.title?.trim() || 'New Thread';
-  return <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[15px] leading-[1.2]">{title}</span>;
+  return <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[length:var(--chat-sidebar-item-font-size)] leading-[1.2]">{title}</span>;
 }
 
 function formatGroupLabel(date: Date) {
@@ -130,25 +130,30 @@ export function ChatSidebar({
       <div
         className={clsx(
           'relative shrink-0 overflow-hidden transition-[width] duration-300 ease-out',
-          sidebarOpen ? 'w-[261px]' : 'w-0'
+          sidebarOpen ? 'w-[var(--chat-sidebar-width)]' : 'w-0'
         )}
       >
         <aside
           className={clsx(
-            'absolute inset-y-0 left-0 z-30 flex w-[261px] flex-col overflow-hidden transition-transform duration-300 ease-out',
+            'absolute inset-y-0 left-0 z-30 flex w-[var(--chat-sidebar-width)] flex-col overflow-hidden transition-transform duration-300 ease-out',
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           )}
         >
           <div className={clsx('flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-[var(--chat-sidebar-bg)]', ui.sidebar)}>
             <div className="flex shrink-0 items-center justify-between px-3 pt-4">
               <ChatAvatar title="DeepSeek" />
-              <IconButton icon={PanelLeft} onClick={onClose} title="收起侧边栏" />
+              <IconButton
+                className="text-[color:var(--chat-sidebar-icon)] hover:bg-[color:var(--chat-sidebar-item-hover-bg)] hover:text-[color:var(--chat-sidebar-text)]"
+                icon={PanelLeft}
+                onClick={onClose}
+                title="收起侧边栏"
+              />
             </div>
 
             <aside className="px-3 pb-3 pt-6">
               <button
                 type="button"
-                className="flex h-10 w-full items-center justify-center gap-2 rounded-full border border-[rgba(217,223,232,0.9)] bg-white px-3 text-[14px] font-semibold text-[color:var(--chat-text)] transition-shadow duration-300 hover:border-[rgba(197,208,226,0.96)] hover:shadow-[0_4px_4px_rgba(72,104,178,0.04),0_-3px_4px_rgba(72,104,178,0.04),0_6px_6px_rgba(106,111,117,0.1)]"
+                className="chat-sidebar-new-chat-button flex h-10 w-full items-center justify-center gap-2 rounded-full border border-[color:var(--chat-sidebar-new-chat-border)] bg-[var(--chat-sidebar-new-chat-bg)] px-3 text-[length:var(--chat-sidebar-new-chat-font-size)] font-semibold text-[color:var(--chat-sidebar-text)] transition-shadow duration-300"
                 onClick={onNewChat}
               >
                 <MessageSquarePlus size={16} strokeWidth={2.2} />
@@ -156,7 +161,7 @@ export function ChatSidebar({
               </button>
             </aside>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+            <div className="chat-sidebar-scroll-fade-mask-bottom min-h-0 flex-1 overflow-y-auto px-3 pb-3">
               <Section title="置顶" empty={!groupedThreads.pinnedThreads.length}>
                 {groupedThreads.pinnedThreads.map((thread) => (
                   <ThreadRow
@@ -200,7 +205,7 @@ export function ChatSidebar({
               <button
                 type="button"
                 onClick={() => setHistoryExpanded((current) => !current)}
-                className="mt-1 flex w-full items-center justify-between px-1 py-2 text-left text-xs font-semibold text-[color:var(--chat-text-tertiary)]"
+                className="mt-1 flex w-full items-center justify-between px-1 py-2 text-left text-[length:var(--chat-sidebar-section-font-size)] font-semibold text-[color:var(--chat-sidebar-muted-text)]"
               >
                 <span>更多历史</span>
                 <ChevronDown className={clsx('h-4 w-4 transition-transform', !historyExpanded && '-rotate-90')} />
@@ -209,7 +214,7 @@ export function ChatSidebar({
               {historyExpanded ? null : null}
             </div>
 
-            <div className="shrink-0 border-t border-[color:var(--chat-border)] px-2 py-2">
+            <div className="shrink-0 px-2 py-2">
               <AccountMenuCard currentUser={currentUser} menuOpen={accountMenuOpen} onLogout={onLogout} onOpenChange={setAccountMenuOpen} />
             </div>
           </div>
@@ -251,8 +256,8 @@ function AccountMenuCard({
         <button
           aria-label="账户菜单"
           className={clsx(
-            'flex h-11 w-full items-center rounded-2xl px-3 text-[color:var(--chat-text)] transition',
-            menuOpen ? 'bg-[color:var(--chat-hover)]' : 'hover:bg-[color:var(--chat-hover)]'
+            'flex h-11 w-full items-center rounded-2xl px-3 text-[color:var(--chat-sidebar-text)] transition',
+            menuOpen ? 'bg-[color:var(--chat-sidebar-item-hover-bg)]' : 'hover:bg-[color:var(--chat-sidebar-item-hover-bg)]'
           )}
           type="button"
         >
@@ -260,14 +265,14 @@ function AccountMenuCard({
             <div className="flex size-8 items-center justify-center rounded-full bg-[linear-gradient(135deg,#d7e3ff_0%,#edf3ff_100%)] text-sm font-semibold text-[#4263eb]">
               {monogram}
             </div>
-            <div className="min-w-0 truncate text-[15px] font-medium text-[color:var(--chat-text)]" title={email}>
+            <div className="min-w-0 truncate text-[length:var(--chat-sidebar-user-font-size)] font-medium text-[color:var(--chat-sidebar-text)]" title={email}>
               {displayName}
             </div>
           </div>
 
           <span
             aria-hidden="true"
-            className="ml-2 flex size-8 items-center justify-center rounded-full text-[color:var(--chat-text-tertiary)] transition"
+            className="ml-2 flex size-8 items-center justify-center rounded-full text-[color:var(--chat-sidebar-muted-text)] transition"
           >
             <MoreHorizontal className="size-4.5" />
           </span>
@@ -311,13 +316,13 @@ function Section({
   }
 
   return (
-    <section className="mb-4">
+    <section className="mb-3">
       {hideTitle ? null : (
-        <div className="sticky top-0 z-10 -mx-3 mb-[2px] bg-[var(--chat-sidebar-bg)] px-4 pt-1 text-[12px] font-normal text-[color:var(--chat-text-tertiary)]">
+        <div className="sticky top-0 z-10 -mx-3 mb-[2px] bg-[var(--chat-sidebar-bg)] px-4 pt-1 text-[length:var(--chat-sidebar-section-font-size)] font-normal text-[color:var(--chat-sidebar-muted-text)]">
           {title}
         </div>
       )}
-      <div className="flex flex-col gap-1">{children}</div>
+      <div className="flex flex-col">{children}</div>
     </section>
   );
 }
@@ -350,11 +355,13 @@ function ThreadRow({
   return (
     <div
       className={clsx(
-        'group relative flex h-10 w-full items-center justify-between rounded-2xl px-3 transition',
-        active ? 'bg-[#dce7ff] text-[#3867ff]' : 'text-[color:var(--chat-text)] hover:bg-[color:var(--chat-hover)]'
+        'group relative flex h-10 w-full items-center justify-between rounded-[12px] px-3 transition',
+        active
+          ? 'bg-[var(--chat-sidebar-item-active-bg)] text-[color:var(--chat-sidebar-item-active-text)]'
+          : 'text-[color:var(--chat-sidebar-text)] hover:bg-[color:var(--chat-sidebar-item-hover-bg)]'
       )}
     >
-      <button type="button" onClick={() => onOpenThread(thread.id)} data-thread-id={thread.id} className="flex min-w-0 flex-1 items-center text-left">
+      <button type="button" onClick={() => onOpenThread(thread.id)} data-thread-id={thread.id} className="flex h-full min-w-0 flex-1 items-center text-left">
         <ThreadTitle thread={thread} />
       </button>
       <DropdownMenu

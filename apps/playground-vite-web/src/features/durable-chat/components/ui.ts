@@ -8,7 +8,7 @@ export const messageListMinHeight = { minHeight: 'max(0px, calc(-400px + 100dvh)
 export const ui = {
   shell: 'bg-[var(--chat-bg)]',
   secondarySurface: 'border border-[color:var(--chat-border)] bg-[var(--chat-surface)]',
-  sidebar: 'border-r border-[color:var(--chat-border)] bg-[var(--chat-sidebar-bg)]',
+  sidebar: 'border-r border-[color:var(--chat-sidebar-border)] bg-[var(--chat-sidebar-bg)]',
   threadItem:
     'rounded-xl text-[color:var(--chat-text-secondary)] transition-colors hover:bg-[var(--chat-hover)] hover:text-[color:var(--chat-text)]',
   threadItemActive: 'bg-[var(--chat-hover)] text-[color:var(--chat-text-secondary)]',

@@ -37,6 +37,29 @@
   background: transparent;
 }
 
+.chat-sidebar-new-chat-button {
+  box-shadow: var(--chat-sidebar-new-chat-shadow);
+}
+
+.chat-sidebar-new-chat-button:hover {
+  box-shadow: var(--chat-sidebar-new-chat-hover-shadow);
+}
+
+.chat-sidebar-scroll-fade-mask-bottom {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    var(--chat-sidebar-scroll-fade-mask-color),
+    var(--chat-sidebar-scroll-fade-mask-color) calc(100% - var(--chat-sidebar-scroll-fade-size)),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    var(--chat-sidebar-scroll-fade-mask-color),
+    var(--chat-sidebar-scroll-fade-mask-color) calc(100% - var(--chat-sidebar-scroll-fade-size)),
+    transparent
+  );
+}
+
 .chat-info-banner {
   border: 1px solid color-mix(in srgb, #0ea5e9 30%, transparent);
   background: color-mix(in srgb, #0ea5e9 12%, transparent);
