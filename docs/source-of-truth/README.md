@@ -40,6 +40,11 @@
   - playground Fastify/Vite 的 search planner / openUrl 业务边界、
     host-level tool execution gate、`search/browse/answer` phase、
     `quick/expert` 搜索预算，以及前端聚合搜索/浏览摘要的展示规则
+- `run-attach-stream-model.md`
+  - active assistant run 的 attach-stream 语义、snapshot-first 恢复模型、
+    transient stream state 与 durable transcript state 的边界、
+    version / live draft identity / unavailable fallback 规则，
+    以及刷新页面和切换 thread 后重新订阅运行中 run 的用户可见行为
 
 ## 不适合放在这里的内容
 

@@ -161,11 +161,17 @@ each item.
   - Run targeted package tests plus:
     - `pnpm --filter playground-vite-web test`
 - Resolution:
-  - Vite now persists the active run’s live assistant draft in `sessionStorage`
-    and restores it when the same thread reloads while the active run is still
-    `queued` or `running`.
-  - `applyHydratedTranscriptState()` keeps a restored live draft for the active
-    running run instead of immediately clearing it when `selectedRunId` is null.
+  - Fastify now exposes `GET /api/threads/:threadId/runs/:runId/attach-stream`
+    for active runs held by the current server process.
+  - The attach stream sends an authoritative `run.snapshot` first, then
+    subsequent versioned live events.
+  - Vite attaches when a hydrated `activeRun` is still `queued` or `running` and
+    the current page does not own the original send stream.
+  - Refreshing during generation and switching away/back to a running thread now
+    recover live assistant output through attach-stream, then reconcile durable
+    messages on terminal state.
+  - The stable behavior is documented in
+    `docs/source-of-truth/run-attach-stream-model.md`.
 
 #### 6. Clarify search availability when `webSearchEnabled=true` but Tavily is unavailable
 
