@@ -3,7 +3,7 @@ import {
   Archive,
   ChevronDown,
   LogOut,
-  PanelLeftClose,
+  PanelLeft,
   MoreHorizontal,
   MessageSquarePlus,
   PencilLine,
@@ -142,13 +142,13 @@ export function ChatSidebar({
           <div className={clsx('flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-[var(--chat-sidebar-bg)]', ui.sidebar)}>
             <div className="flex shrink-0 items-center justify-between px-3 pt-4">
               <ChatAvatar title="DeepSeek" />
-              <IconButton icon={PanelLeftClose} onClick={onClose} title="收起侧边栏" />
+              <IconButton icon={PanelLeft} onClick={onClose} title="收起侧边栏" />
             </div>
 
             <aside className="px-3 pb-3 pt-6">
               <button
                 type="button"
-                className="flex h-10 w-full items-center justify-center gap-2 rounded-full border border-[color:var(--chat-border)] bg-[var(--chat-surface)] px-3 text-[14px] font-semibold text-[color:var(--chat-text)] shadow-[0_1px_0_rgba(255,255,255,0.75),0_1px_3px_rgba(15,23,42,0.04)] transition hover:border-[color:var(--chat-border-strong)]"
+                className="flex h-10 w-full items-center justify-center gap-2 rounded-full border border-[rgba(217,223,232,0.9)] bg-white px-3 text-[14px] font-semibold text-[color:var(--chat-text)] transition-shadow duration-300 hover:border-[rgba(197,208,226,0.96)] hover:shadow-[0_4px_4px_rgba(72,104,178,0.04),0_-3px_4px_rgba(72,104,178,0.04),0_6px_6px_rgba(106,111,117,0.1)]"
                 onClick={onNewChat}
               >
                 <MessageSquarePlus size={16} strokeWidth={2.2} />
@@ -311,8 +311,12 @@ function Section({
   }
 
   return (
-    <section className="mb-5">
-      {hideTitle ? null : <div className="px-1 pb-2 text-[15px] font-semibold text-[color:var(--chat-text-tertiary)]">{title}</div>}
+    <section className="mb-4">
+      {hideTitle ? null : (
+        <div className="sticky top-0 z-10 -mx-3 mb-[2px] bg-[var(--chat-sidebar-bg)] px-4 pt-1 text-[12px] font-normal text-[color:var(--chat-text-tertiary)]">
+          {title}
+        </div>
+      )}
       <div className="flex flex-col gap-1">{children}</div>
     </section>
   );
@@ -351,7 +355,6 @@ function ThreadRow({
       )}
     >
       <button type="button" onClick={() => onOpenThread(thread.id)} data-thread-id={thread.id} className="flex min-w-0 flex-1 items-center text-left">
-        {pinned ? <Pin className="h-3.5 w-3.5 shrink-0 text-[color:var(--chat-text-tertiary)]" /> : null}
         <ThreadTitle thread={thread} />
       </button>
       <DropdownMenu

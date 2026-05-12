@@ -135,18 +135,20 @@ export function DurableChatConsole({
       <div className="relative flex flex-1 min-h-0 min-w-0 overflow-hidden">
         <div className={clsx('relative flex flex-1 min-h-0 min-w-0 flex-col overflow-hidden', ui.chatPane)}>
           <ChatHeader
-              currentThreadTitle={currentThreadTitle}
-              sidebarOpen={sidebarOpen}
-              onOpenSidebar={onOpenSidebar}
-              trailingContent={
-                <>
-                  {activeThreadId && !isChatResponding && displayedMessages.length > 0 ? (
-                    <IconButton icon={Share2} onClick={() => onOpenShareThread(activeThreadId)} size="small" title="分享对话" />
-                  ) : null}
-                  {headerTrailingContent}
-                </>
-              }
-            />
+            currentThreadTitle={activeThreadId ? currentThreadTitle : null}
+            sidebarOpen={sidebarOpen}
+            onOpenSidebar={onOpenSidebar}
+            onNewChat={onNewChat}
+            mode={activeThreadId ? deepseekModePresentation.selectedMode : null}
+            trailingContent={
+              <>
+                {activeThreadId && !isChatResponding && displayedMessages.length > 0 ? (
+                  <IconButton icon={Share2} onClick={() => onOpenShareThread(activeThreadId)} size="small" title="分享对话" />
+                ) : null}
+                {headerTrailingContent}
+              </>
+            }
+          />
 
           {centeredEmptyState ? (
             <div

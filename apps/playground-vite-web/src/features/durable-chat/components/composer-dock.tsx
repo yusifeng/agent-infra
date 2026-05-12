@@ -1,6 +1,6 @@
 import type { RuntimePiMetaDto } from '@agent-infra/contracts';
 import clsx from 'clsx';
-import { ArrowUp, Atom, ChevronDown, Globe, Sparkles, Zap } from 'lucide-react';
+import { ArrowUp, Atom, ChevronDown, Globe } from 'lucide-react';
 import type { MutableRefObject, RefObject } from 'react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { buildComposerState } from '@/features/durable-chat/service/composer-sta
 import type { DeepseekModePresentation } from '@/features/durable-chat/service/deepseek-mode-presentation';
 import { cn } from '@/lib/utils';
 
+import { ExpertModeIcon, QuickModeIcon } from './mode-icons';
 import { PureDeepseek } from './pure-deepseek';
 import { composerMaxWithTW, ui } from './ui';
 
@@ -131,10 +132,10 @@ export function ComposerDock({
                   'h-9 min-w-[136px] rounded-full px-5 text-[13px] font-semibold shadow-none',
                   deepseekModePresentation.selectedMode === 'quick'
                     ? 'border border-[#b7c7ff] bg-[#eef3ff] text-[#3964fe] hover:bg-[#eef3ff] hover:text-[#3964fe]'
-                    : 'border border-transparent text-[color:var(--chat-text-secondary)] hover:bg-transparent hover:text-[color:var(--chat-text)]'
+                    : 'border border-transparent text-[#6b7280] hover:bg-transparent hover:text-[#111827]'
                 )}
               >
-                <Zap data-icon="inline-start" />
+                <QuickModeIcon className="h-4 w-4" selected={deepseekModePresentation.selectedMode === 'quick'} />
                 快速模式
               </Button>
               <Button
@@ -151,10 +152,10 @@ export function ComposerDock({
                   'h-9 min-w-[136px] rounded-full px-5 text-[13px] font-semibold shadow-none',
                   deepseekModePresentation.selectedMode === 'expert'
                     ? 'border border-[#b7c7ff] bg-[#eef3ff] text-[#3964fe] hover:bg-[#eef3ff] hover:text-[#3964fe]'
-                    : 'border border-transparent text-[color:var(--chat-text-secondary)] hover:bg-transparent hover:text-[color:var(--chat-text)]'
+                    : 'border border-transparent text-[#111827] hover:bg-transparent hover:text-[#111827]'
                 )}
               >
-                <Sparkles data-icon="inline-start" />
+                <ExpertModeIcon className="h-4 w-4" selected={deepseekModePresentation.selectedMode === 'expert'} />
                 专家模式
               </Button>
             </div>
