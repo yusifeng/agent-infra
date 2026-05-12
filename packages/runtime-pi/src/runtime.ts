@@ -168,6 +168,27 @@ function extractAssistantCompletionText(message: AssistantMessage): string | nul
   return text || null;
 }
 
+export function applyGenerateTextPayloadOverrides(
+  payload: unknown,
+  selection: RuntimePiSelection,
+  input: Pick<RuntimePiGenerateTextInput, 'reasoningEffort'>
+): unknown | undefined {
+  if (selection.provider !== 'deepseek' || input.reasoningEffort !== 'off') {
+    return undefined;
+  }
+
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return undefined;
+  }
+
+  return {
+    ...(payload as Record<string, unknown>),
+    thinking: {
+      type: 'disabled'
+    }
+  };
+}
+
 async function resolveGenerateTextResult(
   options: RuntimePiRuntimeOptions,
   input: RuntimePiGenerateTextInput
@@ -204,7 +225,8 @@ async function resolveGenerateTextResult(
       ? { reasoning: 'xhigh' as const }
       : input.reasoningEffort === 'high'
         ? { reasoning: 'high' as const }
-        : {})
+        : {}),
+    onPayload: (payload) => applyGenerateTextPayloadOverrides(payload, selection, input)
   });
 
   return {

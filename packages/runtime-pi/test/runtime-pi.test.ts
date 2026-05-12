@@ -28,7 +28,12 @@ import {
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { resolveRuntimePiConfigFromEnv } from '../src/config';
-import { computeStreamTextChange, createPiRuntime, runAssistantTurnWithPiInternal } from '../src/runtime';
+import {
+  applyGenerateTextPayloadOverrides,
+  computeStreamTextChange,
+  createPiRuntime,
+  runAssistantTurnWithPiInternal
+} from '../src/runtime';
 
 type StoredMessage = Message & { parts: MessagePart[] };
 
@@ -468,6 +473,41 @@ describe('computeStreamTextChange', () => {
       value: '我来搜索最新新闻'
     });
     expect(computeStreamTextChange('旧的思考', '')).toEqual({ kind: 'replace', value: '' });
+  });
+});
+
+describe('applyGenerateTextPayloadOverrides', () => {
+  it('disables thinking for DeepSeek generateText calls when reasoning is off', () => {
+    expect(
+      applyGenerateTextPayloadOverrides(
+        { model: 'deepseek-v4-flash' },
+        { provider: 'deepseek', model: 'deepseek-v4-flash' },
+        { reasoningEffort: 'off' }
+      )
+    ).toEqual({
+      model: 'deepseek-v4-flash',
+      thinking: {
+        type: 'disabled'
+      }
+    });
+  });
+
+  it('leaves non-DeepSeek or non-off payloads unchanged', () => {
+    expect(
+      applyGenerateTextPayloadOverrides(
+        { model: 'gpt-4o-mini' },
+        { provider: 'openai', model: 'gpt-4o-mini' },
+        { reasoningEffort: 'off' }
+      )
+    ).toBeUndefined();
+
+    expect(
+      applyGenerateTextPayloadOverrides(
+        { model: 'deepseek-v4-flash' },
+        { provider: 'deepseek', model: 'deepseek-v4-flash' },
+        { reasoningEffort: 'high' }
+      )
+    ).toBeUndefined();
   });
 });
 
