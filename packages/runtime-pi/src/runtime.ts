@@ -168,6 +168,49 @@ function extractAssistantCompletionText(message: AssistantMessage): string | nul
   return text || null;
 }
 
+type OpenAiCompatibleCompletionResponse = {
+  choices?: Array<{
+    message?: {
+      content?:
+        | string
+        | Array<{
+            type?: string;
+            text?: string;
+          }>
+        | null;
+    };
+  }>;
+};
+
+type OpenAiCompatibleCompletionContent =
+  | string
+  | Array<{
+      type?: string;
+      text?: string;
+    }>
+  | null
+  | undefined;
+
+function extractCompletionResponseText(content: OpenAiCompatibleCompletionContent): string | null {
+  if (typeof content === 'string') {
+    const text = content.trim();
+    return text || null;
+  }
+
+  if (!Array.isArray(content)) {
+    return null;
+  }
+
+  const text = content
+    .filter((part) => part?.type === 'text' && typeof part.text === 'string')
+    .map((part) => part.text?.trim() ?? '')
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+
+  return text || null;
+}
+
 export function applyGenerateTextPayloadOverrides(
   payload: unknown,
   selection: RuntimePiSelection,
@@ -187,6 +230,68 @@ export function applyGenerateTextPayloadOverrides(
       type: 'disabled'
     }
   };
+}
+
+function buildNonStreamingGenerateTextPayload(
+  selection: RuntimePiSelection,
+  input: RuntimePiGenerateTextInput
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    model: selection.model,
+    messages: [
+      {
+        role: 'system',
+        content: input.systemPrompt ?? DEFAULT_SYSTEM_PROMPT
+      },
+      {
+        role: 'user',
+        content: input.userPrompt
+      }
+    ]
+  };
+
+  if (typeof input.temperature === 'number') {
+    payload.temperature = input.temperature;
+  }
+
+  if (typeof input.maxTokens === 'number') {
+    payload.max_tokens = input.maxTokens;
+  }
+
+  if (input.reasoningEffort === 'high') {
+    payload.reasoning_effort = 'high';
+  } else if (input.reasoningEffort === 'max') {
+    payload.reasoning_effort = selection.provider === 'deepseek' ? 'max' : 'high';
+  }
+
+  return (
+    applyGenerateTextPayloadOverrides(payload, selection, input) as Record<string, unknown> | undefined
+  ) ?? payload;
+}
+
+async function requestOpenAiCompatibleGenerateText(input: {
+  model: Model<any>;
+  selection: RuntimePiSelection;
+  runtimeInput: RuntimePiGenerateTextInput;
+  apiKey: string;
+}): Promise<string | null> {
+  const payload = buildNonStreamingGenerateTextPayload(input.selection, input.runtimeInput);
+  const response = await fetch(`${input.model.baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${input.apiKey}`,
+      'content-type': 'application/json',
+      ...input.model.headers
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error(`generateText request failed (${response.status})`);
+  }
+
+  const completion = (await response.json()) as OpenAiCompatibleCompletionResponse;
+  return extractCompletionResponseText(completion.choices?.[0]?.message?.content);
 }
 
 async function resolveGenerateTextResult(
@@ -215,10 +320,31 @@ async function resolveGenerateTextResult(
       }
     ]
   };
+  const apiKey =
+    resolvedConfig?.apiKey ??
+    (options.getApiKey ? await options.getApiKey(String(model.provider)) : undefined);
+
+  if (!apiKey) {
+    throw new Error(`No API key for provider: ${selection.provider}`);
+  }
+
+  if (model.api === 'openai-completions') {
+    const text = await requestOpenAiCompatibleGenerateText({
+      model,
+      selection,
+      runtimeInput: input,
+      apiKey
+    });
+
+    return {
+      provider: selection.provider,
+      model: selection.model,
+      text
+    };
+  }
+
   const assistantMessage = await completeSimple(model, context, {
-    apiKey:
-      resolvedConfig?.apiKey ??
-      (options.getApiKey ? await options.getApiKey(String(model.provider)) : undefined),
+    apiKey,
     temperature: input.temperature,
     maxTokens: input.maxTokens,
     ...(input.reasoningEffort === 'max'

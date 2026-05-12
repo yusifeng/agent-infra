@@ -25,7 +25,7 @@ import {
   type Context,
   type Model
 } from '@mariozechner/pi-ai';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { resolveRuntimePiConfigFromEnv } from '../src/config';
 import {
@@ -1198,6 +1198,67 @@ describe('runAssistantTurnWithPiInternal', () => {
       model: 'faux-generate-text-model',
       text: 'Generated lightweight title'
     });
+  });
+
+  it('uses a non-streaming completion request for openai-compatible generateText calls', async () => {
+    const originalFetch = globalThis.fetch;
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: 'Generated over HTTP'
+              }
+            }
+          ]
+        }),
+        {
+          status: 200,
+          headers: {
+            'content-type': 'application/json'
+          }
+        }
+      )
+    );
+    globalThis.fetch = fetchMock as typeof globalThis.fetch;
+
+    try {
+      const runtime = createPiRuntime({
+        resolveConfig: async () => ({
+          provider: 'deepseek',
+          model: 'deepseek-v4-flash',
+          apiKey: 'deepseek-key'
+        })
+      });
+
+      await expect(
+        runtime.generateText({
+          systemPrompt: 'Generate a title.',
+          userPrompt: 'User question: MQ 和 Kafka 的区别',
+          temperature: 0.2,
+          maxTokens: 48,
+          reasoningEffort: 'off'
+        })
+      ).resolves.toEqual({
+        provider: 'deepseek',
+        model: 'deepseek-v4-flash',
+        text: 'Generated over HTTP'
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock.mock.calls[0]?.[0]).toBe('https://api.deepseek.com/v1/chat/completions');
+      expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+        model: 'deepseek-v4-flash',
+        max_tokens: 48,
+        temperature: 0.2,
+        thinking: {
+          type: 'disabled'
+        }
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it('persists multiple tool calls, tool results, and final assistant text', async () => {
