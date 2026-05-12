@@ -34,7 +34,7 @@
 - `playground-thread-auto-title-model.md`
   - playground Fastify/Vite 的 thread auto-title 业务边界、
     run 完成后的触发规则、默认标题态判断、
-    单 thread refresh 约束，以及 `header + sidebar active item`
+    event-primary / refresh-fallback 更新链路，以及 `header + sidebar active item`
     的共享打字机表现规则
 - `playground-search-browse-policy-model.md`
   - playground Fastify/Vite 的 search planner / openUrl 业务边界、

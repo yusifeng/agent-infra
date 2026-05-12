@@ -714,6 +714,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
 
     const threadId = activeThreadIdRef.current;
     const currentThread = threadId ? threadsRef.current.find((thread) => thread.id === threadId) ?? null : null;
+    // `thread.title_updated` is the primary auto-title path. Keep the direct fetch only
+    // as a fallback when a completed run still leaves the active thread on a default title.
     if (threadId && (!currentThread || isDefaultThreadTitle(currentThread.title))) {
       void refreshThreadAfterCompletedRun(threadId);
     }

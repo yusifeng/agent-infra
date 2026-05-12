@@ -123,21 +123,44 @@ auto-title 失败时：
 
 当前前端固定采用：
 
-- **只刷新当前 thread**
+- **只更新当前匹配的 thread 记录**
 
 而不是为了标题变化重拉整个 thread list。
 
-### 2. 不做标题流式事件
+### 2. 标题更新主路径是 playground 私有 stream event
 
-当前不扩展：
+当前 playground 已扩展一层业务侧 stream union：
 
-- SSE
-- websocket
-- title partial event
+- 公共部分仍然是 `RunStreamEventDto`
+- playground 私有部分额外包含 `thread.title_updated`
 
-前端只在后端写回完整标题后，做一次定点 refresh。
+这个事件属于：
 
-### 3. 打字机效果只属于表现层
+- `playground-fastify-server`
+- `playground-vite-web`
+
+之间的业务协议，不进入 shared `packages/contracts`。
+
+`thread.title_updated` 当前直接携带：
+
+- `threadId`
+- `title`
+- `updatedAt`
+
+前端收到后会立即 patch 本地 thread state。
+
+### 3. 轮询 refresh 只保留为 fallback
+
+当前前端仍保留一次：
+
+- **只针对当前 active thread 的定点 refresh**
+
+但这条链路已经降级为 fallback。
+
+只有在一次 completed run 结束后，本地 thread 仍保持默认标题态时，
+前端才会用它兜底，防止业务事件缺失时完全错过 auto-title。
+
+### 4. 打字机效果只属于表现层
 
 当前打字机效果遵循这些规则：
 
@@ -148,7 +171,7 @@ auto-title 失败时：
 
 它不是一份新的 durable 数据，也不会写回 `threads` 的真实状态源。
 
-### 4. 动画只对 active thread 生效
+### 5. 动画只对 active thread 生效
 
 当前前端只会让：
 
