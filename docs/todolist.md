@@ -91,14 +91,14 @@ Confirmed behavior:
   - [x] Subscriber disconnect does not close the run session.
   - [x] Closed terminal sessions are retained briefly so late attach can observe terminal state.
   - [x] Running sessions have a max age or cleanup path to avoid memory leaks.
-- [ ] Make the original send-message stream publish snapshot-relevant updates into the hub.
-- [ ] Ensure assistant text, reasoning, and tool/search stream events update the hub snapshot.
-- [ ] Ensure terminal states close or finalize the stream session after final events are sent.
-- [ ] Add the attach stream route.
-- [ ] Validate that attach requests belong to the requested thread and active run.
-- [ ] On attach, send snapshot first, then future events.
-- [ ] Clean up subscribers on client disconnect without cancelling the backend run.
-- [ ] Return a clear unavailable event or terminal response when attach cannot continue.
+- [x] Make the original send-message stream publish snapshot-relevant updates into the hub.
+- [x] Ensure assistant text, reasoning, and tool/search stream events update the hub snapshot.
+- [x] Ensure terminal states close or finalize the stream session after final events are sent.
+- [x] Add the attach stream route.
+- [x] Validate that attach requests belong to the requested thread and active run.
+- [x] On attach, send snapshot first, then future events.
+- [x] Clean up subscribers on client disconnect without cancelling the backend run.
+- [x] Return a clear unavailable event or terminal response when attach cannot continue.
 
 ## Frontend Work
 
@@ -133,12 +133,12 @@ Confirmed behavior:
   - [ ] Closing a session sends or preserves terminal state as expected.
   - [ ] Running sessions are cleaned up by max-age or cleanup rules.
   - [ ] Closed sessions are retained briefly for terminal attach.
-- [ ] Add server route tests:
-  - [ ] Attach succeeds for the active run in the requested thread.
-  - [ ] Attach rejects or returns unavailable for wrong thread/run pairs.
-  - [ ] Attach returns a specific unavailable reason for inactive or missing sessions.
-  - [ ] Attach disconnect does not cancel the backend run.
-  - [ ] Terminal run state is visible to an attached client.
+- [x] Add server route tests:
+  - [x] Attach succeeds for the active run in the requested thread.
+  - [x] Attach rejects or returns unavailable for wrong thread/run pairs.
+  - [x] Attach returns a specific unavailable reason for inactive or missing sessions.
+  - [x] Attach disconnect does not cancel the backend run.
+  - [x] Terminal run state is visible to an attached client.
 - [ ] Add frontend schema tests for snapshot and unavailable events.
 - [ ] Add frontend runtime tests:
   - [ ] Hydrated `activeRun` without page-owned stream opens attach stream.
@@ -182,12 +182,12 @@ Each implementation slice is not complete until targeted verification has passed
 
 ### Slice 2: Server Attach Stream
 
-- [ ] Publish original send-stream events into the hub.
-- [ ] Add attach stream route.
-- [ ] Add server route tests around attach, terminal state, and disconnect behavior.
-- [ ] Run targeted server/runtime tests.
-- [ ] Run codex review for this slice using the repository review profile from `AGENTS.md`.
-- [ ] Address review findings or explicitly document why any finding is not applied.
+- [x] Publish original send-stream events into the hub.
+- [x] Add attach stream route.
+- [x] Add server route tests around attach, terminal state, and disconnect behavior.
+- [x] Run targeted server/runtime tests.
+- [x] Run codex review for this slice using the repository review profile from `AGENTS.md`.
+- [x] Address review findings or explicitly document why any finding is not applied.
 
 ### Slice 3: Frontend Stream Application
 

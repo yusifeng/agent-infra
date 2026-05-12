@@ -1,6 +1,13 @@
 import type { PublicChatShareResult, StartTextTurnResult } from '@agent-infra/app';
 import { ChatShareNotFoundError, RunNotFoundError } from '@agent-infra/app';
-import type { RunStreamFailedEventDto, RuntimePiMetaDto } from '@agent-infra/contracts';
+import type {
+  RunAttachStreamUnavailableReasonDto,
+  RunAttachStreamEventDto,
+  RunAttachStreamUnavailableEventDto,
+  RunStreamFailedEventDto,
+  RunStreamSnapshotEventDto,
+  RuntimePiMetaDto
+} from '@agent-infra/contracts';
 import type { AgentInfraRepositoryBundle } from '@agent-infra/db';
 import {
   buildCreateThreadShareErrorResponse,
@@ -26,10 +33,13 @@ import {
   buildUnavailableRuntimeMetaResponse,
   getRouteErrorMessage,
   getRouteErrorStatus,
+  InMemoryRunStreamHub,
   parseCreateThreadTitle,
   parseRenameThreadTitle,
   parseThreadRunsLimit,
   parseRunTextTurnInput,
+  type RunStreamHub,
+  type RunStreamHubSubscription,
   toRunDto
 } from '@agent-infra/durable-chat-server';
 import type { RuntimePiRuntime } from '@agent-infra/runtime-pi/types';
@@ -74,6 +84,7 @@ export type ChatRouteDependencies = {
   getAppServices?: () => Promise<ChatAppServices>;
   getRuntimeServices?: () => Promise<ChatRuntimeServices>;
   getRuntimeMeta?: () => MaybePromise<ChatRouteMeta>;
+  runStreamHub?: RunStreamHub;
   threadTitleGenerator?: ThreadTitleGenerator | null;
 };
 
@@ -249,6 +260,7 @@ async function sendSiteIcon(reply: FastifyReply, hostname: string) {
 export async function registerChatRoutes(app: FastifyInstance, dependencies: ChatRouteDependencies = {}) {
   const getAppServices = dependencies.getAppServices ?? getPlaygroundAppServices;
   const getRuntimeServices = dependencies.getRuntimeServices ?? getPlaygroundRuntimeServices;
+  const runStreamHub = dependencies.runStreamHub ?? new InMemoryRunStreamHub();
   const getRuntimeMeta =
     dependencies.getRuntimeMeta ??
     (async () => {
@@ -275,6 +287,26 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
     return {
       run,
       ...threadAccess
+    };
+  }
+
+  function setSseHeaders(reply: FastifyReply, requestId: string, serverTiming: string) {
+    reply.hijack();
+    reply.raw.setHeader('x-request-id', requestId);
+    reply.raw.setHeader('server-timing', serverTiming);
+    reply.raw.setHeader('cache-control', 'no-cache, no-transform');
+    reply.raw.setHeader('connection', 'keep-alive');
+    reply.raw.setHeader('content-type', 'text/event-stream; charset=utf-8');
+    reply.raw.flushHeaders?.();
+  }
+
+  function buildInitialRunSnapshot(started: StartTextTurnResult, readyEvent = buildRunReadyEvent(started)): RunStreamSnapshotEventDto {
+    return {
+      type: 'run.snapshot',
+      runId: started.run.id,
+      run: readyEvent.run,
+      version: 0,
+      assistant: null
     };
   }
 
@@ -811,21 +843,18 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
     let finalRunSnapshot: RunStreamFailedEventDto['run'] = null;
     let finalRunCompleted = false;
     let terminalEventSent = false;
+    let streamVersion = 0;
 
-    reply.hijack();
-    reply.raw.setHeader('x-request-id', request.id);
-    reply.raw.setHeader('server-timing', request.requestTiming.formatServerTiming({ includeTotal: false }));
-    reply.raw.setHeader('cache-control', 'no-cache, no-transform');
-    reply.raw.setHeader('connection', 'keep-alive');
-    reply.raw.setHeader('content-type', 'text/event-stream; charset=utf-8');
-    reply.raw.flushHeaders?.();
+    setSseHeaders(reply, request.id, request.requestTiming.formatServerTiming({ includeTotal: false }));
 
     reply.raw.on('close', () => {
       streamState.closed = true;
     });
 
     try {
-      writeSseEvent(reply, buildRunReadyEvent(started), streamState);
+      const readyEvent = buildRunReadyEvent(started);
+      runStreamHub.openSession(buildInitialRunSnapshot(started, readyEvent));
+      writeSseEvent(reply, readyEvent, streamState);
 
       await request.requestTiming.measureAsync('runtime.run_turn', () =>
         runtimeServices.durableRuntime.runTurn(
@@ -838,7 +867,13 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
           runtimeInput,
           {
             onLiveAssistantUpdate: (assistantStream) => {
-              writeSseEvent(reply, buildRunAssistantEvent(runId, assistantStream), streamState);
+              const assistantEvent = buildRunAssistantEvent(runId, assistantStream);
+              streamVersion += 1;
+              runStreamHub.publish(runId, {
+                ...assistantEvent,
+                version: streamVersion
+              });
+              writeSseEvent(reply, assistantEvent, streamState);
             },
             onPersistedUpdate: (update) => {
               if (!update.run) {
@@ -847,12 +882,23 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
 
               finalRunSnapshot = toRunDto(update.run);
               finalRunCompleted = update.run.status === 'completed';
-              writeSseEvent(reply, buildRunStateEvent(runId, update.run), streamState);
+              const stateEvent = buildRunStateEvent(runId, update.run);
+              streamVersion += 1;
+              runStreamHub.publish(runId, {
+                ...stateEvent,
+                version: streamVersion
+              });
+              writeSseEvent(reply, stateEvent, streamState);
 
               if (!terminalEventSent) {
                 const terminalEvent = buildRunTerminalEvent(runId, update.run);
                 if (terminalEvent) {
                   terminalEventSent = true;
+                  streamVersion += 1;
+                  runStreamHub.closeSession(runId, {
+                    ...terminalEvent,
+                    version: streamVersion
+                  });
                   writeSseEvent(reply, terminalEvent, streamState);
                 }
               }
@@ -890,16 +936,18 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
     } catch (error) {
       if (!terminalEventSent) {
         terminalEventSent = true;
-        writeSseEvent(
-          reply,
-          {
-            type: 'run.failed',
-            runId,
-            run: finalRunSnapshot,
-            error: getRouteErrorMessage(error, 'thread stream failed')
-          },
-          streamState
-        );
+        const failedEvent = {
+          type: 'run.failed' as const,
+          runId,
+          run: finalRunSnapshot,
+          error: getRouteErrorMessage(error, 'thread stream failed')
+        };
+        streamVersion += 1;
+        runStreamHub.closeSession(runId, {
+          ...failedEvent,
+          version: streamVersion
+        });
+        writeSseEvent(reply, failedEvent, streamState);
       }
     } finally {
       if (!streamState.closed && !reply.raw.destroyed && !reply.raw.writableEnded) {
@@ -910,4 +958,125 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
 
     return reply;
   });
+
+  app.get<{ Params: { threadId: string; runId: string } }>(
+    '/api/threads/:threadId/runs/:runId/attach-stream',
+    async (request, reply) => {
+      const currentUser = requireAuthenticatedCurrentUser(request, reply);
+      if (!currentUser) {
+        return;
+      }
+
+      const { threadId, runId } = request.params;
+      let services: ChatAppServices;
+
+      try {
+        request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
+        request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
+        services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+        await request.requestTiming.measureAsync('catalog.load_for_attach', () =>
+          loadAccessibleThread(services, threadId, currentUser.id)
+        );
+      } catch (error) {
+        return reply.code(getRouteErrorStatus(error)).send(buildRunTextTurnErrorResponse(error, 'failed to attach run stream'));
+      }
+
+      const streamState = { closed: false };
+      let subscription: RunStreamHubSubscription | null = null;
+      let timingCompleted = false;
+
+      const completeTiming = () => {
+        if (!timingCompleted) {
+          timingCompleted = true;
+          request.requestTiming.complete(app.log, request, reply);
+        }
+      };
+
+      const closeReply = () => {
+        if (!streamState.closed && !reply.raw.destroyed && !reply.raw.writableEnded) {
+          reply.raw.end();
+        }
+        completeTiming();
+      };
+
+      const sendUnavailable = (
+        reason: RunAttachStreamUnavailableReasonDto,
+        input: { run?: RunAttachStreamUnavailableEventDto['run']; message?: string } = {}
+      ) => {
+        const event: RunAttachStreamUnavailableEventDto = {
+          type: 'run.attach_unavailable',
+          runId,
+          reason,
+          run: input.run,
+          message: input.message
+        };
+        writeSseEvent(reply, event, streamState);
+        closeReply();
+      };
+
+      setSseHeaders(reply, request.id, request.requestTiming.formatServerTiming({ includeTotal: false }));
+      reply.raw.on('close', () => {
+        streamState.closed = true;
+        subscription?.unsubscribe();
+        completeTiming();
+      });
+
+      try {
+        const run = await request.requestTiming.measureAsync('runs.load_for_attach', () =>
+          services.repos.runRepo.findById(runId)
+        );
+        if (!run) {
+          sendUnavailable('run_not_found');
+          return reply;
+        }
+
+        const runDto = toRunDto(run);
+        if (run.threadId !== threadId) {
+          try {
+            await request.requestTiming.measureAsync('catalog.load_for_attach_run_thread', () =>
+              loadAccessibleThread(services, run.threadId, currentUser.id)
+            );
+          } catch {
+            sendUnavailable('run_not_found');
+            return reply;
+          }
+
+          sendUnavailable('thread_run_mismatch', {
+            run: runDto,
+            message: 'run does not belong to the requested thread'
+          });
+          return reply;
+        }
+
+        const snapshot = runStreamHub.getSnapshot(runId);
+        if (!snapshot) {
+          sendUnavailable(run.status === 'queued' || run.status === 'running' ? 'stream_session_gone' : 'run_not_active', {
+            run: runDto
+          });
+          return reply;
+        }
+
+        subscription = runStreamHub.subscribe(runId, {
+          send(event: RunAttachStreamEventDto) {
+            writeSseEvent(reply, event, streamState);
+          },
+          close() {
+            closeReply();
+          }
+        });
+
+        if (!subscription) {
+          sendUnavailable('stream_session_gone', {
+            run: runDto
+          });
+        }
+      } catch (error) {
+        sendUnavailable('stream_session_gone', {
+          message: getRouteErrorMessage(error, 'failed to attach run stream')
+        });
+      }
+
+      return reply;
+    }
+  );
 }

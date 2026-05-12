@@ -16,7 +16,12 @@ import { PlaygroundThreadCatalogRepo } from '../src/features/thread-catalog/repo
 import { bootstrapPlaygroundThreadCatalog } from '../src/features/thread-catalog/repo/schema.js';
 import { createPlaygroundAppServices } from '../src/playground-base-services.js';
 import { getPlaygroundMeta, type PlaygroundMeta } from '../src/playground-meta.js';
-import { createDurableChatBaseServices } from '@agent-infra/durable-chat-server';
+import {
+  createDurableChatBaseServices,
+  InMemoryRunStreamHub,
+  toRunDto,
+  type RunStreamHub
+} from '@agent-infra/durable-chat-server';
 
 const envKeys = ['SQLITE_PATH', 'DATABASE_URL', 'TURSO_DATABASE_URL', 'TURSO_AUTH_TOKEN'] as const;
 
@@ -178,6 +183,7 @@ function createFakeDurableRuntime(mode: 'success' | 'failure' = 'success'): Runt
 async function createTestServer(options: {
   runtimeMode?: 'success' | 'failure';
   metaOverride?: Partial<PlaygroundMeta>;
+  runStreamHub?: RunStreamHub;
   threadTitleGenerator?: ThreadTitleGenerator | null;
 }) {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'playground-fastify-server-test-'));
@@ -237,6 +243,7 @@ async function createTestServer(options: {
         secureCookies: false,
         allowedOrigins: new Set(['http://localhost:5173'])
       },
+      runStreamHub: options.runStreamHub,
       threadTitleGenerator: options.threadTitleGenerator
     });
 
@@ -1024,6 +1031,281 @@ describe('playground-fastify-server', () => {
       runtimeProvider: 'deepseek',
       runtimeModel: 'deepseek-v4-flash'
     });
+  });
+
+  it('attaches to the retained terminal stream snapshot after a completed turn', async () => {
+    const server = await createTestServer({});
+    activeServers.push(server);
+    const sessionCookie = await registerAndSignIn(server, 'attach-terminal@example.com');
+    const threadId = await createThread(server, sessionCookie, 'Attach Terminal Thread');
+
+    const streamEvents = await streamSuccessfulTurn(server, sessionCookie, threadId, 'hello');
+    const runId = streamEvents.find((event) => event.type === 'run.ready')?.runId;
+    expect(runId).toBeTruthy();
+
+    const attach = await server.app.inject({
+      method: 'GET',
+      url: `/api/threads/${threadId}/runs/${runId}/attach-stream`,
+      headers: {
+        cookie: sessionCookie
+      }
+    });
+
+    expect(attach.statusCode).toBe(200);
+    expect(attach.headers['content-type']).toContain('text/event-stream');
+
+    const attachEvents = parseSsePayloads(attach.body);
+    expect(attachEvents).toHaveLength(1);
+    expect(attachEvents[0]).toMatchObject({
+      type: 'run.snapshot',
+      runId,
+      run: {
+        status: 'completed'
+      },
+      assistant: {
+        text: 'Hello from fake runtime'
+      }
+    });
+  });
+
+  it('returns stream_session_gone when an active run has no in-memory stream session', async () => {
+    const server = await createTestServer({});
+    activeServers.push(server);
+    const sessionCookie = await registerAndSignIn(server, 'attach-session-gone@example.com');
+    const threadId = await createThread(server, sessionCookie, 'Attach Missing Session Thread');
+
+    const started = await server.appServices.app.turns.startText({
+      threadId,
+      text: 'pending'
+    });
+
+    const attach = await server.app.inject({
+      method: 'GET',
+      url: `/api/threads/${threadId}/runs/${started.run.id}/attach-stream`,
+      headers: {
+        cookie: sessionCookie
+      }
+    });
+
+    expect(attach.statusCode).toBe(200);
+    expect(parseSsePayloads(attach.body)).toEqual([
+      expect.objectContaining({
+        type: 'run.attach_unavailable',
+        runId: started.run.id,
+        reason: 'stream_session_gone',
+        run: expect.objectContaining({
+          status: 'queued'
+        })
+      })
+    ]);
+  });
+
+  it('attaches to an active run with an in-memory stream session', async () => {
+    const runStreamHub = new InMemoryRunStreamHub();
+    const server = await createTestServer({ runStreamHub });
+    activeServers.push(server);
+    const sessionCookie = await registerAndSignIn(server, 'attach-active@example.com');
+    const threadId = await createThread(server, sessionCookie, 'Attach Active Thread');
+
+    const started = await server.appServices.app.turns.startText({
+      threadId,
+      text: 'pending'
+    });
+    const runDto = toRunDto(started.run);
+    if (!runDto) {
+      throw new Error('Expected started run dto');
+    }
+    runStreamHub.openSession({
+      type: 'run.snapshot',
+      runId: started.run.id,
+      run: runDto,
+      version: 0,
+      assistant: null
+    });
+
+    const attachPromise = server.app.inject({
+      method: 'GET',
+      url: `/api/threads/${threadId}/runs/${started.run.id}/attach-stream`,
+      headers: {
+        cookie: sessionCookie
+      }
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    runStreamHub.closeSession(started.run.id, {
+      type: 'run.completed',
+      runId: started.run.id,
+      run: {
+        ...runDto,
+        status: 'completed',
+        finishedAt: '2026-04-10T01:00:05.000Z'
+      },
+      version: 1
+    });
+    const attach = await attachPromise;
+
+    expect(attach.statusCode).toBe(200);
+    expect(parseSsePayloads(attach.body)).toEqual([
+      expect.objectContaining({
+        type: 'run.snapshot',
+        runId: started.run.id,
+        run: expect.objectContaining({
+          status: 'queued'
+        }),
+        version: 0,
+        assistant: null
+      }),
+      expect.objectContaining({
+        type: 'run.completed',
+        runId: started.run.id,
+        version: 1
+      })
+    ]);
+  });
+
+  it('does not cancel the run when an attached client disconnects', async () => {
+    const runStreamHub = new InMemoryRunStreamHub();
+    const server = await createTestServer({ runStreamHub });
+    activeServers.push(server);
+    const sessionCookie = await registerAndSignIn(server, 'attach-disconnect@example.com');
+    const threadId = await createThread(server, sessionCookie, 'Attach Disconnect Thread');
+
+    const started = await server.appServices.app.turns.startText({
+      threadId,
+      text: 'pending'
+    });
+    const runDto = toRunDto(started.run);
+    if (!runDto) {
+      throw new Error('Expected started run dto');
+    }
+    runStreamHub.openSession({
+      type: 'run.snapshot',
+      runId: started.run.id,
+      run: runDto,
+      version: 0,
+      assistant: null
+    });
+
+    await server.app.listen({ host: '127.0.0.1', port: 0 });
+    const address = server.app.server.address();
+    if (!address || typeof address === 'string') {
+      throw new Error('Expected test server TCP address');
+    }
+
+    const response = await fetch(
+      `http://127.0.0.1:${address.port}/api/threads/${threadId}/runs/${started.run.id}/attach-stream`,
+      {
+        headers: {
+          cookie: sessionCookie
+        }
+      }
+    );
+    expect(response.status).toBe(200);
+    expect(response.body).toBeTruthy();
+
+    const reader = response.body!.getReader();
+    const firstChunk = await reader.read();
+    expect(new TextDecoder().decode(firstChunk.value)).toContain('run.snapshot');
+    await reader.cancel();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const run = await server.appServices.repos.runRepo.findById(started.run.id);
+    expect(run?.status).toBe('queued');
+  });
+
+  it('returns thread_run_mismatch for attach requests scoped to the wrong thread', async () => {
+    const server = await createTestServer({});
+    activeServers.push(server);
+    const sessionCookie = await registerAndSignIn(server, 'attach-mismatch@example.com');
+    const sourceThreadId = await createThread(server, sessionCookie, 'Attach Source Thread');
+    const otherThreadId = await createThread(server, sessionCookie, 'Attach Other Thread');
+
+    const started = await server.appServices.app.turns.startText({
+      threadId: sourceThreadId,
+      text: 'pending'
+    });
+
+    const attach = await server.app.inject({
+      method: 'GET',
+      url: `/api/threads/${otherThreadId}/runs/${started.run.id}/attach-stream`,
+      headers: {
+        cookie: sessionCookie
+      }
+    });
+
+    expect(attach.statusCode).toBe(200);
+    expect(parseSsePayloads(attach.body)).toEqual([
+      expect.objectContaining({
+        type: 'run.attach_unavailable',
+        runId: started.run.id,
+        reason: 'thread_run_mismatch'
+      })
+    ]);
+  });
+
+  it('does not disclose run metadata for inaccessible cross-thread attach mismatches', async () => {
+    const server = await createTestServer({});
+    activeServers.push(server);
+    const ownerCookie = await registerAndSignIn(server, 'attach-owner@example.com');
+    const attackerCookie = await registerAndSignIn(server, 'attach-attacker@example.com');
+    const ownerThreadId = await createThread(server, ownerCookie, 'Attach Owner Thread');
+    const attackerThreadId = await createThread(server, attackerCookie, 'Attach Attacker Thread');
+
+    const started = await server.appServices.app.turns.startText({
+      threadId: ownerThreadId,
+      text: 'pending'
+    });
+
+    const attach = await server.app.inject({
+      method: 'GET',
+      url: `/api/threads/${attackerThreadId}/runs/${started.run.id}/attach-stream`,
+      headers: {
+        cookie: attackerCookie
+      }
+    });
+
+    expect(attach.statusCode).toBe(200);
+    expect(parseSsePayloads(attach.body)).toEqual([
+      {
+        type: 'run.attach_unavailable',
+        runId: started.run.id,
+        reason: 'run_not_found'
+      }
+    ]);
+  });
+
+  it('returns run_not_active when an inactive run has no retained stream session', async () => {
+    const server = await createTestServer({});
+    activeServers.push(server);
+    const sessionCookie = await registerAndSignIn(server, 'attach-inactive@example.com');
+    const threadId = await createThread(server, sessionCookie, 'Attach Inactive Thread');
+
+    const started = await server.appServices.app.turns.startText({
+      threadId,
+      text: 'pending'
+    });
+    await server.appServices.repos.runRepo.updateStatus(started.run.id, 'completed', {
+      finishedAt: new Date('2026-04-10T01:00:05.000Z')
+    });
+
+    const attach = await server.app.inject({
+      method: 'GET',
+      url: `/api/threads/${threadId}/runs/${started.run.id}/attach-stream`,
+      headers: {
+        cookie: sessionCookie
+      }
+    });
+
+    expect(attach.statusCode).toBe(200);
+    expect(parseSsePayloads(attach.body)).toEqual([
+      expect.objectContaining({
+        type: 'run.attach_unavailable',
+        runId: started.run.id,
+        reason: 'run_not_active',
+        run: expect.objectContaining({
+          status: 'completed'
+        })
+      })
+    ]);
   });
 
   it('binds the thread runtime from the resolved runtime selection on first send', async () => {
