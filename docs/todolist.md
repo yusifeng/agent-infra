@@ -12,7 +12,7 @@
 
 ### 0.2 Goals
 - [ ] 让 playground thread 拥有 app-specific 的持久化运行绑定字段：`runtime_provider` / `runtime_model`。
-- [ ] 让 Vite chat header 的模式展示读取当前 thread DTO，而不是读取全局 `selectedModelKey`。
+- [x] 让 Vite chat header 的模式展示读取当前 thread DTO，而不是读取全局 `selectedModelKey`。
 - [x] 在 thread 首次真实发送时，使用 runtime 最终采用的 `provider/model` 写入 `playground_thread_catalog`。
 - [ ] 明确 `/new`、已有 thread、历史 thread 三类状态下的 header / composer 行为。
 
@@ -47,7 +47,7 @@
 - [x] 扩展服务端 `PlaygroundThreadCatalogRow`。
 - [x] 扩展服务端 `PlaygroundThreadDto` 投影字段。
 - [x] 扩展 Vite 侧 `PlaygroundThreadDto` 与 thread normalization/schema。
-- [ ] 增加一个前端投影 helper，把 `runtime_provider/runtime_model` 映射成 header 所需的 mode 展示值。
+- [x] 增加一个前端投影 helper，把 `runtime_provider/runtime_model` 映射成 header 所需的 mode 展示值。
 - [ ] 明确 thread 已绑定后的发送规则：
   - [x] 确认是“拒绝不同模型发送”还是“忽略 UI 选择并强制沿用 thread binding”。
 
@@ -81,15 +81,15 @@
 - [x] 确认 `fetchThreads` / `fetchThread` 返回的前端 DTO 已包含 binding 字段。
 
 ### 3.2 Service / runtime
-- [ ] 从 header 数据链中移除“使用 `selectedModelKey` 推导当前 thread 模式”的逻辑。
-- [ ] 在 runtime 或 service 层增加基于 `activeThread.runtimeProvider/runtimeModel` 的 mode projection。
-- [ ] 保持 `/new` 状态下 header 继续隐藏标题与模式。
-- [ ] 确认切换 thread 时 header 模式随 `activeThread` 变化，而不是随最后一次全局选择变化。
+- [x] 从 header 数据链中移除“使用 `selectedModelKey` 推导当前 thread 模式”的逻辑。
+- [x] 在 runtime 或 service 层增加基于 `activeThread.runtimeProvider/runtimeModel` 的 mode projection。
+- [x] 保持 `/new` 状态下 header 继续隐藏标题与模式。
+- [x] 确认切换 thread 时 header 模式随 `activeThread` 变化，而不是随最后一次全局选择变化。
 
 ### 3.3 UI / interaction
-- [ ] 让 [chat-header.tsx](/Users/david/Documents/github/agent-infra/apps/playground-vite-web/src/features/durable-chat/components/chat-header.tsx) 只读当前 thread 绑定。
-- [ ] 让 composer 对已有 thread 的模型选择行为与 thread binding 收敛。
-- [ ] 若产品规则要求已有 thread 不可切模式，补禁用或提示状态。
+- [x] 让 [chat-header.tsx](/Users/david/Documents/github/agent-infra/apps/playground-vite-web/src/features/durable-chat/components/chat-header.tsx) 只读当前 thread 绑定。
+- [x] 让 composer 对已有 thread 的模型选择行为与 thread binding 收敛。
+- [x] 若产品规则要求已有 thread 不可切模式，补禁用或提示状态。
 - [ ] 保持现有 mode icon 组件复用，不重新发明第二套模式图标体系。
 
 ## 4. Tests
@@ -104,9 +104,9 @@
 - [ ] 明确历史 `NULL` binding thread 的行为测试。
 
 ### 4.3 Frontend
-- [ ] 增加切换不同 thread 时 header 模式正确变化的 runtime / console 测试。
-- [ ] 增加 `/new` 不显示模式的测试。
-- [ ] 增加“仅变更 `selectedModelKey` 不会错误修改别的 thread header 模式”的测试。
+- [x] 增加切换不同 thread 时 header 模式正确变化的 runtime / console 测试。
+- [x] 增加 `/new` 不显示模式的测试。
+- [x] 增加“仅变更 `selectedModelKey` 不会错误修改别的 thread header 模式”的测试。
 
 ## 5. Recommended Execution Order
 
@@ -123,9 +123,9 @@
 - [x] 跑 `codex review`，通过后提交这一切片。
 
 ### Loop 3
-- [ ] 前端 header 改为读取 `activeThread.runtimeProvider/runtimeModel`。
-- [ ] composer 与已有 thread 的模型选择行为收敛。
-- [ ] 跑 Vite runtime / UI 定向测试。
+- [x] 前端 header 改为读取 `activeThread.runtimeProvider/runtimeModel`。
+- [x] composer 与已有 thread 的模型选择行为收敛。
+- [x] 跑 Vite runtime / UI 定向测试。
 - [ ] 跑 `codex review`，通过后提交这一切片。
 
 ### Loop 4

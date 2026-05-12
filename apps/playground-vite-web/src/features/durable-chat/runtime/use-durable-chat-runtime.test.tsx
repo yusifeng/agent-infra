@@ -161,6 +161,8 @@ function createThread(
     metadata: null,
     pinned: false,
     pinnedAt: null,
+    runtimeProvider: null,
+    runtimeModel: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     archivedAt: null,
@@ -824,6 +826,70 @@ describe('useDurableChatRuntime', () => {
           })
         })
       );
+    });
+  });
+
+  it('uses the active thread runtime binding when switching between bound threads', async () => {
+    const meta = createMeta();
+    durableChatClientMocks.runRefreshMeta.mockImplementation(async ({ actions }: any) => {
+      actions.setMeta(meta);
+      actions.setSelectedModelKey(meta.defaultModelKey);
+    });
+    chatApiMocks.fetchThreads.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        threads: [
+          createThread({
+            id: 'thread-1',
+            title: '快速会话',
+            runtimeProvider: 'deepseek',
+            runtimeModel: 'deepseek-v4-flash',
+            updatedAt: '2026-01-01T00:00:01.000Z'
+          }),
+          createThread({
+            id: 'thread-2',
+            title: '专家会话',
+            runtimeProvider: 'deepseek',
+            runtimeModel: 'deepseek-v4-pro',
+            updatedAt: '2026-01-01T00:00:02.000Z'
+          })
+        ]
+      }
+    });
+
+    const { result, rerender } = renderHook(
+      ({ initialThreadId }) => useDurableChatRuntime({ initialThreadId }),
+      {
+        initialProps: { initialThreadId: 'thread-1' as string | null },
+        wrapper
+      }
+    );
+
+    await waitFor(() => {
+      expect(result.current.activeThreadId).toBe('thread-1');
+      expect(result.current.deepseekModePresentation.selectedMode).toBe('quick');
+      expect(result.current.selectedModelOption?.model).toBe('deepseek-v4-flash');
+    });
+
+    act(() => {
+      result.current.onSelectedModelKeyChange('deepseek:deepseek-v4-pro');
+    });
+
+    await waitFor(() => {
+      expect(result.current.selectedModelKey).toBe('deepseek:deepseek-v4-pro');
+      expect(result.current.deepseekModePresentation.selectedMode).toBe('quick');
+      expect(result.current.selectedModelOption?.model).toBe('deepseek-v4-flash');
+    });
+
+    rerender({ initialThreadId: 'thread-2' });
+
+    await waitFor(() => {
+      expect(result.current.activeThreadId).toBe('thread-2');
+      expect(result.current.currentThreadTitle).toBe('专家会话');
+      expect(result.current.deepseekModePresentation.selectedMode).toBe('expert');
+      expect(result.current.selectedModelOption?.model).toBe('deepseek-v4-pro');
     });
   });
 

@@ -36,6 +36,8 @@ function createThread(overrides: Partial<PlaygroundThreadDto> = {}): PlaygroundT
     status: 'active',
     pinned: false,
     pinnedAt: null,
+    runtimeProvider: null,
+    runtimeModel: null,
     createdAt: '2026-05-08T00:00:00.000Z',
     updatedAt: '2026-05-08T00:00:00.000Z',
     ...overrides
@@ -124,6 +126,55 @@ describe('buildChatViewState', () => {
     expect(result.displayedTranscriptBlocks).toHaveLength(1);
     expect(result.displayedAnswerContainers).toHaveLength(1);
     expect(result.hasOlderMessages).toBe(true);
+  });
+
+  it('prefers the active thread runtime binding over the global composer selection', () => {
+    const result = buildChatViewState({
+      threads: [
+        createThread({
+          runtimeProvider: 'deepseek',
+          runtimeModel: 'deepseek-v4-pro'
+        })
+      ],
+      pinnedThreadIds: [],
+      activeThreadId: 'thread-1',
+      messages: [],
+      draft: 'hello',
+      optimisticUserMessage: null,
+      meta: createMeta({
+        runtimeProvider: 'deepseek',
+        runtimeModel: 'deepseek-v4-flash',
+        modelOptions: [
+          {
+            key: 'deepseek:deepseek-v4-flash',
+            provider: 'deepseek',
+            model: 'deepseek-v4-flash',
+            label: 'DeepSeek Flash',
+            description: 'Fast mode'
+          },
+          {
+            key: 'deepseek:deepseek-v4-pro',
+            provider: 'deepseek',
+            model: 'deepseek-v4-pro',
+            label: 'DeepSeek Pro',
+            description: 'Expert mode'
+          }
+        ],
+        defaultModelKey: 'deepseek:deepseek-v4-flash'
+      }),
+      selectedModelKey: 'deepseek:deepseek-v4-flash',
+      activeResponseRun: null,
+      chatPhase: 'idle',
+      persistingTurn: false,
+      loadingThreadId: null,
+      messagePageInfo: null,
+      liveAssistantDraft: null,
+      pendingNewThreadLoadingId: '__pending__'
+    });
+
+    expect(result.selectedModelOption?.key).toBe('deepseek:deepseek-v4-pro');
+    expect(result.deepseekModePresentation.selectedMode).toBe('expert');
+    expect(result.sendDisabled).toBe(false);
   });
 
   it('disables send and locks input while the main chat is responding', () => {

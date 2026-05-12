@@ -15,6 +15,8 @@ function createThread(overrides: Partial<PlaygroundThreadDto> = {}): PlaygroundT
     metadata: null,
     pinned: false,
     pinnedAt: null,
+    runtimeProvider: null,
+    runtimeModel: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     archivedAt: null,
