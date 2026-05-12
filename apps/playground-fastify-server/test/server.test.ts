@@ -1007,6 +1007,92 @@ describe('playground-fastify-server', () => {
     expect(messages.statusCode).toBe(200);
     expect(messages.json().messages.map((message: { role: string }) => message.role)).toEqual(['user', 'assistant']);
     expect(messages.json().messages[1].parts[0].textValue).toBe('Hello from fake runtime');
+
+    const catalogRepo = new PlaygroundThreadCatalogRepo(server.appServices.dbConfig);
+    const catalogRow = await catalogRepo.findByThreadId(threadId);
+    expect(catalogRow).toMatchObject({
+      runtimeProvider: 'deepseek',
+      runtimeModel: 'deepseek-v4-flash'
+    });
+  });
+
+  it('binds the thread runtime from the resolved runtime selection on first send', async () => {
+    const server = await createTestServer({});
+    activeServers.push(server);
+    const sessionCookie = await registerAndSignIn(server, 'stream-binding@example.com');
+    const threadId = await createThread(server, sessionCookie, 'Binding Thread');
+
+    const stream = await server.app.inject({
+      method: 'POST',
+      url: `/api/threads/${threadId}/runs/stream`,
+      headers: {
+        cookie: sessionCookie
+      },
+      payload: {
+        text: 'hello',
+        provider: 'openai',
+        model: 'gpt-5.5'
+      }
+    });
+    expect(stream.statusCode).toBe(200);
+
+    const catalogRepo = new PlaygroundThreadCatalogRepo(server.appServices.dbConfig);
+    const catalogRow = await catalogRepo.findByThreadId(threadId);
+    expect(catalogRow).toMatchObject({
+      runtimeProvider: 'openai',
+      runtimeModel: 'gpt-5.5'
+    });
+  });
+
+  it('forces subsequent sends to reuse the existing thread runtime binding', async () => {
+    const server = await createTestServer({});
+    activeServers.push(server);
+    const sessionCookie = await registerAndSignIn(server, 'stream-reuse-binding@example.com');
+    const threadId = await createThread(server, sessionCookie, 'Bound Thread');
+
+    const firstStream = await server.app.inject({
+      method: 'POST',
+      url: `/api/threads/${threadId}/runs/stream`,
+      headers: {
+        cookie: sessionCookie
+      },
+      payload: {
+        text: 'bind me',
+        provider: 'deepseek',
+        model: 'deepseek-v4-pro'
+      }
+    });
+    expect(firstStream.statusCode).toBe(200);
+
+    const secondStream = await server.app.inject({
+      method: 'POST',
+      url: `/api/threads/${threadId}/runs/stream`,
+      headers: {
+        cookie: sessionCookie
+      },
+      payload: {
+        text: 'try to switch',
+        provider: 'openai',
+        model: 'gpt-5.5'
+      }
+    });
+    expect(secondStream.statusCode).toBe(200);
+
+    const events = parseSsePayloads(secondStream.body);
+    expect(events[0]).toMatchObject({
+      type: 'run.ready',
+      run: expect.objectContaining({
+        provider: 'deepseek',
+        model: 'deepseek-v4-pro'
+      })
+    });
+
+    const catalogRepo = new PlaygroundThreadCatalogRepo(server.appServices.dbConfig);
+    const catalogRow = await catalogRepo.findByThreadId(threadId);
+    expect(catalogRow).toMatchObject({
+      runtimeProvider: 'deepseek',
+      runtimeModel: 'deepseek-v4-pro'
+    });
   });
 
   it('auto-titles a default-title thread after a completed run', async () => {

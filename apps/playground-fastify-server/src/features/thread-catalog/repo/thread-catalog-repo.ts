@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import type { DbConfig } from '@agent-infra/db';
 
 import { playgroundThreadCatalogPg, playgroundThreadCatalogSqlite } from './schema.js';
@@ -119,6 +119,36 @@ export class PlaygroundThreadCatalogRepo {
       .update(playgroundThreadCatalogSqlite)
       .set({ pinnedAt, updatedAt })
       .where(eq(playgroundThreadCatalogSqlite.threadId, threadId))
+      .returning();
+    return rows[0] ? toCatalogRow(rows[0]) : null;
+  }
+
+  async bindRuntimeIfUnset(threadId: string, runtimeProvider: string, runtimeModel: string, updatedAt: Date) {
+    if (this.dbConfig.mode === 'postgres') {
+      const rows = await this.dbConfig.db
+        .update(playgroundThreadCatalogPg)
+        .set({ runtimeProvider, runtimeModel, updatedAt })
+        .where(
+          and(
+            eq(playgroundThreadCatalogPg.threadId, threadId),
+            isNull(playgroundThreadCatalogPg.runtimeProvider),
+            isNull(playgroundThreadCatalogPg.runtimeModel)
+          )
+        )
+        .returning();
+      return rows[0] ? toCatalogRow(rows[0]) : null;
+    }
+
+    const rows = await this.dbConfig.db
+      .update(playgroundThreadCatalogSqlite)
+      .set({ runtimeProvider, runtimeModel, updatedAt })
+      .where(
+        and(
+          eq(playgroundThreadCatalogSqlite.threadId, threadId),
+          isNull(playgroundThreadCatalogSqlite.runtimeProvider),
+          isNull(playgroundThreadCatalogSqlite.runtimeModel)
+        )
+      )
       .returning();
     return rows[0] ? toCatalogRow(rows[0]) : null;
   }

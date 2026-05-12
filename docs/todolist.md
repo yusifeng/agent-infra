@@ -13,7 +13,7 @@
 ### 0.2 Goals
 - [ ] 让 playground thread 拥有 app-specific 的持久化运行绑定字段：`runtime_provider` / `runtime_model`。
 - [ ] 让 Vite chat header 的模式展示读取当前 thread DTO，而不是读取全局 `selectedModelKey`。
-- [ ] 在 thread 首次真实发送时，使用 runtime 最终采用的 `provider/model` 写入 `playground_thread_catalog`。
+- [x] 在 thread 首次真实发送时，使用 runtime 最终采用的 `provider/model` 写入 `playground_thread_catalog`。
 - [ ] 明确 `/new`、已有 thread、历史 thread 三类状态下的 header / composer 行为。
 
 ### 0.3 Non-goals
@@ -49,7 +49,7 @@
 - [x] 扩展 Vite 侧 `PlaygroundThreadDto` 与 thread normalization/schema。
 - [ ] 增加一个前端投影 helper，把 `runtime_provider/runtime_model` 映射成 header 所需的 mode 展示值。
 - [ ] 明确 thread 已绑定后的发送规则：
-  - [ ] 确认是“拒绝不同模型发送”还是“忽略 UI 选择并强制沿用 thread binding”。
+  - [x] 确认是“拒绝不同模型发送”还是“忽略 UI 选择并强制沿用 thread binding”。
 
 ## 2. Backend / Platform
 
@@ -60,14 +60,14 @@
 
 ### 2.2 Repo / service
 - [x] 在 [thread-catalog-repo.ts](/Users/david/Documents/github/agent-infra/apps/playground-fastify-server/src/features/thread-catalog/repo/thread-catalog-repo.ts) 中扩展 row 映射与 `create()` 入参。
-- [ ] 增加 `updateRuntimeBinding(...)` 或 `bindRuntimeIfUnset(...)` 能力。
-- [ ] 在 [thread-catalog-service.ts](/Users/david/Documents/github/agent-infra/apps/playground-fastify-server/src/features/thread-catalog/service/thread-catalog-service.ts) 中提供 thread 绑定写入的 service 边界。
+- [x] 增加 `updateRuntimeBinding(...)` 或 `bindRuntimeIfUnset(...)` 能力。
+- [x] 在 [thread-catalog-service.ts](/Users/david/Documents/github/agent-infra/apps/playground-fastify-server/src/features/thread-catalog/service/thread-catalog-service.ts) 中提供 thread 绑定写入的 service 边界。
 
 ### 2.3 Route write path
-- [ ] 在 [chat.ts](/Users/david/Documents/github/agent-infra/apps/playground-fastify-server/src/routes/chat.ts) 的 `POST /api/threads/:threadId/runs/stream` 中，在 `startText()` 成功返回后写入 binding。
-- [ ] 写入使用 `started.runtimeSelection.provider/model`，不直接信任 `turnInput.provider/model`。
-- [ ] 仅在当前 thread 尚未绑定时写入首次 binding。
-- [ ] 为已绑定 thread 的模型不一致情况加入显式处理。
+- [x] 在 [chat.ts](/Users/david/Documents/github/agent-infra/apps/playground-fastify-server/src/routes/chat.ts) 的 `POST /api/threads/:threadId/runs/stream` 中，在 `startText()` 成功返回后写入 binding。
+- [x] 写入使用 `started.runtimeSelection.provider/model`，不直接信任 `turnInput.provider/model`。
+- [x] 仅在当前 thread 尚未绑定时写入首次 binding。
+- [x] 为已绑定 thread 的模型不一致情况加入显式处理。
 
 ### 2.4 DTO projection / API
 - [x] 在 [project-playground-thread-dto.ts](/Users/david/Documents/github/agent-infra/apps/playground-fastify-server/src/features/thread-catalog/service/project-playground-thread-dto.ts) 中投影 `runtimeProvider` / `runtimeModel`。
@@ -96,11 +96,11 @@
 
 ### 4.1 Backend / schema
 - [x] 为 thread catalog schema/bootstrap 增加测试，覆盖新列存在与老库增列路径。
-- [ ] 为 repo/service 增加 `runtimeProvider/runtimeModel` create / update 测试。
+- [x] 为 repo/service 增加 `runtimeProvider/runtimeModel` create / update 测试。
 
 ### 4.2 Route / server
-- [ ] 增加首次发送后 binding 被写入并通过 thread DTO 返回的测试。
-- [ ] 增加已绑定 thread 再次发送时的模型一致性测试。
+- [x] 增加首次发送后 binding 被写入并通过 thread DTO 返回的测试。
+- [x] 增加已绑定 thread 再次发送时的模型一致性测试。
 - [ ] 明确历史 `NULL` binding thread 的行为测试。
 
 ### 4.3 Frontend
@@ -114,13 +114,13 @@
 - [x] 扩展 `playground_thread_catalog` schema、bootstrap、repo row 和 DTO 投影链。
 - [x] 先把 thread 绑定字段打通到前端，但允许值为 `NULL`。
 - [x] 跑 schema/repo/DTO 相关定向测试。
-- [ ] 跑 `codex review`，通过后提交这一切片。
+- [x] 跑 `codex review`，通过后提交这一切片。
 
 ### Loop 2
-- [ ] 在 `runs/stream` 首次发送路径中写入 `runtimeSelection` 绑定。
-- [ ] 明确并实现已绑定 thread 的模型一致性规则。
-- [ ] 跑 route/server 定向测试。
-- [ ] 跑 `codex review`，通过后提交这一切片。
+- [x] 在 `runs/stream` 首次发送路径中写入 `runtimeSelection` 绑定。
+- [x] 明确并实现已绑定 thread 的模型一致性规则。
+- [x] 跑 route/server 定向测试。
+- [x] 跑 `codex review`，通过后提交这一切片。
 
 ### Loop 3
 - [ ] 前端 header 改为读取 `activeThread.runtimeProvider/runtimeModel`。

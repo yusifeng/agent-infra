@@ -59,6 +59,7 @@ type ChatRuntimeServices = ChatAppServices & {
 
 type ChatRouteMeta = ReturnType<typeof getPlaygroundMeta>;
 type MaybePromise<T> = T | Promise<T>;
+const threadRunStartLocks = new Map<string, Promise<void>>();
 
 export type ChatRouteDependencies = {
   authConfig?: PlaygroundAuthConfig;
@@ -81,6 +82,26 @@ function buildUnavailableMetaFallback(): ChatRouteMeta {
       connectionString: 'unavailable'
     }
   };
+}
+
+async function withThreadRunStartLock<T>(threadId: string, work: () => Promise<T>) {
+  const previous = threadRunStartLocks.get(threadId) ?? Promise.resolve();
+  let releaseCurrentLock!: () => void;
+  const current = new Promise<void>((resolve) => {
+    releaseCurrentLock = resolve;
+  });
+  const chained = previous.then(() => current);
+  threadRunStartLocks.set(threadId, chained);
+  await previous;
+
+  try {
+    return await work();
+  } finally {
+    releaseCurrentLock();
+    if (threadRunStartLocks.get(threadId) === chained) {
+      threadRunStartLocks.delete(threadId);
+    }
+  }
 }
 
 function writeSseEvent(
@@ -698,20 +719,75 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
       request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
       request.requestTiming.annotate('runtime_services_state', describeServiceState(getPlaygroundRuntimeServicesState()));
       runtimeServices = await request.requestTiming.measureAsync('services.runtime', () => getRuntimeServices());
-      await request.requestTiming.measureAsync('catalog.load', () =>
-        loadAccessibleThread(runtimeServices, (request.params as { threadId: string }).threadId, currentUser.id)
-      );
-      started = await request.requestTiming.measureAsync('turns.start_text', () =>
-        runtimeServices.app.turns.startText({
-          threadId: (request.params as { threadId: string }).threadId,
-          text: turnInput.text,
-          provider: turnInput.provider,
-          model: turnInput.model,
-          thinkingEnabled: turnInput.thinkingEnabled,
-          reasoningEffort: turnInput.reasoningEffort,
-          webSearchEnabled: turnInput.webSearchEnabled
-        })
-      );
+      const threadId = (request.params as { threadId: string }).threadId;
+
+      started = await withThreadRunStartLock(threadId, async () => {
+        const threadCatalogService = createThreadCatalogService(runtimeServices);
+        const { catalogRow } = await request.requestTiming.measureAsync('catalog.load', () =>
+          loadAccessibleThread(runtimeServices, threadId, currentUser.id)
+        );
+
+        let effectiveRuntimeBinding: { provider: string; model: string } | null = null;
+        if (catalogRow.runtimeProvider && catalogRow.runtimeModel) {
+          effectiveRuntimeBinding = {
+            provider: catalogRow.runtimeProvider,
+            model: catalogRow.runtimeModel
+          };
+        } else {
+          const latestRun = await request.requestTiming.measureAsync('runs.latest_for_runtime_binding', () =>
+            runtimeServices.repos.runRepo.listByThread(threadId, { limit: 1 })
+          );
+          const latestBoundRun = latestRun[0] ?? null;
+
+          if (latestBoundRun) {
+            effectiveRuntimeBinding = {
+              provider: latestBoundRun.provider,
+              model: latestBoundRun.model
+            };
+          }
+        }
+
+        if (effectiveRuntimeBinding) {
+          request.requestTiming.annotate(
+            'thread_runtime_binding',
+            `${effectiveRuntimeBinding.provider}:${effectiveRuntimeBinding.model}`
+          );
+        }
+
+        const queued = await request.requestTiming.measureAsync('turns.start_text', () =>
+          runtimeServices.app.turns.startText({
+            threadId,
+            text: turnInput.text,
+            provider: effectiveRuntimeBinding?.provider ?? turnInput.provider,
+            model: effectiveRuntimeBinding?.model ?? turnInput.model,
+            thinkingEnabled: turnInput.thinkingEnabled,
+            reasoningEffort: turnInput.reasoningEffort,
+            webSearchEnabled: turnInput.webSearchEnabled
+          })
+        );
+
+        try {
+          await request.requestTiming.measureAsync('catalog.bind_runtime_if_unset', () =>
+            threadCatalogService.bindRuntimeIfUnset(
+              threadId,
+              queued.runtimeSelection.provider,
+              queued.runtimeSelection.model,
+              new Date()
+            )
+          );
+        } catch (bindingError) {
+          app.log.warn(
+            {
+              err: bindingError,
+              threadId,
+              runId: queued.run.id
+            },
+            'failed to persist thread runtime binding after successful startText'
+          );
+        }
+
+        return queued;
+      });
     } catch (error) {
       return reply.code(getRouteErrorStatus(error)).send(buildRunTextTurnErrorResponse(error, 'failed to stream thread turn'));
     }

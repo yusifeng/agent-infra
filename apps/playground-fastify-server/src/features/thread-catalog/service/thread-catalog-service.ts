@@ -111,4 +111,18 @@ export class PlaygroundThreadCatalogService {
 
     return row;
   }
+
+  async bindRuntimeIfUnset(threadId: string, runtimeProvider: string, runtimeModel: string, now: Date) {
+    const row = await this.repo.bindRuntimeIfUnset(threadId, runtimeProvider, runtimeModel, now);
+    if (row) {
+      return row;
+    }
+
+    const existing = await this.repo.findByThreadId(threadId);
+    if (!existing) {
+      throw new ThreadNotFoundError(threadId);
+    }
+
+    return existing;
+  }
 }
