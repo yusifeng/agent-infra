@@ -739,7 +739,7 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
           );
           const latestBoundRun = latestRun[0] ?? null;
 
-          if (latestBoundRun) {
+          if (latestBoundRun?.provider && latestBoundRun.model) {
             effectiveRuntimeBinding = {
               provider: latestBoundRun.provider,
               model: latestBoundRun.model
