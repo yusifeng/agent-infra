@@ -21,6 +21,22 @@ export interface RuntimePiInput {
   webSearchEnabled?: boolean;
 }
 
+export interface RuntimePiGenerateTextInput {
+  provider?: string;
+  model?: string;
+  systemPrompt?: string;
+  userPrompt: string;
+  temperature?: number;
+  maxTokens?: number;
+  reasoningEffort?: 'off' | 'high' | 'max';
+}
+
+export interface RuntimePiGenerateTextResult {
+  provider: string;
+  model: string;
+  text: string | null;
+}
+
 export interface RuntimePiModelOption {
   key: string;
   provider: RuntimePiProvider;
@@ -112,4 +128,5 @@ export interface RuntimePiRunTurnOptions {
 export interface RuntimePiRuntime {
   prepare(input?: Pick<RuntimePiInput, 'provider' | 'model'>): Promise<RuntimePiSelection>;
   runTurn(ctx: RuntimePiContext, input: RuntimePiInput, options?: RuntimePiRunTurnOptions): Promise<void>;
+  generateText(input: RuntimePiGenerateTextInput): Promise<RuntimePiGenerateTextResult>;
 }

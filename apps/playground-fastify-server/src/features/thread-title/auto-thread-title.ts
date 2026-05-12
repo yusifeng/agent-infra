@@ -1,15 +1,25 @@
-import { resolveRuntimePiConfigFromEnv } from '@agent-infra/runtime-pi/config';
+import type { GenerateTextRuntimeInput, GenerateTextRuntimeResult } from '@agent-infra/app';
 
 import { isDefaultThreadTitle } from './default-thread-title.js';
 import type { PlaygroundAppServices } from '../../playground-base-services.js';
 
-const OPENAI_BASE_URL = 'https://api.openai.com/v1';
-const DEEPSEEK_BASE_URL = 'https://api.deepseek.com/v1';
 const MAX_SOURCE_TEXT_LENGTH = 800;
+const AUTO_THREAD_TITLE_SYSTEM_PROMPT =
+  'Generate a concise chat thread title based on this completed Q&A turn. Focus on the main topic or task, not a full-sentence answer. Return only the title text, without quotes, markdown, or punctuation decoration.';
 
 export type ThreadTitleGenerator = {
   generateTitle(input: { sourceText: string }): Promise<string | null>;
 };
+
+type ThreadTitleRuntime = {
+  prepare(input: { provider?: string; model?: string }): Promise<{ provider: string; model: string }>;
+  generateText(input: GenerateTextRuntimeInput): Promise<GenerateTextRuntimeResult>;
+};
+
+const AUTO_THREAD_TITLE_RUNTIME_CANDIDATES = [
+  { provider: 'deepseek', model: 'deepseek-v4-flash' },
+  { provider: 'openai', model: 'gpt-4o-mini' }
+] as const;
 
 export type AutoThreadTitleResult =
   | { outcome: 'skipped'; reason: 'no_generator' }
@@ -277,102 +287,31 @@ export async function maybeAutoTitleThread(args: {
   }
 }
 
-type CompletionResponse = {
-  choices?: Array<{
-    message?: {
-      content?: string | null;
-    };
-  }>;
-};
+export function createRuntimeThreadTitleGenerator(runtime: ThreadTitleRuntime): ThreadTitleGenerator {
+  return {
+    async generateTitle({ sourceText }) {
+      let lastError: unknown = null;
 
-async function requestChatCompletion(input: {
-  baseUrl: string;
-  apiKey: string;
-  model: string;
-  sourceText: string;
-  disableThinking?: boolean;
-}) {
-  const payload = {
-    model: input.model,
-    temperature: 0.2,
-    max_tokens: 48,
-    messages: [
-      {
-        role: 'system',
-        content:
-          'Generate a concise chat thread title based on this completed Q&A turn. Focus on the main topic or task, not a full-sentence answer. Return only the title text, without quotes, markdown, or punctuation decoration.'
-      },
-      {
-        role: 'user',
-        content: `User request:\n${input.sourceText}`
-      }
-    ],
-    ...(input.disableThinking
-      ? {
-          thinking: {
-            type: 'disabled'
-          }
-        }
-      : {})
-  };
-
-  const response = await fetch(`${input.baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${input.apiKey}`,
-      'content-type': 'application/json'
-    },
-    body: JSON.stringify(payload)
-  });
-
-  if (!response.ok) {
-    throw new Error(`thread auto-title request failed (${response.status})`);
-  }
-
-  const completion = (await response.json()) as CompletionResponse;
-  return completion.choices?.[0]?.message?.content?.trim() ?? null;
-}
-
-export function createEnvThreadTitleGenerator(): ThreadTitleGenerator | null {
-  try {
-    let config;
-    try {
-      config = resolveRuntimePiConfigFromEnv({
-        provider: 'deepseek',
-        model: 'deepseek-v4-flash'
-      });
-    } catch {
-      config = resolveRuntimePiConfigFromEnv({
-        provider: 'openai',
-        model: 'gpt-4o-mini'
-      });
-    }
-
-    if (config.provider === 'deepseek') {
-      return {
-        async generateTitle({ sourceText }) {
-          return requestChatCompletion({
-            baseUrl: DEEPSEEK_BASE_URL,
-            apiKey: config.apiKey,
-            model: config.model,
-            sourceText,
-            disableThinking: true
+      for (const candidate of AUTO_THREAD_TITLE_RUNTIME_CANDIDATES) {
+        try {
+          const runtimeSelection = await runtime.prepare(candidate);
+          const result = await runtime.generateText({
+            provider: runtimeSelection.provider,
+            model: runtimeSelection.model,
+            systemPrompt: AUTO_THREAD_TITLE_SYSTEM_PROMPT,
+            userPrompt: `Completed Q&A turn:\n${sourceText}`,
+            temperature: 0.2,
+            maxTokens: 48,
+            reasoningEffort: 'off'
           });
-        }
-      };
-    }
 
-    return {
-      async generateTitle({ sourceText }) {
-        return requestChatCompletion({
-          baseUrl: OPENAI_BASE_URL,
-          apiKey: config.apiKey,
-          model: config.model,
-          sourceText
-        });
+          return result.text?.trim() ?? null;
+        } catch (error) {
+          lastError = error;
+        }
       }
-    };
-  } catch {
-    return null;
-  }
+
+      throw lastError ?? new Error('thread title generation runtime is unavailable');
+    }
+  };
 }

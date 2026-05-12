@@ -14,6 +14,9 @@ const unavailableRuntimePort: AgentInfraRuntimePort = {
   },
   async runTextTurn() {
     throw new RuntimeUnavailableError('runtime execution is not configured for playground app services');
+  },
+  async generateText() {
+    throw new RuntimeUnavailableError('runtime execution is not configured for playground app services');
   }
 };
 

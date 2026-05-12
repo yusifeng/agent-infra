@@ -41,7 +41,11 @@ import { getPlaygroundAppServices, getPlaygroundAppServicesState } from '../play
 import { getPlaygroundBaseServicesState, type PlaygroundAppServices } from '../playground-base-services.js';
 import { projectPlaygroundThreadDto, projectPlaygroundThreadList } from '../features/thread-catalog/service/project-playground-thread-dto.js';
 import { PlaygroundThreadCatalogService } from '../features/thread-catalog/service/thread-catalog-service.js';
-import { createEnvThreadTitleGenerator, maybeAutoTitleThread, type ThreadTitleGenerator } from '../features/thread-title/auto-thread-title.js';
+import {
+  createRuntimeThreadTitleGenerator,
+  maybeAutoTitleThread,
+  type ThreadTitleGenerator
+} from '../features/thread-title/auto-thread-title.js';
 import { getPlaygroundMeta, toPlaygroundDbInfo } from '../playground-meta.js';
 import {
   getPlaygroundRuntimeServices,
@@ -245,10 +249,6 @@ async function sendSiteIcon(reply: FastifyReply, hostname: string) {
 export async function registerChatRoutes(app: FastifyInstance, dependencies: ChatRouteDependencies = {}) {
   const getAppServices = dependencies.getAppServices ?? getPlaygroundAppServices;
   const getRuntimeServices = dependencies.getRuntimeServices ?? getPlaygroundRuntimeServices;
-  const threadTitleGenerator =
-    Object.prototype.hasOwnProperty.call(dependencies, 'threadTitleGenerator')
-      ? dependencies.threadTitleGenerator ?? null
-      : createEnvThreadTitleGenerator();
   const getRuntimeMeta =
     dependencies.getRuntimeMeta ??
     (async () => {
@@ -862,6 +862,11 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
       );
 
       if (finalRunCompleted) {
+        const threadTitleGenerator =
+          Object.prototype.hasOwnProperty.call(dependencies, 'threadTitleGenerator')
+            ? dependencies.threadTitleGenerator ?? null
+            : createRuntimeThreadTitleGenerator(runtimeServices.durableRuntime);
+
         const autoTitleResult = await maybeAutoTitleThread({
           services: runtimeServices,
           threadId,

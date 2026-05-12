@@ -42,6 +42,22 @@ export interface RunTextRuntimeInput {
   webSearchEnabled?: boolean;
 }
 
+export interface GenerateTextRuntimeInput {
+  provider?: string;
+  model?: string;
+  systemPrompt?: string;
+  userPrompt: string;
+  temperature?: number;
+  maxTokens?: number;
+  reasoningEffort?: 'off' | 'high' | 'max';
+}
+
+export interface GenerateTextRuntimeResult {
+  provider: string;
+  model: string;
+  text: string | null;
+}
+
 export interface StartTextTurnResult {
   run: Run;
   userMessage: Message & { parts: MessagePart[] };
@@ -51,6 +67,7 @@ export interface StartTextTurnResult {
 export interface AgentInfraRuntimePort {
   prepare(input: { provider?: string; model?: string }): Promise<RuntimeSelection>;
   runTextTurn(repositories: AgentInfraAppRepositories, input: RunTextRuntimeInput): Promise<void>;
+  generateText(input: GenerateTextRuntimeInput): Promise<GenerateTextRuntimeResult>;
 }
 
 export interface CreateThreadInput {

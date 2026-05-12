@@ -56,6 +56,13 @@ async function buildPlaygroundRuntimeServices(): Promise<PlaygroundRuntimeServic
         },
         input
       );
+    },
+    async generateText(input) {
+      try {
+        return await durableRuntime.generateText(input);
+      } catch (error) {
+        throw mapRuntimePiConfigError(error);
+      }
     }
   };
 

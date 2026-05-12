@@ -3,9 +3,11 @@ import crypto from 'node:crypto';
 import type { Message as StoredMessage } from '@agent-infra/core';
 import { Agent, type AgentEvent, type AgentTool } from '@mariozechner/pi-agent-core';
 import {
+  completeSimple,
   getModels,
   type AssistantMessage,
   type AssistantMessageEvent,
+  type Context,
   type Message as PiMessage,
   type Model,
   type ToolResultMessage
@@ -18,6 +20,8 @@ import type {
   RuntimePiAssistantStreamUpdate,
   RuntimePiConfig,
   RuntimePiContext,
+  RuntimePiGenerateTextInput,
+  RuntimePiGenerateTextResult,
   RuntimePiInput,
   RuntimePiPersistedUpdate,
   RuntimePiRunTurnOptions,
@@ -150,6 +154,63 @@ function toRuntimeSelection(config: RuntimePiConfig): RuntimePiSelection {
   return {
     provider: config.provider,
     model: config.model
+  };
+}
+
+function extractAssistantCompletionText(message: AssistantMessage): string | null {
+  const text = message.content
+    .filter((contentPart) => contentPart.type === 'text')
+    .map((contentPart) => contentPart.text.trim())
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+
+  return text || null;
+}
+
+async function resolveGenerateTextResult(
+  options: RuntimePiRuntimeOptions,
+  input: RuntimePiGenerateTextInput
+): Promise<RuntimePiGenerateTextResult> {
+  const resolvedConfig = await resolveRuntimeConfig(options, {
+    provider: input.provider,
+    model: input.model
+  });
+  const model = options.model ?? await resolveConfiguredModel(resolvedConfig as RuntimePiConfig);
+  const selection =
+    resolvedConfig != null
+      ? toRuntimeSelection(resolvedConfig)
+      : {
+          provider: String(model.provider),
+          model: model.id
+        };
+  const context: Context = {
+    systemPrompt: input.systemPrompt ?? DEFAULT_SYSTEM_PROMPT,
+    messages: [
+      {
+        role: 'user',
+        content: input.userPrompt,
+        timestamp: Date.now()
+      }
+    ]
+  };
+  const assistantMessage = await completeSimple(model, context, {
+    apiKey:
+      resolvedConfig?.apiKey ??
+      (options.getApiKey ? await options.getApiKey(String(model.provider)) : undefined),
+    temperature: input.temperature,
+    maxTokens: input.maxTokens,
+    ...(input.reasoningEffort === 'max'
+      ? { reasoning: 'xhigh' as const }
+      : input.reasoningEffort === 'high'
+        ? { reasoning: 'high' as const }
+        : {})
+  });
+
+  return {
+    provider: selection.provider,
+    model: selection.model,
+    text: extractAssistantCompletionText(assistantMessage)
   };
 }
 
@@ -951,6 +1012,9 @@ export function createPiRuntime(options: RuntimePiRuntimeOptions = {}): RuntimeP
   return {
     async prepare(input = {}) {
       return resolveRuntimeSelection(options, input);
+    },
+    async generateText(input) {
+      return await resolveGenerateTextResult(options, input);
     },
     async runTurn(ctx, input, runOptions) {
       const resolvedConfig = await resolveRuntimeConfig(options, {

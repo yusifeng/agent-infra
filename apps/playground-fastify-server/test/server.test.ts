@@ -118,6 +118,13 @@ function createFakeDurableRuntime(mode: 'success' | 'failure' = 'success'): Runt
         model: input?.model ?? 'deepseek-v4-flash'
       };
     },
+    async generateText(input) {
+      return {
+        provider: input.provider ?? 'deepseek',
+        model: input.model ?? 'deepseek-v4-flash',
+        text: input.userPrompt
+      };
+    },
     async runTurn(ctx, input, options) {
       const runningRun = await ctx.runRepo.updateStatus(input.runId, 'running', {
         startedAt: new Date('2026-04-10T01:00:00.000Z')
@@ -187,6 +194,9 @@ async function createTestServer(options: {
     const runtimePort: AgentInfraRuntimePort = {
       async prepare(input) {
         return durableRuntime.prepare(input);
+      },
+      async generateText(input) {
+        return durableRuntime.generateText(input);
       },
       async runTextTurn(repositories, input) {
         await durableRuntime.runTurn(

@@ -1,7 +1,7 @@
 import type { PlaygroundAppServices } from '../src/playground-base-services.js';
 import { describe, expect, it, vi } from 'vitest';
 
-import { maybeAutoTitleThread } from '../src/features/thread-title/auto-thread-title.js';
+import { createRuntimeThreadTitleGenerator, maybeAutoTitleThread } from '../src/features/thread-title/auto-thread-title.js';
 
 function createServices(options?: {
   threadTitles?: Array<string | null>;
@@ -361,5 +361,78 @@ describe('maybeAutoTitleThread', () => {
         '速水玲香是日本动漫《名侦探柯南》中的角色。她是一位著名的女演员和歌手。'
       ].join('\n')
     });
+  });
+
+  it('delegates runtime-backed title generation through generateText', async () => {
+    const runtime = {
+      prepare: vi.fn(async (input: { provider?: string; model?: string }) => ({
+        provider: input.provider ?? 'deepseek',
+        model: input.model ?? 'deepseek-v4-flash'
+      })),
+      generateText: vi.fn(async () => ({
+        provider: 'deepseek',
+        model: 'deepseek-v4-flash',
+        text: 'MQ 与 Kafka 区别'
+      }))
+    } as any;
+
+    const generator = createRuntimeThreadTitleGenerator(runtime);
+    const title = await generator.generateTitle({
+      sourceText: 'User question:\nMQ 和 Kafka 有什么区别？'
+    });
+
+    expect(title).toBe('MQ 与 Kafka 区别');
+    expect(runtime.prepare).toHaveBeenCalledWith({
+      provider: 'deepseek',
+      model: 'deepseek-v4-flash'
+    });
+    expect(runtime.generateText).toHaveBeenCalledWith({
+      provider: 'deepseek',
+      model: 'deepseek-v4-flash',
+      systemPrompt:
+        'Generate a concise chat thread title based on this completed Q&A turn. Focus on the main topic or task, not a full-sentence answer. Return only the title text, without quotes, markdown, or punctuation decoration.',
+      userPrompt: 'Completed Q&A turn:\nUser question:\nMQ 和 Kafka 有什么区别？',
+      temperature: 0.2,
+      maxTokens: 48,
+      reasoningEffort: 'off'
+    });
+  });
+
+  it('falls back to OpenAI when DeepSeek title generation is unavailable', async () => {
+    const runtime = {
+      prepare: vi
+        .fn()
+        .mockRejectedValueOnce(new Error('deepseek unavailable'))
+        .mockResolvedValueOnce({
+          provider: 'openai',
+          model: 'gpt-4o-mini'
+        }),
+      generateText: vi.fn(async () => ({
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+        text: 'MQ 与 Kafka 区别'
+      }))
+    };
+
+    const generator = createRuntimeThreadTitleGenerator(runtime as any);
+    const title = await generator.generateTitle({
+      sourceText: 'User question:\nMQ 和 Kafka 有什么区别？'
+    });
+
+    expect(title).toBe('MQ 与 Kafka 区别');
+    expect(runtime.prepare).toHaveBeenNthCalledWith(1, {
+      provider: 'deepseek',
+      model: 'deepseek-v4-flash'
+    });
+    expect(runtime.prepare).toHaveBeenNthCalledWith(2, {
+      provider: 'openai',
+      model: 'gpt-4o-mini'
+    });
+    expect(runtime.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'openai',
+        model: 'gpt-4o-mini'
+      })
+    );
   });
 });

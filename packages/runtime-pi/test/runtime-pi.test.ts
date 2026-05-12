@@ -1133,6 +1133,33 @@ describe('runAssistantTurnWithPiInternal', () => {
     ]);
   });
 
+  it('generates lightweight text without creating a durable run', async () => {
+    const faux = registerFauxProvider({
+      models: [{ id: 'faux-generate-text-model' }]
+    });
+    unregisterCallbacks.push(faux.unregister);
+    faux.setResponses([fauxAssistantMessage('Generated lightweight title')]);
+
+    const runtime = createPiRuntime({
+      model: faux.getModel('faux-generate-text-model'),
+      getApiKey: async () => 'faux-key'
+    });
+
+    await expect(
+      runtime.generateText({
+        systemPrompt: 'Generate a title.',
+        userPrompt: 'User question: MQ 和 Kafka 的区别',
+        temperature: 0.2,
+        maxTokens: 48,
+        reasoningEffort: 'off'
+      })
+    ).resolves.toEqual({
+      provider: 'faux',
+      model: 'faux-generate-text-model',
+      text: 'Generated lightweight title'
+    });
+  });
+
   it('persists multiple tool calls, tool results, and final assistant text', async () => {
     const { ctx, thread, run } = await createContext();
     await createSeedThread(ctx.messageRepo, thread.id, 'run tools');

@@ -391,6 +391,13 @@ function createHappyRuntime(): AgentInfraRuntimePort {
       await repositories.runRepo.updateStatus(input.runId, 'completed', {
         finishedAt: new Date('2026-04-10T01:00:05.000Z')
       });
+    },
+    async generateText(input) {
+      return {
+        provider: input.provider ?? 'deepseek',
+        model: input.model ?? 'deepseek-v4-flash',
+        text: input.userPrompt
+      };
     }
   };
 }
@@ -419,6 +426,9 @@ function createFailingRuntime(): AgentInfraRuntimePort {
         error: 'tool explosion',
         finishedAt: new Date('2026-04-10T01:00:07.000Z')
       });
+      throw new Error('tool explosion');
+    },
+    async generateText() {
       throw new Error('tool explosion');
     }
   };

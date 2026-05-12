@@ -1,4 +1,5 @@
 import type {
+  RuntimePiGenerateTextInput,
   RuntimePiContext,
   RuntimePiInput,
   RuntimePiRunTurnOptions,
@@ -51,6 +52,10 @@ export function createLazyPiRuntime(options?: RuntimePiLazyOptionsResolver): Run
     async runTurn(ctx: RuntimePiContext, input: RuntimePiInput, runOptions?: RuntimePiRunTurnOptions) {
       const runtime = await loadRuntime();
       await runtime.runTurn(ctx, input, runOptions);
+    },
+    async generateText(input: RuntimePiGenerateTextInput) {
+      const runtime = await loadRuntime();
+      return await runtime.generateText(input);
     }
   };
 }

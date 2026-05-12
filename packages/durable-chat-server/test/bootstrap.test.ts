@@ -80,7 +80,12 @@ describe('durable chat server bootstrap', () => {
     };
     const runtime: AgentInfraRuntimePort = {
       prepare: vi.fn(async () => ({ provider: 'deepseek', model: 'deepseek-v4-flash' })),
-      runTextTurn: vi.fn(async () => {})
+      runTextTurn: vi.fn(async () => {}),
+      generateText: vi.fn(async () => ({
+        provider: 'deepseek',
+        model: 'deepseek-v4-flash',
+        text: 'bootstrap test'
+      }))
     };
 
     const services = createDurableChatAppServices(base, runtime, {
