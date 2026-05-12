@@ -8,6 +8,8 @@ import type {
 export type PlaygroundThreadDto = BaseThreadDto & {
   pinned: boolean;
   pinnedAt: string | null;
+  runtimeProvider: string | null;
+  runtimeModel: string | null;
 };
 
 export type PlaygroundThreadsResponseDto = Omit<BaseThreadsResponseDto, 'threads'> & {

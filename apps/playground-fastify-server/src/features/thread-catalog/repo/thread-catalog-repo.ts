@@ -8,6 +8,8 @@ export type PlaygroundThreadCatalogRow = {
   appId: string;
   ownerUserId: string;
   pinnedAt: Date | null;
+  runtimeProvider: string | null;
+  runtimeModel: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -17,6 +19,8 @@ function toCatalogRow(row: {
   appId: string;
   ownerUserId: string;
   pinnedAt: Date | null;
+  runtimeProvider: string | null;
+  runtimeModel: string | null;
   createdAt: Date;
   updatedAt: Date;
 }): PlaygroundThreadCatalogRow {
@@ -25,6 +29,8 @@ function toCatalogRow(row: {
     appId: row.appId,
     ownerUserId: row.ownerUserId,
     pinnedAt: row.pinnedAt,
+    runtimeProvider: row.runtimeProvider,
+    runtimeModel: row.runtimeModel,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
   };
@@ -38,6 +44,8 @@ export class PlaygroundThreadCatalogRepo {
     appId: string;
     ownerUserId: string;
     pinnedAt?: Date | null;
+    runtimeProvider?: string | null;
+    runtimeModel?: string | null;
     createdAt: Date;
     updatedAt: Date;
   }) {
@@ -46,6 +54,8 @@ export class PlaygroundThreadCatalogRepo {
       appId: input.appId,
       ownerUserId: input.ownerUserId,
       pinnedAt: input.pinnedAt ?? null,
+      runtimeProvider: input.runtimeProvider ?? null,
+      runtimeModel: input.runtimeModel ?? null,
       createdAt: input.createdAt,
       updatedAt: input.updatedAt
     };

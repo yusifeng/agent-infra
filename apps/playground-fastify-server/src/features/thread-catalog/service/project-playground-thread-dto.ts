@@ -4,7 +4,7 @@ import type { PlaygroundThreadCatalogRow } from '../repo/thread-catalog-repo.js'
 
 export function projectPlaygroundThreadDto(
   thread: PlaygroundAppThread,
-  catalogRow: Pick<PlaygroundThreadCatalogRow, 'pinnedAt'> | null
+  catalogRow: Pick<PlaygroundThreadCatalogRow, 'pinnedAt' | 'runtimeProvider' | 'runtimeModel'> | null
 ): PlaygroundThreadDto {
   return {
     id: thread.id,
@@ -15,6 +15,8 @@ export function projectPlaygroundThreadDto(
     metadata: thread.metadata ?? null,
     pinned: catalogRow?.pinnedAt != null,
     pinnedAt: catalogRow?.pinnedAt?.toISOString() ?? null,
+    runtimeProvider: catalogRow?.runtimeProvider ?? null,
+    runtimeModel: catalogRow?.runtimeModel ?? null,
     createdAt: thread.createdAt.toISOString(),
     updatedAt: thread.updatedAt.toISOString(),
     archivedAt: thread.archivedAt?.toISOString() ?? null

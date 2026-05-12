@@ -14,6 +14,8 @@ describe('thread management schema', () => {
             status: 'active',
             metadata: null,
             pinned: true,
+            runtimeProvider: 'deepseek',
+            runtimeModel: 'deepseek-v4-flash',
             createdAt: '2026-05-09T00:00:00.000Z',
             updatedAt: '2026-05-09T00:01:00.000Z',
             archivedAt: null
@@ -31,6 +33,8 @@ describe('thread management schema', () => {
           metadata: null,
           pinned: true,
           pinnedAt: null,
+          runtimeProvider: 'deepseek',
+          runtimeModel: 'deepseek-v4-flash',
           createdAt: '2026-05-09T00:00:00.000Z',
           updatedAt: '2026-05-09T00:01:00.000Z',
           archivedAt: null
@@ -50,6 +54,8 @@ describe('thread management schema', () => {
           status: 'active',
           metadata: null,
           pinned: false,
+          runtimeProvider: null,
+          runtimeModel: null,
           createdAt: '2026-05-09T00:00:00.000Z',
           updatedAt: '2026-05-09T00:01:00.000Z',
           archivedAt: null
@@ -65,6 +71,8 @@ describe('thread management schema', () => {
         metadata: null,
         pinned: false,
         pinnedAt: null,
+        runtimeProvider: null,
+        runtimeModel: null,
         createdAt: '2026-05-09T00:00:00.000Z',
         updatedAt: '2026-05-09T00:01:00.000Z',
         archivedAt: null
@@ -83,6 +91,8 @@ describe('thread management schema', () => {
           status: 'active',
           metadata: null,
           pinned: false,
+          runtimeProvider: 'openai',
+          runtimeModel: 'gpt-5.5',
           createdAt: '2026-05-09T00:00:00.000Z',
           updatedAt: '2026-05-09T00:01:00.000Z',
           archivedAt: null
@@ -98,6 +108,8 @@ describe('thread management schema', () => {
         metadata: null,
         pinned: false,
         pinnedAt: null,
+        runtimeProvider: 'openai',
+        runtimeModel: 'gpt-5.5',
         createdAt: '2026-05-09T00:00:00.000Z',
         updatedAt: '2026-05-09T00:01:00.000Z',
         archivedAt: null

@@ -560,7 +560,9 @@ describe('playground-fastify-server', () => {
     expect(threads.json().threads).toHaveLength(1);
     expect(threads.json().threads[0]).toMatchObject({
       id: threadId,
-      title: 'Integration Thread'
+      title: 'Integration Thread',
+      runtimeProvider: null,
+      runtimeModel: null
     });
 
     const messages = await server.app.inject({
@@ -713,9 +715,45 @@ describe('playground-fastify-server', () => {
     expect(thread.json()).toEqual({
       thread: expect.objectContaining({
         id: threadId,
-        title: 'Single Thread Read'
+        title: 'Single Thread Read',
+        runtimeProvider: null,
+        runtimeModel: null
       })
     });
+  });
+
+  it('adds runtime binding columns when bootstrapping an existing sqlite catalog table', async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'playground-fastify-server-bootstrap-test-'));
+    const sqlitePath = path.join(tempDir, 'test.db');
+
+    try {
+      await withSqlitePath(sqlitePath, async () => {
+        const dbConfig = createDbConfigFromEnv();
+        await dbConfig.bootstrapSchema();
+        dbConfig.db.$client.exec(`
+          CREATE TABLE IF NOT EXISTS playground_thread_catalog (
+            thread_id text PRIMARY KEY NOT NULL,
+            app_id text NOT NULL,
+            owner_user_id text NOT NULL,
+            pinned_at integer,
+            created_at integer NOT NULL,
+            updated_at integer NOT NULL
+          )
+        `);
+
+        await bootstrapPlaygroundThreadCatalog(dbConfig);
+
+        const columns = dbConfig.db.$client
+          .prepare<{ name: string }, []>('PRAGMA table_info(playground_thread_catalog)')
+          .all()
+          .map((column) => column.name);
+
+        expect(columns).toContain('runtime_provider');
+        expect(columns).toContain('runtime_model');
+      });
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
   });
 
   it('writes the authenticated owner id into the catalog and isolates threads by owner', async () => {

@@ -55,6 +55,8 @@ function normalizeThread(value: unknown): PlaygroundThreadDto | null {
     metadata: asJsonRecordOrNull(record.metadata),
     pinned: record.pinned === true,
     pinnedAt: asNullableString(record.pinnedAt),
+    runtimeProvider: asNullableString(record.runtimeProvider),
+    runtimeModel: asNullableString(record.runtimeModel),
     createdAt,
     updatedAt,
     archivedAt: asNullableString(record.archivedAt)

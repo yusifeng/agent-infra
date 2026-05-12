@@ -20,6 +20,8 @@ export class PlaygroundThreadCatalogService {
       appId: APP_ID,
       ownerUserId,
       pinnedAt: null,
+      runtimeProvider: null,
+      runtimeModel: null,
       createdAt: now,
       updatedAt: now
     });
@@ -50,6 +52,8 @@ export class PlaygroundThreadCatalogService {
         appId: APP_ID,
         ownerUserId: input.ownerUserId,
         pinnedAt: null,
+        runtimeProvider: null,
+        runtimeModel: null,
         createdAt: thread.createdAt,
         updatedAt: thread.updatedAt
       });
