@@ -77,6 +77,54 @@ describe('playground stream schema', () => {
     });
   });
 
+  it('normalizes attach snapshot events before the base run stream union', () => {
+    expect(
+      normalizePlaygroundStreamEvent({
+        type: 'run.snapshot',
+        runId: 'run-1',
+        run: {
+          id: 'run-1',
+          threadId: 'thread-1',
+          triggerMessageId: null,
+          provider: 'deepseek',
+          model: 'deepseek-v4-pro',
+          status: 'running',
+          usage: null,
+          error: null,
+          startedAt: '2026-05-12T00:00:00.000Z',
+          finishedAt: null,
+          createdAt: '2026-05-12T00:00:00.000Z'
+        },
+        version: 2,
+        assistant: {
+          liveDraftId: 'assistant-1',
+          messageId: 'assistant-1',
+          text: 'partial',
+          reasoning: null,
+          activeTools: [],
+          eventType: 'streaming',
+          segments: [
+            {
+              id: 'segment-1',
+              messageId: 'assistant-1',
+              text: 'partial',
+              reasoning: null,
+              tools: [],
+              eventType: 'streaming'
+            }
+          ]
+        }
+      })
+    ).toMatchObject({
+      type: 'run.snapshot',
+      runId: 'run-1',
+      version: 2,
+      assistant: {
+        text: 'partial'
+      }
+    });
+  });
+
   it('parses mixed shared and private events from one SSE chunk', () => {
     const parsed = parsePlaygroundSseChunk(
       [

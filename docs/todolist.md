@@ -102,11 +102,11 @@ Confirmed behavior:
 
 ## Frontend Work
 
-- [ ] Add a client API for opening an attach stream by `threadId + runId`.
-- [ ] Parse the new snapshot event.
+- [x] Add a client API for opening an attach stream by `threadId + runId`.
+- [x] Parse the new snapshot event.
 - [ ] Parse the attach-unavailable event if added.
-- [ ] Extract or share stream event application logic so send-stream and attach-stream do not diverge.
-- [ ] Convert a snapshot into the same live assistant draft shape used by normal streaming.
+- [x] Extract or share stream event application logic so send-stream and attach-stream do not diverge.
+- [x] Convert a snapshot into the same live assistant draft shape used by normal streaming.
 - [ ] Replace the existing live draft for that run on snapshot; do not append snapshot content to existing draft content.
 - [ ] Track current attach-stream version per run.
 - [ ] Ignore stale attached events with `version <= currentVersion`.
@@ -139,7 +139,7 @@ Confirmed behavior:
   - [x] Attach returns a specific unavailable reason for inactive or missing sessions.
   - [x] Attach disconnect does not cancel the backend run.
   - [x] Terminal run state is visible to an attached client.
-- [ ] Add frontend schema tests for snapshot and unavailable events.
+- [x] Add frontend schema tests for snapshot and unavailable events.
 - [ ] Add frontend runtime tests:
   - [ ] Hydrated `activeRun` without page-owned stream opens attach stream.
   - [ ] Snapshot creates or replaces the live assistant draft.
@@ -191,13 +191,13 @@ Each implementation slice is not complete until targeted verification has passed
 
 ### Slice 3: Frontend Stream Application
 
-- [ ] Add attach stream API client.
-- [ ] Add snapshot handling.
-- [ ] Share event application logic between original send stream and attached stream.
-- [ ] Add schema and state-transition tests.
-- [ ] Run targeted frontend tests/typecheck.
-- [ ] Run codex review for this slice using the repository review profile from `AGENTS.md`.
-- [ ] Address review findings or explicitly document why any finding is not applied.
+- [x] Add attach stream API client.
+- [x] Add snapshot handling.
+- [x] Share event application logic between original send stream and attached stream.
+- [x] Add schema and state-transition tests.
+- [x] Run targeted frontend tests/typecheck.
+- [x] Run codex review for this slice using the repository review profile from `AGENTS.md`.
+- [x] Address review findings or explicitly document why any finding is not applied.
 
 ### Slice 4: Recovery Integration
 

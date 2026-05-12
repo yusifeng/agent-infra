@@ -170,3 +170,50 @@ export async function openThreadRunStream(
     requestId: diagnostics.requestId
   };
 }
+
+export async function openThreadRunAttachStream(
+  threadId: string,
+  runId: string,
+  signal: AbortSignal
+): Promise<RunStreamOpenResult> {
+  const url = `/api/threads/${threadId}/runs/${runId}/attach-stream`;
+  const startedAt = performance.now();
+  const response = await fetch(url, {
+    method: 'GET',
+    signal
+  });
+  const headersDurationMs = Number((performance.now() - startedAt).toFixed(1));
+  const diagnostics = readResponseDiagnostics(response);
+
+  emitApiDiagnostic({
+    durationMs: headersDurationMs,
+    headersDurationMs,
+    kind: 'stream-open',
+    method: 'GET',
+    ok: response.ok,
+    requestId: diagnostics.requestId,
+    serverTiming: diagnostics.serverTiming,
+    serverTimingEntries: diagnostics.serverTimingEntries,
+    status: response.status,
+    url
+  });
+
+  if (response.ok) {
+    return {
+      ok: true,
+      status: response.status,
+      error: null,
+      body: response.body,
+      requestId: diagnostics.requestId
+    };
+  }
+
+  const raw = await readJsonRecordOrEmpty(response);
+  return {
+    ok: false,
+    status: response.status,
+    error: readApiError(raw),
+    body: null,
+    requestId: diagnostics.requestId
+  };
+}

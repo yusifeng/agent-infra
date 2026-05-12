@@ -4,11 +4,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const fetchRunTimelineResponse = vi.fn();
 const fetchThreadMessagesResponse = vi.fn();
 const fetchThreadRunsResponse = vi.fn();
+const openThreadRunAttachStream = vi.fn();
 
 vi.mock('@agent-infra/durable-chat-client', () => ({
   fetchRunTimelineResponse,
   fetchThreadMessagesResponse,
-  fetchThreadRunsResponse
+  fetchThreadRunsResponse,
+  openThreadRunAttachStream
 }));
 
 describe('chat api repo facade', () => {
@@ -16,6 +18,7 @@ describe('chat api repo facade', () => {
     fetchRunTimelineResponse.mockReset();
     fetchThreadMessagesResponse.mockReset();
     fetchThreadRunsResponse.mockReset();
+    openThreadRunAttachStream.mockReset();
     vi.unstubAllGlobals();
   });
 
@@ -52,6 +55,18 @@ describe('chat api repo facade', () => {
     const result = await fetchThreadRuns('thread-1', 10, signal);
 
     expect(fetchThreadRunsResponse).toHaveBeenCalledWith('thread-1', 10, signal);
+    expect(result).toBe(expected);
+  });
+
+  it('forwards attach stream requests', async () => {
+    const expected = { ok: true, status: 200, body: new ReadableStream(), error: null, requestId: 'req-1' };
+    openThreadRunAttachStream.mockResolvedValue(expected);
+
+    const { openRunAttachStream } = await import('@/features/durable-chat/repo/chat-api');
+    const signal = new AbortController().signal;
+    const result = await openRunAttachStream('thread-1', 'run-1', signal);
+
+    expect(openThreadRunAttachStream).toHaveBeenCalledWith('thread-1', 'run-1', signal);
     expect(result).toBe(expected);
   });
 

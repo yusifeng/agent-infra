@@ -2,6 +2,7 @@ import {
   fetchRunTimelineResponse,
   fetchThreadMessagesResponse,
   fetchThreadRunsResponse,
+  openThreadRunAttachStream,
   type FetchThreadMessagesOptions
 } from '@agent-infra/durable-chat-client';
 import type { ToolInvocationDto } from '@agent-infra/contracts';
@@ -103,6 +104,10 @@ export async function fetchRunTimeline(runId: string, signal?: AbortSignal) {
 
 export async function fetchThreadRuns(threadId: string, limit: number, signal?: AbortSignal) {
   return fetchThreadRunsResponse(threadId, limit, signal);
+}
+
+export async function openRunAttachStream(threadId: string, runId: string, signal: AbortSignal) {
+  return openThreadRunAttachStream(threadId, runId, signal);
 }
 
 export async function renameThread(threadId: string, title: string, signal?: AbortSignal) {

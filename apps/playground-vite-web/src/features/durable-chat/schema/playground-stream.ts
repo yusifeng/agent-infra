@@ -1,4 +1,4 @@
-import { normalizeRunStreamEvent } from '@agent-infra/durable-chat-client';
+import { normalizeRunAttachStreamEvent, normalizeRunStreamEvent } from '@agent-infra/durable-chat-client';
 
 import type {
   PlaygroundPrivateStreamEventDto,
@@ -46,7 +46,7 @@ export function normalizePlaygroundPrivateStreamEvent(value: unknown): Playgroun
 }
 
 export function normalizePlaygroundStreamEvent(value: unknown): PlaygroundStreamEventDto | null {
-  return normalizeRunStreamEvent(value) ?? normalizePlaygroundPrivateStreamEvent(value);
+  return normalizeRunAttachStreamEvent(value) ?? normalizeRunStreamEvent(value) ?? normalizePlaygroundPrivateStreamEvent(value);
 }
 
 export function parsePlaygroundSseChunk(buffer: string) {
