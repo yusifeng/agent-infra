@@ -27,6 +27,7 @@ import { buildChatViewState } from '@/features/durable-chat/service/chat-view-st
 import { isDefaultThreadTitle } from '@/features/durable-chat/service/default-thread-title';
 import { collectCompletedLiveSearchToolCallIds } from '@/features/durable-chat/service/research-activity';
 import { parsePlaygroundSseChunk } from '@/features/durable-chat/schema/playground-stream';
+import { useAttachStreamOrchestration } from '@/features/durable-chat/runtime/use-attach-stream-orchestration';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
 import type { DurableChatRuntimeOptions } from '@/features/durable-chat/types/runtime';
@@ -62,6 +63,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       loadingMessages,
       historyLoading,
       error,
+      liveStreamRunId,
       liveAssistantDraft,
       messagePageInfo,
       activeResponseRun,
@@ -193,6 +195,12 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     ]
   );
   const hasHydratedActiveThread = activeThreadId ? hydratedThreadIdsRef.current.has(activeThreadId) : false;
+  const activeRunCanUseAttachStream =
+    !!activeThreadId &&
+    !!activeResponseRun &&
+    activeResponseRun.threadId === activeThreadId &&
+    (activeResponseRun.status === 'queued' || activeResponseRun.status === 'running') &&
+    liveStreamRunId !== activeResponseRun.id;
   const liveDraftMessageId = liveAssistantDraft?.messageId ?? null;
   const {
     capturePrependAnchor,
@@ -520,9 +528,24 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   useLiveDraftOrchestration({
     activeThreadId,
     activeResponseRun,
+    attachStreamAvailable: activeRunCanUseAttachStream,
     hasHydratedActiveThread,
     liveAssistantDraft,
     setLiveAssistantDraft,
+    loadThreadMessages
+  });
+
+  useAttachStreamOrchestration({
+    activeThreadId,
+    activeResponseRun,
+    hasHydratedActiveThread,
+    liveStreamRunId,
+    setActiveResponseRun,
+    setChatPhase,
+    setError,
+    setLiveAssistantDraft,
+    setPersistingTurn,
+    setRecentRuns,
     loadThreadMessages
   });
 

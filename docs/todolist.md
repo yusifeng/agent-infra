@@ -201,14 +201,14 @@ Each implementation slice is not complete until targeted verification has passed
 
 ### Slice 4: Recovery Integration
 
-- [ ] Detect detached active runs after thread hydration.
-- [ ] Attach on refresh recovery.
-- [ ] Attach when switching back to a running thread.
-- [ ] Reconcile durable messages on completion.
-- [ ] Add runtime tests for refresh-equivalent hydration and thread switching.
-- [ ] Run targeted frontend tests/typecheck.
-- [ ] Run codex review for this slice using the repository review profile from `AGENTS.md`.
-- [ ] Address review findings or explicitly document why any finding is not applied.
+- [x] Detect detached active runs after thread hydration.
+- [x] Attach on refresh recovery.
+- [x] Attach when switching back to a running thread.
+- [x] Reconcile durable messages on completion.
+- [x] Add runtime tests for refresh-equivalent hydration and thread switching.
+- [x] Run targeted frontend tests/typecheck.
+- [x] Run codex review for this slice using the repository review profile from `AGENTS.md`.
+- [x] Address review findings or explicitly document why any finding is not applied.
 
 ### Slice 5: Manual QA And Documentation
 

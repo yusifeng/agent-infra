@@ -15,6 +15,7 @@ import {
 type UseLiveDraftOrchestrationArgs = {
   activeThreadId: string | null;
   activeResponseRun: RunDto | null;
+  attachStreamAvailable?: boolean;
   hasHydratedActiveThread: boolean;
   liveAssistantDraft: LiveAssistantDraft | null;
   setLiveAssistantDraft: (next: LiveAssistantDraft | null) => void;
@@ -33,6 +34,7 @@ export function useLiveDraftOrchestration(args: UseLiveDraftOrchestrationArgs) {
   const {
     activeThreadId,
     activeResponseRun,
+    attachStreamAvailable = false,
     hasHydratedActiveThread,
     liveAssistantDraft,
     setLiveAssistantDraft,
@@ -46,7 +48,7 @@ export function useLiveDraftOrchestration(args: UseLiveDraftOrchestrationArgs) {
   }, [loadThreadMessages]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    if (typeof window === 'undefined' || attachStreamAvailable) {
       return;
     }
 
@@ -56,10 +58,10 @@ export function useLiveDraftOrchestration(args: UseLiveDraftOrchestrationArgs) {
       hasHydratedThread: hasHydratedActiveThread,
       liveAssistantDraft
     });
-  }, [activeResponseRun, activeThreadId, hasHydratedActiveThread, liveAssistantDraft]);
+  }, [activeResponseRun, activeThreadId, attachStreamAvailable, hasHydratedActiveThread, liveAssistantDraft]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    if (typeof window === 'undefined' || attachStreamAvailable) {
       return;
     }
 
@@ -74,7 +76,7 @@ export function useLiveDraftOrchestration(args: UseLiveDraftOrchestrationArgs) {
 
     setRestoredRunRefreshId(restored.restoredRunId);
     setLiveAssistantDraft(restored.draft);
-  }, [activeResponseRun, activeThreadId, liveAssistantDraft, setLiveAssistantDraft]);
+  }, [activeResponseRun, activeThreadId, attachStreamAvailable, liveAssistantDraft, setLiveAssistantDraft]);
 
   useEffect(() => {
     if (!restoredRunRefreshId) {
@@ -93,6 +95,7 @@ export function useLiveDraftOrchestration(args: UseLiveDraftOrchestrationArgs) {
 
   useEffect(() => {
     if (
+      attachStreamAvailable ||
       !shouldRefreshRestoredLiveDraft({
         activeThreadId,
         activeResponseRun,
@@ -113,5 +116,5 @@ export function useLiveDraftOrchestration(args: UseLiveDraftOrchestrationArgs) {
         });
       }
     });
-  }, [activeResponseRun, activeThreadId, liveAssistantDraft, restoredRunRefreshId]);
+  }, [activeResponseRun, activeThreadId, attachStreamAvailable, liveAssistantDraft, restoredRunRefreshId]);
 }

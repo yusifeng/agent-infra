@@ -36,6 +36,7 @@ const chatApiMocks = vi.hoisted(() => ({
   fetchThread: vi.fn(),
   fetchThreads: vi.fn(),
   fetchThreadMessages: vi.fn(),
+  openRunAttachStream: vi.fn(),
   renameThread: vi.fn(),
   archiveThread: vi.fn(),
   pinThread: vi.fn(),
@@ -108,6 +109,7 @@ vi.mock('@/features/durable-chat/repo/chat-api', () => ({
   fetchThread: (...args: unknown[]) => chatApiMocks.fetchThread(...args),
   fetchThreads: (...args: unknown[]) => chatApiMocks.fetchThreads(...args),
   fetchThreadMessages: (...args: unknown[]) => chatApiMocks.fetchThreadMessages(...args),
+  openRunAttachStream: (...args: unknown[]) => chatApiMocks.openRunAttachStream(...args),
   renameThread: (...args: unknown[]) => chatApiMocks.renameThread(...args),
   archiveThread: (...args: unknown[]) => chatApiMocks.archiveThread(...args),
   pinThread: (...args: unknown[]) => chatApiMocks.pinThread(...args),
@@ -199,6 +201,51 @@ function createDraft(): LiveAssistantDraft {
     activeTools: [],
     eventType: 'streaming',
     segments: []
+  };
+}
+
+function createSseStream(events: unknown[]) {
+  const encoder = new TextEncoder();
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const event of events) {
+        const type = typeof event === 'object' && event !== null && 'type' in event ? String(event.type) : 'message';
+        controller.enqueue(encoder.encode(`event: ${type}\ndata: ${JSON.stringify(event)}\n\n`));
+      }
+      controller.close();
+    }
+  });
+}
+
+function createRawSseStream(chunks: string[]) {
+  const encoder = new TextEncoder();
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) {
+        controller.enqueue(encoder.encode(chunk));
+      }
+      controller.close();
+    }
+  });
+}
+
+function createAttachStreamResult(events: unknown[]) {
+  return {
+    ok: true,
+    status: 200,
+    error: null,
+    body: createSseStream(events),
+    requestId: 'attach-request-1'
+  };
+}
+
+function createRawAttachStreamResult(chunks: string[]) {
+  return {
+    ok: true,
+    status: 200,
+    error: null,
+    body: createRawSseStream(chunks),
+    requestId: 'attach-request-1'
   };
 }
 
@@ -349,6 +396,7 @@ describe('useDurableChatRuntime', () => {
       ({ restoredRunId }: { restoredRunId: string | null }) => restoredRunId === 'run-1'
     );
     liveDraftPersistenceMocks.startRestoredLiveDraftRefreshLoop.mockImplementation(() => () => undefined);
+    chatApiMocks.openRunAttachStream.mockImplementation(() => new Promise(() => undefined));
     chatApiMocks.renameThread.mockResolvedValue({
       ok: true,
       status: 200,
@@ -395,7 +443,7 @@ describe('useDurableChatRuntime', () => {
     document.title = 'playground-vite-web';
   });
 
-  it('restores an active live draft and starts its refresh loop after thread hydration', async () => {
+  it('uses attach stream recovery instead of the restored draft refresh loop after thread hydration', async () => {
     const { result } = renderHook(
       ({ initialThreadId }) => useDurableChatRuntime({ initialThreadId }),
       {
@@ -406,19 +454,70 @@ describe('useDurableChatRuntime', () => {
 
     await waitFor(() => {
       expect(result.current.activeThreadId).toBe('thread-1');
-      expect(result.current.liveAssistantDraft?.source).toBe('restored');
+      expect(chatApiMocks.openRunAttachStream).toHaveBeenCalledWith('thread-1', 'run-1', expect.any(AbortSignal));
     });
 
-    expect(liveDraftRecoveryMocks.restoreStoredDraftForActiveRun).toHaveBeenCalled();
-    expect(liveDraftPersistenceMocks.startRestoredLiveDraftRefreshLoop).toHaveBeenCalledTimes(1);
+    expect(liveDraftRecoveryMocks.restoreStoredDraftForActiveRun).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeResponseRun: expect.objectContaining({ id: 'run-1' })
+      })
+    );
+    expect(liveDraftPersistenceMocks.startRestoredLiveDraftRefreshLoop).not.toHaveBeenCalled();
   });
 
-  it('uses the restored refresh loop to reload thread messages in background mode', async () => {
+  it('falls back to a background message reload when attach stream cannot open', async () => {
     let refresh!: () => Promise<void>;
     liveDraftPersistenceMocks.startRestoredLiveDraftRefreshLoop.mockImplementation(({ refresh: nextRefresh }: { refresh: () => Promise<void> }) => {
       refresh = nextRefresh;
       return () => undefined;
     });
+    chatApiMocks.openRunAttachStream.mockResolvedValue({
+      ok: false,
+      status: 404,
+      error: 'stream unavailable',
+      body: null,
+      requestId: 'attach-request-1'
+    });
+    renderHook(() => useDurableChatRuntime({ initialThreadId: 'thread-1' }), {
+      wrapper
+    });
+
+    await waitFor(() => {
+      expect(liveDraftPersistenceMocks.startRestoredLiveDraftRefreshLoop).toHaveBeenCalledTimes(1);
+    });
+
+    await refresh();
+
+    expect(durableChatClientMocks.runLoadThreadMessages).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadId: 'thread-1',
+        options: expect.objectContaining({
+          preferredRunId: 'run-1',
+          background: true,
+          skipTimelineReload: true,
+          preserveExistingTimeline: true
+        })
+      })
+    );
+  });
+
+  it('starts the background refresh fallback when attach stream reports unavailable', async () => {
+    let refresh!: () => Promise<void>;
+    liveDraftPersistenceMocks.startRestoredLiveDraftRefreshLoop.mockImplementation(({ refresh: nextRefresh }: { refresh: () => Promise<void> }) => {
+      refresh = nextRefresh;
+      return () => undefined;
+    });
+    chatApiMocks.openRunAttachStream.mockResolvedValue(
+      createAttachStreamResult([
+        {
+          type: 'run.attach_unavailable',
+          runId: 'run-1',
+          reason: 'stream_session_gone',
+          run: createRun(),
+          message: 'stream session is unavailable'
+        }
+      ])
+    );
 
     renderHook(() => useDurableChatRuntime({ initialThreadId: 'thread-1' }), {
       wrapper
@@ -434,12 +533,213 @@ describe('useDurableChatRuntime', () => {
       expect.objectContaining({
         threadId: 'thread-1',
         options: expect.objectContaining({
+          preferredRunId: 'run-1',
           background: true,
           skipTimelineReload: true,
           preserveExistingTimeline: true
         })
       })
     );
+  });
+
+  it('attaches to a hydrated active run and applies snapshot before live deltas', async () => {
+    chatApiMocks.openRunAttachStream.mockResolvedValue(
+      createAttachStreamResult([
+        {
+          type: 'run.snapshot',
+          runId: 'run-1',
+          version: 1,
+          run: createRun(),
+          assistant: {
+            liveDraftId: 'run:run-1',
+            messageId: 'assistant-1',
+            text: 'Hello ',
+            reasoning: null,
+            activeTools: [],
+            eventType: 'streaming',
+            segments: []
+          }
+        },
+        {
+          type: 'run.assistant',
+          runId: 'run-1',
+          version: 2,
+          assistant: {
+            kind: 'assistant_delta',
+            messageId: 'assistant-1',
+            textDelta: 'world'
+          }
+        }
+      ])
+    );
+
+    const { result } = renderHook(() => useDurableChatRuntime({ initialThreadId: 'thread-1' }), {
+      wrapper
+    });
+
+    await waitFor(() => {
+      expect(chatApiMocks.openRunAttachStream).toHaveBeenCalledWith('thread-1', 'run-1', expect.any(AbortSignal));
+      expect(result.current.liveAssistantDraft?.partialText).toBe('Hello world');
+    });
+  });
+
+  it('starts the background refresh fallback when attach stream closes before a terminal event', async () => {
+    chatApiMocks.openRunAttachStream.mockResolvedValue(
+      createAttachStreamResult([
+        {
+          type: 'run.snapshot',
+          runId: 'run-1',
+          version: 1,
+          run: createRun(),
+          assistant: {
+            liveDraftId: 'run:run-1',
+            messageId: 'assistant-1',
+            text: 'Partial',
+            reasoning: null,
+            activeTools: [],
+            eventType: 'streaming',
+            segments: []
+          }
+        }
+      ])
+    );
+
+    const { result } = renderHook(() => useDurableChatRuntime({ initialThreadId: 'thread-1' }), {
+      wrapper
+    });
+
+    await waitFor(() => {
+      expect(result.current.liveAssistantDraft?.partialText).toBe('Partial');
+      expect(liveDraftPersistenceMocks.startRestoredLiveDraftRefreshLoop).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('attaches when switching back to a thread with a running active run', async () => {
+    durableChatClientMocks.runLoadThreadMessages.mockImplementation(async ({ threadId, operations }: any) => {
+      operations.applyHydratedTranscript({
+        messages: [],
+        pageInfo: null,
+        activeResponseRun: threadId === 'thread-1' ? createRun({ threadId: 'thread-1' }) : null,
+        selectedRunId: null,
+        runs: []
+      });
+      return { ok: true, restoredRunId: null };
+    });
+
+    const { result, rerender } = renderHook(
+      ({ initialThreadId }) => useDurableChatRuntime({ initialThreadId }),
+      {
+        initialProps: { initialThreadId: 'thread-2' as string | null },
+        wrapper
+      }
+    );
+
+    await waitFor(() => {
+      expect(result.current.activeThreadId).toBe('thread-2');
+    });
+    expect(chatApiMocks.openRunAttachStream).not.toHaveBeenCalled();
+
+    rerender({ initialThreadId: 'thread-1' });
+
+    await waitFor(() => {
+      expect(result.current.activeThreadId).toBe('thread-1');
+      expect(chatApiMocks.openRunAttachStream).toHaveBeenCalledWith('thread-1', 'run-1', expect.any(AbortSignal));
+    });
+  });
+
+  it('reloads durable messages after an attached stream completes', async () => {
+    let loadCallIndex = 0;
+    durableChatClientMocks.runLoadThreadMessages.mockImplementation(async ({ operations }: any) => {
+      loadCallIndex += 1;
+      const isTerminalReload = loadCallIndex > 1;
+      operations.applyHydratedTranscript({
+        messages: isTerminalReload ? [createMessage()] : [],
+        pageInfo: null,
+        activeResponseRun: isTerminalReload ? null : createRun(),
+        selectedRunId: null,
+        runs: []
+      });
+      return { ok: true, restoredRunId: null };
+    });
+    chatApiMocks.openRunAttachStream.mockResolvedValue(
+      createAttachStreamResult([
+        {
+          type: 'run.snapshot',
+          runId: 'run-1',
+          version: 1,
+          run: createRun(),
+          assistant: {
+            liveDraftId: 'run:run-1',
+            messageId: 'assistant-1',
+            text: 'Almost done',
+            reasoning: null,
+            activeTools: [],
+            eventType: 'streaming',
+            segments: []
+          }
+        },
+        {
+          type: 'run.completed',
+          runId: 'run-1',
+          version: 2,
+          run: createRun({ status: 'completed', finishedAt: '2026-01-01T00:00:05.000Z' })
+        }
+      ])
+    );
+
+    const { result } = renderHook(() => useDurableChatRuntime({ initialThreadId: 'thread-1' }), {
+      wrapper
+    });
+
+    await waitFor(() => {
+      expect(durableChatClientMocks.runLoadThreadMessages).toHaveBeenCalledWith(
+        expect.objectContaining({
+          threadId: 'thread-1',
+          options: expect.objectContaining({
+            preferredRunId: 'run-1',
+            background: true,
+            skipTimelineReload: true,
+            preserveExistingTimeline: true
+          })
+        })
+      );
+      expect(result.current.liveAssistantDraft).toBeNull();
+      expect(result.current.displayedMessages).toEqual([expect.objectContaining({ id: 'assistant-message-1' })]);
+    });
+  });
+
+  it('flushes a trailing terminal attach event without a final SSE delimiter', async () => {
+    let loadCallIndex = 0;
+    durableChatClientMocks.runLoadThreadMessages.mockImplementation(async ({ operations }: any) => {
+      loadCallIndex += 1;
+      const isTerminalReload = loadCallIndex > 1;
+      operations.applyHydratedTranscript({
+        messages: isTerminalReload ? [createMessage()] : [],
+        pageInfo: null,
+        activeResponseRun: isTerminalReload ? null : createRun(),
+        selectedRunId: null,
+        runs: []
+      });
+      return { ok: true, restoredRunId: null };
+    });
+    const completedEvent = {
+      type: 'run.completed',
+      runId: 'run-1',
+      version: 1,
+      run: createRun({ status: 'completed', finishedAt: '2026-01-01T00:00:05.000Z' })
+    };
+    chatApiMocks.openRunAttachStream.mockResolvedValue(
+      createRawAttachStreamResult([`event: run.completed\ndata: ${JSON.stringify(completedEvent)}`])
+    );
+
+    const { result } = renderHook(() => useDurableChatRuntime({ initialThreadId: 'thread-1' }), {
+      wrapper
+    });
+
+    await waitFor(() => {
+      expect(result.current.displayedMessages).toEqual([expect.objectContaining({ id: 'assistant-message-1' })]);
+    });
+    expect(liveDraftPersistenceMocks.startRestoredLiveDraftRefreshLoop).not.toHaveBeenCalled();
   });
 
   it('runs runtime lifecycle boot effects only once across rerenders', async () => {
