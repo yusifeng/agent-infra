@@ -61,6 +61,22 @@ type CapturedAssistantSnapshots = {
   reasoning: string;
 };
 
+function deriveAssistantFailureMessage(message: PiMessage): string | null {
+  if (message.role !== 'assistant') {
+    return null;
+  }
+
+  if (message.stopReason === 'aborted') {
+    return message.errorMessage?.trim() || 'provider stream ended with stopReason=aborted';
+  }
+
+  if (message.stopReason === 'error') {
+    return message.errorMessage?.trim() || 'provider stream ended with stopReason=error';
+  }
+
+  return null;
+}
+
 export type RuntimePiInternalOptions = RuntimePiRuntimeOptions & {
   resolvedConfig?: RuntimePiConfig | null;
   tools?: AgentTool[];
@@ -867,12 +883,15 @@ async function handleAgentEvent(
   }
 
   if (event.type === 'agent_end') {
-    const status = event.messages.some((message) => message.role === 'assistant' && (message.stopReason === 'error' || message.stopReason === 'aborted'))
-      ? 'failed'
-      : 'completed';
+    const terminalAssistantFailure =
+      [...event.messages]
+        .reverse()
+        .find((message) => message.role === 'assistant' && (message.stopReason === 'error' || message.stopReason === 'aborted')) ?? null;
+    const status = terminalAssistantFailure ? 'failed' : 'completed';
 
     const run = await ctx.runRepo.updateStatus(input.runId, status, {
       finishedAt: new Date(),
+      error: terminalAssistantFailure ? deriveAssistantFailureMessage(terminalAssistantFailure) : null,
       usage: createUsageSummary(
         event.messages.filter(
           (message): message is PiMessage => message.role === 'assistant' || message.role === 'toolResult' || message.role === 'user'

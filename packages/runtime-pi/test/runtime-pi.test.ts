@@ -1247,9 +1247,46 @@ describe('runAssistantTurnWithPiInternal', () => {
     const events = await ctx.runEventRepo.listByRun(run.id);
 
     expect(storedRun?.status).toBe('failed');
+    expect(storedRun?.error).toBe('tool handling failed');
     expect(invocations[0]?.status).toBe('failed');
     expect(toolMessages[0]?.parts[0]?.jsonValue?.isError).toBe(true);
     expect(events.at(-1)?.type).toBe('agent_end');
+  });
+
+  it('persists a fallback run error when the provider ends with stopReason error and no message', async () => {
+    const { ctx, thread, run } = await createContext();
+    await createSeedThread(ctx.messageRepo, thread.id, 'trigger provider-side stream error');
+
+    const faux = registerFauxProvider({
+      models: [{ id: 'faux-provider-error-model' }]
+    });
+    unregisterCallbacks.push(faux.unregister);
+    faux.setResponses([
+      fauxAssistantMessage(
+        [{ type: 'thinking', thinking: 'Partial reasoning before the provider aborts.' }],
+        { stopReason: 'error' }
+      )
+    ]);
+
+    await expect(
+      runAssistantTurnWithPiInternal(
+        ctx,
+        { threadId: thread.id, runId: run.id },
+        {
+          model: faux.getModel('faux-provider-error-model'),
+          getApiKey: async () => 'faux-key'
+        }
+      )
+    ).resolves.toBeUndefined();
+
+    const storedRun = await ctx.runRepo.findById(run.id);
+    const messages = await ctx.messageRepo.listByThread(thread.id);
+    const assistant = messages.find((message) => message.role === 'assistant');
+
+    expect(storedRun?.status).toBe('failed');
+    expect(storedRun?.error).toBe('provider stream ended with stopReason=error');
+    expect(assistant?.status).toBe('failed');
+    expect(assistant?.parts[0]?.type).toBe('reasoning');
   });
 
   it('marks an open assistant message as failed when runtime crashes mid-message', async () => {
