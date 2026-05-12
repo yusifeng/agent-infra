@@ -27,19 +27,55 @@ type AutoThreadTitleLogger = {
   error?: (payload: Record<string, unknown>, message: string) => void;
 };
 
-export function extractAutoTitleSourceText(
-  messages: Array<{ role: string; parts: Array<{ type: string; textValue?: string | null }> }>
-) {
-  const firstUserMessage = messages.find((message) => message.role === 'user');
-  if (!firstUserMessage) {
+type AutoTitleSourceMessage = {
+  id?: string;
+  runId?: string | null;
+  role: string;
+  parts: Array<{ type: string; textValue?: string | null }>;
+};
+
+function extractMessageText(message: AutoTitleSourceMessage | null | undefined) {
+  if (!message) {
     return '';
   }
 
-  const sourceText = firstUserMessage.parts
+  return message.parts
     .filter((part) => part.type === 'text' && typeof part.textValue === 'string')
     .map((part) => part.textValue?.trim() ?? '')
     .filter(Boolean)
     .join('\n')
+    .trim();
+}
+
+export function extractAutoTitleSourceText(
+  messages: AutoTitleSourceMessage[],
+  run?: { id: string; triggerMessageId?: string | null } | null
+) {
+  if (!run) {
+    const firstUserMessage = messages.find((message) => message.role === 'user');
+    const fallbackSourceText = extractMessageText(firstUserMessage);
+    return fallbackSourceText.length > MAX_SOURCE_TEXT_LENGTH
+      ? fallbackSourceText.slice(0, MAX_SOURCE_TEXT_LENGTH).trim()
+      : fallbackSourceText;
+  }
+
+  const triggerUserMessage =
+    messages.find((message) => message.id === run.triggerMessageId) ??
+    messages.find((message) => message.role === 'user');
+  const userText = extractMessageText(triggerUserMessage);
+  const assistantText = messages
+    .filter((message) => message.role === 'assistant' && message.runId === run.id)
+    .map((message) => extractMessageText(message))
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+
+  const sourceText = [
+    userText ? `User question:\n${userText}` : '',
+    assistantText ? `Assistant answer:\n${assistantText}` : ''
+  ]
+    .filter(Boolean)
+    .join('\n\n')
     .trim();
 
   return sourceText.length > MAX_SOURCE_TEXT_LENGTH ? sourceText.slice(0, MAX_SOURCE_TEXT_LENGTH).trim() : sourceText;
@@ -65,10 +101,11 @@ export function normalizeGeneratedThreadTitle(title: string | null | undefined) 
 export async function maybeAutoTitleThread(args: {
   services: PlaygroundAppServices;
   threadId: string;
+  runId: string;
   generator: ThreadTitleGenerator | null;
   log?: AutoThreadTitleLogger;
 }): Promise<AutoThreadTitleResult> {
-  const { services, threadId, generator, log } = args;
+  const { services, threadId, runId, generator, log } = args;
   if (!generator) {
     log?.info?.(
       {
@@ -110,13 +147,15 @@ export async function maybeAutoTitleThread(args: {
     }
 
     const messages = await services.repos.messageRepo.listByThread(threadId);
-    const sourceText = extractAutoTitleSourceText(messages);
+    const run = await services.repos.runRepo.findById(runId);
+    const sourceText = extractAutoTitleSourceText(messages, run ? { id: run.id, triggerMessageId: run.triggerMessageId } : null);
     if (!sourceText) {
       log?.info?.(
         {
           outcome: 'skipped',
           reason: 'no_source_text',
-          threadId
+          threadId,
+          runId
         },
         'Skipped auto-title thread'
       );
@@ -261,7 +300,7 @@ async function requestChatCompletion(input: {
       {
         role: 'system',
         content:
-          'Generate a concise chat thread title from the user request. Return only the title text, without quotes, markdown, or punctuation decoration.'
+          'Generate a concise chat thread title based on this completed Q&A turn. Focus on the main topic or task, not a full-sentence answer. Return only the title text, without quotes, markdown, or punctuation decoration.'
       },
       {
         role: 'user',

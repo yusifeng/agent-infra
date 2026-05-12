@@ -85,7 +85,9 @@ shared infra 继续只提供：
 
 当前生成输入使用：
 
-- 当前 thread 的首轮用户问题
+- 触发 auto-title 的那次 completed run
+- 该 run 的 trigger user message
+- 该 run 的 assistant 最终文本回答
 - 并在业务层做长度截断
 
 它不是整段 transcript 的共享抽象，也不要求 shared 层理解“标题生成 prompt”。

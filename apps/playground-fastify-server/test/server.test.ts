@@ -1139,6 +1139,8 @@ describe('playground-fastify-server', () => {
       const thread = await server.appServices.repos.threadRepo.findById(threadId);
       expect(thread?.title).toBe('验证码问题排查');
     });
+    expect(threadTitleGenerator.calls[0]?.sourceText).toContain('User question:\n这个验证码为什么一直收不到？');
+    expect(threadTitleGenerator.calls[0]?.sourceText).toContain('Assistant answer:\nHello from fake runtime');
   });
 
   it('does not auto-title a thread that already has a non-default title', async () => {

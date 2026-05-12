@@ -5,13 +5,25 @@ import { maybeAutoTitleThread } from '../src/features/thread-title/auto-thread-t
 
 function createServices(options?: {
   threadTitles?: Array<string | null>;
-  messages?: Array<{ role: string; parts: Array<{ type: string; textValue?: string | null }> }>;
-  renameImpl?: (args: { threadId: string; title: string }) => Promise<void>;
+  run?: { id: string; triggerMessageId?: string | null } | null;
+  messages?: Array<{
+    id?: string;
+    runId?: string | null;
+    role: string;
+    parts: Array<{ type: string; textValue?: string | null }>;
+  }>;
+  renameImpl?: (args: { threadId: string; title: string }) => Promise<{ title: string; updatedAt: Date }>;
 }) {
   const threadTitles = [...(options?.threadTitles ?? ['New Thread'])];
   const info = vi.fn();
   const error = vi.fn();
-  const rename = vi.fn(options?.renameImpl ?? (async () => {}));
+  const rename = vi.fn(
+    options?.renameImpl ??
+      (async ({ title }: { threadId: string; title: string }) => ({
+        title,
+        updatedAt: new Date('2026-01-01T00:00:00.000Z')
+      }))
+  );
 
   const services = {
     repos: {
@@ -28,12 +40,30 @@ function createServices(options?: {
           };
         })
       },
+      runRepo: {
+        findById: vi.fn(async () =>
+          options?.run === undefined
+            ? {
+                id: 'run-1',
+                triggerMessageId: 'message-user-1'
+              }
+            : options.run
+        )
+      },
       messageRepo: {
         listByThread: vi.fn(async () =>
           options?.messages ?? [
             {
+              id: 'message-user-1',
+              runId: null,
               role: 'user',
               parts: [{ type: 'text', textValue: '请帮我排查验证码问题' }]
+            },
+            {
+              id: 'message-assistant-1',
+              runId: 'run-1',
+              role: 'assistant',
+              parts: [{ type: 'text', textValue: '你需要先检查短信渠道和风控拦截情况。' }]
             }
           ]
         )
@@ -60,6 +90,7 @@ describe('maybeAutoTitleThread', () => {
     const result = await maybeAutoTitleThread({
       services,
       threadId: 'thread-1',
+      runId: 'run-1',
       generator: null,
       log
     });
@@ -85,12 +116,14 @@ describe('maybeAutoTitleThread', () => {
           role: 'assistant',
           parts: [{ type: 'text', textValue: 'hello' }]
         }
-      ]
+      ],
+      run: null
     });
 
     const result = await maybeAutoTitleThread({
       services,
       threadId: 'thread-1',
+      runId: 'run-1',
       generator: {
         generateTitle: vi.fn(async () => '不会被调用')
       },
@@ -118,6 +151,7 @@ describe('maybeAutoTitleThread', () => {
     const result = await maybeAutoTitleThread({
       services,
       threadId: 'thread-1',
+      runId: 'run-1',
       generator: {
         generateTitle: vi.fn(async () => 'New Thread')
       },
@@ -147,6 +181,7 @@ describe('maybeAutoTitleThread', () => {
     const result = await maybeAutoTitleThread({
       services,
       threadId: 'thread-1',
+      runId: 'run-1',
       generator: {
         generateTitle: vi.fn(async () => '验证码问题排查')
       },
@@ -177,6 +212,7 @@ describe('maybeAutoTitleThread', () => {
     const result = await maybeAutoTitleThread({
       services,
       threadId: 'thread-1',
+      runId: 'run-1',
       generator: {
         generateTitle: vi.fn(async () => {
           throw new Error('provider down');
@@ -225,6 +261,7 @@ describe('maybeAutoTitleThread', () => {
     const result = await maybeAutoTitleThread({
       services,
       threadId: 'thread-1',
+      runId: 'run-1',
       generator: {
         generateTitle: vi.fn(async () => '不会被调用')
       },
@@ -257,6 +294,7 @@ describe('maybeAutoTitleThread', () => {
     const result = await maybeAutoTitleThread({
       services,
       threadId: 'thread-1',
+      runId: 'run-1',
       generator: {
         generateTitle: vi.fn(async () => '验证码问题排查')
       },
@@ -277,5 +315,51 @@ describe('maybeAutoTitleThread', () => {
       }),
       'Failed to auto-title thread'
     );
+  });
+
+  it('builds title source text from the completed run question and assistant answer', async () => {
+    const { services, log } = createServices({
+      messages: [
+        {
+          id: 'message-user-1',
+          runId: null,
+          role: 'user',
+          parts: [{ type: 'text', textValue: '速水玲香是是什么动漫中的人物' }]
+        },
+        {
+          id: 'message-assistant-1',
+          runId: 'run-1',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'text',
+              textValue:
+                '速水玲香是日本动漫《名侦探柯南》中的角色。她是一位著名的女演员和歌手。'
+            }
+          ]
+        }
+      ]
+    });
+    const generateTitle = vi.fn(async () => '速水玲香角色出处');
+
+    await maybeAutoTitleThread({
+      services,
+      threadId: 'thread-1',
+      runId: 'run-1',
+      generator: {
+        generateTitle
+      },
+      log
+    });
+
+    expect(generateTitle).toHaveBeenCalledWith({
+      sourceText: [
+        'User question:',
+        '速水玲香是是什么动漫中的人物',
+        '',
+        'Assistant answer:',
+        '速水玲香是日本动漫《名侦探柯南》中的角色。她是一位著名的女演员和歌手。'
+      ].join('\n')
+    });
   });
 });

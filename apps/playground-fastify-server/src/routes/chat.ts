@@ -865,6 +865,7 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
         const autoTitleResult = await maybeAutoTitleThread({
           services: runtimeServices,
           threadId,
+          runId,
           generator: threadTitleGenerator,
           log: app.log
         });
