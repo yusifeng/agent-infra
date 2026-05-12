@@ -331,6 +331,113 @@ describe('runSendMessageFlow', () => {
     expect(reconcileCompletedTurn).toHaveBeenCalledWith('thread-existing', 'run-1', 1);
   });
 
+  it('forwards custom stream events through the optional stream handler', async () => {
+    const refs = createRefs();
+    refs.activeThreadIdRef.current = 'thread-existing';
+    const actions = createActions();
+    const onCustomEvent = vi.fn();
+    const customStreamPayload = [
+      'event: run.ready',
+      `data: ${JSON.stringify({
+        type: 'run.ready',
+        runId: 'run-custom-1',
+        run: createRun('run-custom-1', 'queued'),
+        userMessage: {
+          id: 'message-user-custom-1',
+          threadId: 'thread-existing',
+          runId: null,
+          role: 'user',
+          seq: 2,
+          status: 'completed',
+          metadata: null,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          parts: [
+            {
+              id: 'part-user-custom-1',
+              messageId: 'message-user-custom-1',
+              partIndex: 0,
+              type: 'text',
+              textValue: '你好',
+              jsonValue: null,
+              createdAt: '2026-01-01T00:00:00.000Z'
+            }
+          ]
+        }
+      })}`,
+      '',
+      'event: thread.title_updated',
+      'data: {"type":"thread.title_updated","threadId":"thread-existing","title":"验证码问题排查","updatedAt":"2026-01-01T00:00:10.000Z"}',
+      '',
+      'event: run.completed',
+      `data: ${JSON.stringify({
+        type: 'run.completed',
+        runId: 'run-custom-1',
+        run: createRun('run-custom-1', 'completed')
+      })}`,
+      ''
+    ].join('\n');
+
+    openThreadRunStreamMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      requestId: 'req-custom-1',
+      body: new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(customStreamPayload));
+          controller.close();
+        }
+      })
+    });
+
+    await runSendMessageFlow({
+      state: {
+        activeThreadId: 'thread-existing',
+        draft: '你好',
+        isChatResponding: false,
+        messages: [createMessage('message-1', 1)],
+        selectedWebSearchEnabled: false,
+        selectedThinkingEnabled: false,
+        selectedReasoningEffort: 'high',
+        selectedModelOption: createSelectedModelOption()
+      },
+      refs,
+      actions,
+      operations: {
+        createThreadRecord: vi.fn(),
+        pendingNewThreadLoadingId: 'pending-new-thread',
+        reconcileCompletedTurn: vi.fn().mockResolvedValue(undefined),
+        replaceCurrentPath: vi.fn()
+      },
+      stream: {
+        parseChunk(buffer) {
+          const frames = buffer.split('\n\n');
+          const remainder = frames.pop() ?? '';
+          const events = frames.flatMap((frame) => {
+            const lines = frame.split('\n');
+            const dataLines = lines.filter((line) => line.startsWith('data:')).map((line) => line.slice(5).trimStart());
+            if (dataLines.length === 0) {
+              return [];
+            }
+
+            return [JSON.parse(dataLines.join('\n'))];
+          });
+
+          return { events, remainder };
+        },
+        onEvent: onCustomEvent
+      }
+    });
+
+    expect(onCustomEvent).toHaveBeenCalledWith({
+      type: 'thread.title_updated',
+      threadId: 'thread-existing',
+      title: '验证码问题排查',
+      updatedAt: '2026-01-01T00:00:10.000Z'
+    });
+    expect(actions.setMessages).toHaveBeenCalledTimes(1);
+  });
+
   it('starts the next assistant message without concatenating prior persisted text into the live draft', async () => {
     const refs = createRefs();
     refs.activeThreadIdRef.current = 'thread-existing';

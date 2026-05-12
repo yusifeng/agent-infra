@@ -1,6 +1,7 @@
 import type { MessageDto, RunDto, RunStreamEventDto, RunTimelineResponseDto, RuntimePiMetaDto, ThreadDto } from '@agent-infra/contracts';
 
 import { openThreadRunStream } from '../repo/chat-api.js';
+import { normalizeRunStreamEvent } from '../schema/run-stream.js';
 import {
   applyRunStateToTimeline,
   attachMessageRenderKey,
@@ -63,9 +64,13 @@ type SendMessageFlowArgs = {
     reconcileCompletedTurn: (threadId: string, preferredRunId: string | null, requestId: number) => Promise<void>;
     replaceCurrentPath: (pathname: string) => void;
   };
+  stream?: {
+    parseChunk?: (buffer: string) => { events: unknown[]; remainder: string };
+    onEvent?: (event: unknown) => void;
+  };
 };
 
-export async function runSendMessageFlow({ state, refs, actions, operations }: SendMessageFlowArgs) {
+export async function runSendMessageFlow({ state, refs, actions, operations, stream }: SendMessageFlowArgs) {
   if (!state.draft.trim() || state.isChatResponding || !state.selectedModelOption) {
     return;
   }
@@ -455,6 +460,16 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
     }
   };
 
+  const processParsedEvent = (event: unknown) => {
+    const runEvent = normalizeRunStreamEvent(event);
+    if (runEvent) {
+      processStreamEvent(runEvent);
+      return;
+    }
+
+    stream?.onEvent?.(event);
+  };
+
   actions.setChatPhase('thinking');
   actions.setActiveResponseRun(null);
   actions.setPersistingTurn(false);
@@ -520,7 +535,7 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
       }
 
       buffer += decoder.decode(value, { stream: true });
-      const parsed = parseSseChunk(buffer);
+      const parsed = stream?.parseChunk ? stream.parseChunk(buffer) : parseSseChunk(buffer);
       buffer = parsed.remainder;
 
       for (const event of parsed.events) {
@@ -528,15 +543,15 @@ export async function runSendMessageFlow({ state, refs, actions, operations }: S
           return;
         }
 
-        processStreamEvent(event);
+        processParsedEvent(event);
       }
     }
 
     const finalChunk = decoder.decode();
     if (finalChunk) {
-      const parsed = parseSseChunk(`${buffer}${finalChunk}\n\n`);
+      const parsed = stream?.parseChunk ? stream.parseChunk(`${buffer}${finalChunk}\n\n`) : parseSseChunk(`${buffer}${finalChunk}\n\n`);
       for (const event of parsed.events) {
-        processStreamEvent(event);
+        processParsedEvent(event);
       }
     }
   } catch (sendError) {

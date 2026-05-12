@@ -15,6 +15,12 @@ type TypingTitleState = {
   visibleText: string;
 };
 
+type ThreadTitleUpdate = {
+  threadId: string;
+  title: string;
+  updatedAt: string;
+};
+
 export function useThreadTitleRefreshController({
   activeThreadId,
   currentThreadTitle,
@@ -33,6 +39,7 @@ export function useThreadTitleRefreshController({
   const [typingTitleState, setTypingTitleState] = useState<TypingTitleState | null>(null);
   const activeThreadIdRef = useRef(activeThreadId);
   const threadsRef = useRef(displayedThreads);
+  const typingTitleStateRef = useRef<TypingTitleState | null>(null);
   const autoTitleRefreshRequestIdRef = useRef(0);
   const autoTitleRefreshAbortControllerRef = useRef<AbortController | null>(null);
   const titleTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -44,6 +51,10 @@ export function useThreadTitleRefreshController({
   useEffect(() => {
     threadsRef.current = displayedThreads;
   }, [displayedThreads]);
+
+  useEffect(() => {
+    typingTitleStateRef.current = typingTitleState;
+  }, [typingTitleState]);
 
   useEffect(() => {
     if (!typingTitleState || activeThreadId === typingTitleState.threadId) {
@@ -70,12 +81,47 @@ export function useThreadTitleRefreshController({
     setThreads((current) => current.map((thread) => (thread.id === nextThread.id ? nextThread : thread)));
   }
 
+  function replaceTypingTitleState(nextState: TypingTitleState | null) {
+    typingTitleStateRef.current = nextState;
+    setTypingTitleState(nextState);
+  }
+
   function stopTypingTitleAnimation() {
     if (titleTypingTimeoutRef.current !== null) {
       clearTimeout(titleTypingTimeoutRef.current);
       titleTypingTimeoutRef.current = null;
     }
-    setTypingTitleState(null);
+    replaceTypingTitleState(null);
+  }
+
+  function applyThreadTitleUpdate(update: ThreadTitleUpdate) {
+    autoTitleRefreshRequestIdRef.current += 1;
+    autoTitleRefreshAbortControllerRef.current?.abort();
+
+    const previousThread = threadsRef.current.find((thread) => thread.id === update.threadId) ?? null;
+    if (!previousThread) {
+      return;
+    }
+
+    const nextThread = {
+      ...previousThread,
+      title: update.title,
+      updatedAt: update.updatedAt
+    };
+    patchThread(nextThread);
+
+    if (
+      isDefaultTitle(previousThread.title) &&
+      !isDefaultTitle(update.title) &&
+      activeThreadIdRef.current === update.threadId
+    ) {
+      startTypingTitleAnimation(update.threadId, update.title);
+      return;
+    }
+
+    if (typingTitleStateRef.current?.threadId === update.threadId) {
+      stopTypingTitleAnimation();
+    }
   }
 
   function startTypingTitleAnimation(threadId: string, finalText: string) {
@@ -88,7 +134,7 @@ export function useThreadTitleRefreshController({
     stopTypingTitleAnimation();
 
     let visibleLength = 1;
-    setTypingTitleState({
+    replaceTypingTitleState({
       threadId,
       finalText,
       visibleText: characters.slice(0, visibleLength).join('')
@@ -106,7 +152,7 @@ export function useThreadTitleRefreshController({
         return;
       }
 
-      setTypingTitleState({
+      replaceTypingTitleState({
         threadId,
         finalText,
         visibleText: characters.slice(0, visibleLength).join('')
@@ -177,6 +223,7 @@ export function useThreadTitleRefreshController({
   }, [activeThreadId, displayedThreads, typingTitleState]);
 
   return {
+    applyThreadTitleUpdate,
     currentVisibleThreadTitle,
     refreshThreadAfterCompletedRun,
     stopTypingTitleAnimation,

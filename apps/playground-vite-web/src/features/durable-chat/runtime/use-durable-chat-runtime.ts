@@ -26,6 +26,7 @@ import {
 import { buildChatViewState } from '@/features/durable-chat/service/chat-view-state';
 import { isDefaultThreadTitle } from '@/features/durable-chat/service/default-thread-title';
 import { collectCompletedLiveSearchToolCallIds } from '@/features/durable-chat/service/research-activity';
+import { parsePlaygroundSseChunk } from '@/features/durable-chat/schema/playground-stream';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
 import type { DurableChatRuntimeOptions } from '@/features/durable-chat/types/runtime';
@@ -35,6 +36,7 @@ import { useShareDialogState } from '@/features/durable-chat/runtime/use-share-d
 import { useChatViewportController } from '@/features/durable-chat/runtime/use-chat-viewport-controller';
 import { useThreadActionsController } from '@/features/durable-chat/runtime/use-thread-actions-controller';
 import { useThreadTitleRefreshController } from '@/features/durable-chat/runtime/use-thread-title-refresh-controller';
+import type { PlaygroundPrivateStreamEventDto } from '@/features/durable-chat/types/playground-stream';
 import type { PlaygroundThreadDto } from '@/features/durable-chat/types/thread';
 
 const PENDING_NEW_THREAD_LOADING_ID = '__pending-new-thread__';
@@ -208,6 +210,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     setShowScrollToBottom
   });
   const {
+    applyThreadTitleUpdate,
     currentVisibleThreadTitle,
     refreshThreadAfterCompletedRun,
     stopTypingTitleAnimation,
@@ -697,6 +700,15 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         pendingNewThreadLoadingId: PENDING_NEW_THREAD_LOADING_ID,
         reconcileCompletedTurn,
         replaceCurrentPath
+      },
+      stream: {
+        parseChunk: parsePlaygroundSseChunk,
+        onEvent: (event) => {
+          const privateEvent = event as PlaygroundPrivateStreamEventDto;
+          if (privateEvent.type === 'thread.title_updated') {
+            applyThreadTitleUpdate(privateEvent);
+          }
+        }
       }
     });
 

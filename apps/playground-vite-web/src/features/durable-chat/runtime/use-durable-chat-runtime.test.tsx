@@ -554,7 +554,7 @@ describe('useDurableChatRuntime', () => {
     });
   });
 
-  it('refreshes only the active thread after a completed run and shares the typing title', async () => {
+  it('applies thread.title_updated immediately and shares the typing title across surfaces', async () => {
     chatApiMocks.fetchThreads.mockResolvedValue({
       ok: true,
       status: 200,
@@ -571,9 +571,15 @@ describe('useDurableChatRuntime', () => {
       actions.setMessages([createMessage()]);
       actions.setLiveAssistantDraft(null);
     });
-    durableChatClientMocks.runSendMessageFlow.mockImplementation(async ({ actions, operations }: any) => {
+    durableChatClientMocks.runSendMessageFlow.mockImplementation(async ({ actions, operations, stream }: any) => {
       actions.setLiveAssistantDraft(createDraft());
       await operations.reconcileCompletedTurn('thread-1', 'run-1', 7);
+      stream.onEvent?.({
+        type: 'thread.title_updated',
+        threadId: 'thread-1',
+        title: '验证码问题排查',
+        updatedAt: '2026-01-01T00:00:04.000Z'
+      });
     });
 
     const { result } = renderHook(
@@ -603,8 +609,7 @@ describe('useDurableChatRuntime', () => {
       await Promise.resolve();
     });
 
-    expect(chatApiMocks.fetchThread).toHaveBeenCalledWith('thread-1', expect.any(AbortSignal));
-
+    expect(chatApiMocks.fetchThread).not.toHaveBeenCalled();
     expect(chatApiMocks.fetchThreads).toHaveBeenCalledTimes(1);
 
     act(() => {

@@ -36,6 +36,7 @@ function TitleHarness({
   const displayedThreads = threads;
   const currentThreadTitle = displayedThreads.find((thread) => thread.id === activeThreadId)?.title ?? '';
   const {
+    applyThreadTitleUpdate,
     currentVisibleThreadTitle,
     refreshThreadAfterCompletedRun,
     stopTypingTitleAnimation,
@@ -53,6 +54,30 @@ function TitleHarness({
     <div>
       <button type="button" onClick={() => void refreshThreadAfterCompletedRun('thread-1')}>
         refresh
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          applyThreadTitleUpdate({
+            threadId: 'thread-1',
+            title: '验证码问题排查',
+            updatedAt: '2026-01-01T00:00:10.000Z'
+          })
+        }
+      >
+        event
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          applyThreadTitleUpdate({
+            threadId: 'thread-1',
+            title: '人工复核验证码失败原因',
+            updatedAt: '2026-01-01T00:00:11.000Z'
+          })
+        }
+      >
+        event-2
       </button>
       <button type="button" onClick={() => setActiveThreadId('thread-2')}>
         switch
@@ -156,5 +181,64 @@ describe('useThreadTitleRefreshController', () => {
 
     expect(screen.getByTestId('current-title').textContent).toBe('用户手动标题');
     expect(screen.getByTestId('thread-1-title').textContent).toBe('用户手动标题');
+  });
+
+  it('starts typing animation immediately from a thread.title_updated event', async () => {
+    vi.useFakeTimers();
+
+    render(
+      <TitleHarness
+        fetchThreadById={vi.fn(async () => null)}
+        initialThreads={[createThread({ id: 'thread-1', title: 'New Thread' })]}
+      />
+    );
+
+    act(() => {
+      fireEvent.click(screen.getByText('event'));
+    });
+
+    expect(screen.getByTestId('current-title').textContent?.length).toBeGreaterThan(0);
+    expect(screen.getByTestId('current-title').textContent?.length).toBeLessThan('验证码问题排查'.length);
+    expect(screen.getByTestId('thread-1-title').textContent).toBe(screen.getByTestId('current-title').textContent);
+
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+
+    expect(screen.getByTestId('current-title').textContent).toBe('验证码问题排查');
+    expect(screen.getByTestId('thread-1-title').textContent).toBe('验证码问题排查');
+  });
+
+  it('restarts typing animation cleanly when a newer thread.title_updated event arrives', async () => {
+    vi.useFakeTimers();
+
+    render(
+      <TitleHarness
+        fetchThreadById={vi.fn(async () => null)}
+        initialThreads={[createThread({ id: 'thread-1', title: 'New Thread' })]}
+      />
+    );
+
+    act(() => {
+      fireEvent.click(screen.getByText('event'));
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(40);
+    });
+
+    act(() => {
+      fireEvent.click(screen.getByText('event-2'));
+    });
+
+    expect(screen.getByTestId('current-title').textContent).toBe('人工复核验证码失败原因');
+    expect(screen.getByTestId('thread-1-title').textContent).toBe('人工复核验证码失败原因');
+
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+
+    expect(screen.getByTestId('current-title').textContent).toBe('人工复核验证码失败原因');
+    expect(screen.getByTestId('thread-1-title').textContent).toBe('人工复核验证码失败原因');
   });
 });

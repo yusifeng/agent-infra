@@ -54,14 +54,14 @@
 ## 3. Frontend Boundary
 
 ### 3.1 Stream parsing
-- [ ] Add a playground-local stream event parser/normalizer for `PlaygroundStreamEventDto`.
-- [ ] Route shared `run.*` events through the existing durable chat flow.
-- [ ] Route `thread.title_updated` through a playground-local handler without modifying shared client stream semantics.
+- [x] Add a playground-local stream event parser/normalizer for `PlaygroundStreamEventDto`.
+- [x] Route shared `run.*` events through the existing durable chat flow.
+- [x] Route `thread.title_updated` through a playground-local handler without modifying shared client stream semantics.
 
 ### 3.2 Runtime / state updates
-- [ ] Patch the matching local thread record immediately when `thread.title_updated` arrives.
-- [ ] If the updated thread is the active thread and the local title was still default, start the local typing animation from the event payload.
-- [ ] Keep sidebar, header, and `document.title` sourced from the same local thread/title state so one patch updates all three surfaces.
+- [x] Patch the matching local thread record immediately when `thread.title_updated` arrives.
+- [x] If the updated thread is the active thread and the local title was still default, start the local typing animation from the event payload.
+- [x] Keep sidebar, header, and `document.title` sourced from the same local thread/title state so one patch updates all three surfaces.
 
 ### 3.3 Polling fallback
 - [ ] Decide whether to keep the existing auto-title polling as a short-term fallback path or remove it entirely after event-driven updates are verified.
@@ -75,9 +75,9 @@
 
 ### 4.2 Frontend tests
 - [x] Add parser tests for the playground-local stream union and `thread.title_updated`.
-- [ ] Add runtime tests that a private title event updates sidebar/header/document title from a single local patch.
-- [ ] Add runtime tests that the typing animation starts from `thread.title_updated` when the thread was still on the default title.
-- [ ] Preserve coverage that manual rename cannot be overwritten by late auto-title behavior.
+- [x] Add runtime tests that a private title event updates sidebar/header/document title from a single local patch.
+- [x] Add runtime tests that the typing animation starts from `thread.title_updated` when the thread was still on the default title.
+- [x] Preserve coverage that manual rename cannot be overwritten by late auto-title behavior.
 
 ## 5. Recommended Execution Order
 
@@ -92,10 +92,10 @@
 - [x] Run targeted verification and `codex review`, then commit.
 
 ### Loop 3
-- [ ] Consume `thread.title_updated` in the Vite runtime and patch the local thread/title state.
-- [ ] Trigger typing animation from the event-driven path.
-- [ ] Verify sidebar/header/document title all update from the same event.
-- [ ] Run targeted verification and `codex review`, then commit.
+- [x] Consume `thread.title_updated` in the Vite runtime and patch the local thread/title state.
+- [x] Trigger typing animation from the event-driven path.
+- [x] Verify sidebar/header/document title all update from the same event.
+- [x] Run targeted verification and `codex review`, then commit.
 
 ### Loop 4
 - [ ] Re-evaluate the old polling logic and either demote it to fallback or remove it if redundant.
