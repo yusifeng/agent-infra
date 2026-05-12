@@ -1126,6 +1126,13 @@ describe('playground-fastify-server', () => {
       }
     });
     expect(stream.statusCode).toBe(200);
+    const events = parseSsePayloads(stream.body);
+    expect(events).toContainEqual({
+      type: 'thread.title_updated',
+      threadId,
+      title: '验证码问题排查',
+      updatedAt: expect.any(String)
+    });
 
     await vi.waitFor(async () => {
       expect(threadTitleGenerator.calls).toHaveLength(1);
@@ -1154,6 +1161,8 @@ describe('playground-fastify-server', () => {
       }
     });
     expect(stream.statusCode).toBe(200);
+    const events = parseSsePayloads(stream.body);
+    expect(events.some((event) => event.type === 'thread.title_updated')).toBe(false);
 
     await vi.waitFor(async () => {
       const thread = await server.appServices.repos.threadRepo.findById(threadId);
@@ -1181,7 +1190,7 @@ describe('playground-fastify-server', () => {
     expect(created.statusCode).toBe(200);
     const threadId = created.json().thread.id as string;
 
-    const stream = await server.app.inject({
+    const streamPromise = server.app.inject({
       method: 'POST',
       url: `/api/threads/${threadId}/runs/stream`,
       headers: {
@@ -1191,7 +1200,6 @@ describe('playground-fastify-server', () => {
         text: '我想知道验证码的风控规则'
       }
     });
-    expect(stream.statusCode).toBe(200);
 
     await vi.waitFor(() => {
       expect(threadTitleGenerator.calls).toHaveLength(1);
@@ -1210,6 +1218,11 @@ describe('playground-fastify-server', () => {
     expect(renamed.statusCode).toBe(200);
 
     threadTitleGenerator.resolve('自动标题候选');
+
+    const completedStream = await streamPromise;
+    expect(completedStream.statusCode).toBe(200);
+    const events = parseSsePayloads(completedStream.body);
+    expect(events.some((event) => event.type === 'thread.title_updated')).toBe(false);
 
     await vi.waitFor(async () => {
       const thread = await server.appServices.repos.threadRepo.findById(threadId);

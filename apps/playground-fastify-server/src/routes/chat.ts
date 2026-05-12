@@ -1,6 +1,6 @@
 import type { PublicChatShareResult, StartTextTurnResult } from '@agent-infra/app';
 import { ChatShareNotFoundError, RunNotFoundError } from '@agent-infra/app';
-import type { RunStreamEventDto, RunStreamFailedEventDto, RuntimePiMetaDto } from '@agent-infra/contracts';
+import type { RunStreamFailedEventDto, RuntimePiMetaDto } from '@agent-infra/contracts';
 import type { AgentInfraRepositoryBundle } from '@agent-infra/db';
 import {
   buildCreateThreadShareErrorResponse,
@@ -24,7 +24,6 @@ import {
   buildThreadRunsErrorResponse,
   buildThreadRunsResponse,
   buildUnavailableRuntimeMetaResponse,
-  encodeSseEvent,
   getRouteErrorMessage,
   getRouteErrorStatus,
   parseCreateThreadTitle,
@@ -49,6 +48,11 @@ import {
   getPlaygroundRuntimeServicesState,
   isPlaygroundWebSearchConfigured
 } from '../playground-services.js';
+import {
+  buildThreadTitleUpdatedEvent,
+  encodePlaygroundSseEvent,
+  type PlaygroundStreamEventDto
+} from '../features/chat-stream/playground-stream-events.js';
 
 type ChatAppServices = PlaygroundAppServices;
 
@@ -106,7 +110,7 @@ async function withThreadRunStartLock<T>(threadId: string, work: () => Promise<T
 
 function writeSseEvent(
   reply: { raw: NodeJS.WritableStream & { destroyed?: boolean; writableEnded?: boolean } },
-  payload: RunStreamEventDto,
+  payload: PlaygroundStreamEventDto,
   state: { closed: boolean }
 ) {
   if (state.closed || reply.raw.destroyed || reply.raw.writableEnded) {
@@ -114,7 +118,7 @@ function writeSseEvent(
   }
 
   try {
-    reply.raw.write(encodeSseEvent(payload));
+    reply.raw.write(encodePlaygroundSseEvent(payload));
     return true;
   } catch {
     state.closed = true;
@@ -858,12 +862,24 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
       );
 
       if (finalRunCompleted) {
-        void maybeAutoTitleThread({
+        const autoTitleResult = await maybeAutoTitleThread({
           services: runtimeServices,
           threadId,
           generator: threadTitleGenerator,
           log: app.log
         });
+
+        if (autoTitleResult.outcome === 'renamed') {
+          writeSseEvent(
+            reply,
+            buildThreadTitleUpdatedEvent({
+              threadId,
+              title: autoTitleResult.title,
+              updatedAt: autoTitleResult.updatedAt
+            }),
+            streamState
+          );
+        }
       }
     } catch (error) {
       if (!terminalEventSent) {

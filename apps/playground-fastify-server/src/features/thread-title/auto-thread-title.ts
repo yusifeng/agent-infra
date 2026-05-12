@@ -20,7 +20,7 @@ export type AutoThreadTitleResult =
   | { outcome: 'failed'; reason: 'repo_read_failed' }
   | { outcome: 'failed'; reason: 'provider_request_failed' }
   | { outcome: 'failed'; reason: 'rename_writeback_failed' }
-  | { outcome: 'renamed'; title: string };
+  | { outcome: 'renamed'; title: string; updatedAt: string };
 
 type AutoThreadTitleLogger = {
   info?: (payload: Record<string, unknown>, message: string) => void;
@@ -179,10 +179,38 @@ export async function maybeAutoTitleThread(args: {
     }
 
     try {
-      await services.app.threads.rename({
+      const renamedThread = await services.app.threads.rename({
         threadId,
         title: generatedTitle
       });
+      const persistedTitle = renamedThread.title;
+
+      if (typeof persistedTitle !== 'string') {
+        log?.error?.(
+          {
+            outcome: 'failed',
+            reason: 'rename_writeback_failed',
+            threadId,
+            persistedTitle
+          },
+          'Auto-title rename returned a non-string persisted title'
+        );
+        return { outcome: 'failed', reason: 'rename_writeback_failed' };
+      }
+
+      log?.info?.(
+        {
+          outcome: 'renamed',
+          threadId,
+          title: persistedTitle
+        },
+        'Auto-titled thread'
+      );
+      return {
+        outcome: 'renamed',
+        title: persistedTitle,
+        updatedAt: renamedThread.updatedAt.toISOString()
+      };
     } catch (error) {
       log?.error?.(
         {
@@ -196,16 +224,6 @@ export async function maybeAutoTitleThread(args: {
       );
       return { outcome: 'failed', reason: 'rename_writeback_failed' };
     }
-
-    log?.info?.(
-      {
-        outcome: 'renamed',
-        threadId,
-        title: generatedTitle
-      },
-      'Auto-titled thread'
-    );
-    return { outcome: 'renamed', title: generatedTitle };
   } catch (error) {
     log?.error?.(
       {

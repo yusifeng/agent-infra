@@ -41,15 +41,15 @@
 ## 2. Backend / Platform Boundary
 
 ### 2.1 Fastify stream emission
-- [ ] Add a playground-local SSE event builder/encoder path for `thread.title_updated`.
-- [ ] Emit `thread.title_updated` only after auto-title rename succeeds.
-- [ ] Include the persisted final title and thread `updatedAt` in the emitted event payload.
-- [ ] Ensure the event is only written when the current SSE connection is still open.
+- [x] Add a playground-local SSE event builder/encoder path for `thread.title_updated`.
+- [x] Emit `thread.title_updated` only after auto-title rename succeeds.
+- [x] Include the persisted final title and thread `updatedAt` in the emitted event payload.
+- [x] Ensure the event is only written when the current SSE connection is still open.
 
 ### 2.2 Route integration
-- [ ] Update `/api/threads/:threadId/runs/stream` in the fastify playground app to emit the private title event after successful auto-title writeback.
-- [ ] Keep existing `run.ready`, `run.state`, `run.assistant`, `run.completed`, and `run.failed` behavior unchanged.
-- [ ] Avoid introducing any coupling from the fastify route into shared runtime or shared durable chat protocol types.
+- [x] Update `/api/threads/:threadId/runs/stream` in the fastify playground app to emit the private title event after successful auto-title writeback.
+- [x] Keep existing `run.ready`, `run.state`, `run.assistant`, `run.completed`, and `run.failed` behavior unchanged.
+- [x] Avoid introducing any coupling from the fastify route into shared runtime or shared durable chat protocol types.
 
 ## 3. Frontend Boundary
 
@@ -70,8 +70,8 @@
 ## 4. Tests
 
 ### 4.1 Backend tests
-- [ ] Add/extend fastify route tests to verify `thread.title_updated` is emitted after successful auto-title writeback.
-- [ ] Verify no private title event is emitted when auto-title is skipped or generation fails.
+- [x] Add/extend fastify route tests to verify `thread.title_updated` is emitted after successful auto-title writeback.
+- [x] Verify no private title event is emitted when auto-title is skipped or generation fails.
 
 ### 4.2 Frontend tests
 - [x] Add parser tests for the playground-local stream union and `thread.title_updated`.
@@ -87,9 +87,9 @@
 - [x] Run targeted verification and `codex review`, then commit.
 
 ### Loop 2
-- [ ] Emit `thread.title_updated` from the fastify stream route after successful auto-title writeback.
-- [ ] Add/extend fastify server tests for success/skip/failure cases.
-- [ ] Run targeted verification and `codex review`, then commit.
+- [x] Emit `thread.title_updated` from the fastify stream route after successful auto-title writeback.
+- [x] Add/extend fastify server tests for success/skip/failure cases.
+- [x] Run targeted verification and `codex review`, then commit.
 
 ### Loop 3
 - [ ] Consume `thread.title_updated` in the Vite runtime and patch the local thread/title state.
