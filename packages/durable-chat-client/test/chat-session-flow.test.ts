@@ -1,19 +1,44 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { runInitializeRuntime, runRefreshMeta } from '../src/runtime/chat-session-flow';
+import { runCreateThreadRecord, runInitializeRuntime, runRefreshMeta } from '../src/runtime/chat-session-flow';
 
-const { fetchRuntimeMetaResponse } = vi.hoisted(() => ({
+const { createThreadResponse, fetchRuntimeMetaResponse } = vi.hoisted(() => ({
+  createThreadResponse: vi.fn(),
   fetchRuntimeMetaResponse: vi.fn()
 }));
 
 vi.mock('../src/repo/chat-api.js', () => ({
+  createThreadResponse,
   fetchRuntimeMetaResponse
 }));
 
 describe('chat-session-flow', () => {
   beforeEach(() => {
+    createThreadResponse.mockReset();
     fetchRuntimeMetaResponse.mockReset();
   });
+
+  function createThread(overrides: Partial<{
+    id: string;
+    appId: string;
+    status: 'active' | 'archived';
+    title: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }> = {}) {
+    return {
+      id: 'thread-1',
+      appId: 'playground',
+      userId: null,
+      status: 'active' as const,
+      title: 'New Thread',
+      metadata: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      archivedAt: null,
+      ...overrides
+    };
+  }
 
   it('preserves the current selected model when it is still available', async () => {
     fetchRuntimeMetaResponse.mockResolvedValue({
@@ -142,6 +167,43 @@ describe('chat-session-flow', () => {
     });
 
     expect(selectedModelKey).toBe('openai:gpt-5.4');
+  });
+
+  it('inserts newly created threads in newest-updated order', async () => {
+    const existingOld = createThread({
+      id: 'old',
+      createdAt: '2026-05-14T00:00:00.000Z',
+      updatedAt: '2026-05-14T00:00:00.000Z'
+    });
+    const existingRecent = createThread({
+      id: 'recent',
+      createdAt: '2026-05-14T01:00:00.000Z',
+      updatedAt: '2026-05-14T01:00:00.000Z'
+    });
+    const createdThread = createThread({
+      id: 'created',
+      createdAt: '2026-05-14T02:00:00.000Z',
+      updatedAt: '2026-05-14T02:00:00.000Z'
+    });
+    let threads = [existingOld, existingRecent];
+    createThreadResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        thread: createdThread
+      }
+    });
+
+    await runCreateThreadRecord({
+      actions: {
+        setThreads: (next) => {
+          threads = typeof next === 'function' ? next(threads) : next;
+        }
+      }
+    });
+
+    expect(threads.map((thread) => thread.id)).toEqual(['created', 'recent', 'old']);
   });
 
   it('starts direct-thread activation without waiting for thread list refresh to finish', async () => {

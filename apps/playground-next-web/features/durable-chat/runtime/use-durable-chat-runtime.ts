@@ -17,6 +17,7 @@ import {
   createThreadSnapshotShare,
   fetchCurrentThreadShare,
   fetchPlaygroundThreads,
+  fetchPlaygroundThread,
   fetchThreadMessagesResponse,
   openThreadRunAttachStream,
   pinThread,
@@ -61,9 +62,12 @@ import { buildDeepseekModePresentation } from '@/features/durable-chat/service/d
 import { collectCompletedLiveSearchToolCallIds } from '@/features/durable-chat/service/research-activity';
 import { buildTranscriptPresentation } from '@/features/durable-chat/service/transcript-presentation';
 import { useSearchPanelState } from '@/features/durable-chat/runtime/use-search-panel-state';
+import { useThreadTitleRefreshController } from '@/features/durable-chat/runtime/use-thread-title-refresh-controller';
 import type { DurableChatRuntimeOptions } from '@/features/durable-chat/types/runtime';
+import { isDefaultThreadTitle } from '@/features/thread-title/default-thread-title';
 
 const PENDING_NEW_THREAD_LOADING_ID = '__pending-new-thread__';
+const DEFAULT_DOCUMENT_TITLE = 'playground-next-web';
 
 export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRuntimeOptions) {
   const router = useRouter();
@@ -141,6 +145,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const routeChangeRequestIdRef = useRef(0);
   const runSelectionPersistenceReadyRef = useRef(false);
   const activeThreadIdRef = useRef<string | null>(null);
+  const threadsRef = useRef<ThreadDto[]>([]);
   const logOpenRef = useRef(false);
   const messagePageInfoRef = useRef<typeof messagePageInfo>(null);
   const messagesRef = useRef<MessageDto[]>([]);
@@ -159,6 +164,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const sendRequestIdRef = useRef(0);
   const sendAbortControllerRef = useRef<AbortController | null>(null);
   const reconcileRequestIdRef = useRef(0);
+  const previousDocumentTitleRef = useRef<string | null>(null);
   const messagesViewportRef = useRef<HTMLDivElement>(null);
   const pendingPrependAnchorRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
   const shouldAutoScrollRef = useRef(true);
@@ -227,6 +233,20 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     [displayedTranscriptBlocks]
   );
   const hasOlderMessages = messagePageInfo?.hasOlder === true;
+  const {
+    applyThreadTitleUpdate,
+    currentVisibleThreadTitle,
+    refreshThreadAfterCompletedRun,
+    stopTypingTitleAnimation,
+    visibleThreads
+  } = useThreadTitleRefreshController({
+    activeThreadId,
+    currentThreadTitle: currentThreadTitle ?? '',
+    displayedThreads: threads,
+    fetchThreadById: async (threadId, signal) => fetchPlaygroundThread(threadId, signal).catch(() => null),
+    isDefaultTitle: isDefaultThreadTitle,
+    setThreads
+  });
   const threadActionsDisabled =
     !activeThreadId ||
     isChatResponding ||
@@ -251,6 +271,23 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   useEffect(() => {
     activeThreadIdRef.current = activeThreadId;
   }, [activeThreadId]);
+
+  useEffect(() => {
+    threadsRef.current = threads;
+  }, [threads]);
+
+  useEffect(() => {
+    previousDocumentTitleRef.current = document.title;
+
+    return () => {
+      document.title = previousDocumentTitleRef.current || DEFAULT_DOCUMENT_TITLE;
+      previousDocumentTitleRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    document.title = currentVisibleThreadTitle || DEFAULT_DOCUMENT_TITLE;
+  }, [currentVisibleThreadTitle]);
 
   useEffect(() => {
     logOpenRef.current = logOpen;
@@ -665,17 +702,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }
 
   function applyThreadTitleUpdated(threadId: string, title: string, updatedAt: string) {
-    setThreads((current) =>
-      current.map((thread) =>
-        thread.id === threadId
-          ? {
-              ...thread,
-              title,
-              updatedAt
-            }
-          : thread
-      )
-    );
+    applyThreadTitleUpdate({ threadId, title, updatedAt });
   }
 
   function openRenameDialogForThread(threadId: string) {
@@ -1140,10 +1167,19 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         setTimelineLoading
       }
     });
-    try {
-      await refreshThreads();
-    } catch {
-      // Thread title refresh is a best-effort fallback after the durable turn reconciles.
+    const currentThread = threadsRef.current.find((thread) => thread.id === threadId) ?? null;
+    if (!currentThread || isDefaultThreadTitle(currentThread.title)) {
+      try {
+        await refreshThreadAfterCompletedRun(threadId);
+      } catch {
+        // Thread title refresh is a best-effort fallback after the durable turn reconciles.
+      }
+    } else {
+      try {
+        await refreshThreads();
+      } catch {
+        // Thread list refresh is best-effort after a completed durable turn.
+      }
     }
   }
 
@@ -1217,6 +1253,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
 
   function startNewChat() {
     stopViewingLiveResponse();
+    stopTypingTitleAnimation();
     resetDraftThreadState();
     setDurableRecoveryState({
       phase: 'idle',
@@ -1230,6 +1267,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
 
   function openThread(threadId: string) {
     stopViewingLiveResponse();
+    stopTypingTitleAnimation();
     setDurableRecoveryState({
       phase: 'idle',
       message: null
@@ -1361,7 +1399,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     activeThreadId,
     creatingShare,
     currentThreadPinned,
-    currentThreadTitle,
+    currentThreadTitle: currentVisibleThreadTitle,
     displayedAnswerContainers,
     displayedMessages,
     displayedTranscriptBlocks,
@@ -1480,7 +1518,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     textareaRef,
     threadActionError,
     threadActionsDisabled,
-    threads,
+    threads: visibleThreads,
     timelineError,
     timelineLoading,
     toolInvocations

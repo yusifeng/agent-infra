@@ -162,7 +162,7 @@ export async function runCreateThreadRecord({ actions }: CreateThreadRecordArgs)
 
   const createdThread = result.data.thread;
   actions.setThreads((current) =>
-    [...current, createdThread].sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime())
+    [...current, createdThread].sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
   );
   return createdThread;
 }

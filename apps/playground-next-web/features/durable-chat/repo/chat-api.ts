@@ -38,6 +38,11 @@ type PlaygroundThreadsResponseDto = {
   error?: string;
 };
 
+type PlaygroundThreadResponseDto = {
+  thread?: PlaygroundThreadDto;
+  error?: string;
+};
+
 async function fetchJson<TData>(input: RequestInfo | URL, init?: RequestInit): Promise<ApiResult<TData>> {
   const response = await fetch(input, init);
   const raw = await readJsonRecordOrEmpty(response);
@@ -52,6 +57,12 @@ async function fetchJson<TData>(input: RequestInfo | URL, init?: RequestInit): P
 
 export async function fetchPlaygroundThreads(signal?: AbortSignal) {
   return fetchJson<PlaygroundThreadsResponseDto>('/api/threads', {
+    signal
+  });
+}
+
+export async function fetchPlaygroundThread(threadId: string, signal?: AbortSignal) {
+  return fetchJson<PlaygroundThreadResponseDto>(`/api/threads/${threadId}`, {
     signal
   });
 }
