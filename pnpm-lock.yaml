@@ -136,6 +136,9 @@ importers:
       '@radix-ui/react-select':
         specifier: ^2.2.6
         version: 2.2.6(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@sinclair/typebox':
+        specifier: ^0.34.41
+        version: 0.34.49
       argon2:
         specifier: ^0.44.0
         version: 0.44.0

@@ -74,6 +74,10 @@ Search migration will add:
 
 - `TAVILY_API_KEY` if search/browse tools are enabled
 
+When `TAVILY_API_KEY` is absent, `webSearchEnabled` chat turns should be
+rejected before runtime execution instead of silently running without browse
+tools.
+
 If the runtime env is missing or invalid, `GET /api/meta` should expose:
 
 - `runtimeConfigured: false`

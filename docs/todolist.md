@@ -110,9 +110,9 @@ Loop 0 decision:
 - [x] Preserve provider/model runtime binding from thread catalog or latest run.
 - [x] Bind thread provider/model after the first successful queued turn if unset.
 - [x] Force later turns in the same thread to keep the bound provider/model.
-- [ ] Pass `webSearchEnabled` through run start only when backend search is configured.
-- [ ] Reject or hide search-enabled sends when search backend is unavailable.
-- [ ] Define `TAVILY_API_KEY` behavior in env docs and UI gating.
+- [x] Pass `webSearchEnabled` through run start only when backend search is configured.
+- [x] Reject or hide search-enabled sends when search backend is unavailable.
+- [x] Define `TAVILY_API_KEY` behavior in env docs and UI gating.
 
 ## 2. Backend / Platform
 
@@ -156,13 +156,13 @@ Loop 0 decision:
 
 ### 2.4 Search / Browse
 
-- [ ] Port Tavily provider wiring.
-- [ ] Port search planner.
-- [ ] Port policy-aware `searchWeb`.
-- [ ] Port `openUrl`.
-- [ ] Add or port `/site-icons/:hostname` equivalent.
-- [ ] Validate tool invocation persistence.
-- [ ] Validate search panel inputs can be loaded from timeline/tool data.
+- [x] Port Tavily provider wiring.
+- [x] Port search planner.
+- [x] Port policy-aware `searchWeb`.
+- [x] Port `openUrl`.
+- [x] Add or port `/site-icons/:hostname` equivalent.
+- [x] Validate tool invocation persistence.
+- [x] Validate search panel inputs can be loaded from timeline/tool data.
 
 ### 2.5 Share / Public Snapshot
 
@@ -178,7 +178,7 @@ Loop 0 decision:
 ### 2.6 Vercel / Env / Config
 
 - [x] Update `.env.example` for auth env.
-- [ ] Update `.env.example` for search env.
+- [x] Update `.env.example` for search env.
 - [x] Update Vercel runbook for auth env.
 - [x] Update Vercel runbook for origin allowlist.
 - [ ] Define Node runtime requirements for route handlers.
@@ -262,7 +262,7 @@ Loop 0 decision:
 - [x] Add protected route tests for thread access.
 - [x] Add runtime binding tests.
 - [x] Add stream hub / attach route tests.
-- [ ] Add search tool wiring tests.
+- [x] Add search tool wiring tests.
 - [ ] Add share sanitize/public route tests.
 - [ ] Add focused UI/runtime tests after chat shell port.
 
@@ -351,13 +351,13 @@ Loop 0 decisions:
 
 ### Loop 4: Search And Browse Tool Wiring
 
-- [ ] Port search/browse runtime tools.
-- [ ] Add site icon route.
-- [ ] Add search env docs.
-- [ ] Validate search configured/unconfigured behavior.
-- [ ] Run targeted verification.
-- [ ] Run codex review after verification and before commit.
-- [ ] Commit.
+- [x] Port search/browse runtime tools.
+- [x] Add site icon route.
+- [x] Add search env docs.
+- [x] Validate search configured/unconfigured behavior.
+- [x] Run targeted verification.
+- [x] Run codex review after verification and before commit.
+- [x] Commit.
 
 ### Loop 5: Thread Management UI, Share API, And Public Share View
 

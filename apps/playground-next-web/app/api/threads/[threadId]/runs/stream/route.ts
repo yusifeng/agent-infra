@@ -46,7 +46,7 @@ async function writeSseEvent(
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ threadId: string }> }) {
-  const { getPlaygroundRuntimeServices } = await import('@/lib/playground-services');
+  const { getPlaygroundRuntimeServices, isPlaygroundWebSearchConfigured } = await import('@/lib/playground-services');
 
   const { threadId } = await params;
   const turnInput = parseRunTextTurnInput((await req.json().catch(() => ({}))) as RunTextTurnRequestDto);
@@ -58,6 +58,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
   let started;
   let services: Awaited<ReturnType<typeof getPlaygroundRuntimeServices>>;
   try {
+    if (turnInput.webSearchEnabled && !isPlaygroundWebSearchConfigured()) {
+      return Response.json(
+        buildRunTextTurnErrorResponse(
+          new Error('Web search is unavailable because TAVILY_API_KEY is not configured.'),
+          'failed to stream thread turn'
+        ),
+        { status: 503 }
+      );
+    }
+
     services = await getPlaygroundRuntimeServices();
     const { catalogRow } = await loadAccessibleThread(services, threadId, auth.user.id);
     const runtimeBinding = await resolveThreadRuntimeBinding(services, threadId, catalogRow);
@@ -67,7 +77,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
       provider: runtimeBinding?.provider ?? turnInput.provider,
       model: runtimeBinding?.model ?? turnInput.model,
       thinkingEnabled: turnInput.thinkingEnabled,
-      reasoningEffort: turnInput.reasoningEffort
+      reasoningEffort: turnInput.reasoningEffort,
+      webSearchEnabled: turnInput.webSearchEnabled
     });
     await bindRuntimeIfUnset(services, threadId, started.runtimeSelection);
   } catch (error) {
@@ -130,7 +141,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
     provider: started.runtimeSelection.provider,
     model: started.runtimeSelection.model,
     thinkingEnabled: turnInput.thinkingEnabled,
-    reasoningEffort: turnInput.reasoningEffort
+    reasoningEffort: turnInput.reasoningEffort,
+    webSearchEnabled: turnInput.webSearchEnabled
   };
 
   void (async () => {

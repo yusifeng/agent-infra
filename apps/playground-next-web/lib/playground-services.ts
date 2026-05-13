@@ -12,6 +12,10 @@ type PlaygroundRuntimeServices = PlaygroundAppServices & {
   durableRuntime: RuntimePiRuntime;
 };
 
+export function isPlaygroundWebSearchConfigured() {
+  return Boolean(process.env.TAVILY_API_KEY?.trim());
+}
+
 let playgroundRuntimeServicesPromise: Promise<PlaygroundRuntimeServices> | null = null;
 
 function mapRuntimePiConfigError(error: unknown) {
@@ -33,8 +37,39 @@ async function buildPlaygroundRuntimeServices(): Promise<PlaygroundRuntimeServic
   const base = await getPlaygroundBaseServices();
 
   const durableRuntime = createLazyPiRuntime(async () => {
+    const [
+      { TavilySearchProvider },
+      { createRunSearchPlannerState },
+      { createPolicyAwareSearchWebTool, resolveSearchPlannerMode },
+      { createOpenUrlTool }
+    ] = await Promise.all([
+      import('@/search/tavily-provider'),
+      import('@/tools/search-planner'),
+      import('@/tools/search-web-with-policy'),
+      import('@/tools/open-url')
+    ]);
+    const tavilyApiKey = process.env.TAVILY_API_KEY?.trim();
+
     return {
-      tools: () => []
+      tools: (context) => {
+        if (!context.webSearchEnabled || !tavilyApiKey) {
+          return [];
+        }
+
+        const plannerState = createRunSearchPlannerState(resolveSearchPlannerMode(context.model));
+
+        return [
+          createPolicyAwareSearchWebTool({
+            plannerState,
+            provider: new TavilySearchProvider({
+              apiKey: tavilyApiKey
+            })
+          }),
+          createOpenUrlTool({
+            plannerState
+          })
+        ];
+      }
     };
   });
 

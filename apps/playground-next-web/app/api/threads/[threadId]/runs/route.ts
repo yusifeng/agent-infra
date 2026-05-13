@@ -41,7 +41,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ threadId
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ threadId: string }> }) {
-  const { getPlaygroundRuntimeServices } = await import('@/lib/playground-services');
+  const { getPlaygroundRuntimeServices, isPlaygroundWebSearchConfigured } = await import('@/lib/playground-services');
   const { threadId } = await params;
   const input = parseRunTextTurnInput((await req.json().catch(() => ({}))) as RunTextTurnRequestDto);
   const auth = await requirePlaygroundUser(req);
@@ -50,6 +50,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
   }
 
   try {
+    if (input.webSearchEnabled && !isPlaygroundWebSearchConfigured()) {
+      return Response.json(
+        buildRunTextTurnErrorResponse(
+          new Error('Web search is unavailable because TAVILY_API_KEY is not configured.'),
+          'failed to run thread turn'
+        ),
+        { status: 503 }
+      );
+    }
+
     const services = await getPlaygroundRuntimeServices();
     const { app } = services;
     const { catalogRow } = await loadAccessibleThread(services, threadId, auth.user.id);
@@ -60,7 +70,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
       provider: runtimeBinding?.provider ?? input.provider,
       model: runtimeBinding?.model ?? input.model,
       thinkingEnabled: input.thinkingEnabled,
-      reasoningEffort: input.reasoningEffort
+      reasoningEffort: input.reasoningEffort,
+      webSearchEnabled: input.webSearchEnabled
     });
     await bindRuntimeIfUnset(services, threadId, {
       provider: result.run.provider,
