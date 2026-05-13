@@ -6,6 +6,22 @@ function normalizeBaseUrl(value) {
   return value.replace(/\/+$/, '');
 }
 
+function mergeHeaders(...headersList) {
+  const headers = new Headers();
+
+  for (const headersLike of headersList) {
+    if (!headersLike) {
+      continue;
+    }
+
+    new Headers(headersLike).forEach((value, key) => {
+      headers.set(key, value);
+    });
+  }
+
+  return headers;
+}
+
 function splitSseFrames(buffer) {
   return buffer.replace(/\r\n/g, '\n').split('\n\n');
 }
@@ -38,6 +54,58 @@ async function fetchJson(url, init) {
   }
 
   return JSON.parse(text);
+}
+
+function getSetCookieHeaders(response) {
+  if (typeof response.headers.getSetCookie === 'function') {
+    return response.headers.getSetCookie();
+  }
+
+  const header = response.headers.get('set-cookie');
+  return header ? [header] : [];
+}
+
+function toCookieHeader(setCookieHeaders) {
+  return setCookieHeaders
+    .map((value) => value.split(';')[0]?.trim())
+    .filter(Boolean)
+    .join('; ');
+}
+
+async function signInForSmoke(baseUrl) {
+  const email = process.env.PLAYGROUND_NEXT_WEB_SMOKE_EMAIL;
+  const password = process.env.PLAYGROUND_NEXT_WEB_SMOKE_PASSWORD;
+
+  if (!email || !password) {
+    return null;
+  }
+
+  const url = `${baseUrl}/api/auth/sign-in`;
+  let response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: baseUrl
+      },
+      body: JSON.stringify({ email, password })
+    });
+  } catch (error) {
+    throw toRequestError('POST', url, error);
+  }
+
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`POST ${url} failed with ${response.status}: ${text}`);
+  }
+
+  const cookieHeader = toCookieHeader(getSetCookieHeaders(response));
+  if (!cookieHeader) {
+    throw new Error('Smoke sign-in succeeded without a session cookie');
+  }
+
+  return cookieHeader;
 }
 
 async function fetchText(url, init) {
@@ -140,16 +208,21 @@ async function main() {
     throw new Error(`Expected db mode ${expectedDbMode}, received ${meta.dbMode}`);
   }
 
-  const initialThreads = await fetchJson(`${baseUrl}/api/threads`);
+  const cookieHeader = await signInForSmoke(baseUrl);
+  const authHeaders = cookieHeader ? { cookie: cookieHeader } : undefined;
+
+  const initialThreads = await fetchJson(`${baseUrl}/api/threads`, {
+    headers: authHeaders
+  });
   if (!Array.isArray(initialThreads.threads)) {
     throw new Error('Expected /api/threads to return a threads array');
   }
 
   const created = await fetchJson(`${baseUrl}/api/threads`, {
     method: 'POST',
-    headers: {
+    headers: mergeHeaders(authHeaders, {
       'content-type': 'application/json'
-    },
+    }),
     body: JSON.stringify({
       title: `${threadTitle} ${new Date().toISOString()}`
     })
@@ -160,13 +233,15 @@ async function main() {
     throw new Error(`Expected thread id in create response: ${JSON.stringify(created)}`);
   }
 
-  await fetchText(`${baseUrl}/chat/${encodeURIComponent(threadId)}`);
+  await fetchText(`${baseUrl}/chat/${encodeURIComponent(threadId)}`, {
+    headers: authHeaders
+  });
 
   const events = await collectSseEvents(`${baseUrl}/api/threads/${threadId}/runs/stream`, {
     method: 'POST',
-    headers: {
+    headers: mergeHeaders(authHeaders, {
       'content-type': 'application/json'
-    },
+    }),
     body: JSON.stringify({
       text: prompt
     })
@@ -187,7 +262,9 @@ async function main() {
     throw new Error(`Expected run.completed in SSE stream, received ${eventTypes.join(', ')}`);
   }
 
-  const messagesResponse = await fetchJson(`${baseUrl}/api/threads/${threadId}/messages`);
+  const messagesResponse = await fetchJson(`${baseUrl}/api/threads/${threadId}/messages`, {
+    headers: authHeaders
+  });
   const userMessage = messagesResponse.messages?.find((message) => message.role === 'user');
   const assistantMessage = messagesResponse.messages?.find((message) => message.role === 'assistant');
   const assistantText = assistantMessage ? extractMessageText(assistantMessage) : '';
@@ -204,6 +281,7 @@ async function main() {
     JSON.stringify(
       {
         assistantPreview: assistantText.slice(0, 120),
+        authenticated: Boolean(cookieHeader),
         dbMode: meta.dbMode,
         eventTypes,
         threadId

@@ -59,7 +59,7 @@ Loop 0 decision:
 - [x] Decide whether auth/thread-catalog code is copied into Next host-local modules.
 - [x] Decide whether auth/thread-catalog code moves to an explicitly playground-owned host adapter.
 - [x] Keep playground host adapter code separate from durable platform packages.
-- [ ] Define a shared current-user helper for Next route handlers.
+- [x] Define a shared current-user helper for Next route handlers.
 - [ ] Define unauthorized behavior per route type.
 - [x] Preserve `GET /api/auth/me` behavior: unauthenticated returns `{ user: null }`.
 
@@ -72,10 +72,10 @@ Loop 0 decision:
 
 ### 1.3 Data Model And Bootstrap
 
-- [ ] Update Next explicit bootstrap to prepare durable schema.
-- [ ] Update Next explicit bootstrap to prepare auth schema.
-- [ ] Update Next explicit bootstrap to prepare thread catalog schema.
-- [ ] Confirm Turso/SQLite bootstrap behavior stays explicit, not implicit inside user-facing requests.
+- [x] Update Next explicit bootstrap to prepare durable schema.
+- [x] Update Next explicit bootstrap to prepare auth schema.
+- [x] Update Next explicit bootstrap to prepare thread catalog schema.
+- [x] Confirm Turso/SQLite bootstrap behavior stays explicit, not implicit inside user-facing requests.
 - [ ] Confirm auth/session tables work in the selected remote DB mode.
 - [ ] Confirm thread catalog projection can be built from durable thread plus catalog row.
 
@@ -118,15 +118,15 @@ Loop 0 decision:
 
 ### 2.1 Next Auth Host
 
-- [ ] Add Next auth route handlers matching Fastify semantics.
-- [ ] Adapt auth cookies to Next `Request` / `NextResponse`.
-- [ ] Preserve production cookie name and secure cookie behavior.
-- [ ] Preserve origin checks.
-- [ ] Define rate-limit strategy for Next/Vercel.
-- [ ] Preserve client IP and user-agent capture for auth events.
-- [ ] Add `argon2` dependency if auth password hashing is hosted in Next.
-- [ ] Add `resend` dependency if auth email sending is hosted in Next.
-- [ ] Verify native dependency packaging for Vercel.
+- [x] Add Next auth route handlers matching Fastify semantics.
+- [x] Adapt auth cookies to Next `Request` / `NextResponse`.
+- [x] Preserve production cookie name and secure cookie behavior.
+- [x] Preserve origin checks.
+- [x] Define rate-limit strategy for Next/Vercel.
+- [x] Preserve client IP and user-agent capture for auth events.
+- [x] Add `argon2` dependency if auth password hashing is hosted in Next.
+- [x] Add `resend` dependency if auth email sending is hosted in Next.
+- [x] Verify native dependency packaging for Vercel.
 
 ### 2.2 Thread Catalog And Protected APIs
 
@@ -177,10 +177,10 @@ Loop 0 decision:
 
 ### 2.6 Vercel / Env / Config
 
-- [ ] Update `.env.example` for auth env.
+- [x] Update `.env.example` for auth env.
 - [ ] Update `.env.example` for search env.
-- [ ] Update Vercel runbook for auth env.
-- [ ] Update Vercel runbook for origin allowlist.
+- [x] Update Vercel runbook for auth env.
+- [x] Update Vercel runbook for origin allowlist.
 - [ ] Define Node runtime requirements for route handlers.
 - [ ] Define function duration assumptions for stream routes.
 - [ ] Keep attach-stream caveat visible until external state exists.
@@ -197,9 +197,9 @@ Loop 0 decision:
 ### 3.1 Routing
 
 - [ ] Map `/` to `/new`.
-- [ ] Add `/login`.
-- [ ] Add `/register`.
-- [ ] Add `/forgot-password`.
+- [x] Add `/login`.
+- [x] Add `/register`.
+- [x] Add `/forgot-password`.
 - [ ] Keep `/new`.
 - [ ] Keep `/chat/[threadId]`.
 - [ ] Add `/share/[publicId]`.
@@ -209,13 +209,13 @@ Loop 0 decision:
 
 ### 3.2 Auth UI
 
-- [ ] Port login form.
-- [ ] Port register form.
-- [ ] Port forgot-password form.
-- [ ] Port auth loading state.
+- [x] Port login form.
+- [x] Port register form.
+- [x] Port forgot-password form.
+- [x] Port auth loading state.
 - [ ] Port protected route redirect behavior.
 - [ ] Port logout behavior.
-- [ ] Preserve `next` redirect query semantics.
+- [x] Preserve `next` redirect query semantics.
 
 ### 3.3 Chat UI
 
@@ -258,7 +258,7 @@ Loop 0 decision:
 
 ### 4.2 Test Strategy
 
-- [ ] Add route/helper tests when auth helpers are introduced.
+- [x] Add route/helper tests when auth helpers are introduced.
 - [ ] Add protected route tests for thread access.
 - [ ] Add runtime binding tests.
 - [ ] Add stream hub / attach route tests.
@@ -314,16 +314,16 @@ Loop 0 decisions:
 
 ### Loop 1: Auth, Session, Bootstrap, Env, And Smoke
 
-- [ ] Add auth routes.
-- [ ] Add auth pages.
-- [ ] Add cookie/session adapter.
-- [ ] Add complete explicit bootstrap.
-- [ ] Update env docs.
-- [ ] Update auth-aware smoke.
-- [ ] Add tests where feasible.
-- [ ] Run targeted verification.
-- [ ] Run codex review after verification and before commit.
-- [ ] Commit.
+- [x] Add auth routes.
+- [x] Add auth pages.
+- [x] Add cookie/session adapter.
+- [x] Add complete explicit bootstrap.
+- [x] Update env docs.
+- [x] Update auth-aware smoke.
+- [x] Add tests where feasible.
+- [x] Run targeted verification.
+- [x] Run codex review after verification and before commit.
+- [x] Commit.
 
 ### Loop 2: User-Scoped Thread Catalog, Runtime Binding, And Protected APIs
 

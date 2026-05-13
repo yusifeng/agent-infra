@@ -57,14 +57,21 @@ Optional:
 
 - `OPENAI_MODEL`
 
-Planned auth/search migration will add more required or optional variables.
-Before enabling auth-gated thread routes in `playground-next-web`, update this
-runbook and `.env.example` for the chosen Next auth host boundary, including:
+Host auth routes are now present in `playground-next-web`.
+Set these before relying on sign-up, sign-in, or password reset in a deployed
+environment:
 
 - `AUTH_CODE_SECRET`
 - `AUTH_ALLOWED_ORIGINS`
 - `RESEND_API_KEY`
 - `AUTH_EMAIL_FROM`
+
+`AUTH_CODE_SECRET` is required in production. `AUTH_ALLOWED_ORIGINS` must include
+the deployed origin that posts to auth write routes, such as the production
+domain and any preview domain used for manual validation.
+
+Search migration will add:
+
 - `TAVILY_API_KEY` if search/browse tools are enabled
 
 If the runtime env is missing or invalid, `GET /api/meta` should expose:
@@ -76,7 +83,8 @@ That endpoint is the fastest health signal before trying a real chat turn.
 
 ## Explicit database bootstrap
 
-`playground-next-web` no longer bootstraps schema inside a user-facing request.
+The playground host auth and thread-catalog tables are prepared by the explicit
+bootstrap command.
 
 Use the explicit command when you need to prepare a brand-new database:
 
@@ -84,8 +92,8 @@ Use the explicit command when you need to prepare a brand-new database:
 pnpm --filter playground-next-web bootstrap:db
 ```
 
-For an already-used Turso database, this is usually not required again.
-If the same Turso instance is already serving local or deployed traffic, the schema is most likely already present.
+For an already-used Turso database, this is usually not required again unless a
+new host table or column has been introduced.
 
 ## Recommended local commands before deploy
 
@@ -139,6 +147,14 @@ In that case:
 Optional checks:
 
 - `PLAYGROUND_NEXT_WEB_EXPECT_DB_MODE=turso`
+- `PLAYGROUND_NEXT_WEB_SMOKE_EMAIL`
+- `PLAYGROUND_NEXT_WEB_SMOKE_PASSWORD`
+
+When both smoke auth variables are set, the smoke signs in through
+`POST /api/auth/sign-in` and reuses the returned session cookie for the thread,
+stream, and message checks. When they are absent, it keeps the pre-auth anonymous
+flow so current deployments can still be validated before `/api/threads` is
+session-gated.
 
 The smoke validates:
 
@@ -148,11 +164,8 @@ The smoke validates:
 - `runs/stream`
 - persisted user and assistant messages
 
-This smoke currently represents the pre-auth deployment path. Once
-`playground-next-web` ports the Vite/Fastify auth model, the smoke must become
-auth-aware in the same slice that gates `/api/threads`. Do not leave the smoke as
-an anonymous `/api/threads -> create -> stream -> messages` flow after thread
-routes require a session.
+Before `/api/threads` is session-gated, configure the smoke auth variables for
+the target deployment and keep this command green with an authenticated session.
 
 Preview deployments may still be protected by Vercel Authentication.
 If so, use a production domain or an otherwise reachable deployment URL for the smoke command.

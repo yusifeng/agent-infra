@@ -2,6 +2,9 @@ import path from 'node:path';
 
 import { createDbConfigFromEnv } from '@agent-infra/db';
 
+import { bootstrapPlaygroundAuthSchema } from '../features/auth/repo/schema';
+import { bootstrapPlaygroundThreadCatalog } from '../features/thread-catalog/repo/schema';
+
 const repoRoot = path.resolve(import.meta.dirname, '../../..');
 const nextWebAppRoot = path.resolve(import.meta.dirname, '..');
 const envRoots = [nextWebAppRoot, repoRoot];
@@ -18,7 +21,7 @@ function buildEnvFilenames() {
 }
 
 function loadEnvFiles() {
-  const loadedFiles = [];
+  const loadedFiles: string[] = [];
 
   for (const root of envRoots) {
     for (const filename of buildEnvFilenames()) {
@@ -37,7 +40,10 @@ function loadEnvFiles() {
 
 const envFiles = loadEnvFiles();
 const dbConfig = createDbConfigFromEnv();
+
 await dbConfig.bootstrapSchema();
+await bootstrapPlaygroundAuthSchema(dbConfig);
+await bootstrapPlaygroundThreadCatalog(dbConfig);
 
 console.log(
   JSON.stringify(

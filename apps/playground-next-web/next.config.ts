@@ -18,11 +18,12 @@ const nextConfig: NextConfig = {
       '../../packages/runtime-pi/node_modules/@mariozechner/pi-ai/**/*'
     ]
   },
-  serverExternalPackages: ['better-sqlite3'],
+  serverExternalPackages: ['better-sqlite3', 'argon2'],
   webpack: (config, { isServer }) => {
     if (isServer) {
       config.externals ??= [];
       config.externals.push({ 'better-sqlite3': 'commonjs better-sqlite3' });
+      config.externals.push({ argon2: 'commonjs argon2' });
     }
     return config;
   }
