@@ -32,7 +32,7 @@ export function createPlaygroundAuthConfigFromEnv(): PlaygroundAuthConfig {
     .filter(Boolean);
 
   return {
-    codeSecret: authCodeSecret || 'playground-next-dev-auth-code-secret',
+    codeSecret: authCodeSecret || 'playground-fastify-dev-auth-code-secret',
     sessionTtlMs: 1000 * 60 * 60 * 24 * 30,
     signupCodeTtlMs: 1000 * 60 * 10,
     signupCodeCooldownMs: 1000 * 60,
