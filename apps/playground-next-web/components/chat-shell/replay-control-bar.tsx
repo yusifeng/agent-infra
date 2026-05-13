@@ -1,57 +1,92 @@
 'use client';
 
 import clsx from 'clsx';
-import { Pause, Play, RotateCcw, SkipForward } from 'lucide-react';
+import { Pause, Play, RotateCcw } from 'lucide-react';
 
-import { IconButton } from './shared';
-import { ui } from './ui';
-
-type ReplayStatus = 'idle' | 'playing' | 'paused' | 'completed';
+import type { ReplayControlState, ReplayViewState } from '@/features/durable-chat/types/replay';
+import { composerMaxWithTW, ui } from './ui';
 
 type ReplayControlBarProps = {
-  currentStep: number;
-  totalSteps: number;
-  status: ReplayStatus;
-  onPause: () => void;
+  controlState: ReplayControlState;
+  viewState: ReplayViewState;
   onPlay: () => void;
-  onRestart: () => void;
+  onPause: () => void;
   onResume: () => void;
-  onStepForward: () => void;
+  onRestart: () => void;
 };
 
-export function ReplayControlBar({
-  currentStep,
-  totalSteps,
-  status,
-  onPause,
-  onPlay,
-  onRestart,
-  onResume,
-  onStepForward
-}: ReplayControlBarProps) {
-  const progress = totalSteps === 0 ? 0 : Math.min(Math.max(currentStep + 1, 0), totalSteps);
-
+function ReplayControlButton({
+  label,
+  disabled,
+  onClick,
+  icon
+}: {
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+}) {
   return (
-    <div className="shrink-0 border-t border-slate-200 bg-white/90 px-4 py-3 backdrop-blur">
-      <div className={clsx('mx-auto flex max-w-[840px] items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2', ui.secondarySurface)}>
-        <div className="min-w-0 text-sm text-slate-600">
-          <span className="font-medium text-slate-900">{progress}</span>
-          <span className="text-slate-400"> / </span>
-          <span>{totalSteps}</span>
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={clsx(
+        'inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm transition',
+        disabled
+          ? 'cursor-not-allowed border-[color:var(--chat-border)] text-[color:var(--chat-text-tertiary)] opacity-60'
+          : 'border-[color:var(--chat-border)] bg-[var(--chat-surface)] text-[color:var(--chat-text-secondary)] hover:border-[color:var(--chat-border-strong)] hover:text-[color:var(--chat-text)]'
+      )}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+}
+
+export function ReplayControlBar({
+  controlState,
+  viewState,
+  onPlay,
+  onPause,
+  onResume,
+  onRestart
+}: ReplayControlBarProps) {
+  return (
+    <div className={clsx('sticky bottom-0 z-10 border-t border-[color:var(--chat-border)] px-4 py-3', ui.composerDock)}>
+      <div className={clsx(`${composerMaxWithTW} mx-auto flex items-center justify-between gap-4 rounded-xl px-4 py-3`, ui.composerCard)}>
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-[color:var(--chat-text)]">对话重放</div>
+          <div className="text-xs text-[color:var(--chat-text-secondary)]">
+            {viewState.progressLabel} · {viewState.status}
+          </div>
         </div>
-        <div className="flex items-center gap-1">
-          <IconButton icon={RotateCcw} onClick={onRestart} title="重新播放" disabled={totalSteps === 0} />
-          {status === 'playing' ? (
-            <IconButton icon={Pause} onClick={onPause} title="暂停" disabled={totalSteps === 0} />
-          ) : (
-            <IconButton
-              icon={Play}
-              onClick={status === 'paused' ? onResume : onPlay}
-              title={status === 'paused' ? '继续' : '播放'}
-              disabled={totalSteps === 0 || status === 'completed'}
-            />
-          )}
-          <IconButton icon={SkipForward} onClick={onStepForward} title="下一步" disabled={totalSteps === 0 || status === 'completed'} />
+
+        <div className="flex shrink-0 items-center gap-2">
+          <ReplayControlButton
+            disabled={!controlState.canPlay}
+            icon={<Play className="h-4 w-4" />}
+            label="播放"
+            onClick={onPlay}
+          />
+          <ReplayControlButton
+            disabled={!controlState.canPause}
+            icon={<Pause className="h-4 w-4" />}
+            label="暂停"
+            onClick={onPause}
+          />
+          <ReplayControlButton
+            disabled={!controlState.canResume}
+            icon={<Play className="h-4 w-4" />}
+            label="继续"
+            onClick={onResume}
+          />
+          <ReplayControlButton
+            disabled={!controlState.canRestart}
+            icon={<RotateCcw className="h-4 w-4" />}
+            label="重播"
+            onClick={onRestart}
+          />
         </div>
       </div>
     </div>

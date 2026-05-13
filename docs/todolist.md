@@ -105,7 +105,7 @@ Source analysis:
 - [x] Define how live assistant drafts feed Vite-style transcript projection.
 - [x] Define how tool calls/results become user-facing Vite presentation instead of raw JSON cards.
 - [x] Define SearchResultsPanel data inputs from persisted messages, timeline/tool data, and public snapshots.
-- [ ] Define replay step model parity with Vite replay runtime.
+- [x] Define replay step model parity with Vite replay runtime.
 - [x] Define public share snapshot presentation parity with Vite shared snapshot console.
 
 ## 2. Backend / Platform Boundary
@@ -126,7 +126,7 @@ Source analysis:
 - [x] Confirm quick/expert mode UI can map to current model/reasoning controls.
 - [x] Confirm thread row actions can call current rename/archive/pin/share routes.
 - [x] Confirm public share can load all data needed for Vite shared snapshot presentation.
-- [ ] Confirm replay can load all data needed for Vite replay presentation.
+- [x] Confirm replay can load all data needed for Vite replay presentation.
 - [x] Confirm auth pages can preserve existing Next cookie/session behavior while matching Vite UI.
 
 ## 3. Frontend Implementation Boundary
@@ -192,11 +192,11 @@ Source analysis:
 
 ### 3.6 Replay UI
 
-- [ ] Replace simplified raw-message cursor replay with Vite-equivalent replay presentation.
-- [ ] Port replay runtime/view-state concepts needed by Vite UI.
-- [ ] Port replay control bar visual and interaction states.
-- [ ] Port reasoning/search/tool replay presentation.
-- [ ] Preserve Next route/data loading while matching Vite UI.
+- [x] Replace simplified raw-message cursor replay with Vite-equivalent replay presentation.
+- [x] Port replay runtime/view-state concepts needed by Vite UI.
+- [x] Port replay control bar visual and interaction states.
+- [x] Port reasoning/search/tool replay presentation.
+- [x] Preserve Next route/data loading while matching Vite UI.
 
 ### 3.7 Public Share UI
 
@@ -248,7 +248,7 @@ Source analysis:
 - [x] Use at least one real thread or fixture containing markdown, code, reasoning, search, and tool result data for rich transcript verification.
 - [x] Verify search results panel.
 - [x] Verify rename/archive/share dialogs.
-- [ ] Verify `/replay/:threadId` desktop and mobile.
+- [x] Verify `/replay/:threadId` desktop and mobile.
 - [x] Verify `/share/:publicId` desktop and mobile.
 
 ### 4.4 Review And Commit Gates
@@ -340,14 +340,14 @@ Source analysis:
 
 ### Loop 6: Replay UI Parity
 
-- [ ] Port Vite replay runtime/view presentation needed by Next.
-- [ ] Port replay controls.
-- [ ] Port replay message/search/reasoning rendering.
-- [ ] Preserve Next route/data boundaries.
-- [ ] Browser-verify Vite baseline vs Next target for `/replay/:threadId` desktop and mobile.
-- [ ] Run targeted verification.
-- [ ] Run codex review after verification and before commit.
-- [ ] Commit.
+- [x] Port Vite replay runtime/view presentation needed by Next.
+- [x] Port replay controls.
+- [x] Port replay message/search/reasoning rendering.
+- [x] Preserve Next route/data boundaries.
+- [x] Browser-verify Vite baseline vs Next target for `/replay/:threadId` desktop and mobile.
+- [x] Run targeted verification.
+- [x] Run codex review after verification and before commit.
+- [x] Commit.
 
 ### Loop 7: Final UI Parity Audit
 
