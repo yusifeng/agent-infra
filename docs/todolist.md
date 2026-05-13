@@ -82,12 +82,12 @@ Source analysis:
 
 ### 1.3 Auth UI Definitions
 
-- [ ] Define Next adaptations for Vite `LoginForm`, `RegisterForm`, and `ForgotPasswordForm` with the same user-visible UI and interactions.
-- [ ] Define Next adaptation for Vite auth page shell background, logo, and centered layout with the same user-visible UI.
-- [ ] Define Next adaptation for Vite `useEmailCodeCooldown` with the same user-visible cooldown behavior.
-- [ ] Define auth error-code-to-Chinese-message mapping.
-- [ ] Define reset-password success notice behavior in Next without React Router state.
-- [ ] Preserve safe `next` query semantics and reject protocol-relative redirects.
+- [x] Define Next adaptations for Vite `LoginForm`, `RegisterForm`, and `ForgotPasswordForm` with the same user-visible UI and interactions.
+- [x] Define Next adaptation for Vite auth page shell background, logo, and centered layout with the same user-visible UI.
+- [x] Define Next adaptation for Vite `useEmailCodeCooldown` with the same user-visible cooldown behavior.
+- [x] Define auth error-code-to-Chinese-message mapping.
+- [x] Define reset-password success notice behavior in Next without React Router state.
+- [x] Preserve safe `next` query semantics and reject protocol-relative redirects.
 
 ### 1.4 Chat UI Definitions
 
@@ -127,7 +127,7 @@ Source analysis:
 - [ ] Confirm thread row actions can call current rename/archive/pin/share routes.
 - [ ] Confirm public share can load all data needed for Vite shared snapshot presentation.
 - [ ] Confirm replay can load all data needed for Vite replay presentation.
-- [ ] Confirm auth pages can preserve existing Next cookie/session behavior while matching Vite UI.
+- [x] Confirm auth pages can preserve existing Next cookie/session behavior while matching Vite UI.
 
 ## 3. Frontend Implementation Boundary
 
@@ -146,17 +146,17 @@ Source analysis:
 
 ### 3.2 Auth UI
 
-- [ ] Port Vite auth shell background and centered layout.
-- [ ] Port `DeepseekLogo` or equivalent Vite logo component into Next.
-- [ ] Port login form visual structure and interactions.
-- [ ] Port register form visual structure and interactions.
-- [ ] Port forgot-password form visual structure and interactions.
-- [ ] Port password visibility toggles.
-- [ ] Port email-code cooldown behavior.
-- [ ] Port Chinese auth copy and error messages.
-- [ ] Preserve safe `next` redirect behavior.
-- [ ] Preserve reset-password success notice.
-- [ ] Remove temporary English auth UI.
+- [x] Port Vite auth shell background and centered layout.
+- [x] Port `DeepseekLogo` or equivalent Vite logo component into Next.
+- [x] Port login form visual structure and interactions.
+- [x] Port register form visual structure and interactions.
+- [x] Port forgot-password form visual structure and interactions.
+- [x] Port password visibility toggles.
+- [x] Port email-code cooldown behavior.
+- [x] Port Chinese auth copy and error messages.
+- [x] Preserve safe `next` redirect behavior.
+- [x] Preserve reset-password success notice.
+- [x] Remove temporary English auth UI.
 
 ### 3.3 Main Chat Shell
 
@@ -218,7 +218,7 @@ Source analysis:
 
 ### 4.2 Focused Tests
 
-- [ ] Add or update auth helper tests for safe `next` redirect behavior.
+- [x] Add or update auth helper tests for safe `next` redirect behavior.
 - [ ] Add or update auth UI behavior tests for login/register/forgot password where feasible.
 - [ ] Add or update email cooldown tests if cooldown hook is ported.
 - [ ] Add or update projection tests if transcript/search/replay presentation services are ported.
@@ -226,16 +226,16 @@ Source analysis:
 
 ### 4.3 Browser Verification
 
-- [ ] Capture or inspect the Vite baseline and the Next target for each verified page/state with the same viewport and comparable data.
-- [ ] Use desktop viewport `1440x900` for baseline parity checks unless a loop specifies otherwise.
-- [ ] Use mobile viewport `390x844` for baseline parity checks unless a loop specifies otherwise.
-- [ ] Verify `/login` desktop.
-- [ ] Verify `/login` mobile.
-- [ ] Verify `/register` desktop.
-- [ ] Verify `/register` mobile.
-- [ ] Verify `/forgot-password` desktop.
-- [ ] Verify `/forgot-password` mobile.
-- [ ] Verify auth empty state, submitting state, error state, password visible/hidden state, code before-send state, code cooldown state, code cooldown-ended state, and reset-success notice state.
+- [x] Capture or inspect the Vite baseline and the Next target for each verified page/state with the same viewport and comparable data.
+- [x] Use desktop viewport `1440x900` for baseline parity checks unless a loop specifies otherwise.
+- [x] Use mobile viewport `390x844` for baseline parity checks unless a loop specifies otherwise.
+- [x] Verify `/login` desktop.
+- [x] Verify `/login` mobile.
+- [x] Verify `/register` desktop.
+- [x] Verify `/register` mobile.
+- [x] Verify `/forgot-password` desktop.
+- [x] Verify `/forgot-password` mobile.
+- [x] Verify auth empty state, submitting state, error state, password visible/hidden state, code before-send state, code cooldown state, code cooldown-ended state, and reset-success notice state.
 - [ ] Verify `/new` desktop.
 - [ ] Verify `/new` mobile.
 - [ ] Verify `/chat/:threadId` desktop with a real thread.
@@ -275,18 +275,18 @@ Source analysis:
 
 ### Loop 1: Auth UI Parity
 
-- [ ] Port auth shell background, logo, and centered layout.
-- [ ] Port login form.
-- [ ] Port register form.
-- [ ] Port forgot-password form.
-- [ ] Port cooldown and password visibility interactions.
-- [ ] Preserve Next auth route calls and cookie/session behavior.
-- [ ] Preserve safe `next` redirect and reset success notice.
-- [ ] Browser-verify Vite baseline vs Next target for `/login`, `/register`, and `/forgot-password` on desktop and mobile.
-- [ ] Browser-verify auth empty, submitting, error, password visible/hidden, code before-send, code cooldown, code cooldown-ended, and reset-success notice states.
-- [ ] Run targeted verification.
-- [ ] Run codex review after verification and before commit.
-- [ ] Commit.
+- [x] Port auth shell background, logo, and centered layout.
+- [x] Port login form.
+- [x] Port register form.
+- [x] Port forgot-password form.
+- [x] Port cooldown and password visibility interactions.
+- [x] Preserve Next auth route calls and cookie/session behavior.
+- [x] Preserve safe `next` redirect and reset success notice.
+- [x] Browser-verify Vite baseline vs Next target for `/login`, `/register`, and `/forgot-password` on desktop and mobile.
+- [x] Browser-verify auth empty, submitting, error, password visible/hidden, code before-send, code cooldown, code cooldown-ended, and reset-success notice states.
+- [x] Run targeted verification.
+- [x] Run codex review after verification and before commit.
+- [x] Commit.
 
 ### Loop 2: Chat Shell Chrome Parity
 

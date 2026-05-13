@@ -1,8 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Eye, EyeOff } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
+
+import { DeepseekLogo } from '@/components/chat-shell/deepseek-logo';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { buildAuthHref, resolveSafeNextPath } from './auth-url';
 
 type AuthMode = 'login' | 'register' | 'forgot-password';
 
@@ -16,13 +23,48 @@ type AuthResponse = {
   error?: string;
 };
 
-function getSafeNextPath() {
-  const value = new URL(window.location.href).searchParams.get('next') ?? '/new';
-  if (!value.startsWith('/') || value.startsWith('//')) {
-    return '/new';
-  }
+const EMAIL_CODE_COOLDOWN_SECONDS = 60;
 
-  return value;
+function computeRemainingSeconds(cooldownEndsAt: number) {
+  return Math.max(0, Math.ceil((cooldownEndsAt - Date.now()) / 1000));
+}
+
+function useEmailCodeCooldown(durationSeconds: number) {
+  const [cooldownEndsAt, setCooldownEndsAt] = useState<number | null>(null);
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!cooldownEndsAt) {
+      setRemainingSeconds(0);
+      return;
+    }
+
+    const updateRemainingSeconds = () => {
+      const nextRemainingSeconds = computeRemainingSeconds(cooldownEndsAt);
+      setRemainingSeconds(nextRemainingSeconds);
+
+      if (nextRemainingSeconds === 0) {
+        setCooldownEndsAt(null);
+      }
+    };
+
+    updateRemainingSeconds();
+    const intervalId = window.setInterval(updateRemainingSeconds, 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [cooldownEndsAt]);
+
+  return {
+    remainingSeconds,
+    isCooldownActive: remainingSeconds > 0,
+    startCooldown() {
+      const nextCooldownEndsAt = Date.now() + durationSeconds * 1000;
+      setCooldownEndsAt(nextCooldownEndsAt);
+      setRemainingSeconds(durationSeconds);
+    }
+  };
 }
 
 async function postAuth(path: string, body: Record<string, string>) {
@@ -42,176 +84,267 @@ async function postAuth(path: string, body: Record<string, string>) {
   return payload;
 }
 
-function titleForMode(mode: AuthMode) {
-  if (mode === 'register') {
-    return 'Create account';
+function presentLoginError(error: string | null) {
+  switch (error) {
+    case 'INVALID_CREDENTIALS':
+      return '邮箱或密码不正确。';
+    case 'RATE_LIMITED':
+      return '请求过于频繁，请稍后再试。';
+    default:
+      return '登录失败，请稍后再试。';
   }
-
-  if (mode === 'forgot-password') {
-    return 'Reset password';
-  }
-
-  return 'Sign in';
 }
 
-function primaryActionForMode(mode: AuthMode) {
-  if (mode === 'register') {
-    return 'Create account';
+function presentRegisterError(error: string | null) {
+  switch (error) {
+    case 'INVALID_EMAIL':
+      return '请输入有效的邮箱地址。';
+    case 'EMAIL_ALREADY_REGISTERED':
+      return '该邮箱已经注册，请直接登录。';
+    case 'INVALID_CODE':
+      return '验证码不正确。';
+    case 'CODE_EXPIRED':
+      return '验证码已过期，请重新发送。';
+    case 'PASSWORD_TOO_SHORT':
+      return '密码至少需要 8 位。';
+    case 'RATE_LIMITED':
+      return '请求过于频繁，请稍后再试。';
+    case 'AUTH_EMAIL_UNAVAILABLE':
+      return '验证码邮件暂时发送失败，请稍后重试。';
+    default:
+      return '注册失败，请稍后再试。';
   }
+}
 
-  if (mode === 'forgot-password') {
-    return 'Reset password';
+function presentResetError(error: string | null) {
+  switch (error) {
+    case 'INVALID_EMAIL':
+      return '请输入有效的邮箱地址。';
+    case 'INVALID_CODE':
+      return '验证码不正确。';
+    case 'CODE_EXPIRED':
+      return '验证码已过期，请重新发送。';
+    case 'PASSWORD_TOO_SHORT':
+      return '密码至少需要 8 位。';
+    case 'RATE_LIMITED':
+      return '请求过于频繁，请稍后再试。';
+    default:
+      return '重置失败，请稍后再试。';
   }
-
-  return 'Sign in';
 }
 
 export function AuthForm({ mode }: AuthFormProps) {
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [code, setCode] = useState('');
-  const [pending, setPending] = useState(false);
-  const [codePending, setCodePending] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
+  const [notice, setNotice] = useState<string | null>(mode === 'login' && searchParams.get('reset') === '1' ? '密码已重置，请使用新密码登录。' : null);
   const [error, setError] = useState<string | null>(null);
+  const { remainingSeconds, isCooldownActive, startCooldown } = useEmailCodeCooldown(EMAIL_CODE_COOLDOWN_SECONDS);
+
+  const isLogin = mode === 'login';
+  const isRegister = mode === 'register';
+  const isForgotPassword = mode === 'forgot-password';
 
   async function requestCode() {
+    const emailInput = document.getElementById(`${mode}-email`) as HTMLInputElement | null;
+    if (emailInput && !emailInput.reportValidity()) {
+      return;
+    }
+
+    setSendingCode(true);
     setError(null);
-    setMessage(null);
-    setCodePending(true);
+    setNotice(null);
 
     try {
-      const path =
-        mode === 'forgot-password'
-          ? '/api/auth/email/request-password-reset-code'
-          : '/api/auth/email/request-signup-code';
+      const path = isForgotPassword
+        ? '/api/auth/email/request-password-reset-code'
+        : '/api/auth/email/request-signup-code';
       await postAuth(path, { email });
-      setMessage('Code sent.');
+      startCooldown();
+      setNotice(isForgotPassword ? '如果该邮箱已注册，我们已发送重置验证码。' : '验证码已发送，请检查邮箱。');
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'AUTH_REQUEST_FAILED');
+      const errorCode = requestError instanceof Error ? requestError.message : 'AUTH_REQUEST_FAILED';
+      if (errorCode === 'RATE_LIMITED') {
+        startCooldown();
+      }
+      setError(isForgotPassword ? presentResetError(errorCode) : presentRegisterError(errorCode));
     } finally {
-      setCodePending(false);
+      setSendingCode(false);
     }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    setMessage(null);
-    setPending(true);
+    setNotice(null);
+    setSubmitting(true);
 
     try {
-      if (mode === 'login') {
+      if (isLogin) {
         await postAuth('/api/auth/sign-in', { email, password });
-        window.location.assign(getSafeNextPath());
+        window.location.assign(resolveSafeNextPath(searchParams));
         return;
       }
 
-      if (mode === 'register') {
+      if (isRegister) {
         await postAuth('/api/auth/sign-up', { email, code, password });
-        window.location.assign(getSafeNextPath());
+        window.location.assign(resolveSafeNextPath(searchParams));
         return;
       }
 
       await postAuth('/api/auth/reset-password', { email, code, newPassword });
-      setMessage('Password reset. You can sign in now.');
+      window.location.assign(buildAuthHref('/login', searchParams, { reset: '1' }));
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'AUTH_REQUEST_FAILED');
+      const errorCode = submitError instanceof Error ? submitError.message : 'AUTH_REQUEST_FAILED';
+      setError(isLogin ? presentLoginError(errorCode) : isRegister ? presentRegisterError(errorCode) : presentResetError(errorCode));
     } finally {
-      setPending(false);
+      setSubmitting(false);
     }
   }
 
   return (
-    <main className="min-h-screen overflow-y-auto bg-[var(--chat-bg)] px-4 py-10 text-[var(--chat-text)]">
-      <section className="mx-auto flex min-h-[calc(100dvh-5rem)] w-full max-w-sm flex-col justify-center">
-        <div className="mb-8">
-          <p className="text-sm text-[var(--chat-muted)]">Agent Infra Playground</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-normal">{titleForMode(mode)}</h1>
-        </div>
+    <main className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(66,99,235,0.12),_transparent_20%),linear-gradient(180deg,_#ffffff_0%,_#fbfdff_52%,_#f5f8ff_100%)] px-6 py-10 text-slate-950">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,_rgba(90,140,255,0.05),_transparent_26%),radial-gradient(circle_at_82%_18%,_rgba(90,140,255,0.04),_transparent_24%),radial-gradient(circle_at_50%_100%,_rgba(148,163,184,0.06),_transparent_32%)]" />
+      <div className="relative mx-auto flex min-h-[calc(100vh-5rem)] max-w-[24rem] flex-col items-center justify-center">
+        <section className="w-full">
+          <div className="mb-10 flex flex-col items-center gap-3 text-center">
+            <DeepseekLogo className="h-auto w-[13.5rem]" title="Playground" />
+            <h1 className="sr-only">
+              {isLogin ? '登录到 Playground' : isRegister ? '注册你的 Playground 账号' : '重置 Playground 密码'}
+            </h1>
+          </div>
 
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <label className="block space-y-2">
-            <span className="text-sm text-[var(--chat-muted)]">Email</span>
-            <input
-              className="w-full rounded-md border border-[var(--chat-border)] bg-[var(--chat-surface)] px-3 py-2 text-sm outline-none focus:border-[var(--chat-accent)]"
-              autoComplete="email"
-              inputMode="email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              required
-            />
-          </label>
-
-          {mode !== 'login' ? (
-            <div className="flex items-end gap-2">
-              <label className="block flex-1 space-y-2">
-                <span className="text-sm text-[var(--chat-muted)]">Code</span>
-                <input
-                  className="w-full rounded-md border border-[var(--chat-border)] bg-[var(--chat-surface)] px-3 py-2 text-sm outline-none focus:border-[var(--chat-accent)]"
-                  autoComplete="one-time-code"
-                  value={code}
-                  onChange={(event) => setCode(event.target.value)}
-                  required
-                />
+          <form className="flex flex-col gap-3.5" onSubmit={handleSubmit}>
+            <div className="flex flex-col gap-3">
+              <label className="sr-only" htmlFor={`${mode}-email`}>
+                邮箱
               </label>
-              <button
-                className="h-10 rounded-md border border-[var(--chat-border)] px-3 text-sm text-[var(--chat-text)] disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={codePending || !email}
-                type="button"
-                onClick={requestCode}
-              >
-                {codePending ? 'Sending' : 'Send code'}
-              </button>
+              <Input
+                id={`${mode}-email`}
+                autoComplete="email"
+                className="h-[42px] rounded-full border-slate-200/80 bg-white/90 px-5 text-sm shadow-[0_8px_24px_rgba(148,163,184,0.08)] placeholder:text-slate-400 focus-visible:border-[#4263eb]/40 focus-visible:ring-[#4263eb]/20"
+                placeholder="请输入邮箱"
+                required
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+              />
             </div>
-          ) : null}
 
-          {mode === 'forgot-password' ? (
-            <label className="block space-y-2">
-              <span className="text-sm text-[var(--chat-muted)]">New password</span>
-              <input
-                className="w-full rounded-md border border-[var(--chat-border)] bg-[var(--chat-surface)] px-3 py-2 text-sm outline-none focus:border-[var(--chat-accent)]"
-                autoComplete="new-password"
-                type="password"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-                required
-              />
-            </label>
-          ) : (
-            <label className="block space-y-2">
-              <span className="text-sm text-[var(--chat-muted)]">Password</span>
-              <input
-                className="w-full rounded-md border border-[var(--chat-border)] bg-[var(--chat-surface)] px-3 py-2 text-sm outline-none focus:border-[var(--chat-accent)]"
-                autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                required
-              />
-            </label>
-          )}
+            {!isLogin ? (
+              <div className="flex flex-col gap-3">
+                <label className="sr-only" htmlFor={`${mode}-code`}>
+                  邮箱验证码
+                </label>
+                <div className="flex h-[42px] items-center rounded-full border border-slate-200/80 bg-white/90 pr-1.5 shadow-[0_8px_24px_rgba(148,163,184,0.08)] focus-within:border-[#4263eb]/40 focus-within:ring-3 focus-within:ring-[#4263eb]/20">
+                  <Input
+                    id={`${mode}-code`}
+                    autoComplete="one-time-code"
+                    className="h-full rounded-full border-0 bg-transparent px-5 text-sm shadow-none focus-visible:ring-0"
+                    placeholder="请输入验证码"
+                    required
+                    value={code}
+                    onChange={(event) => setCode(event.target.value)}
+                  />
+                  <div className="h-6 w-px bg-slate-200" />
+                  <Button
+                    className="h-[36px] shrink-0 rounded-full px-3.5 text-[13px] font-semibold text-[#4263eb] hover:bg-transparent hover:text-[#3458f4]"
+                    disabled={sendingCode || isCooldownActive}
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                    onClick={requestCode}
+                  >
+                    {sendingCode ? '发送中…' : isCooldownActive ? `${remainingSeconds}s` : '发送验证码'}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
 
-          {error ? <p className="text-sm text-red-400">{error}</p> : null}
-          {message ? <p className="text-sm text-[var(--chat-muted)]">{message}</p> : null}
+            <div className="flex flex-col gap-3">
+              <label className="sr-only" htmlFor={isForgotPassword ? 'forgot-password-new-password' : `${mode}-password`}>
+                {isForgotPassword ? '新密码' : '密码'}
+              </label>
+              <div className="relative">
+                <Input
+                  id={isForgotPassword ? 'forgot-password-new-password' : `${mode}-password`}
+                  autoComplete={isLogin ? 'current-password' : 'new-password'}
+                  className="h-[42px] rounded-full border-slate-200/80 bg-white/90 px-5 pr-12 text-sm shadow-[0_8px_24px_rgba(148,163,184,0.08)] placeholder:text-slate-400 focus-visible:border-[#4263eb]/40 focus-visible:ring-[#4263eb]/20"
+                  placeholder={isForgotPassword ? '请输入新密码' : '请输入密码'}
+                  required
+                  type={passwordVisible ? 'text' : 'password'}
+                  value={isForgotPassword ? newPassword : password}
+                  onChange={(event) => {
+                    if (isForgotPassword) {
+                      setNewPassword(event.target.value);
+                      return;
+                    }
+                    setPassword(event.target.value);
+                  }}
+                />
+                <Button
+                  aria-label={passwordVisible ? '隐藏密码' : '显示密码'}
+                  className="absolute inset-y-0 right-2 my-auto rounded-full text-slate-400 hover:bg-transparent hover:text-[#4263eb]"
+                  size="icon-sm"
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setPasswordVisible((value) => !value)}
+                >
+                  {passwordVisible ? <EyeOff className="size-4.5" /> : <Eye className="size-4.5" />}
+                </Button>
+              </div>
+            </div>
 
-          <button
-            className="h-10 w-full rounded-md bg-[var(--chat-accent)] px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={pending}
-            type="submit"
-          >
-            {pending ? 'Working' : primaryActionForMode(mode)}
-          </button>
-        </form>
+            {isRegister ? (
+              <p className="pt-1 text-center text-[12px] leading-5 text-slate-400">
+                注册登录即代表已阅读并同意我们的
+                <span className="mx-1 font-medium text-slate-500">用户协议</span>
+                与
+                <span className="ml-1 font-medium text-slate-500">隐私政策</span>
+              </p>
+            ) : null}
 
-        <nav className="mt-6 flex flex-wrap gap-x-4 gap-y-2 text-sm text-[var(--chat-muted)]">
-          {mode !== 'login' ? <Link href="/login">Sign in</Link> : null}
-          {mode !== 'register' ? <Link href="/register">Create account</Link> : null}
-          {mode !== 'forgot-password' ? <Link href="/forgot-password">Forgot password</Link> : null}
-        </nav>
-      </section>
+            {notice ? <p className="text-center text-[13px] text-emerald-700">{notice}</p> : null}
+            {error ? <p className="text-center text-[13px] text-rose-600">{error}</p> : null}
+
+            <Button
+              className="mt-2 h-[42px] rounded-full bg-[linear-gradient(135deg,#4c6fff_0%,#3458f4_100%)] text-sm font-semibold text-white shadow-[0_16px_32px_rgba(76,111,255,0.24)] hover:brightness-105"
+              disabled={submitting}
+              size="lg"
+              type="submit"
+            >
+              {submitting ? (isLogin ? '登录中…' : isRegister ? '注册中…' : '重置中…') : isLogin ? '登录' : isRegister ? '完成注册' : '重置密码'}
+            </Button>
+
+            {isLogin ? (
+              <div className="-mt-1 flex justify-end">
+                <Link className="text-[13px] font-medium text-slate-500 hover:text-[#4263eb]" href={buildAuthHref('/forgot-password', searchParams)}>
+                  忘记密码？
+                </Link>
+              </div>
+            ) : null}
+
+            <div className="flex items-center gap-4 pt-3 text-[13px] text-slate-400">
+              <div className="h-px flex-1 bg-slate-200/80" />
+              <p className="shrink-0 text-slate-500">
+                {isLogin ? '还没有账号？' : isRegister ? '已有账号？' : '想起密码了？'}
+                <Link
+                  className="ml-1 font-medium text-[#4263eb] hover:text-[#3458f4]"
+                  href={buildAuthHref(isLogin ? '/register' : '/login', searchParams)}
+                >
+                  {isLogin ? '去注册' : '去登录'}
+                </Link>
+              </p>
+              <div className="h-px flex-1 bg-slate-200/80" />
+            </div>
+          </form>
+        </section>
+      </div>
     </main>
   );
 }

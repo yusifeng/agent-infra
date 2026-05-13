@@ -1,5 +1,11 @@
+import { Suspense } from 'react';
+
 import { AuthForm } from '../auth-form';
 
 export default function ForgotPasswordPage() {
-  return <AuthForm mode="forgot-password" />;
+  return (
+    <Suspense fallback={null}>
+      <AuthForm mode="forgot-password" />
+    </Suspense>
+  );
 }
