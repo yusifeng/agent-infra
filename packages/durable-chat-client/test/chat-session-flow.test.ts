@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { runRefreshMeta } from '../src/runtime/chat-session-flow';
+import { runInitializeRuntime, runRefreshMeta } from '../src/runtime/chat-session-flow';
 
 const { fetchRuntimeMetaResponse } = vi.hoisted(() => ({
   fetchRuntimeMetaResponse: vi.fn()
@@ -142,5 +142,129 @@ describe('chat-session-flow', () => {
     });
 
     expect(selectedModelKey).toBe('openai:gpt-5.4');
+  });
+
+  it('starts direct-thread activation without waiting for thread list refresh to finish', async () => {
+    let resolveRefreshThreads!: (threads: []) => void;
+    const refreshThreads = vi.fn(
+      () =>
+        new Promise<[]>((resolve) => {
+          resolveRefreshThreads = resolve;
+        })
+    );
+    const activateThread = vi.fn().mockResolvedValue('thread-1');
+
+    const initialization = runInitializeRuntime({
+      initialThreadId: 'thread-1',
+      refs: {
+        runSelectionPersistenceReadyRef: { current: false }
+      },
+      actions: {
+        setDurableRecoveryState: vi.fn(),
+        setError: vi.fn()
+      },
+      operations: {
+        activateThread,
+        getPreferredRunId: vi.fn().mockReturnValue('run-1'),
+        isCurrentRequest: vi.fn().mockReturnValue(true),
+        refreshThreads,
+        resetDraftThreadState: vi.fn()
+      }
+    });
+
+    await Promise.resolve();
+
+    expect(refreshThreads).toHaveBeenCalledTimes(1);
+    expect(activateThread).toHaveBeenCalledWith('thread-1', {
+      preferredRunId: 'run-1',
+      recoveryMode: 'initial-thread',
+      isCurrentRequest: expect.any(Function)
+    });
+
+    resolveRefreshThreads([]);
+    await initialization;
+  });
+
+  it('does not activate an initial thread when the bootstrap request is already stale', async () => {
+    let resolveRefreshThreads!: (threads: []) => void;
+    const refreshThreads = vi.fn(
+      () =>
+        new Promise<[]>((resolve) => {
+          resolveRefreshThreads = resolve;
+        })
+    );
+    const activateThread = vi.fn().mockResolvedValue('thread-1');
+
+    const initialization = runInitializeRuntime({
+      initialThreadId: 'thread-1',
+      refs: {
+        runSelectionPersistenceReadyRef: { current: false }
+      },
+      actions: {
+        setDurableRecoveryState: vi.fn(),
+        setError: vi.fn()
+      },
+      operations: {
+        activateThread,
+        getPreferredRunId: vi.fn().mockReturnValue('run-1'),
+        isCurrentRequest: vi.fn().mockReturnValue(false),
+        refreshThreads,
+        resetDraftThreadState: vi.fn()
+      }
+    });
+
+    await Promise.resolve();
+
+    expect(refreshThreads).toHaveBeenCalledTimes(1);
+    expect(activateThread).not.toHaveBeenCalled();
+
+    resolveRefreshThreads([]);
+    await initialization;
+
+    expect(activateThread).not.toHaveBeenCalled();
+  });
+
+  it('keeps draft reset after thread list refresh when no initial thread is selected', async () => {
+    const events: string[] = [];
+    let resolveRefreshThreads!: (threads: []) => void;
+    const refreshThreads = vi.fn(
+      () =>
+        new Promise<[]>((resolve) => {
+          events.push('refresh:start');
+          resolveRefreshThreads = (threads) => {
+            events.push('refresh:finish');
+            resolve(threads);
+          };
+        })
+    );
+    const resetDraftThreadState = vi.fn(() => {
+      events.push('reset');
+    });
+
+    const initialization = runInitializeRuntime({
+      initialThreadId: null,
+      refs: {
+        runSelectionPersistenceReadyRef: { current: false }
+      },
+      actions: {
+        setDurableRecoveryState: vi.fn(),
+        setError: vi.fn()
+      },
+      operations: {
+        activateThread: vi.fn(),
+        getPreferredRunId: vi.fn(),
+        isCurrentRequest: vi.fn().mockReturnValue(true),
+        refreshThreads,
+        resetDraftThreadState
+      }
+    });
+
+    await Promise.resolve();
+
+    expect(resetDraftThreadState).not.toHaveBeenCalled();
+    resolveRefreshThreads([]);
+    await initialization;
+
+    expect(events).toEqual(['refresh:start', 'refresh:finish', 'reset']);
   });
 });

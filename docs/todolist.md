@@ -56,7 +56,7 @@
 
 - [ ] Define a DI-friendly stream coordinator interface before moving logic out of `runs/stream/route.ts`.
 - [ ] Define attach unavailable reason handling before moving attach helper logic out of `attach-stream/route.ts`.
-- [ ] Define `runInitializeRuntime` operation ordering expectations in `packages/durable-chat-client` tests before changing concurrency.
+- [x] Define `runInitializeRuntime` operation ordering expectations in `packages/durable-chat-client` tests before changing concurrency.
 - [ ] Define a small attach client flow interface before extracting attach event handling from `useDurableChatRuntime`.
 - [ ] Define app-local auth response mapping helpers before changing auth route or form behavior.
 - [ ] Define whether `@agent-infra/durable-chat-client` subpath exports will be introduced as package public API.
@@ -91,13 +91,13 @@
 
 ### 2.3 Durable Chat Client Flow Performance
 
-- [ ] Add or update `packages/durable-chat-client` tests for `runInitializeRuntime`.
-- [ ] Prove `refreshThreads` and `activateThread(initialThreadId)` can start concurrently when `initialThreadId` exists.
-- [ ] Preserve current no-initial-thread behavior.
-- [ ] Preserve stale request guards and abort semantics.
-- [ ] Implement the smallest concurrency change in `packages/durable-chat-client`.
-- [ ] Run `pnpm --filter @agent-infra/durable-chat-client test`.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Add or update `packages/durable-chat-client` tests for `runInitializeRuntime`.
+- [x] Prove `refreshThreads` and `activateThread(initialThreadId)` can start concurrently when `initialThreadId` exists.
+- [x] Preserve current no-initial-thread behavior.
+- [x] Preserve stale request guards and abort semantics.
+- [x] Implement the smallest concurrency change in `packages/durable-chat-client`.
+- [x] Run `pnpm --filter @agent-infra/durable-chat-client test`.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
 
 ### 2.4 Inspector And Reconcile Flow Performance
 
@@ -206,7 +206,7 @@
 ### 4.3 Runtime Tests
 
 - [ ] Add attach event flow tests before extracting attach logic from `useDurableChatRuntime`.
-- [ ] Add `runInitializeRuntime` ordering tests in `packages/durable-chat-client`.
+- [x] Add `runInitializeRuntime` ordering tests in `packages/durable-chat-client`.
 - [ ] Add inspector/reconcile ordering tests before parallelizing those flows.
 - [ ] Keep hook-level tests out of scope unless pure flow extraction cannot cover the behavior.
 
@@ -245,12 +245,12 @@
 
 ### Loop 2: Durable Client Initialization Waterfall
 
-- [ ] Add `packages/durable-chat-client` test proving direct-thread initialization can start independent work concurrently.
-- [ ] Implement concurrent `refreshThreads` and `activateThread(initialThreadId)` where safe.
-- [ ] Run `pnpm --filter @agent-infra/durable-chat-client test`.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run codex review with the repository Review Profile.
-- [ ] Commit this slice after clean review and passing verification.
+- [x] Add `packages/durable-chat-client` test proving direct-thread initialization can start independent work concurrently.
+- [x] Implement concurrent `refreshThreads` and `activateThread(initialThreadId)` where safe.
+- [x] Run `pnpm --filter @agent-infra/durable-chat-client test`.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run codex review with the repository Review Profile.
+- [x] Commit this slice after clean review and passing verification.
 
 ### Loop 3: Route Param Binding And Shell Startup
 

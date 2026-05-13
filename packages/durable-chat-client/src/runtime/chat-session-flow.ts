@@ -90,7 +90,11 @@ type InitializeRuntimeArgs = {
   operations: {
     activateThread: (
       threadId: string,
-      options?: { preferredRunId?: string | null; recoveryMode?: 'initial-thread' }
+      options?: {
+        preferredRunId?: string | null;
+        recoveryMode?: 'initial-thread';
+        isCurrentRequest?: () => boolean;
+      }
     ) => Promise<string | null | undefined>;
     getPreferredRunId: (threadId: string) => string | null;
     isCurrentRequest: () => boolean;
@@ -192,18 +196,37 @@ export async function runRefreshMeta({ actions }: RefreshMetaArgs) {
 
 export async function runInitializeRuntime({ initialThreadId, refs, actions, operations }: InitializeRuntimeArgs) {
   try {
-    await operations.refreshThreads();
-    if (!operations.isCurrentRequest()) {
-      return;
-    }
-
     if (initialThreadId) {
+      const refreshThreadsResult = operations.refreshThreads();
+      if (!operations.isCurrentRequest()) {
+        await refreshThreadsResult.catch(() => undefined);
+        return;
+      }
+
       const preferredRunId = operations.getPreferredRunId(initialThreadId);
-      await operations.activateThread(initialThreadId, {
+      const activateThreadResult = operations.activateThread(initialThreadId, {
         preferredRunId,
-        recoveryMode: 'initial-thread'
+        recoveryMode: 'initial-thread',
+        isCurrentRequest: operations.isCurrentRequest
       });
+      const [refreshThreadsSettled, activateThreadSettled] = await Promise.allSettled([
+        refreshThreadsResult,
+        activateThreadResult
+      ]);
+      if (refreshThreadsSettled.status === 'rejected') {
+        throw refreshThreadsSettled.reason;
+      }
+      if (!operations.isCurrentRequest()) {
+        return;
+      }
+      if (activateThreadSettled.status === 'rejected') {
+        throw activateThreadSettled.reason;
+      }
     } else {
+      await operations.refreshThreads();
+      if (!operations.isCurrentRequest()) {
+        return;
+      }
       operations.resetDraftThreadState();
       actions.setDurableRecoveryState({
         phase: 'idle',

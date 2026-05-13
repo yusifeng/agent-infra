@@ -633,7 +633,14 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     }
   }
 
-  async function activateThread(threadId: string, options?: { preferredRunId?: string | null }) {
+  async function activateThread(
+    threadId: string,
+    options?: {
+      preferredRunId?: string | null;
+      recoveryMode?: 'initial-thread';
+      isCurrentRequest?: () => boolean;
+    }
+  ) {
     return runActivateThread({
       threadId,
       options,

@@ -71,6 +71,7 @@ type ActivateThreadArgs = {
   options?: {
     preferredRunId?: string | null;
     recoveryMode?: 'initial-thread';
+    isCurrentRequest?: () => boolean;
   };
   refs: {
     activeThreadIdRef: RefLike<string | null>;
@@ -247,6 +248,10 @@ export async function runLoadThreadMessages({ threadId, options, refs, actions, 
 }
 
 export async function runActivateThread({ threadId, options, refs, actions, operations }: ActivateThreadArgs) {
+  if (options?.isCurrentRequest && !options.isCurrentRequest()) {
+    return null;
+  }
+
   actions.setActiveThreadId(threadId);
   refs.activeThreadIdRef.current = threadId;
   refs.shouldAutoScrollRef.current = true;
@@ -263,6 +268,10 @@ export async function runActivateThread({ threadId, options, refs, actions, oper
   }
 
   const loadResult = await operations.loadThreadMessages(threadId, options);
+  if (options?.isCurrentRequest && !options.isCurrentRequest()) {
+    return loadResult.restoredRunId;
+  }
+
   if (options?.recoveryMode === 'initial-thread') {
     actions.setDurableRecoveryState(
       loadResult.ok

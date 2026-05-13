@@ -429,6 +429,41 @@ describe('applyHydratedTranscriptState', () => {
 });
 
 describe('runActivateThread', () => {
+  it('does not apply active-thread state when the request guard is stale before activation', async () => {
+    const setActiveThreadId = createSetterSpy<string | null>();
+    const setDurableRecoveryState = createSetterSpy<DurableRecoveryState>();
+    const loadThreadMessages = vi.fn();
+    const activeThreadIdRef = { current: null };
+    const shouldAutoScrollRef = { current: false };
+
+    const restoredRunId = await runActivateThread({
+      threadId: 'thread-1',
+      options: {
+        preferredRunId: 'run-1',
+        recoveryMode: 'initial-thread',
+        isCurrentRequest: () => false
+      },
+      refs: {
+        activeThreadIdRef,
+        shouldAutoScrollRef
+      },
+      actions: {
+        setActiveThreadId,
+        setDurableRecoveryState
+      },
+      operations: {
+        loadThreadMessages
+      }
+    });
+
+    expect(restoredRunId).toBeNull();
+    expect(activeThreadIdRef.current).toBeNull();
+    expect(shouldAutoScrollRef.current).toBe(false);
+    expect(setActiveThreadId).not.toHaveBeenCalled();
+    expect(setDurableRecoveryState).not.toHaveBeenCalled();
+    expect(loadThreadMessages).not.toHaveBeenCalled();
+  });
+
   it('surfaces recovering and restored states for initial thread recovery', async () => {
     const setActiveThreadId = createSetterSpy<string | null>();
     const setDurableRecoveryState = createSetterSpy<DurableRecoveryState>();
