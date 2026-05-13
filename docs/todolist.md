@@ -60,7 +60,7 @@ Loop 0 decision:
 - [x] Decide whether auth/thread-catalog code moves to an explicitly playground-owned host adapter.
 - [x] Keep playground host adapter code separate from durable platform packages.
 - [x] Define a shared current-user helper for Next route handlers.
-- [ ] Define unauthorized behavior per route type.
+- [x] Define unauthorized behavior per route type.
 - [x] Preserve `GET /api/auth/me` behavior: unauthenticated returns `{ user: null }`.
 
 Loop 0 decision:
@@ -77,39 +77,39 @@ Loop 0 decision:
 - [x] Update Next explicit bootstrap to prepare thread catalog schema.
 - [x] Confirm Turso/SQLite bootstrap behavior stays explicit, not implicit inside user-facing requests.
 - [ ] Confirm auth/session tables work in the selected remote DB mode.
-- [ ] Confirm thread catalog projection can be built from durable thread plus catalog row.
+- [x] Confirm thread catalog projection can be built from durable thread plus catalog row.
 
 ### 1.4 DTO / Projection Matrix
 
-- [ ] Define base durable `ThreadDto` usage.
-- [ ] Define playground thread DTO usage with `pinned`, `pinnedAt`, `runtimeProvider`, and `runtimeModel`.
-- [ ] Define message/run/timeline DTO usage.
+- [x] Define base durable `ThreadDto` usage.
+- [x] Define playground thread DTO usage with `pinned`, `pinnedAt`, `runtimeProvider`, and `runtimeModel`.
+- [x] Define message/run/timeline DTO usage.
 - [ ] Define public share DTO and shared snapshot DTO usage.
 - [ ] Define private playground stream events such as `thread.title_updated`.
 - [ ] Define attach-stream events: `run.snapshot`, `run.assistant`, terminal events, and `run.attach_unavailable`.
-- [ ] Ensure `GET /api/threads` returns playground thread DTOs once thread catalog is enabled.
-- [ ] Ensure thread mutation responses return playground thread DTOs once thread catalog is enabled.
+- [x] Ensure `GET /api/threads` returns playground thread DTOs once thread catalog is enabled.
+- [x] Ensure thread mutation responses return playground thread DTOs once thread catalog is enabled.
 
 ### 1.5 Protected Route Matrix
 
-- [ ] Keep `GET /api/meta` anonymous.
+- [x] Keep `GET /api/meta` anonymous.
 - [ ] Keep `GET /api/shares/:publicId` anonymous.
 - [ ] Keep `GET /site-icons/:hostname` or Next equivalent anonymous.
-- [ ] Keep auth entry routes anonymous.
-- [ ] Protect `POST /api/auth/logout`.
-- [ ] Protect all `/api/threads*` chat/thread routes.
-- [ ] Protect `GET /api/runs/:runId/timeline`.
+- [x] Keep auth entry routes anonymous.
+- [x] Keep `POST /api/auth/logout` origin/rate-limited and idempotent for stale sessions.
+- [x] Protect all `/api/threads*` chat/thread routes.
+- [x] Protect `GET /api/runs/:runId/timeline`.
 - [ ] Protect share create/current/revoke routes.
-- [ ] For thread routes, load accessible thread before app use cases.
-- [ ] For run routes, load run and then load its thread before app use cases.
+- [x] For thread routes, load accessible thread before app use cases.
+- [x] For run routes, load run and then load its thread before app use cases.
 - [ ] For share revoke, load share and then load source thread before app use cases.
-- [ ] Ensure wrong thread/run pairs do not leak cross-thread metadata.
+- [x] Ensure wrong thread/run pairs do not leak cross-thread metadata.
 
 ### 1.6 Runtime And Search Gates
 
-- [ ] Preserve provider/model runtime binding from thread catalog or latest run.
-- [ ] Bind thread provider/model after the first successful queued turn if unset.
-- [ ] Force later turns in the same thread to keep the bound provider/model.
+- [x] Preserve provider/model runtime binding from thread catalog or latest run.
+- [x] Bind thread provider/model after the first successful queued turn if unset.
+- [x] Force later turns in the same thread to keep the bound provider/model.
 - [ ] Pass `webSearchEnabled` through run start only when backend search is configured.
 - [ ] Reject or hide search-enabled sends when search backend is unavailable.
 - [ ] Define `TAVILY_API_KEY` behavior in env docs and UI gating.
@@ -130,17 +130,17 @@ Loop 0 decision:
 
 ### 2.2 Thread Catalog And Protected APIs
 
-- [ ] Port or adapt thread catalog repo/service for Next.
-- [ ] Make `GET /api/threads` user-scoped.
-- [ ] Make `POST /api/threads` create owner catalog rows.
-- [ ] Add `GET /api/threads/:threadId`.
-- [ ] Add `PATCH /api/threads/:threadId`.
-- [ ] Add `POST /api/threads/:threadId/archive`.
-- [ ] Add `POST /api/threads/:threadId/pin`.
-- [ ] Add `DELETE /api/threads/:threadId/pin`.
-- [ ] Protect existing message/runs/timeline routes.
-- [ ] Protect existing stream route.
-- [ ] Preserve runtime binding in stream route.
+- [x] Port or adapt thread catalog repo/service for Next.
+- [x] Make `GET /api/threads` user-scoped.
+- [x] Make `POST /api/threads` create owner catalog rows.
+- [x] Add `GET /api/threads/:threadId`.
+- [x] Add `PATCH /api/threads/:threadId`.
+- [x] Add `POST /api/threads/:threadId/archive`.
+- [x] Add `POST /api/threads/:threadId/pin`.
+- [x] Add `DELETE /api/threads/:threadId/pin`.
+- [x] Protect existing message/runs/timeline routes.
+- [x] Protect existing stream route.
+- [x] Preserve runtime binding in stream route.
 
 ### 2.3 Stream And Attach-Stream
 
@@ -259,8 +259,8 @@ Loop 0 decision:
 ### 4.2 Test Strategy
 
 - [x] Add route/helper tests when auth helpers are introduced.
-- [ ] Add protected route tests for thread access.
-- [ ] Add runtime binding tests.
+- [x] Add protected route tests for thread access.
+- [x] Add runtime binding tests.
 - [ ] Add stream hub / attach route tests.
 - [ ] Add search tool wiring tests.
 - [ ] Add share sanitize/public route tests.
@@ -327,15 +327,15 @@ Loop 0 decisions:
 
 ### Loop 2: User-Scoped Thread Catalog, Runtime Binding, And Protected APIs
 
-- [ ] Add thread catalog integration.
-- [ ] Add playground thread projection.
-- [ ] Add thread management routes.
-- [ ] Protect messages/runs/timeline/stream routes.
-- [ ] Preserve runtime binding.
-- [ ] Add protected route tests.
-- [ ] Run targeted verification.
-- [ ] Run codex review after verification and before commit.
-- [ ] Commit.
+- [x] Add thread catalog integration.
+- [x] Add playground thread projection.
+- [x] Add thread management routes.
+- [x] Protect messages/runs/timeline/stream routes.
+- [x] Preserve runtime binding.
+- [x] Add protected route tests.
+- [x] Run targeted verification.
+- [x] Run codex review after verification and before commit.
+- [x] Commit.
 
 ### Loop 3: Stream Route Parity And Attach-Stream Backend
 

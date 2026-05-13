@@ -6,12 +6,20 @@ import {
   parseThreadMessagesQuery
 } from '@agent-infra/durable-chat-server';
 
+import { loadAccessibleThread, requirePlaygroundUser } from '@/lib/playground-thread-access';
+
 export async function GET(req: Request, { params }: { params: Promise<{ threadId: string }> }) {
   const { getPlaygroundAppServices } = await import('@/lib/playground-app-services');
   const { threadId } = await params;
+  const auth = await requirePlaygroundUser(req);
+  if (auth.response) {
+    return auth.response;
+  }
 
   try {
-    const { app } = await getPlaygroundAppServices();
+    const services = await getPlaygroundAppServices();
+    const { app } = services;
+    await loadAccessibleThread(services, threadId, auth.user.id);
     const { searchParams } = new URL(req.url);
     const query = parseThreadMessagesQuery(searchParams);
     const hasPaginationParams = query.limit !== undefined || query.before !== undefined || query.after !== undefined;

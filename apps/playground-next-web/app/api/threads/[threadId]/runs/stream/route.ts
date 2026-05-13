@@ -17,6 +17,13 @@ import {
   toRunDto
 } from '@agent-infra/durable-chat-server';
 
+import {
+  bindRuntimeIfUnset,
+  loadAccessibleThread,
+  requirePlaygroundUser,
+  resolveThreadRuntimeBinding
+} from '@/lib/playground-thread-access';
+
 async function writeSseEvent(
   writer: WritableStreamDefaultWriter<Uint8Array>,
   encoder: TextEncoder,
@@ -41,18 +48,26 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
 
   const { threadId } = await params;
   const turnInput = parseRunTextTurnInput((await req.json().catch(() => ({}))) as RunTextTurnRequestDto);
+  const auth = await requirePlaygroundUser(req);
+  if (auth.response) {
+    return auth.response;
+  }
 
   let started;
+  let services: Awaited<ReturnType<typeof getPlaygroundRuntimeServices>>;
   try {
-    const { app } = await getPlaygroundRuntimeServices();
-    started = await app.turns.startText({
+    services = await getPlaygroundRuntimeServices();
+    const { catalogRow } = await loadAccessibleThread(services, threadId, auth.user.id);
+    const runtimeBinding = await resolveThreadRuntimeBinding(services, threadId, catalogRow);
+    started = await services.app.turns.startText({
       threadId,
       text: turnInput.text,
-      provider: turnInput.provider,
-      model: turnInput.model,
+      provider: runtimeBinding?.provider ?? turnInput.provider,
+      model: runtimeBinding?.model ?? turnInput.model,
       thinkingEnabled: turnInput.thinkingEnabled,
       reasoningEffort: turnInput.reasoningEffort
     });
+    await bindRuntimeIfUnset(services, threadId, started.runtimeSelection);
   } catch (error) {
     return Response.json(buildRunTextTurnErrorResponse(error, 'failed to stream thread turn'), {
       status: getRouteErrorStatus(error)
@@ -72,7 +87,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
   };
 
   const runId = started.run.id;
-  const services = await getPlaygroundRuntimeServices();
   const runtimeInput = {
     threadId,
     runId,

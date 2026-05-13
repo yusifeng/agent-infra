@@ -10,14 +10,27 @@ import {
   parseThreadRunsLimit
 } from '@agent-infra/durable-chat-server';
 
+import {
+  bindRuntimeIfUnset,
+  loadAccessibleThread,
+  requirePlaygroundUser,
+  resolveThreadRuntimeBinding
+} from '@/lib/playground-thread-access';
+
 export async function GET(req: Request, { params }: { params: Promise<{ threadId: string }> }) {
   const { getPlaygroundAppServices } = await import('@/lib/playground-app-services');
   const { threadId } = await params;
   const url = new URL(req.url);
   const limit = parseThreadRunsLimit(url.searchParams.get('limit'));
+  const auth = await requirePlaygroundUser(req);
+  if (auth.response) {
+    return auth.response;
+  }
 
   try {
-    const { app } = await getPlaygroundAppServices();
+    const services = await getPlaygroundAppServices();
+    const { app } = services;
+    await loadAccessibleThread(services, threadId, auth.user.id);
     const runs = await app.runs.listByThread({ threadId, limit });
     return Response.json(buildThreadRunsResponse(runs));
   } catch (error) {
@@ -31,14 +44,27 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
   const { getPlaygroundRuntimeServices } = await import('@/lib/playground-services');
   const { threadId } = await params;
   const input = parseRunTextTurnInput((await req.json().catch(() => ({}))) as RunTextTurnRequestDto);
+  const auth = await requirePlaygroundUser(req);
+  if (auth.response) {
+    return auth.response;
+  }
 
   try {
-    const { app } = await getPlaygroundRuntimeServices();
+    const services = await getPlaygroundRuntimeServices();
+    const { app } = services;
+    const { catalogRow } = await loadAccessibleThread(services, threadId, auth.user.id);
+    const runtimeBinding = await resolveThreadRuntimeBinding(services, threadId, catalogRow);
     const result = await app.turns.runText({
       threadId,
       text: input.text,
-      provider: input.provider,
-      model: input.model
+      provider: runtimeBinding?.provider ?? input.provider,
+      model: runtimeBinding?.model ?? input.model,
+      thinkingEnabled: input.thinkingEnabled,
+      reasoningEffort: input.reasoningEffort
+    });
+    await bindRuntimeIfUnset(services, threadId, {
+      provider: result.run.provider,
+      model: result.run.model
     });
 
     return Response.json(buildRunTextTurnResponse(result));
