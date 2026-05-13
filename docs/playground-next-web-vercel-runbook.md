@@ -206,6 +206,14 @@ Treat it as a tracked residual risk, especially when upgrading:
 
 ## Attach-stream caveat
 
+The current Next host includes a process-local attach stream route:
+
+- `GET /api/threads/:threadId/runs/:runId/attach-stream`
+
+It is intended to support local and best-effort single-process recovery for a
+running response by sending a `run.snapshot` event first, then forwarding live
+run events from the same process.
+
 The current validated Vercel path proves the normal `runs/stream` request path.
 It does not prove production-grade attach-stream recovery for a running response.
 

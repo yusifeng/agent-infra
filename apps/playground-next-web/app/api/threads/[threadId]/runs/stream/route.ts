@@ -1,4 +1,5 @@
 import type {
+  RunStreamSnapshotEventDto,
   RunStreamEventDto,
   RunStreamFailedEventDto,
   RunTextTurnRequestDto
@@ -17,6 +18,7 @@ import {
   toRunDto
 } from '@agent-infra/durable-chat-server';
 
+import { getPlaygroundRunStreamHub } from '@/lib/playground-run-stream-hub';
 import {
   bindRuntimeIfUnset,
   loadAccessibleThread,
@@ -81,12 +83,47 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
   let writeChain = Promise.resolve<unknown>(undefined);
   let finalRunSnapshot: RunStreamFailedEventDto['run'] = null;
   let terminalEventSent = false;
+  let streamVersion = 0;
+  const runStreamHub = getPlaygroundRunStreamHub();
 
   const enqueueSseEvent = (payload: RunStreamEventDto) => {
     writeChain = writeChain.then(() => writeSseEvent(writer, encoder, payload, streamState));
   };
 
+  const publishHubEvent = (payload: RunStreamEventDto) => {
+    streamVersion += 1;
+    if (payload.type === 'run.state') {
+      runStreamHub.publish(runId, { ...payload, version: streamVersion });
+      return;
+    }
+
+    if (payload.type === 'run.assistant') {
+      runStreamHub.publish(runId, { ...payload, version: streamVersion });
+      return;
+    }
+
+    if (payload.type === 'run.completed') {
+      runStreamHub.publish(runId, { ...payload, version: streamVersion });
+      return;
+    }
+
+    if (payload.type === 'run.failed') {
+      runStreamHub.publish(runId, { ...payload, version: streamVersion });
+    }
+  };
+
   const runId = started.run.id;
+  const readyEvent = buildRunReadyEvent(started);
+  const initialSnapshot: RunStreamSnapshotEventDto = {
+    type: 'run.snapshot',
+    runId,
+    run: readyEvent.run,
+    version: streamVersion,
+    assistant: null
+  };
+  runStreamHub.cleanup();
+  runStreamHub.openSession(initialSnapshot);
+
   const runtimeInput = {
     threadId,
     runId,
@@ -98,7 +135,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
 
   void (async () => {
     try {
-      enqueueSseEvent(buildRunReadyEvent(started));
+      enqueueSseEvent(readyEvent);
 
       await services.durableRuntime.runTurn(
         {
@@ -110,18 +147,27 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
         runtimeInput,
         {
           onLiveAssistantUpdate: (assistantStream) => {
-            enqueueSseEvent(buildRunAssistantEvent(runId, assistantStream));
+            const event = buildRunAssistantEvent(runId, assistantStream);
+            enqueueSseEvent(event);
+            publishHubEvent(event);
           },
           onPersistedUpdate: (update) => {
             if (update.run) {
               finalRunSnapshot = toRunDto(update.run);
-              enqueueSseEvent(buildRunStateEvent(runId, update.run));
+              const stateEvent = buildRunStateEvent(runId, update.run);
+              enqueueSseEvent(stateEvent);
+              publishHubEvent(stateEvent);
 
               if (!terminalEventSent && (update.run.status === 'completed' || update.run.status === 'failed')) {
                 terminalEventSent = true;
                 const terminalEvent = buildRunTerminalEvent(runId, update.run);
                 if (terminalEvent) {
                   enqueueSseEvent(terminalEvent);
+                  streamVersion += 1;
+                  runStreamHub.closeSession(runId, {
+                    ...terminalEvent,
+                    version: streamVersion
+                  });
                 }
               }
             }
@@ -138,6 +184,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
         };
         terminalEventSent = true;
         enqueueSseEvent(failedEvent);
+        streamVersion += 1;
+        runStreamHub.closeSession(runId, {
+          ...failedEvent,
+          version: streamVersion
+        });
       }
     } finally {
       try {

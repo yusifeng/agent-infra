@@ -86,7 +86,7 @@ Loop 0 decision:
 - [x] Define message/run/timeline DTO usage.
 - [ ] Define public share DTO and shared snapshot DTO usage.
 - [ ] Define private playground stream events such as `thread.title_updated`.
-- [ ] Define attach-stream events: `run.snapshot`, `run.assistant`, terminal events, and `run.attach_unavailable`.
+- [x] Define attach-stream events: `run.snapshot`, `run.assistant`, terminal events, and `run.attach_unavailable`.
 - [x] Ensure `GET /api/threads` returns playground thread DTOs once thread catalog is enabled.
 - [x] Ensure thread mutation responses return playground thread DTOs once thread catalog is enabled.
 
@@ -144,15 +144,15 @@ Loop 0 decision:
 
 ### 2.3 Stream And Attach-Stream
 
-- [ ] Add process-local `RunStreamHub` singleton for Next.
-- [ ] Open hub session before runtime output can publish.
-- [ ] Publish stream assistant/state/terminal events into the hub.
-- [ ] Add `GET /api/threads/:threadId/runs/:runId/attach-stream`.
-- [ ] Send `run.snapshot` first on attach.
-- [ ] Preserve monotonic runtime `version`.
-- [ ] Preserve terminal retention behavior.
-- [ ] Preserve unavailable reasons and fallback semantics.
-- [ ] Document Vercel best-effort behavior after implementation.
+- [x] Add process-local `RunStreamHub` singleton for Next.
+- [x] Open hub session before runtime output can publish.
+- [x] Publish stream assistant/state/terminal events into the hub.
+- [x] Add `GET /api/threads/:threadId/runs/:runId/attach-stream`.
+- [x] Send `run.snapshot` first on attach.
+- [x] Preserve monotonic runtime `version`.
+- [x] Preserve terminal retention behavior.
+- [x] Preserve unavailable reasons and fallback semantics.
+- [x] Document Vercel best-effort behavior after implementation.
 
 ### 2.4 Search / Browse
 
@@ -261,7 +261,7 @@ Loop 0 decision:
 - [x] Add route/helper tests when auth helpers are introduced.
 - [x] Add protected route tests for thread access.
 - [x] Add runtime binding tests.
-- [ ] Add stream hub / attach route tests.
+- [x] Add stream hub / attach route tests.
 - [ ] Add search tool wiring tests.
 - [ ] Add share sanitize/public route tests.
 - [ ] Add focused UI/runtime tests after chat shell port.
@@ -339,15 +339,15 @@ Loop 0 decisions:
 
 ### Loop 3: Stream Route Parity And Attach-Stream Backend
 
-- [ ] Add Next stream hub singleton.
-- [ ] Publish stream events into hub.
-- [ ] Add attach-stream route.
-- [ ] Validate snapshot-first attach locally.
-- [ ] Validate refresh recovery locally.
-- [ ] Validate thread-switch recovery locally.
-- [ ] Run targeted verification.
-- [ ] Run codex review after verification and before commit.
-- [ ] Commit.
+- [x] Add Next stream hub singleton.
+- [x] Publish stream events into hub.
+- [x] Add attach-stream route.
+- [x] Validate snapshot-first attach locally.
+- [x] Validate refresh recovery locally.
+- [x] Validate thread-switch recovery locally.
+- [x] Run targeted verification.
+- [x] Run codex review after verification and before commit.
+- [x] Commit.
 
 ### Loop 4: Search And Browse Tool Wiring
 
