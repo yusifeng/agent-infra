@@ -5,11 +5,13 @@
   "type": "module",
   "scripts": {
     "bootstrap:db": "tsx ./scripts/bootstrap-db.ts",
-    "dev": "next dev",
+    "dev": "node ./scripts/run-next-with-playground-env.mjs dev",
     "dev:prepared": "NODE_ENV=development pnpm bootstrap:db && NODE_ENV=development pnpm dev",
-    "build": "next build",
+    "dev:prepared:sqlite": "PLAYGROUND_DB_MODE=sqlite NODE_ENV=development pnpm bootstrap:db && exec env PLAYGROUND_DB_MODE=sqlite NODE_ENV=development pnpm dev",
+    "dev:prepared:turso": "PLAYGROUND_DB_MODE=turso NODE_ENV=development pnpm bootstrap:db && exec env PLAYGROUND_DB_MODE=turso NODE_ENV=development pnpm dev",
+    "build": "node ./scripts/run-next-with-playground-env.mjs build",
     "smoke:deployment": "node ./scripts/deployment-smoke.mjs",
-    "start": "next start",
+    "start": "node ./scripts/run-next-with-playground-env.mjs start",
     "start:prepared": "NODE_ENV=production pnpm bootstrap:db && NODE_ENV=production pnpm start",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"

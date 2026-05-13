@@ -1,5 +1,6 @@
 import path from 'node:path';
 
+import { resolveDbModeOverrideFromEnv } from '@agent-infra/db';
 import {
   listAvailableRuntimePiModelOptionsFromEnv,
   resolveRuntimePiConfigFromEnv
@@ -33,6 +34,25 @@ function filterDemoModelOptions(
 }
 
 export function getPlaygroundDbInfo(): PlaygroundDbInfo {
+  const forcedMode = resolveDbModeOverrideFromEnv();
+  if (forcedMode === 'sqlite') {
+    return getSqliteDbInfo();
+  }
+
+  if (forcedMode === 'turso') {
+    return {
+      mode: 'turso',
+      connectionString: process.env.TURSO_DATABASE_URL ?? ''
+    };
+  }
+
+  if (forcedMode === 'postgres') {
+    return {
+      mode: 'postgres',
+      connectionString: process.env.DATABASE_URL ?? ''
+    };
+  }
+
   if (process.env.TURSO_DATABASE_URL) {
     return {
       mode: 'turso',
@@ -47,6 +67,10 @@ export function getPlaygroundDbInfo(): PlaygroundDbInfo {
     };
   }
 
+  return getSqliteDbInfo();
+}
+
+function getSqliteDbInfo(): PlaygroundDbInfo {
   const sqlitePath = path.resolve(process.cwd(), process.env.SQLITE_PATH ?? './local.db');
 
   return {
