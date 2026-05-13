@@ -49,8 +49,8 @@
 - [ ] Confirm no DB schema changes are needed for the first optimization slices.
 - [ ] Confirm no contract DTO changes are needed before changing stream/attach helpers.
 - [ ] Confirm route tests can use mocked services before introducing any test-only repository fixtures.
-- [ ] Confirm auth service tests can use repo fakes or temporary SQLite without changing production schema.
-- [ ] Confirm thread catalog tests preserve `threads.userId = null` and host catalog owner semantics.
+- [x] Confirm auth service tests can use repo fakes or temporary SQLite without changing production schema.
+- [x] Confirm thread catalog tests preserve `threads.userId = null` and host catalog owner semantics.
 
 ### 1.3 Types / Interfaces
 
@@ -212,19 +212,19 @@
 
 ### 4.4 Auth Tests
 
-- [ ] Add auth service tests for signup code cooldown.
-- [ ] Add auth service tests for invalid code attempt tracking.
-- [ ] Add auth service tests for expired challenge handling.
-- [ ] Add auth service tests for sign-up challenge consumption and session creation.
-- [ ] Add auth service tests for reset-password session revocation.
+- [x] Add auth service tests for signup code cooldown.
+- [x] Add auth service tests for invalid code attempt tracking.
+- [x] Add auth service tests for expired challenge handling.
+- [x] Add auth service tests for sign-up challenge consumption and session creation.
+- [x] Add auth service tests for reset-password session revocation.
 - [ ] Add auth form helper tests after extracting pure mapping/cooldown/client helpers.
 
 ### 4.5 Thread Catalog Tests
 
-- [ ] Add tests for `createThreadWithCatalog` creating durable thread with `userId: null`.
-- [ ] Add tests for non-owner access through `loadAccessibleThread`.
-- [ ] Add tests for `bindRuntimeIfUnset` not overwriting existing runtime binding.
-- [ ] Decide and test legacy catalog backfill behavior.
+- [x] Add tests for `createThreadWithCatalog` creating durable thread with `userId: null`.
+- [x] Add tests for non-owner access through `loadAccessibleThread`.
+- [x] Add tests for `bindRuntimeIfUnset` not overwriting existing runtime binding.
+- [x] Decide and test legacy catalog backfill behavior.
 
 ### 4.6 UI / Render Tests
 
@@ -283,12 +283,12 @@
 
 ### Loop 6: Auth And Thread Catalog Test Coverage
 
-- [ ] Add host auth service tests.
+- [x] Add host auth service tests.
 - [ ] Add auth helper/route mapping tests if response shapes are touched.
-- [ ] Add thread catalog ownership/runtime-binding tests.
-- [ ] Run `pnpm --filter playground-next-web test`.
-- [ ] Run codex review with the repository Review Profile.
-- [ ] Commit this slice after clean review and passing verification.
+- [x] Add thread catalog ownership/runtime-binding tests.
+- [x] Run `pnpm --filter playground-next-web test`.
+- [x] Run codex review with the repository Review Profile.
+- [x] Commit this slice after clean review and passing verification.
 
 ### Loop 7: Message List And Auth Form Readability
 
