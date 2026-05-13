@@ -216,7 +216,7 @@ export function createDbConfigFromEnv(): DbConfig {
     };
   }
 
-  const sqlitePath = path.resolve(process.cwd(), process.env.SQLITE_PATH ?? './local.db');
+  const sqlitePath = path.resolve(/* turbopackIgnore: true */ process.cwd(), process.env.SQLITE_PATH ?? './local.db');
   const sqlite = new Database(sqlitePath);
   sqlite.pragma('foreign_keys = ON');
 

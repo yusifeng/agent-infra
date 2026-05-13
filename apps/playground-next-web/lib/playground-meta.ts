@@ -71,7 +71,7 @@ export function getPlaygroundDbInfo(): PlaygroundDbInfo {
 }
 
 function getSqliteDbInfo(): PlaygroundDbInfo {
-  const sqlitePath = path.resolve(process.cwd(), process.env.SQLITE_PATH ?? './local.db');
+  const sqlitePath = path.resolve(/* turbopackIgnore: true */ process.cwd(), process.env.SQLITE_PATH ?? './local.db');
 
   return {
     mode: 'sqlite',

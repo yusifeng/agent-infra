@@ -322,3 +322,19 @@
 - [x] Markdown/shiki and durable-chat-client imports have measured or clearly justified bundle improvements.
 - [x] Relevant source-of-truth docs are updated for any changed long-lived behavior.
 - [x] `docs/todolist.md` is retained as the completed execution record for this optimization pass.
+
+---
+
+# Playground Next 16 Upgrade Todo
+
+## 7. Next.js 16 Migration Slice
+
+- [x] Confirm official Next.js 16 migration constraints relevant to `apps/playground-next-web`.
+- [x] Upgrade `playground-next-web` Next/React package versions and lockfile.
+- [x] Resolve Next 16 Turbopack compatibility for the existing native server package externalization.
+- [x] Preserve runtime package tracing for Pi dependencies.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run `pnpm --filter playground-next-web test`.
+- [x] Run `pnpm --filter playground-next-web build`.
+- [x] Run repository codex review profile.
+- [x] Leave this todo section fully checked when the migration slice is complete.
