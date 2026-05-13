@@ -12,7 +12,7 @@ import type {
   ToolInvocation,
   ToolInvocationRepository
 } from '@agent-infra/core';
-import type { AgentTool } from '@mariozechner/pi-agent-core';
+import type { AgentMessage, AgentTool } from '@mariozechner/pi-agent-core';
 import {
   createAssistantMessageEventStream,
   fauxAssistantMessage,
@@ -34,6 +34,7 @@ import {
   createPiRuntime,
   runAssistantTurnWithPiInternal
 } from '../src/runtime';
+import { projectAgentMessagesForEnabledTools } from '../src/messages';
 
 type StoredMessage = Message & { parts: MessagePart[] };
 
@@ -464,6 +465,21 @@ function createFinalTextStep(text: string) {
   };
 }
 
+function createToolResultMessage(input: {
+  toolCallId: string;
+  toolName: string;
+  text?: string;
+}): AgentMessage {
+  return {
+    role: 'toolResult',
+    toolCallId: input.toolCallId,
+    toolName: input.toolName,
+    content: [{ type: 'text', text: input.text ?? `${input.toolName} result` }],
+    isError: false,
+    timestamp: Date.now()
+  };
+}
+
 describe('computeStreamTextChange', () => {
   it('returns deltas for prefix growth and replace for rewrites', () => {
     expect(computeStreamTextChange('', '好的')).toEqual({ kind: 'delta', value: '好的' });
@@ -508,6 +524,122 @@ describe('applyGenerateTextPayloadOverrides', () => {
         { reasoningEffort: 'high' }
       )
     ).toBeUndefined();
+  });
+});
+
+describe('projectAgentMessagesForEnabledTools', () => {
+  it('keeps structured tool history for enabled tools', () => {
+    const assistant = fauxAssistantMessage(
+      [
+        { type: 'text', text: 'I will search.' },
+        fauxToolCall('searchWeb', { query: 'ICP filing time' }, { id: 'call-search' })
+      ],
+      { stopReason: 'toolUse' }
+    );
+    const toolResult = createToolResultMessage({
+      toolCallId: 'call-search',
+      toolName: 'searchWeb',
+      text: 'Search result summary.'
+    });
+
+    expect(
+      projectAgentMessagesForEnabledTools([assistant, toolResult], {
+        enabledToolNames: new Set(['searchWeb'])
+      })
+    ).toEqual([assistant, toolResult]);
+  });
+
+  it('removes unavailable tool calls and paired tool results from initial history', () => {
+    const assistant = fauxAssistantMessage(
+      [
+        { type: 'text', text: 'I will search.' },
+        fauxToolCall('searchWeb', { query: 'ICP filing time' }, { id: 'call-search' })
+      ],
+      { stopReason: 'toolUse' }
+    );
+    const toolResult = createToolResultMessage({
+      toolCallId: 'call-search',
+      toolName: 'searchWeb',
+      text: 'Search result summary.'
+    });
+
+    const projected = projectAgentMessagesForEnabledTools([assistant, toolResult], {
+      enabledToolNames: new Set()
+    });
+
+    expect(projected).toHaveLength(1);
+    expect(projected[0]).toMatchObject({
+      role: 'assistant',
+      stopReason: 'stop',
+      content: [{ type: 'text', text: 'I will search.' }]
+    });
+  });
+
+  it('drops tool-only assistant messages when every tool call is unavailable', () => {
+    const assistant = fauxAssistantMessage([fauxToolCall('openUrl', { url: 'https://example.com' }, { id: 'call-open' })], {
+      stopReason: 'toolUse'
+    });
+    const toolResult = createToolResultMessage({
+      toolCallId: 'call-open',
+      toolName: 'openUrl',
+      text: 'Opened page summary.'
+    });
+
+    expect(
+      projectAgentMessagesForEnabledTools([assistant, toolResult], {
+        enabledToolNames: new Set()
+      })
+    ).toEqual([]);
+  });
+
+  it('removes only unavailable tool blocks from mixed assistant messages', () => {
+    const assistant = fauxAssistantMessage(
+      [
+        { type: 'text', text: 'Checking available and unavailable tools.' },
+        fauxToolCall('getCurrentTime', { timezone: 'UTC' }, { id: 'call-time' }),
+        fauxToolCall('searchWeb', { query: 'latest ICP rules' }, { id: 'call-search' })
+      ],
+      { stopReason: 'toolUse' }
+    );
+    const timeResult = createToolResultMessage({
+      toolCallId: 'call-time',
+      toolName: 'getCurrentTime',
+      text: 'UTC now.'
+    });
+    const searchResult = createToolResultMessage({
+      toolCallId: 'call-search',
+      toolName: 'searchWeb',
+      text: 'Search result summary.'
+    });
+
+    const projected = projectAgentMessagesForEnabledTools([assistant, timeResult, searchResult], {
+      enabledToolNames: new Set(['getCurrentTime'])
+    });
+
+    expect(projected).toHaveLength(2);
+    expect(projected[0]).toMatchObject({
+      role: 'assistant',
+      stopReason: 'toolUse'
+    });
+    expect(projected[0]?.role === 'assistant' && projected[0].content).toEqual([
+      { type: 'text', text: 'Checking available and unavailable tools.' },
+      fauxToolCall('getCurrentTime', { timezone: 'UTC' }, { id: 'call-time' })
+    ]);
+    expect(projected[1]).toEqual(timeResult);
+  });
+
+  it('drops orphan tool results instead of leaving invalid LLM context', () => {
+    const orphan = createToolResultMessage({
+      toolCallId: 'missing-call',
+      toolName: 'searchWeb',
+      text: 'Unpaired result.'
+    });
+
+    expect(
+      projectAgentMessagesForEnabledTools([orphan], {
+        enabledToolNames: new Set(['searchWeb'])
+      })
+    ).toEqual([]);
   });
 });
 
@@ -1170,6 +1302,123 @@ describe('runAssistantTurnWithPiInternal', () => {
         provider: 'faux',
         model: 'faux-preferred-model'
       }
+    ]);
+  });
+
+  it('projects unavailable persisted tool history before sending context to the model', async () => {
+    const { ctx, thread, run } = await createContext();
+    const previousAssistant = await ctx.messageRepo.create({
+      id: 'previous-assistant',
+      threadId: thread.id,
+      runId: 'previous-run',
+      role: 'assistant',
+      seq: 1,
+      status: 'completed',
+      metadata: null
+    });
+    await ctx.messageRepo.createPart({
+      id: 'previous-assistant-text',
+      messageId: previousAssistant.id,
+      partIndex: 0,
+      type: 'text',
+      textValue: 'I will look up the latest filing time.',
+      jsonValue: null
+    });
+    await ctx.messageRepo.createPart({
+      id: 'previous-assistant-tool',
+      messageId: previousAssistant.id,
+      partIndex: 1,
+      type: 'tool-call',
+      textValue: null,
+      jsonValue: {
+        toolName: 'searchWeb',
+        toolCallId: 'call-search-history',
+        input: {
+          query: 'ICP filing time'
+        }
+      }
+    });
+
+    const previousTool = await ctx.messageRepo.create({
+      id: 'previous-tool',
+      threadId: thread.id,
+      runId: 'previous-run',
+      role: 'tool',
+      seq: 2,
+      status: 'completed',
+      metadata: {
+        toolName: 'searchWeb',
+        toolCallId: 'call-search-history'
+      }
+    });
+    await ctx.messageRepo.createPart({
+      id: 'previous-tool-result',
+      messageId: previousTool.id,
+      partIndex: 0,
+      type: 'tool-result',
+      textValue: 'Search result summary.',
+      jsonValue: {
+        toolName: 'searchWeb',
+        toolCallId: 'call-search-history',
+        content: [{ type: 'text', text: 'Search result summary.' }],
+        isError: false
+      }
+    });
+    const currentUser = await ctx.messageRepo.create({
+      id: 'current-user',
+      threadId: thread.id,
+      runId: null,
+      role: 'user',
+      seq: 3,
+      status: 'completed',
+      metadata: null
+    });
+    await ctx.messageRepo.createPart({
+      id: 'current-user-text',
+      messageId: currentUser.id,
+      partIndex: 0,
+      type: 'text',
+      textValue: 'How long does filing take?',
+      jsonValue: null
+    });
+
+    let capturedContext: Context | null = null;
+    const provider = registerScriptedToolUseProvider([
+      (context) => {
+        capturedContext = context;
+        return createFinalTextStep('It usually takes several business days.')(context);
+      }
+    ]);
+    unregisterCallbacks.push(provider.unregister);
+
+    await runAssistantTurnWithPiInternal(
+      ctx,
+      { threadId: thread.id, runId: run.id },
+      {
+        model: provider.model,
+        getApiKey: async () => 'scripted-key',
+        tools: []
+      }
+    );
+
+    expect(capturedContext).not.toBeNull();
+    expect(capturedContext?.messages.some((message) => message.role === 'toolResult')).toBe(false);
+    expect(
+      capturedContext?.messages.some(
+        (message) =>
+          message.role === 'assistant' &&
+          message.content.some((block) => block.type === 'toolCall' && block.name === 'searchWeb')
+      )
+    ).toBe(false);
+    expect(capturedContext?.messages).toEqual([
+      expect.objectContaining({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'I will look up the latest filing time.' }]
+      }),
+      expect.objectContaining({
+        role: 'user',
+        content: 'How long does filing take?'
+      })
     ]);
   });
 

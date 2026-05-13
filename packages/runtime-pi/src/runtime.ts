@@ -14,7 +14,7 @@ import {
 } from '@mariozechner/pi-ai';
 
 import { resolveRuntimePiConfigFromEnv } from './config.js';
-import { buildInitialAgentState, convertToLlm } from './messages.js';
+import { buildInitialAgentState, convertToLlm, projectAgentMessagesForEnabledTools } from './messages.js';
 import { createDemoTools } from './tools.js';
 import type {
   RuntimePiAssistantStreamUpdate,
@@ -1239,6 +1239,10 @@ export async function runAssistantTurnWithPiInternal(
   };
 
   const tools = options.tools ?? [];
+  const enabledToolNames = new Set(tools.map((tool) => tool.name));
+  const projectedMessages = projectAgentMessagesForEnabledTools(messages, {
+    enabledToolNames
+  });
   const deepseekThinkingEnabled = input.provider === 'deepseek' ? input.thinkingEnabled === true : false;
   const thinkingLevel =
     deepseekThinkingEnabled
@@ -1253,7 +1257,7 @@ export async function runAssistantTurnWithPiInternal(
       model,
       thinkingLevel,
       tools,
-      messages
+      messages: projectedMessages
     },
     onPayload: async (payload) => {
       if (input.provider !== 'deepseek' || !payload || typeof payload !== 'object' || Array.isArray(payload)) {

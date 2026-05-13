@@ -176,6 +176,72 @@ export function buildInitialAgentState(
   };
 }
 
+export function projectAgentMessagesForEnabledTools(
+  messages: AgentMessage[],
+  options: {
+    enabledToolNames?: ReadonlySet<string>;
+  } = {}
+): AgentMessage[] {
+  const { enabledToolNames } = options;
+  if (!enabledToolNames) {
+    return messages;
+  }
+
+  const toolCallEnabledById = new Map<string, boolean>();
+
+  for (const message of messages) {
+    if (message.role !== 'assistant' || !Array.isArray(message.content)) {
+      continue;
+    }
+
+    for (const block of message.content) {
+      if (block.type === 'toolCall') {
+        toolCallEnabledById.set(block.id, enabledToolNames.has(block.name));
+      }
+    }
+  }
+
+  return messages.flatMap((message) => {
+    if (message.role === 'assistant' && Array.isArray(message.content)) {
+      let removedToolCall = false;
+      const content = message.content.filter((block) => {
+        if (block.type !== 'toolCall') {
+          return true;
+        }
+
+        const enabled = toolCallEnabledById.get(block.id) === true;
+        removedToolCall ||= !enabled;
+        return enabled;
+      });
+
+      if (content.length === 0) {
+        return [];
+      }
+
+      if (!removedToolCall) {
+        return [message];
+      }
+
+      return [
+        {
+          ...message,
+          content,
+          stopReason: content.some((block) => block.type === 'toolCall') ? message.stopReason : 'stop'
+        }
+      ];
+    }
+
+    if (message.role === 'toolResult') {
+      const toolCallEnabled = toolCallEnabledById.get(message.toolCallId);
+      if (toolCallEnabled !== true || !enabledToolNames.has(message.toolName)) {
+        return [];
+      }
+    }
+
+    return [message];
+  });
+}
+
 export function convertToLlm(messages: AgentMessage[]) {
   return messages.filter((message) => message.role === 'user' || message.role === 'assistant' || message.role === 'toolResult');
 }
