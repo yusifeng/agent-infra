@@ -15,6 +15,7 @@ const idleDurableRecoveryState = {
   phase: 'idle' as const,
   message: null
 };
+const replayPinnedThreadIds: string[] = [];
 
 export function ReplayConsole({
   initialThreadId,
@@ -61,7 +62,7 @@ export function ReplayConsole({
         sidebarOpen={sidebarOpen}
         currentUser={currentUser}
         threads={threads}
-        pinnedThreadIds={[]}
+        pinnedThreadIds={replayPinnedThreadIds}
         activeThreadId={activeThreadId}
         openThreadMenuId={null}
         onClose={onCloseSidebar}

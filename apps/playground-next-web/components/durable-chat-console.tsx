@@ -1,7 +1,7 @@
 'use client';
 
 import clsx from 'clsx';
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import { ChatHeader } from './chat-shell/chat-header';
 import { ChatMessageList } from './chat-shell/message-list';
@@ -22,9 +22,27 @@ type DurableChatConsoleProps = {
   onLogout?: () => void;
 };
 
+function useStableCallback<TArgs extends unknown[], TResult>(callback: (...args: TArgs) => TResult) {
+  const callbackRef = useRef(callback);
+  callbackRef.current = callback;
+
+  return useCallback((...args: TArgs) => callbackRef.current(...args), []);
+}
+
 export function DurableChatConsole({ currentUser = null, initialThreadId = null, onLogout }: DurableChatConsoleProps) {
   const runtime = useDurableChatRuntime({ initialThreadId });
   const [openThreadMenuId, setOpenThreadMenuId] = useState<string | null>(null);
+  const closeThreadMenu = useCallback(() => setOpenThreadMenuId(null), []);
+  const handleCloseSidebar = useStableCallback(runtime.onCloseSidebar);
+  const handleNewChat = useStableCallback(runtime.onNewChat);
+  const handleOpenThread = useStableCallback(runtime.onOpenThread);
+  const handleRenameThread = useStableCallback(runtime.onRenameThreadById);
+  const handleTogglePinThread = useStableCallback(runtime.onToggleThreadPinById);
+  const handleShareThread = useStableCallback(runtime.onOpenThreadShareDialog);
+  const handleArchiveThread = useStableCallback(runtime.onArchiveThreadById);
+  const handleLoadOlderMessages = useStableCallback(runtime.onLoadOlderMessages);
+  const handleOpenSearchResult = useStableCallback(runtime.onOpenSearchResult);
+  const getLiveSearchPanelData = useStableCallback(runtime.getLiveSearchPanelData);
   const centeredEmptyState =
     !runtime.activeThreadId &&
     runtime.displayedMessages.length === 0 &&
@@ -36,19 +54,18 @@ export function DurableChatConsole({ currentUser = null, initialThreadId = null,
       <ChatSidebar
         sidebarOpen={runtime.sidebarOpen}
         threads={runtime.threads}
-        pinnedThreadIds={runtime.threads.filter((thread) => (thread as { pinned?: boolean }).pinned === true).map((thread) => thread.id)}
         activeThreadId={runtime.activeThreadId}
         openThreadMenuId={openThreadMenuId}
         currentUser={currentUser}
-        onClose={runtime.onCloseSidebar}
-        onNewChat={runtime.onNewChat}
-        onOpenThread={runtime.onOpenThread}
+        onClose={handleCloseSidebar}
+        onNewChat={handleNewChat}
+        onOpenThread={handleOpenThread}
         onOpenThreadMenu={setOpenThreadMenuId}
-        onCloseThreadMenu={() => setOpenThreadMenuId(null)}
-        onRenameThread={runtime.onRenameThreadById}
-        onTogglePinThread={runtime.onToggleThreadPinById}
-        onShareThread={runtime.onOpenThreadShareDialog}
-        onArchiveThread={runtime.onArchiveThreadById}
+        onCloseThreadMenu={closeThreadMenu}
+        onRenameThread={handleRenameThread}
+        onTogglePinThread={handleTogglePinThread}
+        onShareThread={handleShareThread}
+        onArchiveThread={handleArchiveThread}
         onLogout={onLogout}
       />
 
@@ -104,9 +121,9 @@ export function DurableChatConsole({ currentUser = null, initialThreadId = null,
                   )
                 }
                 centeredEmptyState={centeredEmptyState}
-                getLiveSearchPanelData={runtime.getLiveSearchPanelData}
-                onLoadOlderMessages={runtime.onLoadOlderMessages}
-                onOpenSearchResult={runtime.onOpenSearchResult}
+                getLiveSearchPanelData={getLiveSearchPanelData}
+                onLoadOlderMessages={handleLoadOlderMessages}
+                onOpenSearchResult={handleOpenSearchResult}
               />
             </div>
             <ComposerDock

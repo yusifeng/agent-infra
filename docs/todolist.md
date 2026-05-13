@@ -145,19 +145,19 @@
 ### 3.3 Runtime Render Performance
 
 - [ ] Use existing render diagnostics or React Profiler to identify high-frequency unrelated renders before changing memo boundaries.
-- [ ] Stabilize callbacks passed to memoized heavy children such as `ChatMessageList`, `ChatSidebar`, composer, and log pane.
+- [x] Stabilize callbacks passed to memoized heavy children such as `ChatMessageList`, `ChatSidebar`, composer, and log pane.
 - [ ] Consider returning grouped `state` and `actions` from runtime only if it reduces prop churn without broad rewrite.
-- [ ] Avoid blanket `useCallback` churn for callbacks not crossing memo boundaries.
+- [x] Avoid blanket `useCallback` churn for callbacks not crossing memo boundaries.
 - [ ] Verify draft input and live token updates do not repeatedly re-render unrelated sidebar/header subtrees.
 - [ ] Run `pnpm --filter playground-next-web typecheck`.
 
 ### 3.4 Sidebar Derived State
 
-- [ ] Remove per-render `pinnedThreadIds` allocation in `DurableChatConsole`, or memoize it if retaining the prop.
-- [ ] Prefer letting `ChatSidebar` derive pinned grouping from `threads` directly if that keeps the API simpler.
-- [ ] Keep thread grouping behavior unchanged.
-- [ ] Run targeted tests if grouping helpers are extracted.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Remove per-render `pinnedThreadIds` allocation in `DurableChatConsole`, or memoize it if retaining the prop.
+- [x] Prefer letting `ChatSidebar` derive pinned grouping from `threads` directly if that keeps the API simpler.
+- [x] Keep thread grouping behavior unchanged.
+- [x] Run targeted tests if grouping helpers are extracted.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
 
 ### 3.5 Message List Readability
 
@@ -274,12 +274,12 @@
 
 ### Loop 5: Render Performance And Sidebar Prop Churn
 
-- [ ] Stabilize high-impact callbacks crossing memo boundaries.
-- [ ] Remove or memoize `pinnedThreadIds` derived allocation.
-- [ ] Verify with render diagnostics or profiler.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run codex review with the repository Review Profile.
-- [ ] Commit this slice after clean review and passing verification.
+- [x] Stabilize high-impact callbacks crossing memo boundaries.
+- [x] Remove or memoize `pinnedThreadIds` derived allocation.
+- [x] Verify with render diagnostics or profiler.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run codex review with the repository Review Profile.
+- [x] Commit this slice after clean review and passing verification.
 
 ### Loop 6: Auth And Thread Catalog Test Coverage
 

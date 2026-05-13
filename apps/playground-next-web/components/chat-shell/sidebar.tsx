@@ -12,7 +12,7 @@ import {
   Settings2,
   Share2
 } from 'lucide-react';
-import { useMemo, useState, type ReactNode } from 'react';
+import { memo, useMemo, useState, type ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import type { AuthUserDto } from '@/features/auth/dto/project-auth-user-dto';
 import type { PlaygroundThreadDto } from '@/features/durable-chat/repo/chat-api';
+import { buildThreadSidebarGroups } from '@/features/durable-chat/service/thread-sidebar-groups';
 
 import { ChatAvatar, IconButton } from './shared';
 import { ui } from './ui';
@@ -31,29 +32,6 @@ import { ui } from './ui';
 function ThreadTitle({ thread }: { thread: PlaygroundThreadDto }) {
   const title = thread.title?.trim() || 'New Thread';
   return <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[length:var(--chat-sidebar-item-font-size)] leading-[1.2]">{title}</span>;
-}
-
-function formatGroupLabel(date: Date) {
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startOfYesterday = new Date(startOfToday);
-  startOfYesterday.setDate(startOfYesterday.getDate() - 1);
-  const startOfWeek = new Date(startOfToday);
-  startOfWeek.setDate(startOfWeek.getDate() - 7);
-
-  if (date >= startOfToday) {
-    return '今天';
-  }
-
-  if (date >= startOfYesterday) {
-    return '昨天';
-  }
-
-  if (date >= startOfWeek) {
-    return '7 天内';
-  }
-
-  return '更早';
 }
 
 type ChatSidebarProps = {
@@ -75,11 +53,11 @@ type ChatSidebarProps = {
   onArchiveThread?: (threadId: string) => void;
 };
 
-export function ChatSidebar({
+export const ChatSidebar = memo(function ChatSidebar({
   sidebarOpen,
   currentUser,
   threads,
-  pinnedThreadIds = [],
+  pinnedThreadIds,
   activeThreadId,
   openThreadMenuId = null,
   onClose,
@@ -96,30 +74,7 @@ export function ChatSidebar({
   const [historyExpanded, setHistoryExpanded] = useState(true);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
-  const groupedThreads = useMemo(() => {
-    const pinnedSet = new Set(pinnedThreadIds);
-    const activeThreads = threads.filter((thread) => thread.status === 'active');
-    const pinnedThreads = activeThreads.filter((thread) => pinnedSet.has(thread.id));
-    const unpinnedThreads = activeThreads.filter((thread) => !pinnedSet.has(thread.id));
-
-    const groups = new Map<string, PlaygroundThreadDto[]>();
-    for (const thread of unpinnedThreads) {
-      const label = formatGroupLabel(new Date(thread.updatedAt));
-      const current = groups.get(label) ?? [];
-      current.push(thread);
-      groups.set(label, current);
-    }
-
-    const orderedGroupLabels = ['今天', '昨天', '7 天内', '更早'];
-    const groupedUnpinned = orderedGroupLabels
-      .map((label) => ({
-        label,
-        threads: groups.get(label) ?? []
-      }))
-      .filter((group) => group.threads.length > 0);
-
-    return { pinnedThreads, groupedUnpinned };
-  }, [pinnedThreadIds, threads]);
+  const groupedThreads = useMemo(() => buildThreadSidebarGroups(threads, { pinnedThreadIds }), [pinnedThreadIds, threads]);
   const visibleUnpinnedGroups = historyExpanded
     ? groupedThreads.groupedUnpinned
     : groupedThreads.groupedUnpinned.filter((group) => group.label !== '更早');
@@ -226,7 +181,7 @@ export function ChatSidebar({
       </div>
     </>
   );
-}
+});
 
 function deriveAccountDisplayName(email: string) {
   const localPart = email.split('@')[0]?.trim();
