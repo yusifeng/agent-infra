@@ -12,6 +12,7 @@ export {
   mergeMessageWindow,
   mergeThreadMessagesPageInfo,
   normalizeRuntimeMeta,
+  parseRunAttachSseChunk,
   parseSseChunk,
   resolvePostReconcileChatPhase,
   resolveSettledChatPhase,

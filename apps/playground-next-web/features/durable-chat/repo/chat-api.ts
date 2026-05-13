@@ -5,6 +5,7 @@ export {
   fetchThreadMessagesResponse,
   fetchThreadRunsResponse,
   fetchThreadsResponse,
+  openThreadRunAttachStream,
   openThreadRunStream,
   type ApiResult,
   type RunStreamOpenResult

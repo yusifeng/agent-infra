@@ -1,5 +1,6 @@
 import type {
   MessageDto,
+  RunAttachStreamEventDto,
   RunDto,
   RunStreamEventDto,
   ThreadMessagesPageInfoDto,
@@ -7,7 +8,7 @@ import type {
   RuntimePiMetaDto
 } from '@agent-infra/contracts';
 
-import { normalizeRunStreamEvent } from '../schema/run-stream.js';
+import { normalizeRunAttachStreamEvent, normalizeRunStreamEvent } from '../schema/run-stream.js';
 import type { ChatPhase, MainChatResponseStatus } from '../types/runtime.js';
 
 export const RECENT_RUNS_LIMIT = 8;
@@ -358,9 +359,20 @@ export function applyRunStateToTimeline(
 }
 
 export function parseSseChunk(buffer: string) {
+  return parseSseChunkWithNormalizer(buffer, normalizeRunStreamEvent);
+}
+
+export function parseRunAttachSseChunk(buffer: string) {
+  return parseSseChunkWithNormalizer(buffer, normalizeRunAttachStreamEvent);
+}
+
+function parseSseChunkWithNormalizer<TEvent extends RunStreamEventDto | RunAttachStreamEventDto>(
+  buffer: string,
+  normalize: (value: unknown) => TEvent | null
+) {
   const frames = buffer.split('\n\n');
   const remainder = frames.pop() ?? '';
-  const events: RunStreamEventDto[] = [];
+  const events: TEvent[] = [];
 
   for (const frame of frames) {
     const lines = frame.split('\n');
@@ -383,7 +395,7 @@ export function parseSseChunk(buffer: string) {
     }
 
     try {
-      const parsed = normalizeRunStreamEvent(JSON.parse(data));
+      const parsed = normalize(JSON.parse(data));
       if (parsed?.type === eventName) {
         events.push(parsed);
       }

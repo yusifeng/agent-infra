@@ -227,10 +227,10 @@ Loop 0 decision:
 - [ ] Port composer.
 - [ ] Port message list.
 - [ ] Port answer containers.
-- [ ] Port loading semantics.
+- [x] Port loading semantics.
 - [x] Port thread rename/archive/pin actions.
 - [ ] Port search status presentation only after search backend exists.
-- [ ] Port attach-stream frontend only after backend exists.
+- [x] Port attach-stream frontend only after backend exists.
 
 Loop 0 decision:
 

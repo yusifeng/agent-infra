@@ -1,9 +1,15 @@
 'use client';
 
 import type { LoadThreadMessagesResult } from '@agent-infra/durable-chat-client';
-import { installChatRenderDiagnostics } from '@agent-infra/durable-chat-client';
+import {
+  applyRunAssistantEventToLiveDraft,
+  installChatRenderDiagnostics,
+  liveDraftFromRunSnapshot,
+  resolveAssistantStreamChatPhase
+} from '@agent-infra/durable-chat-client';
 import type {
   MessageDto,
+  RunAttachStreamEventDto,
   RuntimePiMetaDto,
   ThreadDto
 } from '@agent-infra/contracts';
@@ -17,6 +23,7 @@ import {
   fetchCurrentThreadShare,
   fetchPlaygroundThreads,
   fetchThreadMessagesResponse,
+  openThreadRunAttachStream,
   pinThread,
   renameThread,
   revokeThreadSnapshotShare,
@@ -49,8 +56,11 @@ import { useRunInspectorController } from '@/features/durable-chat/runtime/use-r
 import {
   deriveMainChatResponseStatus,
   INITIAL_MESSAGE_PAGE_LIMIT,
+  parseRunAttachSseChunk,
+  resolveSettledChatPhase,
   shouldShowMainChatLoading,
-  upsertMessage
+  upsertMessage,
+  upsertRun
 } from '@/features/durable-chat/service/chat-runtime';
 import type { DurableChatRuntimeOptions } from '@/features/durable-chat/types/runtime';
 
@@ -142,6 +152,10 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const logInspectorAbortControllerRef = useRef<AbortController | null>(null);
   const timelineRequestIdRef = useRef(0);
   const timelineAbortControllerRef = useRef<AbortController | null>(null);
+  const attachRequestIdRef = useRef(0);
+  const attachAbortControllerRef = useRef<AbortController | null>(null);
+  const attachRunIdRef = useRef<string | null>(null);
+  const attachVersionRef = useRef(0);
   const sendRequestIdRef = useRef(0);
   const sendAbortControllerRef = useRef<AbortController | null>(null);
   const reconcileRequestIdRef = useRef(0);
@@ -382,6 +396,9 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }
 
   function stopViewingLiveResponse() {
+    attachAbortControllerRef.current?.abort();
+    attachAbortControllerRef.current = null;
+    attachRunIdRef.current = null;
     runStopViewingLiveResponse({
       refs: {
         sendAbortControllerRef
@@ -394,6 +411,177 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         setPersistingTurn
       }
     });
+  }
+
+  function isCurrentAttachRequest(requestId: number, threadId: string, runId: string) {
+    return (
+      requestId === attachRequestIdRef.current &&
+      activeThreadIdRef.current === threadId &&
+      attachRunIdRef.current === runId
+    );
+  }
+
+  function applyAttachEvent(event: RunAttachStreamEventDto, threadId: string, requestId: number) {
+    if (!isCurrentAttachRequest(requestId, threadId, event.runId)) {
+      return false;
+    }
+
+    if (event.type === 'run.attach_unavailable') {
+      setLiveStreamRunId(null);
+      if (event.run?.status === 'queued' || event.run?.status === 'running') {
+        setActiveResponseRun(event.run);
+      } else {
+        setActiveResponseRun(null);
+      }
+      void loadThreadMessages(threadId, {
+        background: true,
+        preferredRunId: event.runId,
+        preserveExistingTimeline: logOpenRef.current,
+        skipTimelineReload: logOpenRef.current
+      });
+      return true;
+    }
+
+    if (event.type !== 'run.snapshot' && event.version <= attachVersionRef.current) {
+      return false;
+    }
+    attachVersionRef.current = event.version;
+    setLiveStreamRunId(event.runId);
+
+    if (event.type === 'run.snapshot') {
+      setRecentRuns((current) => upsertRun(current, event.run));
+      setActiveResponseRun(event.run.status === 'queued' || event.run.status === 'running' ? event.run : null);
+      setLoadingThreadId(event.run.status === 'queued' || event.run.status === 'running' ? threadId : null);
+      const draft = liveDraftFromRunSnapshot(event);
+      setLiveAssistantDraft(draft);
+      setChatPhase(draft?.eventType === 'streaming' ? 'streaming' : 'thinking');
+      return false;
+    }
+
+    if (event.type === 'run.assistant') {
+      setChatPhase(resolveAssistantStreamChatPhase(event));
+      setLoadingThreadId(threadId);
+      setLiveAssistantDraft((current) => applyRunAssistantEventToLiveDraft(current, event));
+      return false;
+    }
+
+    if (event.type === 'run.state') {
+      setRecentRuns((current) => upsertRun(current, event.run));
+      setActiveResponseRun(event.run.status === 'queued' || event.run.status === 'running' ? event.run : null);
+      setLoadingThreadId(event.run.status === 'queued' || event.run.status === 'running' ? threadId : null);
+      return false;
+    }
+
+    if (event.type === 'run.failed') {
+      const failedRun = event.run;
+      if (failedRun) {
+        setRecentRuns((current) => upsertRun(current, failedRun));
+      }
+      setActiveResponseRun(null);
+      setError(event.error);
+      setLiveStreamRunId(null);
+      setLoadingThreadId(null);
+      setPersistingTurn(false);
+      setChatPhase('failed');
+      setLiveAssistantDraft((current) => (current?.runId === event.runId ? null : current));
+      void reconcileCompletedTurn(threadId, event.runId, requestId);
+      return true;
+    }
+
+    setRecentRuns((current) => upsertRun(current, event.run));
+    setActiveResponseRun(null);
+    setError(null);
+    setLiveStreamRunId(null);
+    setLoadingThreadId(null);
+    setPersistingTurn(true);
+    setChatPhase(resolveSettledChatPhase);
+    void reconcileCompletedTurn(threadId, event.runId, requestId);
+    return true;
+  }
+
+  async function attachToActiveRun(threadId: string, runId: string) {
+    const requestId = sendRequestIdRef.current + 1;
+    sendRequestIdRef.current = requestId;
+    attachRequestIdRef.current = requestId;
+    attachAbortControllerRef.current?.abort();
+    const controller = new AbortController();
+    attachAbortControllerRef.current = controller;
+    attachRunIdRef.current = runId;
+    attachVersionRef.current = 0;
+    setError(null);
+    setLiveStreamRunId(runId);
+    setLoadingThreadId(threadId);
+    setChatPhase('thinking');
+
+    try {
+      const streamResult = await openThreadRunAttachStream(threadId, runId, controller.signal);
+      if (!isCurrentAttachRequest(requestId, threadId, runId)) {
+        return;
+      }
+
+      if (!streamResult.ok) {
+        throw new Error(streamResult.error ?? `request failed (${streamResult.status})`);
+      }
+
+      if (!streamResult.body) {
+        throw new Error('attach stream response body is unavailable');
+      }
+
+      const reader = streamResult.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+
+        if (controller.signal.aborted || !isCurrentAttachRequest(requestId, threadId, runId)) {
+          return;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const parsed = parseRunAttachSseChunk(buffer);
+        buffer = parsed.remainder;
+
+        for (const event of parsed.events) {
+          const terminal = applyAttachEvent(event, threadId, requestId);
+          if (terminal) {
+            return;
+          }
+        }
+      }
+
+      const finalBuffer = `${buffer}${decoder.decode()}`;
+      if (finalBuffer.trim()) {
+        const parsed = parseRunAttachSseChunk(finalBuffer.endsWith('\n\n') ? finalBuffer : `${finalBuffer}\n\n`);
+        for (const event of parsed.events) {
+          const terminal = applyAttachEvent(event, threadId, requestId);
+          if (terminal) {
+            return;
+          }
+        }
+      }
+    } catch (attachError) {
+      if (controller.signal.aborted || !isCurrentAttachRequest(requestId, threadId, runId)) {
+        return;
+      }
+
+      setError(attachError instanceof Error ? attachError.message : 'Failed to attach to run stream');
+      void loadThreadMessages(threadId, {
+        background: true,
+        preferredRunId: runId,
+        preserveExistingTimeline: logOpenRef.current,
+        skipTimelineReload: logOpenRef.current
+      });
+    } finally {
+      if (isCurrentAttachRequest(requestId, threadId, runId)) {
+        attachAbortControllerRef.current = null;
+        attachRunIdRef.current = null;
+        setLiveStreamRunId(null);
+      }
+    }
   }
 
   async function activateThread(threadId: string, options?: { preferredRunId?: string | null }) {
@@ -958,6 +1146,30 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   useEffect(() => {
     void refreshMeta();
   }, []);
+
+  useEffect(() => {
+    const run = activeResponseRun;
+    const runIsActive = run?.status === 'queued' || run?.status === 'running';
+    if (activeThreadId && run && run.threadId !== activeThreadId) {
+      attachAbortControllerRef.current?.abort();
+      attachAbortControllerRef.current = null;
+      attachRunIdRef.current = null;
+      return;
+    }
+
+    if (!activeThreadId || !run || !runIsActive) {
+      attachAbortControllerRef.current?.abort();
+      attachAbortControllerRef.current = null;
+      attachRunIdRef.current = null;
+      return;
+    }
+
+    if (sendAbortControllerRef.current || attachRunIdRef.current === run.id) {
+      return;
+    }
+
+    void attachToActiveRun(activeThreadId, run.id);
+  }, [activeThreadId, activeResponseRun?.id, activeResponseRun?.status]);
 
   useEffect(() => {
     const requestId = routeChangeRequestIdRef.current + 1;

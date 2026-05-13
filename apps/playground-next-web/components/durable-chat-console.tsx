@@ -75,10 +75,15 @@ export function DurableChatConsole({ currentUser = null, initialThreadId = null,
                 liveAssistantDraft={runtime.liveAssistantDraft}
                 showLoadingText={
                   runtime.showResponseLoading &&
-                  runtime.liveAssistantDraft?.eventType === 'start' &&
-                  runtime.liveAssistantDraft.partialText.length === 0 &&
-                  runtime.liveAssistantDraft.partialReasoning === null &&
-                  runtime.liveAssistantDraft.activeTools.length === 0
+                  (
+                    !runtime.liveAssistantDraft ||
+                    (
+                      runtime.liveAssistantDraft.eventType === 'start' &&
+                      runtime.liveAssistantDraft.partialText.length === 0 &&
+                      runtime.liveAssistantDraft.partialReasoning === null &&
+                      runtime.liveAssistantDraft.activeTools.length === 0
+                    )
+                  )
                 }
                 centeredEmptyState={centeredEmptyState}
                 onLoadOlderMessages={runtime.onLoadOlderMessages}

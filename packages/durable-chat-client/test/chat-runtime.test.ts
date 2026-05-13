@@ -12,6 +12,7 @@ import {
   mergeMessageWindow,
   mergeThreadMessagesPageInfo,
   normalizeRuntimeMeta,
+  parseRunAttachSseChunk,
   parseSseChunk,
   resolvePostReconcileChatPhase,
   resolveSettledChatPhase,
@@ -298,6 +299,22 @@ describe('durable-chat-client service', () => {
     expect(parsed.events).toHaveLength(1);
     expect(parsed.events[0]?.type).toBe('run.completed');
     expect(parsed.remainder).toMatch(/run\.failed/);
+  });
+
+  it('parseRunAttachSseChunk returns attach snapshots and preserves incomplete remainder', () => {
+    const buffer = [
+      'event: run.snapshot',
+      'data: {"type":"run.snapshot","runId":"run-1","version":2,"run":{"id":"run-1","threadId":"thread-1","triggerMessageId":null,"provider":"openai","model":"gpt-4o-mini","status":"running","usage":null,"error":null,"startedAt":null,"finishedAt":null,"createdAt":"2026-01-01T00:00:00.000Z"},"assistant":{"liveDraftId":"assistant-1","messageId":"assistant-1","text":"abc","reasoning":null,"activeTools":[],"eventType":"streaming","segments":[]}}',
+      '',
+      'event: run.assistant',
+      'data: {"type":"run.assistant"'
+    ].join('\n');
+
+    const parsed = parseRunAttachSseChunk(buffer);
+
+    expect(parsed.events).toHaveLength(1);
+    expect(parsed.events[0]?.type).toBe('run.snapshot');
+    expect(parsed.remainder).toMatch(/run\.assistant/);
   });
 
   it('resolves settled and post-reconcile chat phases', () => {
