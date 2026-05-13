@@ -57,7 +57,7 @@
 - [ ] Define a DI-friendly stream coordinator interface before moving logic out of `runs/stream/route.ts`.
 - [ ] Define attach unavailable reason handling before moving attach helper logic out of `attach-stream/route.ts`.
 - [x] Define `runInitializeRuntime` operation ordering expectations in `packages/durable-chat-client` tests before changing concurrency.
-- [ ] Define a small attach client flow interface before extracting attach event handling from `useDurableChatRuntime`.
+- [x] Define a small attach client flow interface before extracting attach event handling from `useDurableChatRuntime`.
 - [ ] Define app-local auth response mapping helpers before changing auth route or form behavior.
 - [ ] Define whether `@agent-infra/durable-chat-client` subpath exports will be introduced as package public API.
 
@@ -134,8 +134,8 @@
 ### 3.2 Runtime Hook Readability
 
 - [ ] Inventory responsibilities inside `useDurableChatRuntime` and group them by flow before editing.
-- [ ] Extract attach event application into a small runtime helper or flow.
-- [ ] Add tests for extracted attach event behavior before changing surrounding hook wiring.
+- [x] Extract attach event application into a small runtime helper or flow.
+- [x] Add tests for extracted attach event behavior before changing surrounding hook wiring.
 - [ ] Extract share dialog state/actions into a bounded helper or controller.
 - [ ] Extract thread rename/archive/pin action flow if it can be tested independently.
 - [ ] Extract scroll/composer DOM behavior only if it reduces hook complexity without creating a second state machine.
@@ -205,7 +205,7 @@
 
 ### 4.3 Runtime Tests
 
-- [ ] Add attach event flow tests before extracting attach logic from `useDurableChatRuntime`.
+- [x] Add attach event flow tests before extracting attach logic from `useDurableChatRuntime`.
 - [x] Add `runInitializeRuntime` ordering tests in `packages/durable-chat-client`.
 - [ ] Add inspector/reconcile ordering tests before parallelizing those flows.
 - [ ] Keep hook-level tests out of scope unless pure flow extraction cannot cover the behavior.
@@ -264,13 +264,13 @@
 
 ### Loop 4: Runtime Readability And Attach Flow Extraction
 
-- [ ] Extract attach client flow from `useDurableChatRuntime`.
-- [ ] Add focused attach flow tests.
+- [x] Extract attach client flow from `useDurableChatRuntime`.
+- [x] Add focused attach flow tests.
 - [ ] Optionally extract share or thread actions only if the first extraction is clean and still in the same bounded slice.
-- [ ] Run `pnpm --filter playground-next-web test`.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run codex review with the repository Review Profile.
-- [ ] Commit this slice after clean review and passing verification.
+- [x] Run `pnpm --filter playground-next-web test`.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run codex review with the repository Review Profile.
+- [x] Commit this slice after clean review and passing verification.
 
 ### Loop 5: Render Performance And Sidebar Prop Churn
 

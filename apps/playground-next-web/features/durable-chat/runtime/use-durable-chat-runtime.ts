@@ -1,12 +1,7 @@
 'use client';
 
 import type { LoadThreadMessagesResult } from '@agent-infra/durable-chat-client';
-import {
-  applyRunAssistantEventToLiveDraft,
-  installChatRenderDiagnostics,
-  liveDraftFromRunSnapshot,
-  resolveAssistantStreamChatPhase
-} from '@agent-infra/durable-chat-client';
+import { installChatRenderDiagnostics } from '@agent-infra/durable-chat-client';
 import type {
   MessageDto,
   RunAttachStreamEventDto,
@@ -39,6 +34,7 @@ import {
   runResetDraftThreadState,
   runStopViewingLiveResponse
 } from '@/features/durable-chat/runtime/chat-session-flow';
+import { applyAttachRunEvent } from '@/features/durable-chat/runtime/attach-run-flow';
 import {
   applyHydratedTranscriptState,
   runActivateThread,
@@ -58,9 +54,7 @@ import {
   deriveMainChatResponseStatus,
   INITIAL_MESSAGE_PAGE_LIMIT,
   parseRunAttachSseChunk,
-  resolveSettledChatPhase,
-  shouldShowMainChatLoading,
-  upsertRun
+  shouldShowMainChatLoading
 } from '@/features/durable-chat/service/chat-runtime';
 import { buildAnswerContainers } from '@/features/durable-chat/service/build-answer-containers';
 import { buildDeepseekModePresentation } from '@/features/durable-chat/service/deepseek-mode-presentation';
@@ -471,81 +465,32 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }
 
   function applyAttachEvent(event: RunAttachStreamEventDto, threadId: string, requestId: number) {
-    if (!isCurrentAttachRequest(requestId, threadId, event.runId)) {
-      return false;
-    }
-
-    if (event.type === 'run.attach_unavailable') {
-      setLiveStreamRunId(null);
-      if (event.run?.status === 'queued' || event.run?.status === 'running') {
-        setActiveResponseRun(event.run);
-      } else {
-        setActiveResponseRun(null);
+    return applyAttachRunEvent({
+      event,
+      requestId,
+      threadId,
+      refs: {
+        activeThreadIdRef,
+        attachRequestIdRef,
+        attachRunIdRef,
+        attachVersionRef,
+        logOpenRef
+      },
+      actions: {
+        setActiveResponseRun,
+        setChatPhase,
+        setError,
+        setLiveAssistantDraft,
+        setLiveStreamRunId,
+        setLoadingThreadId,
+        setPersistingTurn,
+        setRecentRuns
+      },
+      operations: {
+        loadThreadMessages,
+        reconcileCompletedTurn
       }
-      void loadThreadMessages(threadId, {
-        background: true,
-        preferredRunId: event.runId,
-        preserveExistingTimeline: logOpenRef.current,
-        skipTimelineReload: logOpenRef.current
-      });
-      return true;
-    }
-
-    if (event.type !== 'run.snapshot' && event.version <= attachVersionRef.current) {
-      return false;
-    }
-    attachVersionRef.current = event.version;
-    setLiveStreamRunId(event.runId);
-
-    if (event.type === 'run.snapshot') {
-      setRecentRuns((current) => upsertRun(current, event.run));
-      setActiveResponseRun(event.run.status === 'queued' || event.run.status === 'running' ? event.run : null);
-      setLoadingThreadId(event.run.status === 'queued' || event.run.status === 'running' ? threadId : null);
-      const draft = liveDraftFromRunSnapshot(event);
-      setLiveAssistantDraft(draft);
-      setChatPhase(draft?.eventType === 'streaming' ? 'streaming' : 'thinking');
-      return false;
-    }
-
-    if (event.type === 'run.assistant') {
-      setChatPhase(resolveAssistantStreamChatPhase(event));
-      setLoadingThreadId(threadId);
-      setLiveAssistantDraft((current) => applyRunAssistantEventToLiveDraft(current, event));
-      return false;
-    }
-
-    if (event.type === 'run.state') {
-      setRecentRuns((current) => upsertRun(current, event.run));
-      setActiveResponseRun(event.run.status === 'queued' || event.run.status === 'running' ? event.run : null);
-      setLoadingThreadId(event.run.status === 'queued' || event.run.status === 'running' ? threadId : null);
-      return false;
-    }
-
-    if (event.type === 'run.failed') {
-      const failedRun = event.run;
-      if (failedRun) {
-        setRecentRuns((current) => upsertRun(current, failedRun));
-      }
-      setActiveResponseRun(null);
-      setError(event.error);
-      setLiveStreamRunId(null);
-      setLoadingThreadId(null);
-      setPersistingTurn(false);
-      setChatPhase('failed');
-      setLiveAssistantDraft((current) => (current?.runId === event.runId ? null : current));
-      void reconcileCompletedTurn(threadId, event.runId, requestId);
-      return true;
-    }
-
-    setRecentRuns((current) => upsertRun(current, event.run));
-    setActiveResponseRun(null);
-    setError(null);
-    setLiveStreamRunId(null);
-    setLoadingThreadId(null);
-    setPersistingTurn(true);
-    setChatPhase(resolveSettledChatPhase);
-    void reconcileCompletedTurn(threadId, event.runId, requestId);
-    return true;
+    });
   }
 
   async function attachToActiveRun(threadId: string, runId: string) {
