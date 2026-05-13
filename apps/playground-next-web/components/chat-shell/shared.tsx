@@ -1,9 +1,10 @@
 'use client';
 
 import clsx from 'clsx';
-import type { ComponentType } from 'react';
+import type { ButtonHTMLAttributes, ComponentType } from 'react';
 
-import { LOBE_AVATAR_URL, WAVING_HAND_EMOJI_URL } from './ui';
+import { DeepseekLogo } from './deepseek-logo';
+import { WAVING_HAND_EMOJI_URL } from './ui';
 
 type IconButtonProps = {
   icon: ComponentType<{ className?: string }>;
@@ -12,7 +13,7 @@ type IconButtonProps = {
   size?: 'default' | 'small';
   disabled?: boolean;
   className?: string;
-};
+} & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children' | 'title' | 'onClick'>;
 
 export function IconButton({
   icon: Icon,
@@ -20,7 +21,8 @@ export function IconButton({
   title,
   size = 'default',
   disabled = false,
-  className
+  className,
+  ...buttonProps
 }: IconButtonProps) {
   const frameClass = size === 'small' ? 'h-6 w-6 rounded-md' : 'h-8 w-8 rounded-md';
   const iconClass = size === 'small' ? 'h-[14px] w-[14px]' : 'h-[18px] w-[18px]';
@@ -32,8 +34,9 @@ export function IconButton({
       title={title}
       disabled={disabled}
       onClick={onClick}
+      {...buttonProps}
       className={clsx(
-        'flex items-center justify-center text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 disabled:pointer-events-none disabled:opacity-50',
+        'flex items-center justify-center text-[color:var(--chat-text-secondary)] transition hover:bg-[var(--chat-hover)] hover:text-[color:var(--chat-text)] disabled:pointer-events-none disabled:opacity-50',
         frameClass,
         className
       )}
@@ -43,17 +46,8 @@ export function IconButton({
   );
 }
 
-export function ChatAvatar({ title, size = 28 }: { title: string; size?: number }) {
-  return (
-    <img
-      alt={title}
-      className="rounded-full object-cover"
-      height={size}
-      loading="lazy"
-      src={LOBE_AVATAR_URL}
-      width={size}
-    />
-  );
+export function ChatAvatar({ title, size }: { title: string; size?: number }) {
+  return <DeepseekLogo className={size ? 'w-auto' : 'h-[23px] w-auto'} title={title} width={143} height={23} />;
 }
 
 export function AnimatedEmoji({ emoji, size = 40 }: { emoji: string; size?: number }) {
@@ -71,7 +65,7 @@ export function AnimatedEmoji({ emoji, size = 40 }: { emoji: string; size?: numb
 
 export function ProviderMonogram({ provider }: { provider: string }) {
   return (
-    <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-slate-200 text-[10px] font-semibold uppercase text-slate-500">
+    <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-[var(--chat-surface-muted)] text-[10px] font-semibold uppercase text-[color:var(--chat-text-secondary)]">
       {provider.slice(0, 1)}
     </span>
   );

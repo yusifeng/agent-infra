@@ -172,17 +172,21 @@ export async function runRefreshMeta({ actions }: RefreshMetaArgs) {
     return;
   }
 
-  const flashOption = normalized.modelOptions.find((option) => option.model === 'deepseek-v4-flash');
   actions.setSelectedModelKey((current) => {
     if (current && normalized.modelOptions.some((option) => option.key === current)) {
       return current;
     }
 
+    if (normalized.defaultModelKey && normalized.modelOptions.some((option) => option.key === normalized.defaultModelKey)) {
+      return normalized.defaultModelKey;
+    }
+
+    const flashOption = normalized.modelOptions.find((option) => option.model === 'deepseek-v4-flash');
     if (flashOption) {
       return flashOption.key;
     }
 
-    return normalized.defaultModelKey ?? normalized.modelOptions[0]?.key ?? '';
+    return normalized.modelOptions[0]?.key ?? '';
   });
 }
 

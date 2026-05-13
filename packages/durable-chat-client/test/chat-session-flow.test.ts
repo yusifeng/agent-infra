@@ -58,7 +58,7 @@ describe('chat-session-flow', () => {
     expect(selectedModelKey).toBe('deepseek:deepseek-v4-pro');
   });
 
-  it('falls back to flash when the current model is no longer available', async () => {
+  it('falls back to the default model when the current model is no longer available', async () => {
     fetchRuntimeMetaResponse.mockResolvedValue({
       ok: true,
       status: 200,
@@ -98,6 +98,49 @@ describe('chat-session-flow', () => {
       }
     });
 
-    expect(selectedModelKey).toBe('deepseek:deepseek-v4-flash');
+    expect(selectedModelKey).toBe('deepseek:deepseek-v4-pro');
+  });
+
+  it('respects a non-DeepSeek default model when DeepSeek options are also available', async () => {
+    fetchRuntimeMetaResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        runtimeConfigured: true,
+        runtimeProvider: 'openai',
+        runtimeModel: 'gpt-5.4',
+        defaultModelKey: 'openai:gpt-5.4',
+        modelOptions: [
+          {
+            key: 'openai:gpt-5.4',
+            provider: 'openai',
+            model: 'gpt-5.4',
+            label: 'GPT-5.4',
+            description: 'OpenAI model'
+          },
+          {
+            key: 'deepseek:deepseek-v4-flash',
+            provider: 'deepseek',
+            model: 'deepseek-v4-flash',
+            label: 'flash',
+            description: 'flash'
+          }
+        ]
+      }
+    });
+
+    let selectedModelKey = '';
+
+    await runRefreshMeta({
+      actions: {
+        setError: vi.fn(),
+        setMeta: vi.fn(),
+        setSelectedModelKey: (next) => {
+          selectedModelKey = typeof next === 'function' ? next(selectedModelKey) : next;
+        }
+      }
+    });
+
+    expect(selectedModelKey).toBe('openai:gpt-5.4');
   });
 });

@@ -1,6 +1,7 @@
 'use client';
 
 import clsx from 'clsx';
+import { useState } from 'react';
 
 import { ChatHeader } from './chat-shell/chat-header';
 import { ChatMessageList } from './chat-shell/message-list';
@@ -20,6 +21,7 @@ type DurableChatConsoleProps = {
 
 export function DurableChatConsole({ currentUser = null, initialThreadId = null, onLogout }: DurableChatConsoleProps) {
   const runtime = useDurableChatRuntime({ initialThreadId });
+  const [openThreadMenuId, setOpenThreadMenuId] = useState<string | null>(null);
   const centeredEmptyState =
     !runtime.activeThreadId &&
     runtime.displayedMessages.length === 0 &&
@@ -31,11 +33,19 @@ export function DurableChatConsole({ currentUser = null, initialThreadId = null,
       <ChatSidebar
         sidebarOpen={runtime.sidebarOpen}
         threads={runtime.threads}
+        pinnedThreadIds={runtime.threads.filter((thread) => (thread as { pinned?: boolean }).pinned === true).map((thread) => thread.id)}
         activeThreadId={runtime.activeThreadId}
+        openThreadMenuId={openThreadMenuId}
         currentUser={currentUser}
         onClose={runtime.onCloseSidebar}
         onNewChat={runtime.onNewChat}
         onOpenThread={runtime.onOpenThread}
+        onOpenThreadMenu={setOpenThreadMenuId}
+        onCloseThreadMenu={() => setOpenThreadMenuId(null)}
+        onRenameThread={runtime.onRenameThreadById}
+        onTogglePinThread={runtime.onToggleThreadPinById}
+        onShareThread={runtime.onOpenThreadShareDialog}
+        onArchiveThread={runtime.onArchiveThreadById}
         onLogout={onLogout}
       />
 
@@ -47,6 +57,8 @@ export function DurableChatConsole({ currentUser = null, initialThreadId = null,
             threadActionsDisabled={runtime.threadActionsDisabled}
             sidebarOpen={runtime.sidebarOpen}
             onOpenSidebar={runtime.onOpenSidebar}
+            onNewChat={runtime.onNewChat}
+            mode={runtime.deepseekModePresentation.selectedMode}
             onRenameThread={runtime.onRenameThread}
             onToggleThreadPin={runtime.onToggleThreadPin}
             onArchiveThread={runtime.onArchiveThread}
@@ -96,15 +108,19 @@ export function DurableChatConsole({ currentUser = null, initialThreadId = null,
               isResponding={runtime.isChatResponding}
               sendDisabled={runtime.sendDisabled}
               inputLocked={runtime.inputLocked}
+              selectedWebSearchEnabled={runtime.selectedWebSearchEnabled}
               selectedThinkingEnabled={runtime.selectedThinkingEnabled}
               selectedReasoningEffort={runtime.selectedReasoningEffort}
               selectedModelOption={runtime.selectedModelOption}
+              deepseekModePresentation={runtime.deepseekModePresentation}
+              onSelectedModelKeyChange={runtime.onSelectedModelKeyChange}
               meta={runtime.meta}
               showScrollToBottom={runtime.showScrollToBottom}
               centered={centeredEmptyState}
               textareaRef={runtime.textareaRef}
               sendAbortControllerRef={runtime.sendAbortControllerRef}
               onDraftChange={runtime.onDraftChange}
+              onSelectedWebSearchEnabledChange={runtime.onSelectedWebSearchEnabledChange}
               onSelectedThinkingEnabledChange={runtime.onSelectedThinkingEnabledChange}
               onSelectedReasoningEffortChange={runtime.onSelectedReasoningEffortChange}
               onSend={runtime.onSend}

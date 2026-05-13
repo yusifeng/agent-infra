@@ -63,6 +63,7 @@ import {
   upsertMessage,
   upsertRun
 } from '@/features/durable-chat/service/chat-runtime';
+import { buildDeepseekModePresentation } from '@/features/durable-chat/service/deepseek-mode-presentation';
 import type { DurableChatRuntimeOptions } from '@/features/durable-chat/types/runtime';
 
 const PENDING_NEW_THREAD_LOADING_ID = '__pending-new-thread__';
@@ -153,6 +154,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const logInspectorAbortControllerRef = useRef<AbortController | null>(null);
   const timelineRequestIdRef = useRef(0);
   const timelineAbortControllerRef = useRef<AbortController | null>(null);
+  const currentShareRequestIdRef = useRef(0);
   const attachRequestIdRef = useRef(0);
   const attachAbortControllerRef = useRef<AbortController | null>(null);
   const attachRunIdRef = useRef<string | null>(null);
@@ -183,10 +185,18 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     () => meta?.modelOptions.find((option) => option.key === selectedModelKey) ?? meta?.modelOptions[0] ?? null,
     [meta, selectedModelKey]
   );
+  const deepseekModePresentation = useMemo(
+    () =>
+      buildDeepseekModePresentation({
+        modelOptions: meta?.modelOptions ?? [],
+        selectedModelKey
+      }),
+    [meta?.modelOptions, selectedModelKey]
+  );
   const selectedRun = timeline?.run ?? null;
   const runEvents = timeline?.runEvents ?? [];
   const toolInvocations = timeline?.toolInvocations ?? [];
-  const currentThreadTitle = activeThread?.title?.trim() || activeThreadId || 'New chat';
+  const currentThreadTitle = activeThread?.title?.trim() || activeThreadId || null;
   const currentThreadPinned = activeThread?.pinned === true;
   const responseStatus = deriveMainChatResponseStatus({
     activeResponseRun,
@@ -214,19 +224,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   useEffect(() => {
     activeThreadIdRef.current = activeThreadId;
   }, [activeThreadId]);
-
-  useEffect(() => {
-    if (!shareDialogOpen || !shareThreadId || activeThreadId === shareThreadId) {
-      return;
-    }
-
-    setShareDialogOpen(false);
-    setShareError(null);
-    setShareCopied(false);
-    setShareThreadId(null);
-    setSharePublicId(null);
-    setShareUrl(null);
-  }, [activeThreadId, shareDialogOpen, shareThreadId]);
 
   useEffect(() => {
     logOpenRef.current = logOpen;
@@ -678,9 +675,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     );
   }
 
-  async function renameActiveThread() {
-    const threadId = activeThreadIdRef.current;
-    const currentTitle = activeThread?.title?.trim() ?? '';
+  async function renameThreadById(threadId: string) {
+    const currentTitle = threads.find((thread) => thread.id === threadId)?.title?.trim() ?? '';
     if (!threadId || threadActionBusy) {
       return;
     }
@@ -712,8 +708,16 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     }
   }
 
-  async function toggleActiveThreadPin() {
+  async function renameActiveThread() {
     const threadId = activeThreadIdRef.current;
+    if (!threadId) {
+      return;
+    }
+
+    await renameThreadById(threadId);
+  }
+
+  async function toggleThreadPinById(threadId: string, pinned: boolean) {
     if (!threadId || threadActionBusy) {
       return;
     }
@@ -721,7 +725,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     setThreadActionBusy(true);
     setError(null);
     try {
-      const result = currentThreadPinned ? await unpinThread(threadId) : await pinThread(threadId);
+      const result = pinned ? await unpinThread(threadId) : await pinThread(threadId);
       if (!result.ok || !result.data.thread) {
         throw new Error(result.error ?? 'failed to update thread pin');
       }
@@ -735,8 +739,16 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     }
   }
 
-  async function archiveActiveThread() {
+  async function toggleActiveThreadPin() {
     const threadId = activeThreadIdRef.current;
+    if (!threadId) {
+      return;
+    }
+
+    await toggleThreadPinById(threadId, currentThreadPinned);
+  }
+
+  async function archiveThreadById(threadId: string) {
     if (!threadId || threadActionBusy) {
       return;
     }
@@ -754,9 +766,11 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       }
 
       await refreshThreads();
-      stopViewingLiveResponse();
-      resetDraftThreadState();
-      navigateToNewChat({ replace: true });
+      if (threadId === activeThreadIdRef.current) {
+        stopViewingLiveResponse();
+        resetDraftThreadState();
+        navigateToNewChat({ replace: true });
+      }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'failed to archive thread');
     } finally {
@@ -764,12 +778,22 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     }
   }
 
-  async function openShareDialog() {
+  async function archiveActiveThread() {
     const threadId = activeThreadIdRef.current;
     if (!threadId) {
       return;
     }
 
+    await archiveThreadById(threadId);
+  }
+
+  async function openShareDialogForThread(threadId: string) {
+    if (!threadId) {
+      return;
+    }
+
+    const requestId = currentShareRequestIdRef.current + 1;
+    currentShareRequestIdRef.current = requestId;
     setShareDialogOpen(true);
     setShareError(null);
     setShareCopied(false);
@@ -779,6 +803,9 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     setLoadingCurrentShare(true);
     try {
       const result = await fetchCurrentThreadShare(threadId);
+      if (requestId !== currentShareRequestIdRef.current) {
+        return;
+      }
       if (!result.ok) {
         throw new Error(result.error ?? 'failed to load current share');
       }
@@ -787,13 +814,28 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       setSharePublicId(publicId);
       setShareUrl(publicId ? buildShareUrl(publicId) : null);
     } catch (error) {
+      if (requestId !== currentShareRequestIdRef.current) {
+        return;
+      }
       setShareError(error instanceof Error ? error.message : 'failed to load current share');
     } finally {
-      setLoadingCurrentShare(false);
+      if (requestId === currentShareRequestIdRef.current) {
+        setLoadingCurrentShare(false);
+      }
     }
   }
 
+  async function openShareDialog() {
+    const threadId = activeThreadIdRef.current;
+    if (!threadId) {
+      return;
+    }
+
+    await openShareDialogForThread(threadId);
+  }
+
   function closeShareDialog() {
+    currentShareRequestIdRef.current += 1;
     setShareDialogOpen(false);
     setShareError(null);
     setShareCopied(false);
@@ -805,11 +847,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   async function createOrCopyShare() {
     const threadId = shareThreadId;
     if (!threadId || loadingCurrentShare || creatingShare) {
-      return;
-    }
-
-    if (threadId !== activeThreadIdRef.current) {
-      closeShareDialog();
       return;
     }
 
@@ -842,11 +879,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
 
   async function revokeShare() {
     if (!sharePublicId || !shareThreadId) {
-      return;
-    }
-
-    if (shareThreadId !== activeThreadIdRef.current) {
-      closeShareDialog();
       return;
     }
 
@@ -1298,6 +1330,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     currentThreadTitle,
     displayedMessages,
     draft,
+    deepseekModePresentation,
     durableRecoveryState,
     error,
     hasOlderMessages,
@@ -1327,6 +1360,9 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     },
     onOpenReplay: openReplay,
     onOpenThread: openThread,
+    onOpenThreadShareDialog: (threadId: string) => {
+      void openShareDialogForThread(threadId);
+    },
     onLoadOlderMessages: () => {
       void loadOlderMessages();
     },
@@ -1334,10 +1370,14 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     onRenameThread: () => {
       void renameActiveThread();
     },
+    onRenameThreadById: (threadId: string) => {
+      void renameThreadById(threadId);
+    },
     onRevokeShare: () => {
       void revokeShare();
     },
     onSelectedModelKeyChange: setSelectedModelKey,
+    onSelectedWebSearchEnabledChange: setSelectedWebSearchEnabled,
     onSelectedThinkingEnabledChange: setSelectedThinkingEnabled,
     onSelectedReasoningEffortChange: setSelectedReasoningEffort,
     onSelectRun: (runId: string) => {
@@ -1349,6 +1389,12 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     onStop: stopViewingLiveResponse,
     onToggleThreadPin: () => {
       void toggleActiveThreadPin();
+    },
+    onToggleThreadPinById: (threadId: string, pinned: boolean) => {
+      void toggleThreadPinById(threadId, pinned);
+    },
+    onArchiveThreadById: (threadId: string) => {
+      void archiveThreadById(threadId);
     },
     onToggleLog: () => setLogOpen((current) => !current),
     persistingTurn,

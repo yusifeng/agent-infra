@@ -91,10 +91,10 @@ Source analysis:
 
 ### 1.4 Chat UI Definitions
 
-- [ ] Define Vite-to-Next component mapping for sidebar, header, composer, message list, search panel, and dialogs.
-- [ ] Define how Vite quick/expert mode UI maps to existing Next runtime/provider fields.
-- [ ] Define how Vite web search toggle maps to existing `webSearchEnabled` runtime input.
-- [ ] Define how Vite reasoning/thinking controls map to current Next runtime state.
+- [x] Define Vite-to-Next component mapping for sidebar, header, composer, message list, search panel, and dialogs.
+- [x] Define how Vite quick/expert mode UI maps to existing Next runtime/provider fields.
+- [x] Define how Vite web search toggle maps to existing `webSearchEnabled` runtime input.
+- [x] Define how Vite reasoning/thinking controls map to current Next runtime state.
 - [ ] Define whether `DurableLogPane` remains hidden/debug-only or moves behind a Vite-compatible control.
 - [ ] Define how Vite thread groups, pinned state, row menus, rename/archive/share/pin actions map to current protected APIs.
 
@@ -122,8 +122,8 @@ Source analysis:
 
 ### 2.2 Route / API Gaps To Check
 
-- [ ] Confirm web search toggle can call current stream API with `webSearchEnabled`.
-- [ ] Confirm quick/expert mode UI can map to current model/reasoning controls.
+- [x] Confirm web search toggle can call current stream API with `webSearchEnabled`.
+- [x] Confirm quick/expert mode UI can map to current model/reasoning controls.
 - [ ] Confirm thread row actions can call current rename/archive/pin/share routes.
 - [ ] Confirm public share can load all data needed for Vite shared snapshot presentation.
 - [ ] Confirm replay can load all data needed for Vite replay presentation.
@@ -160,14 +160,14 @@ Source analysis:
 
 ### 3.3 Main Chat Shell
 
-- [ ] Port Vite sidebar brand, dimensions, mobile overlay, and open/close behavior.
-- [ ] Port Vite new-chat button style.
-- [ ] Port Vite thread grouping: pinned, today, yesterday, last 7 days, earlier, and more-history behavior where supported.
-- [ ] Port Vite thread row layout and static action affordance positions; interactive menus are completed in the dialogs/menus loop.
-- [ ] Port Vite account area layout; dropdown interaction is completed in the dialogs/menus loop.
-- [ ] Port Vite chat header layout, height, branding, title, and mode presentation.
-- [ ] Port Vite composer shell, empty-state landing, mode selector, web search toggle, thinking/reasoning controls, stop/send button states.
-- [ ] Ensure default Next chat view no longer looks like the old simplified Next shell.
+- [x] Port Vite sidebar brand, dimensions, mobile overlay, and open/close behavior.
+- [x] Port Vite new-chat button style.
+- [x] Port Vite thread grouping: pinned, today, yesterday, last 7 days, earlier, and more-history behavior where supported.
+- [x] Port Vite thread row layout and static action affordance positions; interactive menus are completed in the dialogs/menus loop.
+- [x] Port Vite account area layout; dropdown interaction is completed in the dialogs/menus loop.
+- [x] Port Vite chat header layout, height, branding, title, and mode presentation.
+- [x] Port Vite composer shell, empty-state landing, mode selector, web search toggle, thinking/reasoning controls, stop/send button states.
+- [x] Ensure default Next chat view no longer looks like the old simplified Next shell.
 
 ### 3.4 Message / Search Presentation
 
@@ -290,15 +290,15 @@ Source analysis:
 
 ### Loop 2: Chat Shell Chrome Parity
 
-- [ ] Port sidebar layout, brand, grouping, thread rows, mobile behavior, and account area layout.
-- [ ] Port chat header layout and mode presentation.
-- [ ] Port composer layout, empty state, mode selector, search toggle, reasoning controls, send/stop states.
-- [ ] Leave thread row menus, account dropdown interaction, and dialogs to Loop 4 unless they are required for static layout parity.
-- [ ] Keep Next protected routing and runtime wiring intact.
-- [ ] Browser-verify Vite baseline vs Next target for `/new` and `/chat/:threadId` shell states on desktop and mobile.
-- [ ] Run targeted verification.
-- [ ] Run codex review after verification and before commit.
-- [ ] Commit.
+- [x] Port sidebar layout, brand, grouping, thread rows, mobile behavior, and account area layout.
+- [x] Port chat header layout and mode presentation.
+- [x] Port composer layout, empty state, mode selector, search toggle, reasoning controls, send/stop states.
+- [x] Leave thread row menus, account dropdown interaction, and dialogs to Loop 4 unless they are required for static layout parity.
+- [x] Keep Next protected routing and runtime wiring intact.
+- [x] Browser-verify Vite baseline vs Next target for `/new` and `/chat/:threadId` shell states on desktop and mobile.
+- [x] Run targeted verification.
+- [x] Run codex review after verification and before commit.
+- [x] Commit.
 
 ### Loop 3: Message And Search Presentation Parity
 
