@@ -111,12 +111,12 @@
 
 ### 2.5 Package Import Surfaces
 
-- [ ] Inspect `packages/durable-chat-client/package.json` exports before adding subpaths.
-- [ ] Add stable subpath exports only if they are compatible with workspace build and consumer imports.
-- [ ] Prefer `@agent-infra/durable-chat-client/runtime`, `/repo`, `/schema`, and `/service` if introduced.
-- [ ] Update app imports from broad barrel imports to subpath imports in narrow batches.
-- [ ] Run package tests and app typecheck after import changes.
-- [ ] Capture build output or bundle stats if the slice claims bundle-size improvement.
+- [x] Inspect `packages/durable-chat-client/package.json` exports before adding subpaths.
+- [x] Add stable subpath exports only if they are compatible with workspace build and consumer imports.
+- [x] Prefer `@agent-infra/durable-chat-client/runtime`, `/repo`, `/schema`, and `/service` if introduced.
+- [x] Update app imports from broad barrel imports to subpath imports in narrow batches.
+- [x] Run package tests and app typecheck after import changes.
+- [x] Capture build output or bundle stats if the slice claims bundle-size improvement.
 
 ## 3. Frontend Boundary
 
@@ -182,13 +182,13 @@
 
 ### 3.7 Markdown And Shiki Bundle Hygiene
 
-- [ ] Move lightweight markdown constants such as `SHIKI_THEME` away from `markdown-shiki-runtime` if doing so avoids early shiki runtime imports.
-- [ ] Verify `markdown-core` no longer statically imports heavy shiki runtime surfaces for constants.
-- [ ] Evaluate whether main-thread shiki fallback is required.
-- [ ] If fallback is only best-effort, prefer safe non-highlighted code rendering over downloading shiki on the main thread.
-- [ ] Preserve sanitization and XSS safety.
-- [ ] Capture build or bundle evidence before claiming bundle improvement.
-- [ ] Run `pnpm --filter playground-next-web build`.
+- [x] Move lightweight markdown constants such as `SHIKI_THEME` away from `markdown-shiki-runtime` if doing so avoids early shiki runtime imports.
+- [x] Verify `markdown-core` no longer statically imports heavy shiki runtime surfaces for constants.
+- [x] Evaluate whether main-thread shiki fallback is required.
+- [x] If fallback is only best-effort, prefer safe non-highlighted code rendering over downloading shiki on the main thread.
+- [x] Preserve sanitization and XSS safety.
+- [x] Capture build or bundle evidence before claiming bundle improvement.
+- [x] Run `pnpm --filter playground-next-web build`.
 
 ## 4. Tests
 
@@ -302,13 +302,13 @@
 
 ### Loop 8: Bundle Hygiene
 
-- [ ] Split markdown/shiki constants and fallback path if bundle evidence supports it.
-- [ ] Add durable-chat-client subpath exports if the package API direction is confirmed.
-- [ ] Update imports in narrow batches.
-- [ ] Run package tests and app build/typecheck as appropriate.
-- [ ] Capture build output or bundle evidence.
-- [ ] Run codex review with the repository Review Profile.
-- [ ] Commit this slice after clean review and passing verification.
+- [x] Split markdown/shiki constants and fallback path if bundle evidence supports it.
+- [x] Add durable-chat-client subpath exports if the package API direction is confirmed.
+- [x] Update imports in narrow batches.
+- [x] Run package tests and app build/typecheck as appropriate.
+- [x] Capture build output or bundle evidence.
+- [x] Run codex review with the repository Review Profile.
+- [x] Commit this slice after clean review and passing verification.
 
 ## 6. Completion Criteria
 

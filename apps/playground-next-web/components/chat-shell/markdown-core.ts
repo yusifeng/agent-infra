@@ -1,6 +1,7 @@
 import { Marked, type Tokens } from 'marked';
 
-import { SHIKI_THEME, type MarkdownShikiRuntime } from './markdown-shiki-runtime';
+import type { MarkdownShikiRuntime } from './markdown-shiki-runtime';
+import { SHIKI_THEME } from './markdown-theme';
 
 export const CODE_BLOCK_PATTERN = '<pre><code(?:\\s+class="language-([^"]*)")?>([\\s\\S]*?)<\\/code><\\/pre>';
 

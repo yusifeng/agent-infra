@@ -50,8 +50,6 @@ const LANGUAGE_LOADERS: Record<string, LanguageLoader> = {
   yaml: () => import('shiki/langs/yaml.mjs')
 };
 
-const SHIKI_THEME = 'github-light';
-
 export type MarkdownShikiRuntime = {
   highlighter: ShikiHighlighter;
   ensureLanguageLoaded: (lang: string) => Promise<void>;
@@ -118,5 +116,3 @@ export async function createMarkdownShikiRuntime(): Promise<MarkdownShikiRuntime
     normalizeLanguage: normalizeMarkdownCodeLanguage
   };
 }
-
-export { SHIKI_THEME };
