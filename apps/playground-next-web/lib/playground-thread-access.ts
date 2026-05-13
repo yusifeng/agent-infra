@@ -1,4 +1,4 @@
-import { RunNotFoundError } from '@agent-infra/app';
+import { ChatShareNotFoundError, RunNotFoundError } from '@agent-infra/app';
 import { getRouteErrorMessage } from '@agent-infra/durable-chat-server';
 import { NextResponse } from 'next/server';
 
@@ -56,6 +56,19 @@ export async function loadAccessibleRun(services: PlaygroundAppServices, runId: 
   const threadAccess = await loadAccessibleThread(services, run.threadId, ownerUserId);
   return {
     run,
+    ...threadAccess
+  };
+}
+
+export async function loadAccessibleShare(services: PlaygroundAppServices, publicId: string, ownerUserId: string) {
+  const share = await services.repos.chatShareRepo.findByPublicId(publicId);
+  if (!share) {
+    throw new ChatShareNotFoundError(publicId);
+  }
+
+  const threadAccess = await loadAccessibleThread(services, share.sourceThreadId, ownerUserId);
+  return {
+    share,
     ...threadAccess
   };
 }

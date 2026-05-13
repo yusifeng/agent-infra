@@ -84,7 +84,7 @@ Loop 0 decision:
 - [x] Define base durable `ThreadDto` usage.
 - [x] Define playground thread DTO usage with `pinned`, `pinnedAt`, `runtimeProvider`, and `runtimeModel`.
 - [x] Define message/run/timeline DTO usage.
-- [ ] Define public share DTO and shared snapshot DTO usage.
+- [x] Define public share DTO and shared snapshot DTO usage.
 - [ ] Define private playground stream events such as `thread.title_updated`.
 - [x] Define attach-stream events: `run.snapshot`, `run.assistant`, terminal events, and `run.attach_unavailable`.
 - [x] Ensure `GET /api/threads` returns playground thread DTOs once thread catalog is enabled.
@@ -93,16 +93,16 @@ Loop 0 decision:
 ### 1.5 Protected Route Matrix
 
 - [x] Keep `GET /api/meta` anonymous.
-- [ ] Keep `GET /api/shares/:publicId` anonymous.
-- [ ] Keep `GET /site-icons/:hostname` or Next equivalent anonymous.
+- [x] Keep `GET /api/shares/:publicId` anonymous.
+- [x] Keep `GET /site-icons/:hostname` or Next equivalent anonymous.
 - [x] Keep auth entry routes anonymous.
 - [x] Keep `POST /api/auth/logout` origin/rate-limited and idempotent for stale sessions.
 - [x] Protect all `/api/threads*` chat/thread routes.
 - [x] Protect `GET /api/runs/:runId/timeline`.
-- [ ] Protect share create/current/revoke routes.
+- [x] Protect share create/current/revoke routes.
 - [x] For thread routes, load accessible thread before app use cases.
 - [x] For run routes, load run and then load its thread before app use cases.
-- [ ] For share revoke, load share and then load source thread before app use cases.
+- [x] For share revoke, load share and then load source thread before app use cases.
 - [x] Ensure wrong thread/run pairs do not leak cross-thread metadata.
 
 ### 1.6 Runtime And Search Gates
@@ -166,14 +166,14 @@ Loop 0 decision:
 
 ### 2.5 Share / Public Snapshot
 
-- [ ] Add share create route.
-- [ ] Add current share route.
-- [ ] Add public share read route.
-- [ ] Add share revoke route.
-- [ ] Preserve public share sanitize behavior.
-- [ ] Preserve snapshot-not-live-thread boundary.
-- [ ] Keep public share read anonymous.
-- [ ] Keep create/current/revoke authenticated.
+- [x] Add share create route.
+- [x] Add current share route.
+- [x] Add public share read route.
+- [x] Add share revoke route.
+- [x] Preserve public share sanitize behavior.
+- [x] Preserve snapshot-not-live-thread boundary.
+- [x] Keep public share read anonymous.
+- [x] Keep create/current/revoke authenticated.
 
 ### 2.6 Vercel / Env / Config
 
@@ -181,9 +181,9 @@ Loop 0 decision:
 - [x] Update `.env.example` for search env.
 - [x] Update Vercel runbook for auth env.
 - [x] Update Vercel runbook for origin allowlist.
-- [ ] Define Node runtime requirements for route handlers.
-- [ ] Define function duration assumptions for stream routes.
-- [ ] Keep attach-stream caveat visible until external state exists.
+- [x] Define Node runtime requirements for route handlers.
+- [x] Define function duration assumptions for stream routes.
+- [x] Keep attach-stream caveat visible until external state exists.
 
 Loop 0 decision:
 
@@ -196,13 +196,13 @@ Loop 0 decision:
 
 ### 3.1 Routing
 
-- [ ] Map `/` to `/new`.
+- [x] Map `/` to `/new`.
 - [x] Add `/login`.
 - [x] Add `/register`.
 - [x] Add `/forgot-password`.
-- [ ] Keep `/new`.
-- [ ] Keep `/chat/[threadId]`.
-- [ ] Add `/share/[publicId]`.
+- [x] Keep `/new`.
+- [x] Keep `/chat/[threadId]`.
+- [x] Add `/share/[publicId]`.
 - [ ] Add `/replay/[threadId]`.
 - [ ] Pass route params into client components explicitly.
 - [ ] Stop deriving active thread from `usePathname()` in the final shell.
@@ -241,8 +241,8 @@ Loop 0 decision:
 
 ### 3.4 Share And Replay UI
 
-- [ ] Port public share runtime.
-- [ ] Port public share presentation using the main transcript rendering chain.
+- [x] Port public share runtime.
+- [x] Port public share presentation using the main transcript rendering chain.
 - [ ] Port share dialog.
 - [ ] Port replay runtime.
 - [ ] Port replay presentation.
@@ -263,7 +263,7 @@ Loop 0 decision:
 - [x] Add runtime binding tests.
 - [x] Add stream hub / attach route tests.
 - [x] Add search tool wiring tests.
-- [ ] Add share sanitize/public route tests.
+- [x] Add share sanitize/public route tests.
 - [ ] Add focused UI/runtime tests after chat shell port.
 
 ### 4.3 Smoke Strategy
@@ -274,7 +274,7 @@ Loop 0 decision:
 - [ ] Validate authenticated thread list/create.
 - [ ] Validate authenticated stream.
 - [ ] Validate persisted messages.
-- [ ] Validate public share read without a session once share route exists.
+- [x] Validate public share read without a session once share route exists.
 
 Loop 0 decision:
 
@@ -284,11 +284,11 @@ Loop 0 decision:
 
 ### 4.4 Review And Commit Gates
 
-- [ ] Run `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"` after each meaningful slice.
-- [ ] Use tool timeout `timeout_ms >= 1200000` for review.
-- [ ] Run codex review after targeted verification and before committing each slice.
-- [ ] Commit immediately after clean review and targeted verification unless the user asks to batch.
-- [ ] Do not accumulate a second slice on top of a clean reviewed uncommitted slice.
+- [x] Run `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"` after each meaningful slice.
+- [x] Use tool timeout `timeout_ms >= 1200000` for review.
+- [x] Run codex review after targeted verification and before committing each slice.
+- [x] Commit immediately after clean review and targeted verification unless the user asks to batch.
+- [x] Do not accumulate a second slice on top of a clean reviewed uncommitted slice.
 
 ## 5. Recommended Execution Order
 
@@ -362,12 +362,12 @@ Loop 0 decisions:
 ### Loop 5: Thread Management UI, Share API, And Public Share View
 
 - [ ] Port thread action UI.
-- [ ] Add share API parity.
-- [ ] Port public share view.
-- [ ] Preserve share sanitization.
-- [ ] Run targeted verification.
-- [ ] Run codex review after verification and before commit.
-- [ ] Commit.
+- [x] Add share API parity.
+- [x] Port public share view.
+- [x] Preserve share sanitization.
+- [x] Run targeted verification for share API and public share view.
+- [x] Run codex review after verification and before commit for share API and public share view.
+- [x] Commit share API and public share view slice.
 
 ### Loop 6: Main Chat UI Port
 

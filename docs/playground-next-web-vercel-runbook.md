@@ -31,6 +31,15 @@ The following loop is already proven end-to-end:
 - `POST /api/threads/:threadId/runs/stream`
 - `GET /api/threads/:threadId/messages`
 
+Additional Next routes covered by local build/tests, but still requiring
+deployment smoke validation on the target Vercel project:
+
+- `POST /api/threads/:threadId/shares`
+- `GET /api/threads/:threadId/shares/current`
+- `GET /api/shares/:publicId`
+- `POST /api/shares/:publicId/revoke`
+- `/share/:publicId`
+
 ## Required Vercel project shape
 
 This app lives in a pnpm monorepo.
@@ -111,6 +120,17 @@ pnpm typecheck
 ```
 
 These are the current minimum gates before pushing a Next/Vercel runtime change.
+
+## Route runtime assumptions
+
+The playground route handlers are intended for the Node.js runtime, not the Edge
+runtime. They use Node-oriented database, auth, native hashing, and runtime-pi
+dependencies.
+
+Streaming routes also assume the deployment allows a long enough function
+duration for the selected model response. Vercel plan limits and project
+configuration should be validated before relying on long-running chat turns in
+production.
 
 ## Deploy flow
 
