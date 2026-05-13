@@ -17,7 +17,7 @@
 - [x] Run focused playground tests.
 - [x] Run `pnpm --filter playground-next-web typecheck`.
 - [x] Run codex review with the repository Review Profile.
-- [ ] Commit this slice after clean review.
+- [x] Commit this slice after clean review.
 
 ### Loop B: Streamed Auto Title
 
@@ -27,7 +27,7 @@
 - [x] Run focused playground tests.
 - [x] Run `pnpm --filter playground-next-web typecheck`.
 - [x] Run codex review with the repository Review Profile.
-- [ ] Commit this slice after clean review.
+- [x] Commit this slice after clean review.
 
 ### Loop C: Run Start And Binding Parity
 
@@ -39,7 +39,7 @@
 - [x] Run focused playground tests.
 - [x] Run `pnpm --filter playground-next-web typecheck`.
 - [x] Run codex review with the repository Review Profile.
-- [ ] Commit this slice after clean review.
+- [x] Commit this slice after clean review.
 
 ## 0. Context And Boundary
 
