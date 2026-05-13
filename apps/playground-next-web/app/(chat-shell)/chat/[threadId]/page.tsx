@@ -1,3 +1,5 @@
+import { ChatShellEntry } from '@/components/chat-shell/chat-shell-entry';
+
 type ChatPageProps = {
   params: Promise<{
     threadId: string;
@@ -5,6 +7,6 @@ type ChatPageProps = {
 };
 
 export default async function ChatPage(props: ChatPageProps) {
-  await props.params;
-  return null;
+  const { threadId } = await props.params;
+  return <ChatShellEntry initialThreadId={threadId} />;
 }

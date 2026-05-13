@@ -1,8 +1,6 @@
 'use client';
 
 import clsx from 'clsx';
-import { usePathname } from 'next/navigation';
-import { useMemo } from 'react';
 
 import { ChatHeader } from './chat-shell/chat-header';
 import { ChatMessageList } from './chat-shell/message-list';
@@ -11,28 +9,16 @@ import { DurableLogPane } from './chat-shell/durable-log-pane';
 import { ShareDialog } from './chat-shell/share-dialog';
 import { ChatSidebar } from './chat-shell/sidebar';
 import { ui } from './chat-shell/ui';
+import type { AuthUserDto } from '@/features/auth/dto/project-auth-user-dto';
 import { useDurableChatRuntime } from '@/features/durable-chat/runtime/use-durable-chat-runtime';
 
-function readThreadIdFromPathname(pathname: string | null) {
-  if (!pathname) {
-    return null;
-  }
+type DurableChatConsoleProps = {
+  currentUser?: AuthUserDto | null;
+  initialThreadId?: string | null;
+  onLogout?: () => void;
+};
 
-  const match = pathname.match(/^\/chat\/([^/]+)$/);
-  if (!match?.[1]) {
-    return null;
-  }
-
-  try {
-    return decodeURIComponent(match[1]);
-  } catch {
-    return null;
-  }
-}
-
-export function DurableChatConsole() {
-  const pathname = usePathname();
-  const initialThreadId = useMemo(() => readThreadIdFromPathname(pathname), [pathname]);
+export function DurableChatConsole({ currentUser = null, initialThreadId = null, onLogout }: DurableChatConsoleProps) {
   const runtime = useDurableChatRuntime({ initialThreadId });
   const centeredEmptyState =
     !runtime.activeThreadId &&
@@ -46,9 +32,11 @@ export function DurableChatConsole() {
         sidebarOpen={runtime.sidebarOpen}
         threads={runtime.threads}
         activeThreadId={runtime.activeThreadId}
+        currentUser={currentUser}
         onClose={runtime.onCloseSidebar}
         onNewChat={runtime.onNewChat}
         onOpenThread={runtime.onOpenThread}
+        onLogout={onLogout}
       />
 
       <div className="flex flex-1 min-h-0 min-w-0 relative overflow-hidden">

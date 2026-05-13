@@ -204,8 +204,8 @@ Loop 0 decision:
 - [x] Keep `/chat/[threadId]`.
 - [x] Add `/share/[publicId]`.
 - [ ] Add `/replay/[threadId]`.
-- [ ] Pass route params into client components explicitly.
-- [ ] Stop deriving active thread from `usePathname()` in the final shell.
+- [x] Pass route params into client components explicitly.
+- [x] Stop deriving active thread from `usePathname()` in the final shell.
 
 ### 3.2 Auth UI
 
@@ -213,8 +213,8 @@ Loop 0 decision:
 - [x] Port register form.
 - [x] Port forgot-password form.
 - [x] Port auth loading state.
-- [ ] Port protected route redirect behavior.
-- [ ] Port logout behavior.
+- [x] Port protected route redirect behavior.
+- [x] Port logout behavior.
 - [x] Preserve `next` redirect query semantics.
 
 ### 3.3 Chat UI

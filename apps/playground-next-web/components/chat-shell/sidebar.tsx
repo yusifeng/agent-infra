@@ -2,8 +2,10 @@
 
 import type { ThreadDto } from '@agent-infra/contracts';
 import clsx from 'clsx';
-import { ChevronDown, MessageSquarePlus, PanelLeftClose } from 'lucide-react';
+import { ChevronDown, LogOut, MessageSquarePlus, PanelLeftClose } from 'lucide-react';
 import { useState } from 'react';
+
+import type { AuthUserDto } from '@/features/auth/dto/project-auth-user-dto';
 
 import { IconButton } from './shared';
 import { ui } from './ui';
@@ -23,18 +25,22 @@ type ChatSidebarProps = {
   sidebarOpen: boolean;
   threads: ThreadDto[];
   activeThreadId: string | null;
+  currentUser?: AuthUserDto | null;
   onClose: () => void;
   onNewChat: () => void;
   onOpenThread: (threadId: string) => void;
+  onLogout?: () => void;
 };
 
 export function ChatSidebar({
   sidebarOpen,
   threads,
   activeThreadId,
+  currentUser = null,
   onClose,
   onNewChat,
-  onOpenThread
+  onOpenThread,
+  onLogout
 }: ChatSidebarProps) {
   const [threadsExpanded, setThreadsExpanded] = useState(true);
 
@@ -105,6 +111,17 @@ export function ChatSidebar({
                 )}
               </div>
             </div>
+
+            {currentUser ? (
+              <div className="flex shrink-0 items-center gap-2 border-t border-slate-200 px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <div className="overflow-hidden text-ellipsis whitespace-nowrap text-xs text-slate-500">
+                    {currentUser.email}
+                  </div>
+                </div>
+                <IconButton icon={LogOut} onClick={onLogout} title="退出登录" />
+              </div>
+            ) : null}
           </div>
         </aside>
       </div>
