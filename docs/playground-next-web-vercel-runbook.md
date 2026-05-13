@@ -141,6 +141,45 @@ production.
 
 ## Deploy flow
 
+The preferred production deploy path is the repository script:
+
+```bash
+pnpm --filter playground-next-web deploy:production
+```
+
+The script:
+
+1. reads deployment values from the repository-root `.env`
+2. trims values before writing them to Vercel production env
+3. forces `PLAYGROUND_DB_MODE=turso`
+4. adds `https://next-infra.zhangdawei.org` to `AUTH_ALLOWED_ORIGINS`
+5. bootstraps the Turso schema
+6. runs `playground-next-web` typecheck and production build
+7. deploys with `vercel --prod --yes`
+8. verifies `/api/meta` and `/api/auth/me` on the production domain
+
+The trim step is intentional. A previous manual deploy wrote a trailing encoded
+newline into `TURSO_DATABASE_URL`, which made libSQL fail URL parsing at runtime.
+
+Optional flags:
+
+```bash
+pnpm --filter playground-next-web deploy:production -- --skip-env
+pnpm --filter playground-next-web deploy:production -- --skip-bootstrap
+pnpm --filter playground-next-web deploy:production -- --skip-build
+pnpm --filter playground-next-web deploy:production -- --skip-deploy
+pnpm --filter playground-next-web deploy:production -- --skip-verify
+pnpm --filter playground-next-web deploy:production -- --verify-signup-code
+pnpm --filter playground-next-web deploy:production -- --base-url=https://next-infra.zhangdawei.org
+```
+
+`--verify-signup-code` calls `POST /api/auth/email/request-signup-code` and may
+send a real verification email. By default the deploy script uses `/api/auth/me`
+as the auth/Turso runtime smoke because it initializes the auth service without
+sending email.
+
+### Manual Deploy Flow
+
 Validated flow:
 
 1. run from repository root

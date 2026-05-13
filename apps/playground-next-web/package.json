@@ -9,6 +9,7 @@
     "dev:prepared": "NODE_ENV=development pnpm bootstrap:db && NODE_ENV=development pnpm dev",
     "dev:prepared:sqlite": "PLAYGROUND_DB_MODE=sqlite NODE_ENV=development pnpm bootstrap:db && exec env PLAYGROUND_DB_MODE=sqlite NODE_ENV=development pnpm dev",
     "dev:prepared:turso": "PLAYGROUND_DB_MODE=turso NODE_ENV=development pnpm bootstrap:db && exec env PLAYGROUND_DB_MODE=turso NODE_ENV=development pnpm dev",
+    "deploy:production": "node ./scripts/deploy-production.mjs",
     "build": "node ./scripts/run-next-with-playground-env.mjs build",
     "smoke:deployment": "node ./scripts/deployment-smoke.mjs",
     "start": "node ./scripts/run-next-with-playground-env.mjs start",
