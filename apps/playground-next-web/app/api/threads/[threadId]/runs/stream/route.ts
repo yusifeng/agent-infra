@@ -21,6 +21,7 @@ import {
   createRuntimeThreadTitleGenerator,
   maybeAutoTitleThread
 } from '@/features/thread-title/auto-thread-title';
+import { withThreadRunStartLock } from '@/lib/playground-run-start-lock';
 import { getPlaygroundRunStreamHub } from '@/lib/playground-run-stream-hub';
 import {
   bindRuntimeIfUnset,
@@ -98,18 +99,31 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
     }
 
     services = await getPlaygroundRuntimeServices();
-    const { catalogRow } = await loadAccessibleThread(services, threadId, auth.user.id);
-    const runtimeBinding = await resolveThreadRuntimeBinding(services, threadId, catalogRow);
-    started = await services.app.turns.startText({
-      threadId,
-      text: turnInput.text,
-      provider: runtimeBinding?.provider ?? turnInput.provider,
-      model: runtimeBinding?.model ?? turnInput.model,
-      thinkingEnabled: turnInput.thinkingEnabled,
-      reasoningEffort: turnInput.reasoningEffort,
-      webSearchEnabled: turnInput.webSearchEnabled
+    started = await withThreadRunStartLock(threadId, async () => {
+      const { catalogRow } = await loadAccessibleThread(services, threadId, auth.user.id);
+      const runtimeBinding = await resolveThreadRuntimeBinding(services, threadId, catalogRow);
+      const queued = await services.app.turns.startText({
+        threadId,
+        text: turnInput.text,
+        provider: runtimeBinding?.provider ?? turnInput.provider,
+        model: runtimeBinding?.model ?? turnInput.model,
+        thinkingEnabled: turnInput.thinkingEnabled,
+        reasoningEffort: turnInput.reasoningEffort,
+        webSearchEnabled: turnInput.webSearchEnabled
+      });
+
+      try {
+        await bindRuntimeIfUnset(services, threadId, queued.runtimeSelection);
+      } catch (error) {
+        console.warn('failed to persist thread runtime binding after successful startText', {
+          error,
+          threadId,
+          runId: queued.run.id
+        });
+      }
+
+      return queued;
     });
-    await bindRuntimeIfUnset(services, threadId, started.runtimeSelection);
   } catch (error) {
     return Response.json(buildRunTextTurnErrorResponse(error, 'failed to stream thread turn'), {
       status: getRouteErrorStatus(error)

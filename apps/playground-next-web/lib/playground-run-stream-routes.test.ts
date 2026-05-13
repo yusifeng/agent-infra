@@ -153,8 +153,16 @@ async function readSseEvents(response: Response): Promise<SseEvent[]> {
     });
 }
 
+async function waitForRouteWork() {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 async function importStreamRoute() {
   return import('../app/api/threads/[threadId]/runs/stream/route');
+}
+
+async function importRunsRoute() {
+  return import('../app/api/threads/[threadId]/runs/route');
 }
 
 async function importAttachRoute() {
@@ -209,6 +217,14 @@ function mockRuntimeServices(overrides: {
       model: 'gpt-4o-mini'
     }
   });
+  const runText = vi.fn().mockResolvedValue({
+    run: createRun({ status: 'completed', finishedAt: now(), triggerMessageId: 'message-1' }),
+    messages: [createUserMessage(), createAssistantMessage()],
+    debug: {
+      runEventCount: 2,
+      toolInvocationCount: 0
+    }
+  });
   const rename = vi.fn().mockResolvedValue(createThread({
     title: 'Generated Thread Title',
     updatedAt: new Date('2026-01-01T00:00:10.000Z')
@@ -225,6 +241,7 @@ function mockRuntimeServices(overrides: {
         rename
       },
       turns: {
+        runText,
         startText
       }
     },
@@ -264,6 +281,7 @@ function mockRuntimeServices(overrides: {
     listMessagesByThread,
     prepare,
     rename,
+    runText,
     runTurn,
     services,
     startText
@@ -389,6 +407,113 @@ describe('playground run stream route', () => {
       type: 'run.ready',
       runId: 'run-1'
     });
+  });
+
+  it('does not fail the stream when runtime binding persistence fails after startText', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockThreadAccess({
+      bindRuntimeIfUnset: vi.fn().mockRejectedValue(new Error('catalog write failed'))
+    });
+    mockRuntimeServices();
+    const { POST } = await importStreamRoute();
+
+    const response = await POST(new Request('http://localhost/api/threads/thread-1/runs/stream', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'hello' })
+    }), {
+      params: Promise.resolve({ threadId: 'thread-1' })
+    });
+
+    const events = await readSseEvents(response);
+    expect(events[0]?.type).toBe('run.ready');
+    expect(warn).toHaveBeenCalledWith(
+      'failed to persist thread runtime binding after successful startText',
+      expect.objectContaining({
+        threadId: 'thread-1',
+        runId: 'run-1'
+      })
+    );
+    warn.mockRestore();
+  });
+
+  it('serializes startText calls for the same thread without serializing runtime execution', async () => {
+    mockThreadAccess();
+    let releaseFirstStart!: (value: unknown) => void;
+    const firstStart = new Promise((resolve) => {
+      releaseFirstStart = resolve;
+    });
+    const startText = vi.fn()
+      .mockReturnValueOnce(firstStart)
+      .mockResolvedValue({
+        run: createRun({ triggerMessageId: 'message-1' }),
+        userMessage: createUserMessage(),
+        runtimeSelection: {
+          provider: 'openai',
+          model: 'gpt-4o-mini'
+        }
+      });
+    mockRuntimeServices({
+      getPlaygroundRuntimeServices: vi.fn().mockResolvedValue({
+        app: {
+          threads: {
+            rename: vi.fn()
+          },
+          turns: {
+            startText
+          }
+        },
+        durableRuntime: {
+          generateText: vi.fn(),
+          prepare: vi.fn(),
+          runTurn: vi.fn().mockResolvedValue(undefined)
+        },
+        repos: {
+          runRepo: {
+            findById: vi.fn()
+          },
+          messageRepo: {
+            listByThread: vi.fn()
+          },
+          threadRepo: {
+            findById: vi.fn()
+          },
+          toolRepo: {},
+          runEventRepo: {}
+        }
+      })
+    });
+    const { POST } = await importStreamRoute();
+
+    const firstResponsePromise = POST(new Request('http://localhost/api/threads/thread-1/runs/stream', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'first' })
+    }), {
+      params: Promise.resolve({ threadId: 'thread-1' })
+    });
+    await waitForRouteWork();
+    expect(startText).toHaveBeenCalledTimes(1);
+
+    const secondResponsePromise = POST(new Request('http://localhost/api/threads/thread-1/runs/stream', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'second' })
+    }), {
+      params: Promise.resolve({ threadId: 'thread-1' })
+    });
+    await waitForRouteWork();
+    expect(startText).toHaveBeenCalledTimes(1);
+
+    releaseFirstStart({
+      run: createRun({ triggerMessageId: 'message-1' }),
+      userMessage: createUserMessage(),
+      runtimeSelection: {
+        provider: 'openai',
+        model: 'gpt-4o-mini'
+      }
+    });
+
+    await readSseEvents(await firstResponsePromise);
+    await readSseEvents(await secondResponsePromise);
+    expect(startText).toHaveBeenCalledTimes(2);
   });
 
   it('emits one terminal completed event when completion is observed more than once', async () => {
@@ -746,5 +871,54 @@ describe('playground run attach stream route', () => {
       runId: 'run-1',
       version: 0
     });
+  });
+});
+
+describe('playground run route', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.doUnmock('@/lib/playground-app-services');
+    vi.doUnmock('@/lib/playground-services');
+    vi.doUnmock('@/lib/playground-thread-access');
+    vi.resetModules();
+  });
+
+  it('does not fail a completed non-stream run when runtime binding persistence fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockThreadAccess({
+      bindRuntimeIfUnset: vi.fn().mockRejectedValue(new Error('catalog write failed'))
+    });
+    const { runText } = mockRuntimeServices();
+    const { POST } = await importRunsRoute();
+
+    const response = await POST(new Request('http://localhost/api/threads/thread-1/runs', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'hello' })
+    }), {
+      params: Promise.resolve({ threadId: 'thread-1' })
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      run: {
+        id: 'run-1',
+        status: 'completed'
+      }
+    });
+    expect(runText).toHaveBeenCalledWith(expect.objectContaining({
+      threadId: 'thread-1',
+      text: 'hello'
+    }));
+    expect(warn).toHaveBeenCalledWith(
+      'failed to persist thread runtime binding after successful runText',
+      expect.objectContaining({
+        threadId: 'thread-1',
+        runId: 'run-1'
+      })
+    );
+    warn.mockRestore();
   });
 });

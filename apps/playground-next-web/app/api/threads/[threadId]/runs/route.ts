@@ -73,10 +73,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
       reasoningEffort: input.reasoningEffort,
       webSearchEnabled: input.webSearchEnabled
     });
-    await bindRuntimeIfUnset(services, threadId, {
-      provider: result.run.provider,
-      model: result.run.model
-    });
+    try {
+      await bindRuntimeIfUnset(services, threadId, {
+        provider: result.run.provider,
+        model: result.run.model
+      });
+    } catch (error) {
+      console.warn('failed to persist thread runtime binding after successful runText', {
+        error,
+        threadId,
+        runId: result.run.id
+      });
+    }
 
     return Response.json(buildRunTextTurnResponse(result));
   } catch (error) {
