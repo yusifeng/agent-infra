@@ -1,6 +1,6 @@
 import type { Message, MessagePart } from '@agent-infra/core';
 import type { AgentMessage } from '@mariozechner/pi-agent-core';
-import type { ImageContent, Model, TextContent, ToolCall, ToolResultMessage } from '@mariozechner/pi-ai';
+import type { AssistantMessage, ImageContent, Model, TextContent, ToolCall, ToolResultMessage } from '@mariozechner/pi-ai';
 
 const EMPTY_USAGE = {
   input: 0,
@@ -16,6 +16,7 @@ const EMPTY_USAGE = {
     total: 0
   }
 };
+const MAX_PROJECTED_TOOL_TEXT_LENGTH = 1200;
 
 function buildTextBlocks(parts: MessagePart[]): TextContent[] {
   return parts
@@ -96,6 +97,108 @@ function buildAssistantContent(parts: MessagePart[]): Array<TextContent | ToolCa
   }
 
   return content;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function truncateProjectedText(value: string) {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= MAX_PROJECTED_TOOL_TEXT_LENGTH) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, MAX_PROJECTED_TOOL_TEXT_LENGTH).trimEnd()}...`;
+}
+
+function extractToolResultText(message: ToolResultMessage) {
+  return message.content
+    .filter((block): block is TextContent => block.type === 'text')
+    .map((block) => block.text)
+    .join('\n')
+    .trim();
+}
+
+function projectSearchWebEvidence(message: ToolResultMessage) {
+  const details = asRecord(message.details);
+  if (details?.kind !== 'web-search-summary') {
+    return null;
+  }
+
+  const query = typeof details.query === 'string' ? details.query.trim() : '';
+  const summaryText = typeof details.summaryText === 'string' ? details.summaryText.trim() : extractToolResultText(message);
+  if (!summaryText) {
+    return null;
+  }
+
+  const sourceNames = Array.isArray(details.sourceNames)
+    ? details.sourceNames.filter((sourceName): sourceName is string => typeof sourceName === 'string' && sourceName.trim().length > 0)
+    : [];
+  const lines = ['Historical web search evidence from a previous run.'];
+  if (query) {
+    lines.push(`Query: ${query}`);
+  }
+  lines.push(`Summary: ${truncateProjectedText(summaryText)}`);
+  if (sourceNames.length > 0) {
+    lines.push(`Sources: ${sourceNames.slice(0, 4).join(', ')}`);
+  }
+
+  return lines.join('\n');
+}
+
+function projectOpenUrlEvidence(message: ToolResultMessage) {
+  const details = asRecord(message.details);
+  if (details?.kind !== 'open-url-summary') {
+    return null;
+  }
+
+  const title = typeof details.title === 'string' ? details.title.trim() : '';
+  const finalUrl = typeof details.finalUrl === 'string' ? details.finalUrl.trim() : '';
+  const contentText = extractToolResultText(message);
+  if (!contentText) {
+    return null;
+  }
+
+  const lines = ['Historical web page evidence from a previous run.'];
+  if (title) {
+    lines.push(`Title: ${title}`);
+  }
+  if (finalUrl) {
+    lines.push(`URL: ${finalUrl}`);
+  }
+  lines.push(`Content excerpt: ${truncateProjectedText(contentText)}`);
+
+  return lines.join('\n');
+}
+
+function projectUnavailableToolEvidence(message: ToolResultMessage) {
+  if (message.toolName === 'searchWeb') {
+    return projectSearchWebEvidence(message);
+  }
+
+  if (message.toolName === 'openUrl') {
+    return projectOpenUrlEvidence(message);
+  }
+
+  return null;
+}
+
+function createProjectedToolEvidenceMessage(source: ToolResultMessage, text: string): AssistantMessage {
+  return {
+    role: 'assistant',
+    content: [{ type: 'text', text }],
+    api: 'projected-tool-history',
+    provider: 'agent-infra',
+    model: 'tool-history-projection',
+    usage: structuredClone(EMPTY_USAGE),
+    stopReason: 'stop',
+    timestamp: source.timestamp
+  };
 }
 
 export function buildInitialAgentState(
@@ -234,6 +337,11 @@ export function projectAgentMessagesForEnabledTools(
     if (message.role === 'toolResult') {
       const toolCallEnabled = toolCallEnabledById.get(message.toolCallId);
       if (toolCallEnabled !== true || !enabledToolNames.has(message.toolName)) {
+        const evidence = toolCallEnabled === false ? projectUnavailableToolEvidence(message) : null;
+        if (evidence) {
+          return [createProjectedToolEvidenceMessage(message, evidence)];
+        }
+
         return [];
       }
     }

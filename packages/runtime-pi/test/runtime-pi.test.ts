@@ -469,12 +469,14 @@ function createToolResultMessage(input: {
   toolCallId: string;
   toolName: string;
   text?: string;
+  details?: unknown;
 }): AgentMessage {
   return {
     role: 'toolResult',
     toolCallId: input.toolCallId,
     toolName: input.toolName,
     content: [{ type: 'text', text: input.text ?? `${input.toolName} result` }],
+    details: input.details,
     isError: false,
     timestamp: Date.now()
   };
@@ -573,6 +575,83 @@ describe('projectAgentMessagesForEnabledTools', () => {
       stopReason: 'stop',
       content: [{ type: 'text', text: 'I will search.' }]
     });
+  });
+
+  it('projects unavailable web search results as plain evidence text', () => {
+    const assistant = fauxAssistantMessage([fauxToolCall('searchWeb', { query: 'ICP filing time' }, { id: 'call-search' })], {
+      stopReason: 'toolUse'
+    });
+    const toolResult = createToolResultMessage({
+      toolCallId: 'call-search',
+      toolName: 'searchWeb',
+      text: 'Search result summary.',
+      details: {
+        kind: 'web-search-summary',
+        query: 'ICP filing time',
+        summaryText: 'ICP filing commonly takes several business days and depends on province review.',
+        sourceNames: ['Tencent Cloud', 'MIIT']
+      }
+    });
+
+    expect(
+      projectAgentMessagesForEnabledTools([assistant, toolResult], {
+        enabledToolNames: new Set()
+      })
+    ).toEqual([
+      expect.objectContaining({
+        role: 'assistant',
+        stopReason: 'stop',
+        content: [
+          {
+            type: 'text',
+            text: [
+              'Historical web search evidence from a previous run.',
+              'Query: ICP filing time',
+              'Summary: ICP filing commonly takes several business days and depends on province review.',
+              'Sources: Tencent Cloud, MIIT'
+            ].join('\n')
+          }
+        ]
+      })
+    ]);
+  });
+
+  it('projects unavailable opened page results as plain evidence text', () => {
+    const assistant = fauxAssistantMessage([fauxToolCall('openUrl', { url: 'https://example.com' }, { id: 'call-open' })], {
+      stopReason: 'toolUse'
+    });
+    const toolResult = createToolResultMessage({
+      toolCallId: 'call-open',
+      toolName: 'openUrl',
+      text: 'Opened page: Example\nURL: https://example.com\n\nPage evidence content.',
+      details: {
+        kind: 'open-url-summary',
+        title: 'Example',
+        finalUrl: 'https://example.com'
+      }
+    });
+
+    expect(
+      projectAgentMessagesForEnabledTools([assistant, toolResult], {
+        enabledToolNames: new Set()
+      })
+    ).toEqual([
+      expect.objectContaining({
+        role: 'assistant',
+        stopReason: 'stop',
+        content: [
+          {
+            type: 'text',
+            text: [
+              'Historical web page evidence from a previous run.',
+              'Title: Example',
+              'URL: https://example.com',
+              'Content excerpt: Opened page: Example URL: https://example.com Page evidence content.'
+            ].join('\n')
+          }
+        ]
+      })
+    ]);
   });
 
   it('drops tool-only assistant messages when every tool call is unavailable', () => {
@@ -1361,6 +1440,12 @@ describe('runAssistantTurnWithPiInternal', () => {
         toolName: 'searchWeb',
         toolCallId: 'call-search-history',
         content: [{ type: 'text', text: 'Search result summary.' }],
+        details: {
+          kind: 'web-search-summary',
+          query: 'ICP filing time',
+          summaryText: 'ICP filing normally takes several business days after provider and regulator review.',
+          sourceNames: ['Tencent Cloud']
+        },
         isError: false
       }
     });
@@ -1414,6 +1499,20 @@ describe('runAssistantTurnWithPiInternal', () => {
       expect.objectContaining({
         role: 'assistant',
         content: [{ type: 'text', text: 'I will look up the latest filing time.' }]
+      }),
+      expect.objectContaining({
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: [
+              'Historical web search evidence from a previous run.',
+              'Query: ICP filing time',
+              'Summary: ICP filing normally takes several business days after provider and regulator review.',
+              'Sources: Tencent Cloud'
+            ].join('\n')
+          }
+        ]
       }),
       expect.objectContaining({
         role: 'user',

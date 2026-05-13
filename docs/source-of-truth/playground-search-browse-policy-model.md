@@ -65,10 +65,11 @@ shared infra 继续只提供：
 给模型前，会按本轮实际注册的 tool name 做一次 context projection：
 
 - 当前仍可用的工具历史保留 structured `toolCall` / `toolResult`
-- 当前不可用的工具历史从模型输入中成对剥离
+- 当前不可用的工具历史从模型输入中移除 structured `toolCall` / `toolResult`
+- 可安全复用的 `searchWeb` / `openUrl` 成功结果会投影成普通 evidence text
 - durable transcript 与数据库原始历史不被修改
 
-这条边界用于避免模型在无工具声明的请求里继续模仿历史工具协议，把工具调用 DSL 当作普通 assistant 文本输出。
+这条边界用于避免模型在无工具声明的请求里继续模仿历史工具协议，把工具调用 DSL 当作普通 assistant 文本输出，同时保留上一轮已经获得的网页证据。
 
 ### 3. phase 由 controller 派生，不由模型自己决定
 
