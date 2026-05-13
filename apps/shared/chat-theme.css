@@ -60,6 +60,7 @@
   --chat-text: var(--color-slate-900);
   --chat-text-secondary: var(--color-slate-500);
   --chat-text-tertiary: var(--color-slate-400);
+  --chat-muted: var(--chat-text-secondary);
   --chat-placeholder: var(--color-slate-400);
   --chat-hover: var(--color-slate-100);
   --chat-user-bubble: #f3f4f6;
@@ -69,6 +70,7 @@
   --chat-shadow-card: 0 8px 24px rgba(15, 23, 42, 0.04);
   --chat-scrollbar-thumb: rgba(148, 163, 184, 0.48);
   --chat-link: #2563eb;
+  --chat-accent: var(--chat-link);
   --chat-reasoning-text: #94a3b8;
   --chat-reasoning-accent: #6366f1;
   --chat-reasoning-divider: #e2e8f0;

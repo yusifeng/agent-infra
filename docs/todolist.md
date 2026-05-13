@@ -1,391 +1,361 @@
-# Playground Next Migration Todo
+# Playground Next UI Parity Todo
 
 Source analysis:
 
-- [x] Primary analysis: `docs/playground-next-migration-analysis-task.md`
-- [x] Vercel runbook caveats: `docs/playground-next-web-vercel-runbook.md`
-- [x] Direction: hybrid rebuild
-- [x] Do not start by porting the Vite UI.
-- [x] First stabilize the Next host backend boundary.
+- [x] User direction: `apps/playground-vite-web` is the UI and interaction source of truth.
+- [x] Conflict rule: when `playground-next-web` and `playground-vite-web` differ, Vite wins.
+- [x] Stack rule: when Vite UI needs Tailwind 4 / shadcn / Radix / shared CSS, migrate that foundation into Next instead of downgrading Vite UI to the current Next stack.
+- [x] Subagent A completed a read-only UI parity audit.
+- [x] Subagent B completed a read-only UI parity audit.
+- [x] Current Next backend/auth/thread/stream/share/replay functionality has been migrated through earlier loops.
+- [x] Current Next UI parity is not complete even though earlier migration todo items were marked complete.
 
 ## 0. Context And Boundary
 
 ### 0.1 Confirmed Facts
 
-- [x] `apps/playground-vite-web` is the most complete frontend experience.
-- [x] `apps/playground-fastify-server` is the most complete backend route semantics reference.
-- [x] `apps/playground-next-web` already has useful Vercel/package/bootstrap/runbook shape.
-- [x] Existing Next chat pages are mostly a stale shell and should not drive the migration.
-- [x] In-memory `RunStreamHub` is only best-effort on Vercel Functions.
-- [x] Production-grade attach/resume/cancel on Vercel will need external runtime state such as Redis, a worker, or a run coordinator.
-- [x] Current `playground-next-web test` is not a valid required gate until tests are added.
+- [x] `apps/playground-vite-web` is the most complete frontend experience and visual baseline.
+- [x] `apps/playground-next-web` is the target app for Vercel deployment and App Router hosting.
+- [x] The prior migration focused on functional parity and backend/route/runtime migration before strict UI parity.
+- [x] Auth pages in `apps/playground-next-web/app/(auth)` are temporary simplified pages, not Vite UI parity.
+- [x] Main chat shell in `apps/playground-next-web/components/chat-shell` is functionally useful but not a Vite visual clone.
+- [x] Replay and public share pages are currently simplified Next implementations, not Vite UI parity.
+- [x] Current uncommitted foundation patch touches `apps/playground-next-web/app/globals.css` and `apps/shared/chat-theme.css`.
 
-### 0.2 Goals
+### 0.2 UI Parity Principles
 
-- [x] Move the current Vite/Fastify playground experience into `apps/playground-next-web`.
-- [x] Preserve Vercel deployability while making Vercel runtime caveats explicit.
-- [x] Keep platform/domain logic in `packages/*` when it is truly reusable.
-- [x] Keep playground host concerns out of durable platform packages.
-- [x] Make each implementation loop independently verifiable, reviewable, and committable.
+- [x] Vite UI wins over existing Next UI.
+- [x] Tailwind 4 wins over Tailwind 3 compatibility.
+- [x] Vite shadcn/Radix primitives win over low-fidelity local replacements.
+- [x] Vite `chat-shell.css` class names, theme tokens, and interaction states should be preserved.
+- [x] Next App Router, route handlers, auth gate, server actions/routes, and Vercel deployment shape may differ internally as long as user-visible UI remains Vite-aligned.
+- [x] Do not preserve a Next-only visual design when it conflicts with Vite parity.
+- [x] `Equivalent` means internal Next adaptation with the same user-visible UI and interaction behavior; it does not permit visual or interaction drift from Vite.
+- [x] Any intentional non-parity exception must be explicitly approved by the user and written into this todo before implementation.
+- [x] Keep Next-only debugging surfaces such as `DurableLogPane` only if they are visually isolated and do not change the default Vite-like experience.
 
-### 0.3 Non-Goals
+### 0.3 Goals
 
-- [x] Do not delete `apps/playground-vite-web` during early migration.
-- [x] Do not delete `apps/playground-fastify-server` before Next parity and smoke are proven.
-- [x] Do not move playground auth into `packages/core`, `packages/contracts`, `packages/db`, or `packages/app`.
-- [x] Do not pretend Vercel Functions make module-level active run state durable.
-- [x] Do not port search UI as enabled before search backend wiring exists.
-- [x] Do not ship attach-stream UI calls before matching backend routes exist.
-- [x] Do not leave anonymous deployment smoke after `/api/threads` becomes session-gated.
+- [ ] Make `apps/playground-next-web` visually and interactively match `apps/playground-vite-web`.
+- [x] Upgrade or align Next UI foundation to support Vite UI directly.
+- [ ] Replace temporary auth UI with Vite auth UI.
+- [ ] Replace or refactor current Next chat shell to match Vite sidebar/header/composer/message/search behavior.
+- [ ] Replace simplified replay and public share pages with Vite-equivalent presentation flows.
+- [ ] Verify parity with browser inspection/screenshots on desktop and mobile.
+- [ ] Keep each UI parity slice independently verifiable, reviewable, and committable.
+
+### 0.4 Non-Goals
+
+- [x] Do not redesign the product beyond Vite parity.
+- [x] Do not downgrade Vite UI classes to fit Tailwind 3.
+- [x] Do not change durable runtime semantics, stream semantics, DB schema, or auth service behavior unless UI parity exposes a direct bug.
+- [x] Do not move playground auth or UI-only concerns into `packages/core`, `packages/contracts`, `packages/db`, or `packages/runtime-pi`.
+- [x] Do not delete `apps/playground-vite-web` until Next UI parity is proven.
+- [x] Do not treat `DurableLogPane` as a replacement for Vite message/search/replay presentation.
+- [x] Do not mark a page as parity-complete without browser verification.
 
 ## 1. Definitions First
 
 ### 1.1 Source Of Truth
 
-- [x] Reconcile Next migration with `docs/source-of-truth/playground-host-auth-model.md`.
-- [x] Reconcile runtime binding with `docs/source-of-truth/playground-chat-mode-model.md`.
-- [x] Reconcile public share behavior with `docs/source-of-truth/share-model.md`.
-- [x] Reconcile attach-stream behavior with `docs/source-of-truth/run-attach-stream-model.md`.
-- [x] Decide whether a new source-of-truth doc is needed after migration facts stabilize.
+- [x] Use `apps/playground-vite-web/src/App.tsx` as the auth shell routing/presentation reference.
+- [x] Use `apps/playground-vite-web/src/features/auth/components/*` as auth form references.
+- [x] Use `apps/playground-vite-web/src/features/durable-chat/components/*` as chat component references.
+- [x] Use `apps/playground-vite-web/src/features/durable-chat/durable-chat-console.tsx` as main chat shell reference.
+- [x] Use `apps/playground-vite-web/src/features/durable-chat/replay-console.tsx` as replay presentation reference.
+- [x] Use `apps/playground-vite-web/src/features/durable-chat/shared-snapshot-console.tsx` as public share presentation reference.
+- [ ] Reconcile public share work with `docs/source-of-truth/share-model.md`.
+- [ ] Reconcile chat mode controls with `docs/source-of-truth/playground-chat-mode-model.md`.
+- [ ] Decide after implementation whether any stable UI parity rule belongs in `docs/source-of-truth`.
 
-Loop 0 decision:
+### 1.2 UI Foundation Definitions
 
-- [x] No new source-of-truth doc is needed before implementation.
-- [x] Existing source-of-truth docs already define the key boundaries.
-- [x] Update source-of-truth docs later only if implementation discovers a durable, long-lived fact not covered there.
+- [x] Align `playground-next-web` Tailwind version and CSS entry strategy with `playground-vite-web`.
+- [x] Add or align `@fontsource-variable/geist`.
+- [x] Add or align `tw-animate-css`.
+- [x] Add or align `shadcn/tailwind.css`.
+- [x] Add or align Radix primitives used by Vite UI.
+- [x] Add or align `tailwind-merge` / `cn` behavior if Vite primitives require it.
+- [x] Define how `apps/shared/chat-theme.css` is imported by Next after Tailwind 4 alignment.
+- [x] Define how `(chat-shell)/chat-shell.css` should contain Vite chat-shell classes and variables.
+- [x] Keep current temporary `--chat-muted` / `--chat-accent` aliases as compatibility aliases until later UI loops remove old Next references or prove them redundant.
 
-### 1.2 Host Boundary
+### 1.3 Auth UI Definitions
 
-- [x] Decide whether auth/thread-catalog code is copied into Next host-local modules.
-- [x] Decide whether auth/thread-catalog code moves to an explicitly playground-owned host adapter.
-- [x] Keep playground host adapter code separate from durable platform packages.
-- [x] Define a shared current-user helper for Next route handlers.
-- [x] Define unauthorized behavior per route type.
-- [x] Preserve `GET /api/auth/me` behavior: unauthenticated returns `{ user: null }`.
+- [ ] Define Next adaptations for Vite `LoginForm`, `RegisterForm`, and `ForgotPasswordForm` with the same user-visible UI and interactions.
+- [ ] Define Next adaptation for Vite auth page shell background, logo, and centered layout with the same user-visible UI.
+- [ ] Define Next adaptation for Vite `useEmailCodeCooldown` with the same user-visible cooldown behavior.
+- [ ] Define auth error-code-to-Chinese-message mapping.
+- [ ] Define reset-password success notice behavior in Next without React Router state.
+- [ ] Preserve safe `next` query semantics and reject protocol-relative redirects.
 
-Loop 0 decision:
+### 1.4 Chat UI Definitions
 
-- [x] Next auth remains playground host-local.
-- [x] Do not move auth/thread-catalog into durable platform packages.
-- [x] Start by copying/adapting Fastify host-local auth and thread-catalog code into Next host-local modules.
-- [x] Extract an explicitly playground-owned host adapter only after duplication proves it is needed.
+- [ ] Define Vite-to-Next component mapping for sidebar, header, composer, message list, search panel, and dialogs.
+- [ ] Define how Vite quick/expert mode UI maps to existing Next runtime/provider fields.
+- [ ] Define how Vite web search toggle maps to existing `webSearchEnabled` runtime input.
+- [ ] Define how Vite reasoning/thinking controls map to current Next runtime state.
+- [ ] Define whether `DurableLogPane` remains hidden/debug-only or moves behind a Vite-compatible control.
+- [ ] Define how Vite thread groups, pinned state, row menus, rename/archive/share/pin actions map to current protected APIs.
 
-### 1.3 Data Model And Bootstrap
+### 1.5 Message / Search / Replay / Share Definitions
 
-- [x] Update Next explicit bootstrap to prepare durable schema.
-- [x] Update Next explicit bootstrap to prepare auth schema.
-- [x] Update Next explicit bootstrap to prepare thread catalog schema.
-- [x] Confirm Turso/SQLite bootstrap behavior stays explicit, not implicit inside user-facing requests.
-- [x] Confirm auth/session tables work in the selected remote DB mode.
-- [x] Confirm thread catalog projection can be built from durable thread plus catalog row.
+- [ ] Define whether Vite `ContentNode`, `TranscriptBlock`, and `AnswerContainer` presentation services are copied into Next or extracted without changing user-visible presentation.
+- [ ] Define how Next durable `MessageDto` pages feed Vite-style transcript projection.
+- [ ] Define how live assistant drafts feed Vite-style transcript projection.
+- [ ] Define how tool calls/results become user-facing Vite presentation instead of raw JSON cards.
+- [ ] Define SearchResultsPanel data inputs from persisted messages, timeline/tool data, and public snapshots.
+- [ ] Define replay step model parity with Vite replay runtime.
+- [ ] Define public share snapshot presentation parity with Vite shared snapshot console.
 
-### 1.4 DTO / Projection Matrix
+## 2. Backend / Platform Boundary
 
-- [x] Define base durable `ThreadDto` usage.
-- [x] Define playground thread DTO usage with `pinned`, `pinnedAt`, `runtimeProvider`, and `runtimeModel`.
-- [x] Define message/run/timeline DTO usage.
-- [x] Define public share DTO and shared snapshot DTO usage.
-- [x] Define private playground stream events such as `thread.title_updated`.
-- [x] Define attach-stream events: `run.snapshot`, `run.assistant`, terminal events, and `run.attach_unavailable`.
-- [x] Ensure `GET /api/threads` returns playground thread DTOs once thread catalog is enabled.
-- [x] Ensure thread mutation responses return playground thread DTOs once thread catalog is enabled.
+### 2.1 Preserve Existing Backend Behavior
 
-### 1.5 Protected Route Matrix
+- [x] Keep existing Next auth routes.
+- [x] Keep existing protected thread routes.
+- [x] Keep existing stream and attach-stream routes.
+- [x] Keep existing share routes.
+- [x] Keep existing replay route data API.
+- [ ] Only change backend routes if a Vite UI interaction has no existing Next endpoint.
+- [ ] Avoid backend rewrites while doing UI parity unless tests prove a route contract gap.
 
-- [x] Keep `GET /api/meta` anonymous.
-- [x] Keep `GET /api/shares/:publicId` anonymous.
-- [x] Keep `GET /site-icons/:hostname` or Next equivalent anonymous.
-- [x] Keep auth entry routes anonymous.
-- [x] Keep `POST /api/auth/logout` origin/rate-limited and idempotent for stale sessions.
-- [x] Protect all `/api/threads*` chat/thread routes.
-- [x] Protect `GET /api/runs/:runId/timeline`.
-- [x] Protect share create/current/revoke routes.
-- [x] For thread routes, load accessible thread before app use cases.
-- [x] For run routes, load run and then load its thread before app use cases.
-- [x] For share revoke, load share and then load source thread before app use cases.
-- [x] Ensure wrong thread/run pairs do not leak cross-thread metadata.
+### 2.2 Route / API Gaps To Check
 
-### 1.6 Runtime And Search Gates
+- [ ] Confirm web search toggle can call current stream API with `webSearchEnabled`.
+- [ ] Confirm quick/expert mode UI can map to current model/reasoning controls.
+- [ ] Confirm thread row actions can call current rename/archive/pin/share routes.
+- [ ] Confirm public share can load all data needed for Vite shared snapshot presentation.
+- [ ] Confirm replay can load all data needed for Vite replay presentation.
+- [ ] Confirm auth pages can preserve existing Next cookie/session behavior while matching Vite UI.
 
-- [x] Preserve provider/model runtime binding from thread catalog or latest run.
-- [x] Bind thread provider/model after the first successful queued turn if unset.
-- [x] Force later turns in the same thread to keep the bound provider/model.
-- [x] Pass `webSearchEnabled` through run start only when backend search is configured.
-- [x] Reject or hide search-enabled sends when search backend is unavailable.
-- [x] Define `TAVILY_API_KEY` behavior in env docs and UI gating.
+## 3. Frontend Implementation Boundary
 
-## 2. Backend / Platform
+### 3.1 Style Foundation
 
-### 2.1 Next Auth Host
-
-- [x] Add Next auth route handlers matching Fastify semantics.
-- [x] Adapt auth cookies to Next `Request` / `NextResponse`.
-- [x] Preserve production cookie name and secure cookie behavior.
-- [x] Preserve origin checks.
-- [x] Define rate-limit strategy for Next/Vercel.
-- [x] Preserve client IP and user-agent capture for auth events.
-- [x] Add `argon2` dependency if auth password hashing is hosted in Next.
-- [x] Add `resend` dependency if auth email sending is hosted in Next.
-- [x] Verify native dependency packaging for Vercel.
-
-### 2.2 Thread Catalog And Protected APIs
-
-- [x] Port or adapt thread catalog repo/service for Next.
-- [x] Make `GET /api/threads` user-scoped.
-- [x] Make `POST /api/threads` create owner catalog rows.
-- [x] Add `GET /api/threads/:threadId`.
-- [x] Add `PATCH /api/threads/:threadId`.
-- [x] Add `POST /api/threads/:threadId/archive`.
-- [x] Add `POST /api/threads/:threadId/pin`.
-- [x] Add `DELETE /api/threads/:threadId/pin`.
-- [x] Protect existing message/runs/timeline routes.
-- [x] Protect existing stream route.
-- [x] Preserve runtime binding in stream route.
-
-### 2.3 Stream And Attach-Stream
-
-- [x] Add process-local `RunStreamHub` singleton for Next.
-- [x] Open hub session before runtime output can publish.
-- [x] Publish stream assistant/state/terminal events into the hub.
-- [x] Add `GET /api/threads/:threadId/runs/:runId/attach-stream`.
-- [x] Send `run.snapshot` first on attach.
-- [x] Preserve monotonic runtime `version`.
-- [x] Preserve terminal retention behavior.
-- [x] Preserve unavailable reasons and fallback semantics.
-- [x] Document Vercel best-effort behavior after implementation.
-
-### 2.4 Search / Browse
-
-- [x] Port Tavily provider wiring.
-- [x] Port search planner.
-- [x] Port policy-aware `searchWeb`.
-- [x] Port `openUrl`.
-- [x] Add or port `/site-icons/:hostname` equivalent.
-- [x] Validate tool invocation persistence.
-- [x] Validate search panel inputs can be loaded from timeline/tool data.
-
-### 2.5 Share / Public Snapshot
-
-- [x] Add share create route.
-- [x] Add current share route.
-- [x] Add public share read route.
-- [x] Add share revoke route.
-- [x] Preserve public share sanitize behavior.
-- [x] Preserve snapshot-not-live-thread boundary.
-- [x] Keep public share read anonymous.
-- [x] Keep create/current/revoke authenticated.
-
-### 2.6 Vercel / Env / Config
-
-- [x] Update `.env.example` for auth env.
-- [x] Update `.env.example` for search env.
-- [x] Update Vercel runbook for auth env.
-- [x] Update Vercel runbook for origin allowlist.
-- [x] Define Node runtime requirements for route handlers.
-- [x] Define function duration assumptions for stream routes.
-- [x] Keep attach-stream caveat visible until external state exists.
-
-Loop 0 decision:
-
-- [x] Keep `playground-next-web` route handlers on the Node.js runtime.
-- [x] Treat long stream duration and disconnect behavior as deployment assumptions to verify per Vercel project settings.
-- [x] Do not rely on Edge runtime for DB/auth/runtime-pi routes.
-- [x] Keep in-memory attach-stream as best-effort until external state is added.
-
-## 3. Frontend Boundary
-
-### 3.1 Routing
-
-- [x] Map `/` to `/new`.
-- [x] Add `/login`.
-- [x] Add `/register`.
-- [x] Add `/forgot-password`.
-- [x] Keep `/new`.
-- [x] Keep `/chat/[threadId]`.
-- [x] Add `/share/[publicId]`.
-- [x] Add `/replay/[threadId]`.
-- [x] Pass route params into client components explicitly.
-- [x] Stop deriving active thread from `usePathname()` in the final shell.
+- [x] Upgrade `apps/playground-next-web` to Vite-aligned Tailwind 4 foundation.
+- [x] Align `postcss` / CSS entry files with Vite where needed.
+- [x] Import Geist font like Vite.
+- [x] Import `tw-animate-css` and shadcn CSS like Vite.
+- [x] Audit Vite package deps, `components.json`, and UI primitive imports before finalizing the Next dependency list.
+- [x] Port missing Vite `chat-shell.css` class/variable blocks.
+- [x] Add missing UI primitives: Input, Dialog, AlertDialog, DropdownMenu, and any Button variants needed by Vite UI.
+- [x] Add Vite visual assets/components needed by parity: `DeepseekLogo`, `PureDeepseek`, mode icons, and `SiteIconBadge`.
+- [x] Verify Tailwind generates Vite classes used by migrated components.
+- [x] Decide temporary style aliases remain as compatibility aliases for now and re-evaluate after page parity loops.
 
 ### 3.2 Auth UI
 
-- [x] Port login form.
-- [x] Port register form.
-- [x] Port forgot-password form.
-- [x] Port auth loading state.
-- [x] Port protected route redirect behavior.
-- [x] Port logout behavior.
-- [x] Preserve `next` redirect query semantics.
+- [ ] Port Vite auth shell background and centered layout.
+- [ ] Port `DeepseekLogo` or equivalent Vite logo component into Next.
+- [ ] Port login form visual structure and interactions.
+- [ ] Port register form visual structure and interactions.
+- [ ] Port forgot-password form visual structure and interactions.
+- [ ] Port password visibility toggles.
+- [ ] Port email-code cooldown behavior.
+- [ ] Port Chinese auth copy and error messages.
+- [ ] Preserve safe `next` redirect behavior.
+- [ ] Preserve reset-password success notice.
+- [ ] Remove temporary English auth UI.
 
-### 3.3 Chat UI
+### 3.3 Main Chat Shell
 
-- [x] Decide Tailwind 3 vs Tailwind 4 strategy.
-- [x] Align Next Tailwind content globs with migrated feature paths.
-- [x] Port or replace Vite theme styles.
-- [x] Port sidebar.
-- [x] Port chat header.
-- [x] Port composer.
-- [x] Port message list.
-- [x] Port answer containers.
-- [x] Port loading semantics.
-- [x] Port thread rename/archive/pin actions.
-- [x] Port search status presentation only after search backend exists.
-- [x] Port attach-stream frontend only after backend exists.
+- [ ] Port Vite sidebar brand, dimensions, mobile overlay, and open/close behavior.
+- [ ] Port Vite new-chat button style.
+- [ ] Port Vite thread grouping: pinned, today, yesterday, last 7 days, earlier, and more-history behavior where supported.
+- [ ] Port Vite thread row layout and static action affordance positions; interactive menus are completed in the dialogs/menus loop.
+- [ ] Port Vite account area layout; dropdown interaction is completed in the dialogs/menus loop.
+- [ ] Port Vite chat header layout, height, branding, title, and mode presentation.
+- [ ] Port Vite composer shell, empty-state landing, mode selector, web search toggle, thinking/reasoning controls, stop/send button states.
+- [ ] Ensure default Next chat view no longer looks like the old simplified Next shell.
 
-Loop 0 decision:
+### 3.4 Message / Search Presentation
 
-- [x] Do not upgrade Tailwind during backend/auth slices.
-- [x] Keep the current Next Tailwind 3 setup until UI port work begins.
-- [x] Before porting Vite UI, either upgrade Next to a Tailwind 4-compatible stack or adapt the Vite styles to the current Next stack.
-- [x] Do not raw-copy Vite Tailwind 4 CSS into the current Tailwind 3 app.
+- [ ] Port Vite transcript block projection services or equivalent presentation pipeline.
+- [ ] Port answer container rendering.
+- [ ] Port persisted assistant/user message presentation.
+- [ ] Port live assistant draft presentation.
+- [ ] Port loading, thinking, reasoning, and shimmer states.
+- [ ] Port research/search status rows.
+- [ ] Port `SearchResultsPanel`.
+- [ ] Port source favicon/site badge presentation.
+- [ ] Port tool call/result user-facing presentation.
+- [ ] Preserve markdown/code/copy behavior while matching Vite visual output.
 
-### 3.4 Share And Replay UI
+### 3.5 Dialogs And Thread Actions
 
-- [x] Port public share runtime.
-- [x] Port public share presentation using the main transcript rendering chain.
-- [x] Port share dialog.
-- [x] Port replay runtime.
-- [x] Port replay presentation.
-- [x] Port replay controls.
+- [ ] Port rename dialog rather than using `window.prompt`.
+- [ ] Port archive/delete confirmation dialog rather than using `window.confirm`.
+- [ ] Port share dialog visual structure and focus behavior.
+- [ ] Port dropdown/menu interactions needed by sidebar and account controls.
+- [ ] Verify keyboard and focus behavior for dialogs/menus.
+
+### 3.6 Replay UI
+
+- [ ] Replace simplified raw-message cursor replay with Vite-equivalent replay presentation.
+- [ ] Port replay runtime/view-state concepts needed by Vite UI.
+- [ ] Port replay control bar visual and interaction states.
+- [ ] Port reasoning/search/tool replay presentation.
+- [ ] Preserve Next route/data loading while matching Vite UI.
+
+### 3.7 Public Share UI
+
+- [ ] Replace simplified document-style share page with Vite shared snapshot console parity.
+- [ ] Port shared snapshot transcript projection.
+- [ ] Port shared snapshot answer containers.
+- [ ] Port shared snapshot search panel.
+- [ ] Port loading, not-found, and empty states.
+- [ ] Keep public share read anonymous.
 
 ## 4. Tests And Verification
 
-### 4.1 Baseline Gates
+### 4.1 Command Gates
 
-- [x] Run `pnpm --filter playground-next-web typecheck`.
-- [x] Run `pnpm --filter playground-next-web build`.
-- [x] Do not require `pnpm --filter playground-next-web test` until tests exist.
+- [x] Run `pnpm --filter playground-next-web build` after foundation changes.
+- [x] Run `pnpm --filter playground-next-web typecheck` after build if `.next/types` are required.
+- [x] Run `pnpm --filter playground-next-web test` when touched code has tests or when adding new UI/runtime tests.
+- [x] Run broader `pnpm typecheck` if shared packages or workspace-level dependencies change.
 
-### 4.2 Test Strategy
+### 4.2 Focused Tests
 
-- [x] Add route/helper tests when auth helpers are introduced.
-- [x] Add protected route tests for thread access.
-- [x] Add runtime binding tests.
-- [x] Add stream hub / attach route tests.
-- [x] Add search tool wiring tests.
-- [x] Add share sanitize/public route tests.
-- [x] Add focused UI/runtime tests after chat shell port.
+- [ ] Add or update auth helper tests for safe `next` redirect behavior.
+- [ ] Add or update auth UI behavior tests for login/register/forgot password where feasible.
+- [ ] Add or update email cooldown tests if cooldown hook is ported.
+- [ ] Add or update projection tests if transcript/search/replay presentation services are ported.
+- [ ] Add or update share/replay presentation tests if Vite services are copied or adapted.
 
-### 4.3 Smoke Strategy
+### 4.3 Browser Verification
 
-- [x] Update deployment smoke before `/api/threads` becomes auth-gated.
-- [x] Decide how smoke obtains a session.
-- [x] Validate `/api/meta`.
-- [x] Validate authenticated thread list/create.
-- [x] Validate authenticated stream.
-- [x] Validate persisted messages.
-- [x] Validate public share read without a session once share route exists.
-
-Loop 0 decision:
-
-- [x] Auth-aware smoke must be implemented in the same slice that makes `/api/threads` session-gated.
-- [x] The smoke should obtain a session through the public auth flow or a documented test-only seeded identity path.
-- [x] Do not keep the existing anonymous thread smoke after auth gating.
+- [ ] Capture or inspect the Vite baseline and the Next target for each verified page/state with the same viewport and comparable data.
+- [ ] Use desktop viewport `1440x900` for baseline parity checks unless a loop specifies otherwise.
+- [ ] Use mobile viewport `390x844` for baseline parity checks unless a loop specifies otherwise.
+- [ ] Verify `/login` desktop.
+- [ ] Verify `/login` mobile.
+- [ ] Verify `/register` desktop.
+- [ ] Verify `/register` mobile.
+- [ ] Verify `/forgot-password` desktop.
+- [ ] Verify `/forgot-password` mobile.
+- [ ] Verify auth empty state, submitting state, error state, password visible/hidden state, code before-send state, code cooldown state, code cooldown-ended state, and reset-success notice state.
+- [ ] Verify `/new` desktop.
+- [ ] Verify `/new` mobile.
+- [ ] Verify `/chat/:threadId` desktop with a real thread.
+- [ ] Verify `/chat/:threadId` mobile with a real thread.
+- [ ] Verify sidebar open/closed and mobile overlay.
+- [ ] Verify composer idle, sending, responding, and stop states.
+- [ ] Verify web search toggle visible and wired.
+- [ ] Verify reasoning/thinking controls visible and wired.
+- [ ] Verify message list with markdown, code, reasoning, search, and tool outputs.
+- [ ] Use at least one real thread or fixture containing markdown, code, reasoning, search, and tool result data for rich transcript verification.
+- [ ] Verify search results panel.
+- [ ] Verify rename/archive/share dialogs.
+- [ ] Verify `/replay/:threadId` desktop and mobile.
+- [ ] Verify `/share/:publicId` desktop and mobile.
 
 ### 4.4 Review And Commit Gates
 
-- [x] Run `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"` after each meaningful slice.
-- [x] Use tool timeout `timeout_ms >= 1200000` for review.
-- [x] Run codex review after targeted verification and before committing each slice.
-- [x] Commit immediately after clean review and targeted verification unless the user asks to batch.
-- [x] Do not accumulate a second slice on top of a clean reviewed uncommitted slice.
+- [ ] Run `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"` after each meaningful UI slice.
+- [ ] Use review tool timeout `timeout_ms >= 1200000`.
+- [ ] Run codex review after targeted verification and before committing each slice.
+- [ ] Commit immediately after clean review and passing targeted verification unless the user explicitly asks to batch.
+- [ ] Do not accumulate a second UI slice on top of a clean reviewed uncommitted slice.
 
 ## 5. Recommended Execution Order
 
-### Loop 0: Foundation Audit And Tooling Prep
+### Loop 0: UI Foundation Decision And Current Diff Cleanup
 
-- [x] Resolve host auth source-of-truth boundary.
-- [x] Decide auth/thread-catalog host adapter strategy.
-- [x] Decide Tailwind strategy.
-- [x] Decide immediate dependency additions.
-- [x] Define Vercel runtime/duration assumptions.
-- [x] Define auth-capable smoke strategy.
-- [x] Define route/helper test strategy.
-- [x] Run baseline verification.
+- [x] Review the current uncommitted `globals.css` and `chat-theme.css` changes.
+- [x] Decide whether those changes remain, move, or are replaced by Vite-aligned foundation work.
+- [x] Update Next dependencies for Tailwind 4 / Vite UI foundation.
+- [x] Align global CSS entry with Vite.
+- [x] Align shared theme and chat-shell CSS imports.
+- [x] Add missing UI primitives required by auth and chat parity.
+- [x] Run targeted foundation verification.
 - [x] Run codex review after verification and before commit.
 - [x] Commit.
 
-Loop 0 decisions:
+### Loop 1: Auth UI Parity
 
-- [x] Add `argon2` and `resend` in Loop 1 only if Next hosts auth directly.
-- [x] Add UI-only dependencies in the UI port loop, not in backend loops.
-- [x] Add search-only dependencies/env in the search loop.
-- [x] Add route/helper tests when the first route helper is introduced.
+- [ ] Port auth shell background, logo, and centered layout.
+- [ ] Port login form.
+- [ ] Port register form.
+- [ ] Port forgot-password form.
+- [ ] Port cooldown and password visibility interactions.
+- [ ] Preserve Next auth route calls and cookie/session behavior.
+- [ ] Preserve safe `next` redirect and reset success notice.
+- [ ] Browser-verify Vite baseline vs Next target for `/login`, `/register`, and `/forgot-password` on desktop and mobile.
+- [ ] Browser-verify auth empty, submitting, error, password visible/hidden, code before-send, code cooldown, code cooldown-ended, and reset-success notice states.
+- [ ] Run targeted verification.
+- [ ] Run codex review after verification and before commit.
+- [ ] Commit.
 
-### Loop 1: Auth, Session, Bootstrap, Env, And Smoke
+### Loop 2: Chat Shell Chrome Parity
 
-- [x] Add auth routes.
-- [x] Add auth pages.
-- [x] Add cookie/session adapter.
-- [x] Add complete explicit bootstrap.
-- [x] Update env docs.
-- [x] Update auth-aware smoke.
-- [x] Add tests where feasible.
-- [x] Run targeted verification.
-- [x] Run codex review after verification and before commit.
-- [x] Commit.
+- [ ] Port sidebar layout, brand, grouping, thread rows, mobile behavior, and account area layout.
+- [ ] Port chat header layout and mode presentation.
+- [ ] Port composer layout, empty state, mode selector, search toggle, reasoning controls, send/stop states.
+- [ ] Leave thread row menus, account dropdown interaction, and dialogs to Loop 4 unless they are required for static layout parity.
+- [ ] Keep Next protected routing and runtime wiring intact.
+- [ ] Browser-verify Vite baseline vs Next target for `/new` and `/chat/:threadId` shell states on desktop and mobile.
+- [ ] Run targeted verification.
+- [ ] Run codex review after verification and before commit.
+- [ ] Commit.
 
-### Loop 2: User-Scoped Thread Catalog, Runtime Binding, And Protected APIs
+### Loop 3: Message And Search Presentation Parity
 
-- [x] Add thread catalog integration.
-- [x] Add playground thread projection.
-- [x] Add thread management routes.
-- [x] Protect messages/runs/timeline/stream routes.
-- [x] Preserve runtime binding.
-- [x] Add protected route tests.
-- [x] Run targeted verification.
-- [x] Run codex review after verification and before commit.
-- [x] Commit.
+- [ ] Port transcript projection services.
+- [ ] Port answer containers.
+- [ ] Port user/assistant/live message rendering.
+- [ ] Port reasoning/thinking/research/search presentation.
+- [ ] Port SearchResultsPanel and source/site badge UI.
+- [ ] Replace raw JSON tool cards with Vite-style user-facing presentation.
+- [ ] Browser-verify Vite baseline vs Next target for rich transcript states on desktop and mobile.
+- [ ] Use at least one real thread or fixture with markdown, code, reasoning, search, and tool result data.
+- [ ] Run targeted verification.
+- [ ] Run codex review after verification and before commit.
+- [ ] Commit.
 
-### Loop 3: Stream Route Parity And Attach-Stream Backend
+### Loop 4: Dialogs, Menus, And Thread Actions Parity
 
-- [x] Add Next stream hub singleton.
-- [x] Publish stream events into hub.
-- [x] Add attach-stream route.
-- [x] Validate snapshot-first attach locally.
-- [x] Validate refresh recovery locally.
-- [x] Validate thread-switch recovery locally.
-- [x] Run targeted verification.
-- [x] Run codex review after verification and before commit.
-- [x] Commit.
+- [ ] Port rename dialog.
+- [ ] Port archive/delete confirmation dialog.
+- [ ] Port thread row action menus.
+- [ ] Port share dialog.
+- [ ] Port account dropdown.
+- [ ] Remove prompt/confirm-style interactions where Vite uses dialogs.
+- [ ] Browser-verify Vite baseline vs Next target for hover, menu, dialog, focus, and keyboard behavior.
+- [ ] Run targeted verification.
+- [ ] Run codex review after verification and before commit.
+- [ ] Commit.
 
-### Loop 4: Search And Browse Tool Wiring
+### Loop 5: Public Share UI Parity
 
-- [x] Port search/browse runtime tools.
-- [x] Add site icon route.
-- [x] Add search env docs.
-- [x] Validate search configured/unconfigured behavior.
-- [x] Run targeted verification.
-- [x] Run codex review after verification and before commit.
-- [x] Commit.
+- [ ] Port Vite shared snapshot console presentation.
+- [ ] Port shared transcript projection and answer containers.
+- [ ] Port shared search panel.
+- [ ] Preserve anonymous public access and sanitization boundaries.
+- [ ] Browser-verify Vite baseline vs Next target for `/share/:publicId` desktop and mobile.
+- [ ] Run targeted verification.
+- [ ] Run codex review after verification and before commit.
+- [ ] Commit.
 
-### Loop 5: Thread Management UI, Share API, And Public Share View
+### Loop 6: Replay UI Parity
 
-- [x] Port thread action UI.
-- [x] Add share API parity.
-- [x] Port public share view.
-- [x] Preserve share sanitization.
-- [x] Run targeted verification for share API, public share view, and thread action UI.
-- [x] Run codex review after verification and before commit for share API, public share view, and thread action UI.
-- [x] Commit share API, public share view, and thread action UI slices.
+- [ ] Port Vite replay runtime/view presentation needed by Next.
+- [ ] Port replay controls.
+- [ ] Port replay message/search/reasoning rendering.
+- [ ] Preserve Next route/data boundaries.
+- [ ] Browser-verify Vite baseline vs Next target for `/replay/:threadId` desktop and mobile.
+- [ ] Run targeted verification.
+- [ ] Run codex review after verification and before commit.
+- [ ] Commit.
 
-### Loop 6: Main Chat UI Port
+### Loop 7: Final UI Parity Audit
 
-- [x] Replace stale Next shell.
-- [x] Port Vite-derived chat shell.
-- [x] Port core runtime wiring against protected APIs.
-- [x] Verify attach/search gates do not call missing capabilities.
-- [x] Run targeted verification.
-- [x] Run codex review after verification and before commit.
-- [x] Commit.
-
-### Loop 7: Replay, Auto-Title, Final Smoke, And Cleanup
-
-- [x] Add replay route and UI.
-- [x] Add auto-title event or fallback refresh.
-- [x] Make deployment smoke fully auth-aware and verify it blocks without smoke credentials.
-- [x] Update final runbook.
-- [x] Decide stale directory deletion only after parity is proven.
-- [x] Run full verification.
-- [x] Run codex review after verification and before commit.
-- [x] Commit.
+- [ ] Re-run Vite-vs-Next UI parity audit across auth, chat, replay, and share.
+- [ ] Verify no temporary English auth UI remains.
+- [ ] Verify no old Next shell branding such as `Forma` remains unless explicitly accepted.
+- [ ] Verify Vite UI-specific classes and tokens used by migrated components are present in built CSS.
+- [ ] Run final browser verification matrix.
+- [ ] Run final targeted command verification.
+- [ ] Run codex review after verification and before commit.
+- [ ] Commit.

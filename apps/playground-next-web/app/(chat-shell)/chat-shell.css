@@ -1,4 +1,11 @@
 .chat-shell-theme {
+  --chat-overlay: rgba(2, 6, 23, 0.3);
+  --chat-tool-call-border: rgba(99, 102, 241, 0.2);
+  --chat-tool-call-bg: rgba(99, 102, 241, 0.1);
+  --chat-tool-call-text: #4338ca;
+  --chat-tool-result-border: rgba(16, 185, 129, 0.2);
+  --chat-tool-result-bg: rgba(16, 185, 129, 0.1);
+  --chat-tool-result-text: #047857;
   height: 100dvh;
   overflow: hidden;
   background: var(--chat-bg);
@@ -30,6 +37,47 @@
   background: transparent;
 }
 
+.chat-sidebar-new-chat-button {
+  box-shadow: var(--chat-sidebar-new-chat-shadow);
+}
+
+.chat-sidebar-new-chat-button:hover {
+  box-shadow: var(--chat-sidebar-new-chat-hover-shadow);
+}
+
+.chat-sidebar-scroll-fade-mask-bottom {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    var(--chat-sidebar-scroll-fade-mask-color),
+    var(--chat-sidebar-scroll-fade-mask-color) calc(100% - var(--chat-sidebar-scroll-fade-size)),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    var(--chat-sidebar-scroll-fade-mask-color),
+    var(--chat-sidebar-scroll-fade-mask-color) calc(100% - var(--chat-sidebar-scroll-fade-size)),
+    transparent
+  );
+}
+
+.chat-info-banner {
+  border: 1px solid color-mix(in srgb, #0ea5e9 30%, transparent);
+  background: color-mix(in srgb, #0ea5e9 12%, transparent);
+  color: #075985;
+}
+
+.chat-warning-banner {
+  border: 1px solid color-mix(in srgb, #f59e0b 35%, transparent);
+  background: color-mix(in srgb, #f59e0b 12%, transparent);
+  color: #92400e;
+}
+
+.chat-error-banner {
+  border: 1px solid color-mix(in srgb, var(--destructive) 30%, transparent);
+  background: color-mix(in srgb, var(--destructive) 10%, transparent);
+  color: var(--destructive);
+}
+
 @keyframes chat-shimmer {
   0% {
     background-position: -600px 0;
@@ -49,6 +97,23 @@
     var(--chat-text) 50%,
     var(--chat-text-tertiary) 65%,
     var(--chat-text-tertiary) 100%
+  );
+  background-size: 600px 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: chat-shimmer 2s linear infinite;
+}
+
+.chat-reasoning-shimmer-text {
+  display: inline-block;
+  background: linear-gradient(
+    90deg,
+    var(--chat-reasoning-text) 0%,
+    var(--chat-reasoning-text) 35%,
+    color-mix(in srgb, white 35%, var(--chat-reasoning-text)) 50%,
+    var(--chat-reasoning-text) 65%,
+    var(--chat-reasoning-text) 100%
   );
   background-size: 600px 100%;
   background-clip: text;
@@ -186,27 +251,6 @@
   line-height: 1.65;
 }
 
-.chat-shell-theme .markdown-body table {
-  width: 100%;
-  border-collapse: collapse;
-  overflow: hidden;
-  border: 1px solid var(--chat-border);
-  border-radius: 0.9rem;
-  font-size: 14px;
-}
-
-.chat-shell-theme .markdown-body th,
-.chat-shell-theme .markdown-body td {
-  border-bottom: 1px solid var(--chat-border);
-  padding: 0.7rem 0.85rem;
-  text-align: left;
-}
-
-.chat-shell-theme .markdown-body th {
-  background: var(--chat-surface-muted);
-  font-weight: 600;
-}
-
 .chat-shell-theme .markdown-body [data-component='markdown-code'] {
   position: relative;
   margin: 0 0 1rem;
@@ -214,24 +258,20 @@
 
 .chat-shell-theme .markdown-body [data-copy-code] {
   position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 0.6rem;
-  background: rgba(255, 255, 255, 0.06);
-  padding: 0.28rem 0.55rem;
-  color: rgba(226, 232, 240, 0.92);
+  right: 12px;
+  top: 12px;
+  border: 1px solid rgba(226, 232, 240, 0.18);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.45);
+  color: rgba(248, 250, 252, 0.9);
+  cursor: pointer;
   font-size: 11px;
   line-height: 1;
-  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+  padding: 6px 9px;
+  transition: background 160ms ease, border-color 160ms ease;
 }
 
 .chat-shell-theme .markdown-body [data-copy-code]:hover {
-  border-color: rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.chat-shell-theme .markdown-body [data-copy-code][data-copied='true'] {
-  background: rgba(148, 163, 184, 0.16);
-  color: rgba(255, 255, 255, 0.96);
+  background: rgba(15, 23, 42, 0.72);
+  border-color: rgba(226, 232, 240, 0.28);
 }
