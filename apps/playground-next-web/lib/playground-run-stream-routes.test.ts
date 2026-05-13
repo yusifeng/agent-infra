@@ -1,0 +1,581 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type {
+  Message,
+  MessagePart,
+  Run
+} from '@agent-infra/core';
+import type {
+  RunAttachStreamEventDto,
+  RunDto,
+  RunStreamEventDto,
+  RunStreamSnapshotEventDto
+} from '@agent-infra/contracts';
+
+import { getPlaygroundRunStreamHub } from './playground-run-stream-hub';
+
+type SseEvent = {
+  type: string;
+  data: Record<string, unknown>;
+};
+
+const user = { id: 'user-1', email: 'user@example.com' };
+
+function now() {
+  return new Date('2026-01-01T00:00:00.000Z');
+}
+
+function createRun(overrides: Partial<Run> = {}): Run {
+  return {
+    id: 'run-1',
+    threadId: 'thread-1',
+    triggerMessageId: null,
+    provider: 'openai',
+    model: 'gpt-4o-mini',
+    status: 'running',
+    usage: null,
+    error: null,
+    startedAt: null,
+    finishedAt: null,
+    createdAt: now(),
+    ...overrides
+  };
+}
+
+function createRunDto(overrides: Partial<RunDto> = {}): RunDto {
+  return {
+    id: 'run-1',
+    threadId: 'thread-1',
+    triggerMessageId: null,
+    provider: 'openai',
+    model: 'gpt-4o-mini',
+    status: 'running',
+    usage: null,
+    error: null,
+    startedAt: null,
+    finishedAt: null,
+    createdAt: now().toISOString(),
+    ...overrides
+  };
+}
+
+function createUserMessage(): Message & { parts: MessagePart[] } {
+  return {
+    id: 'message-1',
+    threadId: 'thread-1',
+    runId: 'run-1',
+    role: 'user',
+    seq: 1,
+    status: 'completed',
+    metadata: null,
+    createdAt: now(),
+    parts: [
+      {
+        id: 'part-1',
+        messageId: 'message-1',
+        partIndex: 0,
+        type: 'text',
+        textValue: 'hello',
+        jsonValue: null,
+        createdAt: now()
+      }
+    ]
+  };
+}
+
+function createSnapshot(runId = 'run-1', threadId = 'thread-1'): RunStreamSnapshotEventDto {
+  return {
+    type: 'run.snapshot',
+    runId,
+    run: createRunDto({ id: runId, threadId }),
+    version: 0,
+    assistant: null
+  };
+}
+
+async function readResponseText(response: Response) {
+  return response.text();
+}
+
+async function readSseEvents(response: Response): Promise<SseEvent[]> {
+  const text = await readResponseText(response);
+  return text
+    .trim()
+    .split('\n\n')
+    .filter(Boolean)
+    .map((chunk) => {
+      const lines = chunk.split('\n');
+      const type = lines.find((line) => line.startsWith('event: '))?.slice('event: '.length) ?? '';
+      const data = lines.find((line) => line.startsWith('data: '))?.slice('data: '.length) ?? '{}';
+      return {
+        type,
+        data: JSON.parse(data) as Record<string, unknown>
+      };
+    });
+}
+
+async function importStreamRoute() {
+  return import('../app/api/threads/[threadId]/runs/stream/route');
+}
+
+async function importAttachRoute() {
+  return import('../app/api/threads/[threadId]/runs/[runId]/attach-stream/route');
+}
+
+function mockThreadAccess(overrides: {
+  bindRuntimeIfUnset?: ReturnType<typeof vi.fn>;
+  loadAccessibleThread?: ReturnType<typeof vi.fn>;
+  requirePlaygroundUser?: ReturnType<typeof vi.fn>;
+  resolveThreadRuntimeBinding?: ReturnType<typeof vi.fn>;
+} = {}) {
+  const loadAccessibleThread = overrides.loadAccessibleThread ?? vi.fn().mockResolvedValue({ catalogRow: null });
+  const requirePlaygroundUser = overrides.requirePlaygroundUser ?? vi.fn().mockResolvedValue({ user, response: null });
+  const bindRuntimeIfUnset = overrides.bindRuntimeIfUnset ?? vi.fn().mockResolvedValue(undefined);
+  const resolveThreadRuntimeBinding = overrides.resolveThreadRuntimeBinding ?? vi.fn().mockResolvedValue(null);
+
+  vi.doMock('@/lib/playground-thread-access', () => ({
+    bindRuntimeIfUnset,
+    loadAccessibleThread,
+    requirePlaygroundUser,
+    resolveThreadRuntimeBinding
+  }));
+
+  return {
+    bindRuntimeIfUnset,
+    loadAccessibleThread,
+    requirePlaygroundUser,
+    resolveThreadRuntimeBinding
+  };
+}
+
+function mockRuntimeServices(overrides: {
+  getPlaygroundRuntimeServices?: ReturnType<typeof vi.fn>;
+  isPlaygroundWebSearchConfigured?: ReturnType<typeof vi.fn>;
+} = {}) {
+  const runTurn = vi.fn().mockResolvedValue(undefined);
+  const startText = vi.fn().mockResolvedValue({
+    run: createRun(),
+    userMessage: createUserMessage(),
+    runtimeSelection: {
+      provider: 'openai',
+      model: 'gpt-4o-mini'
+    }
+  });
+  const services = {
+    app: {
+      turns: {
+        startText
+      }
+    },
+    durableRuntime: {
+      runTurn
+    },
+    repos: {
+      runRepo: {},
+      messageRepo: {},
+      toolRepo: {},
+      runEventRepo: {}
+    }
+  };
+  const getPlaygroundRuntimeServices = overrides.getPlaygroundRuntimeServices ?? vi.fn().mockResolvedValue(services);
+  const isPlaygroundWebSearchConfigured = overrides.isPlaygroundWebSearchConfigured ?? vi.fn().mockReturnValue(true);
+
+  vi.doMock('@/lib/playground-services', () => ({
+    getPlaygroundRuntimeServices,
+    isPlaygroundWebSearchConfigured
+  }));
+
+  return {
+    getPlaygroundRuntimeServices,
+    isPlaygroundWebSearchConfigured,
+    runTurn,
+    services,
+    startText
+  };
+}
+
+function mockAppServices(overrides: {
+  findById?: ReturnType<typeof vi.fn>;
+  getPlaygroundAppServices?: ReturnType<typeof vi.fn>;
+} = {}) {
+  const findById = overrides.findById ?? vi.fn().mockResolvedValue(createRun());
+  const services = {
+    repos: {
+      runRepo: {
+        findById
+      }
+    }
+  };
+  const getPlaygroundAppServices = overrides.getPlaygroundAppServices ?? vi.fn().mockResolvedValue(services);
+
+  vi.doMock('@/lib/playground-app-services', () => ({
+    getPlaygroundAppServices
+  }));
+
+  return {
+    findById,
+    getPlaygroundAppServices,
+    services
+  };
+}
+
+describe('playground run stream route', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    getPlaygroundRunStreamHub().cleanup(Number.POSITIVE_INFINITY);
+  });
+
+  afterEach(() => {
+    vi.doUnmock('@/lib/playground-app-services');
+    vi.doUnmock('@/lib/playground-services');
+    vi.doUnmock('@/lib/playground-thread-access');
+    vi.resetModules();
+  });
+
+  it('short-circuits unauthenticated stream requests before loading runtime services', async () => {
+    const unauthorized = Response.json({ error: 'unauthorized' }, { status: 401 });
+    mockThreadAccess({
+      requirePlaygroundUser: vi.fn().mockResolvedValue({ user: null, response: unauthorized })
+    });
+    const { getPlaygroundRuntimeServices } = mockRuntimeServices();
+    const { POST } = await importStreamRoute();
+
+    const response = await POST(new Request('http://localhost/api/threads/thread-1/runs/stream', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'hello' })
+    }), {
+      params: Promise.resolve({ threadId: 'thread-1' })
+    });
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: 'unauthorized' });
+    expect(getPlaygroundRuntimeServices).not.toHaveBeenCalled();
+  });
+
+  it('returns 503 when web search is requested but unavailable', async () => {
+    mockThreadAccess();
+    const { getPlaygroundRuntimeServices } = mockRuntimeServices({
+      isPlaygroundWebSearchConfigured: vi.fn().mockReturnValue(false)
+    });
+    const { POST } = await importStreamRoute();
+
+    const response = await POST(new Request('http://localhost/api/threads/thread-1/runs/stream', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'hello', webSearchEnabled: true })
+    }), {
+      params: Promise.resolve({ threadId: 'thread-1' })
+    });
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'Web search is unavailable because TAVILY_API_KEY is not configured.'
+    });
+    expect(getPlaygroundRuntimeServices).not.toHaveBeenCalled();
+  });
+
+  it('maps inaccessible thread errors through the route status helper', async () => {
+    const { ThreadNotFoundError } = await import('@agent-infra/app');
+    mockThreadAccess({
+      loadAccessibleThread: vi.fn().mockRejectedValue(new ThreadNotFoundError('thread-1'))
+    });
+    mockRuntimeServices();
+    const { POST } = await importStreamRoute();
+
+    const response = await POST(new Request('http://localhost/api/threads/thread-1/runs/stream', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'hello' })
+    }), {
+      params: Promise.resolve({ threadId: 'thread-1' })
+    });
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'thread thread-1 not found'
+    });
+  });
+
+  it('streams run.ready before runtime execution finishes', async () => {
+    mockThreadAccess();
+    mockRuntimeServices();
+    const { POST } = await importStreamRoute();
+
+    const response = await POST(new Request('http://localhost/api/threads/thread-1/runs/stream', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'hello' })
+    }), {
+      params: Promise.resolve({ threadId: 'thread-1' })
+    });
+
+    expect(response.headers.get('content-type')).toBe('text/event-stream; charset=utf-8');
+    const events = await readSseEvents(response);
+    expect(events[0]?.type).toBe('run.ready');
+    expect(events[0]?.data).toMatchObject({
+      type: 'run.ready',
+      runId: 'run-1'
+    });
+  });
+
+  it('emits one terminal completed event when completion is observed more than once', async () => {
+    mockThreadAccess();
+    const completedRun = createRun({ status: 'completed', finishedAt: now() });
+    mockRuntimeServices({
+      getPlaygroundRuntimeServices: vi.fn().mockResolvedValue({
+        app: {
+          turns: {
+            startText: vi.fn().mockResolvedValue({
+              run: createRun(),
+              userMessage: createUserMessage(),
+              runtimeSelection: {
+                provider: 'openai',
+                model: 'gpt-4o-mini'
+              }
+            })
+          }
+        },
+        durableRuntime: {
+          runTurn: vi.fn().mockImplementation(async (
+            _repos: unknown,
+            _input: unknown,
+            callbacks: { onPersistedUpdate(update: { run: Run }): void }
+          ) => {
+            callbacks.onPersistedUpdate({ run: completedRun });
+            callbacks.onPersistedUpdate({ run: completedRun });
+          })
+        },
+        repos: {
+          runRepo: {},
+          messageRepo: {},
+          toolRepo: {},
+          runEventRepo: {}
+        }
+      })
+    });
+    const { POST } = await importStreamRoute();
+
+    const response = await POST(new Request('http://localhost/api/threads/thread-1/runs/stream', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'hello' })
+    }), {
+      params: Promise.resolve({ threadId: 'thread-1' })
+    });
+
+    const events = await readSseEvents(response);
+    const completedEvents = events.filter((event) => event.type === 'run.completed');
+    expect(events.map((event) => event.type)).toEqual(['run.ready', 'run.state', 'run.completed', 'run.state']);
+    expect(completedEvents).toHaveLength(1);
+  });
+
+  it('emits one terminal failed event when runtime execution fails', async () => {
+    mockThreadAccess();
+    mockRuntimeServices({
+      getPlaygroundRuntimeServices: vi.fn().mockResolvedValue({
+        app: {
+          turns: {
+            startText: vi.fn().mockResolvedValue({
+              run: createRun(),
+              userMessage: createUserMessage(),
+              runtimeSelection: {
+                provider: 'openai',
+                model: 'gpt-4o-mini'
+              }
+            })
+          }
+        },
+        durableRuntime: {
+          runTurn: vi.fn().mockRejectedValue(new Error('provider exploded'))
+        },
+        repos: {
+          runRepo: {},
+          messageRepo: {},
+          toolRepo: {},
+          runEventRepo: {}
+        }
+      })
+    });
+    const { POST } = await importStreamRoute();
+
+    const response = await POST(new Request('http://localhost/api/threads/thread-1/runs/stream', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'hello' })
+    }), {
+      params: Promise.resolve({ threadId: 'thread-1' })
+    });
+
+    const events = await readSseEvents(response);
+    const failedEvents = events.filter((event) => event.type === 'run.failed');
+    expect(events.map((event) => event.type)).toEqual(['run.ready', 'run.failed']);
+    expect(failedEvents).toHaveLength(1);
+    expect(failedEvents[0]?.data).toMatchObject({
+      type: 'run.failed',
+      runId: 'run-1',
+      error: 'provider exploded'
+    });
+    expect(
+      getPlaygroundRunStreamHub().publish('run-1', {
+        type: 'run.assistant',
+        runId: 'run-1',
+        version: 99,
+        assistant: {
+          messageId: 'assistant-1',
+          kind: 'assistant_delta',
+          textDelta: 'late'
+        }
+      })
+    ).toBe(false);
+  });
+});
+
+describe('playground run attach stream route', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    getPlaygroundRunStreamHub().cleanup(Number.POSITIVE_INFINITY);
+  });
+
+  afterEach(() => {
+    vi.doUnmock('@/lib/playground-app-services');
+    vi.doUnmock('@/lib/playground-services');
+    vi.doUnmock('@/lib/playground-thread-access');
+    vi.resetModules();
+  });
+
+  it('returns run_not_found when the run does not exist', async () => {
+    mockThreadAccess();
+    mockAppServices({
+      findById: vi.fn().mockResolvedValue(null)
+    });
+    const { GET } = await importAttachRoute();
+
+    const response = await GET(new Request('http://localhost/api/threads/thread-1/runs/run-404/attach-stream'), {
+      params: Promise.resolve({ threadId: 'thread-1', runId: 'run-404' })
+    });
+
+    const events = await readSseEvents(response);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.data).toMatchObject({
+      type: 'run.attach_unavailable',
+      runId: 'run-404',
+      reason: 'run_not_found'
+    });
+  });
+
+  it('does not leak cross-thread run metadata when the owning thread is inaccessible', async () => {
+    const loadAccessibleThread = vi.fn().mockImplementation(async (_services, threadId: string) => {
+      if (threadId === 'other-thread') {
+        throw new Error('not authorized');
+      }
+      return { catalogRow: null };
+    });
+    mockThreadAccess({ loadAccessibleThread });
+    mockAppServices({
+      findById: vi.fn().mockResolvedValue(createRun({ threadId: 'other-thread' }))
+    });
+    const { GET } = await importAttachRoute();
+
+    const response = await GET(new Request('http://localhost/api/threads/thread-1/runs/run-1/attach-stream'), {
+      params: Promise.resolve({ threadId: 'thread-1', runId: 'run-1' })
+    });
+
+    const events = await readSseEvents(response);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.data).toMatchObject({
+      type: 'run.attach_unavailable',
+      runId: 'run-1',
+      reason: 'run_not_found'
+    });
+    expect(events[0]?.data.run).toBeUndefined();
+  });
+
+  it('returns thread_run_mismatch when both threads are accessible', async () => {
+    mockThreadAccess();
+    mockAppServices({
+      findById: vi.fn().mockResolvedValue(createRun({ threadId: 'other-thread' }))
+    });
+    const { GET } = await importAttachRoute();
+
+    const response = await GET(new Request('http://localhost/api/threads/thread-1/runs/run-1/attach-stream'), {
+      params: Promise.resolve({ threadId: 'thread-1', runId: 'run-1' })
+    });
+
+    const events = await readSseEvents(response);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.data).toMatchObject({
+      type: 'run.attach_unavailable',
+      runId: 'run-1',
+      reason: 'thread_run_mismatch',
+      message: 'run does not belong to the requested thread',
+      run: {
+        id: 'run-1',
+        threadId: 'other-thread'
+      }
+    });
+  });
+
+  it('returns stream_session_gone for an active run without a snapshot', async () => {
+    mockThreadAccess();
+    mockAppServices({
+      findById: vi.fn().mockResolvedValue(createRun({ status: 'running' }))
+    });
+    const { GET } = await importAttachRoute();
+
+    const response = await GET(new Request('http://localhost/api/threads/thread-1/runs/run-1/attach-stream'), {
+      params: Promise.resolve({ threadId: 'thread-1', runId: 'run-1' })
+    });
+
+    const events = await readSseEvents(response);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.data).toMatchObject({
+      type: 'run.attach_unavailable',
+      runId: 'run-1',
+      reason: 'stream_session_gone',
+      run: {
+        id: 'run-1',
+        status: 'running'
+      }
+    });
+  });
+
+  it('returns run_not_active for a terminal run without a snapshot', async () => {
+    mockThreadAccess();
+    mockAppServices({
+      findById: vi.fn().mockResolvedValue(createRun({ status: 'completed', finishedAt: now() }))
+    });
+    const { GET } = await importAttachRoute();
+
+    const response = await GET(new Request('http://localhost/api/threads/thread-1/runs/run-1/attach-stream'), {
+      params: Promise.resolve({ threadId: 'thread-1', runId: 'run-1' })
+    });
+
+    const events = await readSseEvents(response);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.data).toMatchObject({
+      type: 'run.attach_unavailable',
+      runId: 'run-1',
+      reason: 'run_not_active',
+      run: {
+        id: 'run-1',
+        status: 'completed'
+      }
+    });
+  });
+
+  it('streams the current snapshot first when attach succeeds', async () => {
+    getPlaygroundRunStreamHub().openSession(createSnapshot());
+    mockThreadAccess();
+    mockAppServices({
+      findById: vi.fn().mockResolvedValue(createRun())
+    });
+    const { GET } = await importAttachRoute();
+
+    const response = await GET(new Request('http://localhost/api/threads/thread-1/runs/run-1/attach-stream'), {
+      params: Promise.resolve({ threadId: 'thread-1', runId: 'run-1' })
+    });
+    getPlaygroundRunStreamHub().closeSession('run-1');
+
+    const events = await readSseEvents(response);
+    expect(events[0]?.data).toMatchObject({
+      type: 'run.snapshot',
+      runId: 'run-1',
+      version: 0
+    });
+  });
+});
