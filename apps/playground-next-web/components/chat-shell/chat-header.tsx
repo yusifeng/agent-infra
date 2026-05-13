@@ -1,7 +1,7 @@
 'use client';
 
 import clsx from 'clsx';
-import { Archive, Menu, PanelLeftOpen, Pencil, Pin, PinOff, Share2 } from 'lucide-react';
+import { Archive, History, Menu, PanelLeftOpen, Pencil, Pin, PinOff, Share2 } from 'lucide-react';
 
 import { ChatAvatar, IconButton } from './shared';
 import { ui } from './ui';
@@ -15,6 +15,7 @@ type ChatHeaderProps = {
   onRenameThread: () => void;
   onToggleThreadPin: () => void;
   onArchiveThread: () => void;
+  onOpenReplay: () => void;
   onOpenShareDialog: () => void;
   onToggleLog: () => void;
 };
@@ -28,6 +29,7 @@ export function ChatHeader({
   onRenameThread,
   onToggleThreadPin,
   onArchiveThread,
+  onOpenReplay,
   onOpenShareDialog,
   onToggleLog
 }: ChatHeaderProps) {
@@ -53,6 +55,7 @@ export function ChatHeader({
           disabled={threadActionsDisabled}
         />
         <IconButton icon={Share2} onClick={onOpenShareDialog} size="small" title="分享" disabled={threadActionsDisabled} />
+        <IconButton icon={History} onClick={onOpenReplay} size="small" title="回放" disabled={threadActionsDisabled} />
         <IconButton icon={Archive} onClick={onArchiveThread} size="small" title="归档" disabled={threadActionsDisabled} />
         <IconButton icon={Menu} onClick={onToggleLog} size="small" title="切换日志面板" />
       </div>

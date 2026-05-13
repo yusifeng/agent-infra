@@ -50,6 +50,7 @@ export function DurableChatConsole({ currentUser = null, initialThreadId = null,
             onRenameThread={runtime.onRenameThread}
             onToggleThreadPin={runtime.onToggleThreadPin}
             onArchiveThread={runtime.onArchiveThread}
+            onOpenReplay={runtime.onOpenReplay}
             onOpenShareDialog={runtime.onOpenShareDialog}
             onToggleLog={runtime.onToggleLog}
           />

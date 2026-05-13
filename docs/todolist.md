@@ -203,7 +203,7 @@ Loop 0 decision:
 - [x] Keep `/new`.
 - [x] Keep `/chat/[threadId]`.
 - [x] Add `/share/[publicId]`.
-- [ ] Add `/replay/[threadId]`.
+- [x] Add `/replay/[threadId]`.
 - [x] Pass route params into client components explicitly.
 - [x] Stop deriving active thread from `usePathname()` in the final shell.
 
@@ -244,9 +244,9 @@ Loop 0 decision:
 - [x] Port public share runtime.
 - [x] Port public share presentation using the main transcript rendering chain.
 - [x] Port share dialog.
-- [ ] Port replay runtime.
-- [ ] Port replay presentation.
-- [ ] Port replay controls.
+- [x] Port replay runtime.
+- [x] Port replay presentation.
+- [x] Port replay controls.
 
 ## 4. Tests And Verification
 
@@ -264,7 +264,7 @@ Loop 0 decision:
 - [x] Add stream hub / attach route tests.
 - [x] Add search tool wiring tests.
 - [x] Add share sanitize/public route tests.
-- [ ] Add focused UI/runtime tests after chat shell port.
+- [x] Add focused UI/runtime tests after chat shell port.
 
 ### 4.3 Smoke Strategy
 
@@ -381,7 +381,7 @@ Loop 0 decisions:
 
 ### Loop 7: Replay, Auto-Title, Final Smoke, And Cleanup
 
-- [ ] Add replay route and UI.
+- [x] Add replay route and UI.
 - [ ] Add auto-title event or fallback refresh.
 - [ ] Run full auth-aware deployment smoke.
 - [ ] Update final runbook.

@@ -1143,6 +1143,15 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     navigateToThread(threadId);
   }
 
+  function openReplay() {
+    const threadId = activeThreadIdRef.current;
+    if (!threadId) {
+      return;
+    }
+
+    router.push(`/replay/${threadId}`);
+  }
+
   useEffect(() => {
     void refreshMeta();
   }, []);
@@ -1285,6 +1294,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     onOpenShareDialog: () => {
       void openShareDialog();
     },
+    onOpenReplay: openReplay,
     onOpenThread: openThread,
     onLoadOlderMessages: () => {
       void loadOlderMessages();

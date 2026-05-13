@@ -1,17 +1,17 @@
 'use client';
 
 import { AuthShellGate } from './auth-shell-gate';
-import { DurableChatConsole } from '@/components/durable-chat-console';
+import { ReplayConsole } from '@/components/replay-console';
 
-type ChatShellEntryProps = {
-  initialThreadId?: string | null;
+type ReplayShellEntryProps = {
+  initialThreadId: string;
 };
 
-export function ChatShellEntry({ initialThreadId = null }: ChatShellEntryProps) {
+export function ReplayShellEntry({ initialThreadId }: ReplayShellEntryProps) {
   return (
     <AuthShellGate>
       {({ currentUser, onLogout }) => (
-        <DurableChatConsole
+        <ReplayConsole
           currentUser={currentUser}
           initialThreadId={initialThreadId}
           onLogout={() => {
