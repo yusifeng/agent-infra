@@ -57,6 +57,16 @@ Optional:
 
 - `OPENAI_MODEL`
 
+Planned auth/search migration will add more required or optional variables.
+Before enabling auth-gated thread routes in `playground-next-web`, update this
+runbook and `.env.example` for the chosen Next auth host boundary, including:
+
+- `AUTH_CODE_SECRET`
+- `AUTH_ALLOWED_ORIGINS`
+- `RESEND_API_KEY`
+- `AUTH_EMAIL_FROM`
+- `TAVILY_API_KEY` if search/browse tools are enabled
+
 If the runtime env is missing or invalid, `GET /api/meta` should expose:
 
 - `runtimeConfigured: false`
@@ -138,6 +148,12 @@ The smoke validates:
 - `runs/stream`
 - persisted user and assistant messages
 
+This smoke currently represents the pre-auth deployment path. Once
+`playground-next-web` ports the Vite/Fastify auth model, the smoke must become
+auth-aware in the same slice that gates `/api/threads`. Do not leave the smoke as
+an anonymous `/api/threads -> create -> stream -> messages` flow after thread
+routes require a session.
+
 Preview deployments may still be protected by Vercel Authentication.
 If so, use a production domain or an otherwise reachable deployment URL for the smoke command.
 
@@ -174,6 +190,20 @@ Treat it as a tracked residual risk, especially when upgrading:
 - Vercel runtime behavior
 - `@mariozechner/pi-agent-core`
 - `@mariozechner/pi-ai`
+
+## Attach-stream caveat
+
+The current validated Vercel path proves the normal `runs/stream` request path.
+It does not prove production-grade attach-stream recovery for a running response.
+
+An in-memory `RunStreamHub` can support local development and best-effort
+single-process recovery, but it should not be treated as durable on Vercel
+Functions. Process restarts, cold starts, and multiple instances can lose or
+split active run stream state.
+
+If production attach/resume/cancel semantics become required on Vercel, add an
+external runtime state layer such as Redis or a worker-backed run coordinator
+behind the stream hub boundary.
 
 ## Failure triage
 
