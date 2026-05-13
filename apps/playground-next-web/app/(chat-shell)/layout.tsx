@@ -1,6 +1,5 @@
 import './chat-shell.css';
 
-import { ChatShellRouter } from '@/components/chat-shell/chat-shell-router';
 import { ChatThemeProvider } from '@/components/chat-theme-provider';
 
 type ChatShellLayoutProps = {
@@ -10,7 +9,7 @@ type ChatShellLayoutProps = {
 export default function ChatShellLayout({ children }: ChatShellLayoutProps) {
   return (
     <ChatThemeProvider>
-      <ChatShellRouter>{children}</ChatShellRouter>
+      {children}
     </ChatThemeProvider>
   );
 }

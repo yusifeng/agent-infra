@@ -122,14 +122,14 @@
 
 ### 3.1 Route And Shell Initialization
 
-- [ ] Make server pages pass `initialThreadId` directly instead of relying on client pathname parsing.
-- [ ] Keep `/new` explicit by passing `initialThreadId: null`.
-- [ ] Remove or narrow `ChatShellRouter` after route params are server-bound.
-- [ ] Keep runtime complexity out of `page.tsx`.
+- [x] Make server pages pass `initialThreadId` directly instead of relying on client pathname parsing.
+- [x] Keep `/new` explicit by passing `initialThreadId: null`.
+- [x] Remove or narrow `ChatShellRouter` after route params are server-bound.
+- [x] Keep runtime complexity out of `page.tsx`.
 - [ ] Evaluate whether auth can be server-bound in a later slice; do not combine with route param cleanup unless small.
-- [ ] Verify direct `/chat/:threadId` navigation no longer depends on client `usePathname()` to know the active thread.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run `pnpm --filter playground-next-web build` if App Router boundaries changed.
+- [x] Verify direct `/chat/:threadId` navigation no longer depends on client `usePathname()` to know the active thread.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run `pnpm --filter playground-next-web build` if App Router boundaries changed.
 
 ### 3.2 Runtime Hook Readability
 
@@ -254,13 +254,13 @@
 
 ### Loop 3: Route Param Binding And Shell Startup
 
-- [ ] Pass `initialThreadId` through server pages.
-- [ ] Remove or narrow client pathname routing.
-- [ ] Verify direct `/chat/:threadId` startup behavior.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run `pnpm --filter playground-next-web build`.
-- [ ] Run codex review with the repository Review Profile.
-- [ ] Commit this slice after clean review and passing verification.
+- [x] Pass `initialThreadId` through server pages.
+- [x] Remove or narrow client pathname routing.
+- [x] Verify direct `/chat/:threadId` startup behavior.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run `pnpm --filter playground-next-web build`.
+- [x] Run codex review with the repository Review Profile.
+- [x] Commit this slice after clean review and passing verification.
 
 ### Loop 4: Runtime Readability And Attach Flow Extraction
 
