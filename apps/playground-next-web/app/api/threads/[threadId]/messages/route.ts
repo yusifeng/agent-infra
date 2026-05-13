@@ -1,3 +1,5 @@
+import type { MessagePageResult, Run } from '@agent-infra/core';
+
 import {
   buildThreadMessagesErrorResponse,
   buildThreadMessagesResponse,
@@ -6,7 +8,25 @@ import {
   parseThreadMessagesQuery
 } from '@agent-infra/durable-chat-server';
 
+import { sanitizeMessagesForUi } from '@/lib/playground-share-sanitize';
 import { loadAccessibleThread, requirePlaygroundUser } from '@/lib/playground-thread-access';
+
+function buildSanitizedPaginatedThreadMessagesResponse(
+  input: MessagePageResult & {
+    activeRun?: Run | null;
+  }
+) {
+  const response = buildThreadMessagesResponse(input);
+  const sanitizedResponse = buildThreadMessagesResponse({
+    messages: sanitizeMessagesForUi(input.messages),
+    activeRun: 'activeRun' in input ? input.activeRun : undefined
+  });
+
+  return {
+    ...response,
+    messages: sanitizedResponse.messages
+  };
+}
 
 export async function GET(req: Request, { params }: { params: Promise<{ threadId: string }> }) {
   const { getPlaygroundAppServices } = await import('@/lib/playground-app-services');
@@ -27,7 +47,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ threadId
     if (!hasPaginationParams) {
       const activeRunPromise = app.runs.getActiveByThread({ threadId });
       const [messages, activeRun] = await Promise.all([app.threads.getMessages({ threadId }), activeRunPromise]);
-      return Response.json(buildThreadMessagesResponse({ messages, activeRun }));
+      return Response.json(buildThreadMessagesResponse({ messages: sanitizeMessagesForUi(messages), activeRun }));
     }
 
     const beforeSeq = query.before ? decodeThreadMessageCursor(query.before, threadId) : undefined;
@@ -43,7 +63,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ threadId
       }),
       activeRunPromise
     ]);
-    return Response.json(buildThreadMessagesResponse({ ...page, activeRun }));
+    return Response.json(buildSanitizedPaginatedThreadMessagesResponse({ ...page, activeRun }));
   } catch (error) {
     return Response.json(buildThreadMessagesErrorResponse(error, 'failed to load thread messages'), {
       status: getRouteErrorStatus(error)

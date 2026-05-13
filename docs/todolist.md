@@ -1,5 +1,34 @@
 # Playground Next Optimization Todo
 
+## Backend Migration Parity Follow-Up
+
+### Confirmed Missing Or Degraded Features
+
+- [x] Confirm runtime-pi enabled-tool history projection is already used by Next backend routes through `durableRuntime.runTurn`.
+- [x] Restore UI/API policy-only tool trace filtering on `GET /api/threads/:threadId/messages`.
+- [ ] Restore streamed auto-title generation and `thread.title_updated` emission after completed runs.
+- [ ] Restore or consciously defer per-thread `startText` serialization for concurrent run starts.
+- [ ] Restore or consciously defer non-fatal runtime binding persistence failures after a successful run start.
+
+### Loop A: Messages Route Sanitization
+
+- [x] Add route tests for policy-only tool trace filtering on full and paginated thread messages.
+- [x] Reuse the existing UI/share sanitizer before building thread message DTO responses.
+- [x] Run focused playground tests.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run codex review with the repository Review Profile.
+- [ ] Commit this slice after clean review.
+
+### Loop B: Streamed Auto Title
+
+- [ ] Port or share the Fastify auto-title service behavior into the Next backend boundary.
+- [ ] Emit `thread.title_updated` only after a completed run successfully changes a default thread title.
+- [ ] Add route tests for title update, non-default title skip, and generator failure not breaking the run stream.
+- [ ] Run focused playground tests.
+- [ ] Run `pnpm --filter playground-next-web typecheck`.
+- [ ] Run codex review with the repository Review Profile.
+- [ ] Commit this slice after clean review.
+
 ## 0. Context And Boundary
 
 ### 0.1 Confirmed Facts
