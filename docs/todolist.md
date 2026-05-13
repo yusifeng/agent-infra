@@ -161,24 +161,24 @@
 
 ### 3.5 Message List Readability
 
-- [ ] Split `MessageList` only along existing component boundaries.
-- [ ] Move `useRenderDiagnostic` to a local helper file if it remains UI-local.
-- [ ] Move `ReasoningPanel` to its own component file.
-- [ ] Move `MessageActions` to its own component file.
+- [x] Split `MessageList` only along existing component boundaries.
+- [x] Move `useRenderDiagnostic` to a local helper file if it remains UI-local.
+- [x] Move `ReasoningPanel` to its own component file.
+- [x] Move `MessageActions` to its own component file.
 - [ ] Move research summary/live research labels if that reduces `message-list.tsx` without changing behavior.
-- [ ] Keep pure projection and decision logic in `features/durable-chat/service/*`.
-- [ ] Do not move visual message components into `packages/*`.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Keep pure projection and decision logic in `features/durable-chat/service/*`.
+- [x] Do not move visual message components into `packages/*`.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
 
 ### 3.6 Auth Form Readability
 
-- [ ] Extract auth client request helper from `auth-form.tsx` if it can be tested without DOM.
-- [ ] Extract auth error presentation mapping into an app-local service/helper.
-- [ ] Extract cooldown calculation or hook logic only if tests can cover it simply.
+- [x] Extract auth client request helper from `auth-form.tsx` if it can be tested without DOM.
+- [x] Extract auth error presentation mapping into an app-local service/helper.
+- [x] Extract cooldown calculation or hook logic only if tests can cover it simply.
 - [ ] Replace direct DOM validity reads with refs or form state only if behavior stays identical.
-- [ ] Preserve safe `next` redirect behavior.
-- [ ] Preserve existing cookie/session route behavior.
-- [ ] Run `pnpm --filter playground-next-web test`.
+- [x] Preserve safe `next` redirect behavior.
+- [x] Preserve existing cookie/session route behavior.
+- [x] Run `pnpm --filter playground-next-web test`.
 
 ### 3.7 Markdown And Shiki Bundle Hygiene
 
@@ -217,7 +217,7 @@
 - [x] Add auth service tests for expired challenge handling.
 - [x] Add auth service tests for sign-up challenge consumption and session creation.
 - [x] Add auth service tests for reset-password session revocation.
-- [ ] Add auth form helper tests after extracting pure mapping/cooldown/client helpers.
+- [x] Add auth form helper tests after extracting pure mapping/cooldown/client helpers.
 
 ### 4.5 Thread Catalog Tests
 
@@ -292,13 +292,13 @@
 
 ### Loop 7: Message List And Auth Form Readability
 
-- [ ] Split `message-list.tsx` along UI component boundaries.
-- [ ] Extract pure auth form helpers if not already done.
-- [ ] Keep behavior unchanged.
-- [ ] Run `pnpm --filter playground-next-web test`.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run codex review with the repository Review Profile.
-- [ ] Commit this slice after clean review and passing verification.
+- [x] Split `message-list.tsx` along UI component boundaries.
+- [x] Extract pure auth form helpers if not already done.
+- [x] Keep behavior unchanged.
+- [x] Run `pnpm --filter playground-next-web test`.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run codex review with the repository Review Profile.
+- [x] Commit this slice after clean review and passing verification.
 
 ### Loop 8: Bundle Hygiene
 

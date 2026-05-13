@@ -1,15 +1,18 @@
 'use client';
 
 import type { MessageDto, MessagePartDto, RuntimePiMetaDto } from '@agent-infra/contracts';
-import { emitChatRenderDiagnostic, getMessageRenderKey } from '@agent-infra/durable-chat-client';
+import { getMessageRenderKey } from '@agent-infra/durable-chat-client';
 import clsx from 'clsx';
 import { Atom, ChevronDown, ChevronRight, Copy, Loader2, RotateCw, Search, Trash2 } from 'lucide-react';
-import { memo, useEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties } from 'react';
+import { memo, useMemo, useState, type CSSProperties } from 'react';
 
 import type { AnswerContainer } from '@/features/durable-chat/types/answer-containers';
 import { buildAnswerContainerActionContexts } from '@/features/durable-chat/service/build-answer-container-actions';
 import { copyMessageToClipboard, copyTextToClipboard } from './helpers';
+import { MessageActions } from './message-actions';
 import { MarkdownRenderer } from './markdown-renderer';
+import { ReasoningPanel } from './reasoning-panel';
+import { useRenderDiagnostic } from './render-diagnostics';
 import { AnimatedEmoji } from './shared';
 import { SiteIconBadge } from './site-icon-badge';
 import { buildAssistantTurnActionContexts } from '@/features/durable-chat/service/assistant-turn-actions';
@@ -45,58 +48,6 @@ const transcriptRowPerformanceStyle: CSSProperties = {
 
 const reasoningMarkdownClassName = 'text-sm leading-7 text-[color:var(--chat-reasoning-text)]';
 
-function useRenderDiagnostic(component: string, key: string, summary: Record<string, unknown>) {
-  const mountedRef = useRef(false);
-  const previousSummaryRef = useRef<Record<string, unknown> | null>(null);
-  const latestSummaryRef = useRef(summary);
-  latestSummaryRef.current = summary;
-
-  useEffect(() => {
-    emitChatRenderDiagnostic({
-      component,
-      key,
-      phase: 'mount',
-      summary: latestSummaryRef.current
-    });
-    mountedRef.current = true;
-    previousSummaryRef.current = latestSummaryRef.current;
-
-    return () => {
-      emitChatRenderDiagnostic({
-        component,
-        key,
-        phase: 'unmount',
-        summary: latestSummaryRef.current
-      });
-    };
-  }, [component, key]);
-
-  useEffect(() => {
-    if (!mountedRef.current) {
-      return;
-    }
-
-    const previousSummary = previousSummaryRef.current;
-    if (!previousSummary) {
-      previousSummaryRef.current = summary;
-      return;
-    }
-
-    const keys = new Set([...Object.keys(previousSummary), ...Object.keys(summary)]);
-    const changedKeys = [...keys].filter((currentKey) => previousSummary[currentKey] !== summary[currentKey]);
-    if (changedKeys.length > 0) {
-      emitChatRenderDiagnostic({
-        component,
-        key,
-        phase: 'update',
-        changedKeys,
-        summary
-      });
-    }
-    previousSummaryRef.current = summary;
-  });
-}
-
 const WelcomeMessage = memo(function WelcomeMessage({ activeThreadId }: { activeThreadId: string | null }) {
   if (!activeThreadId) {
     return null;
@@ -112,133 +63,6 @@ const WelcomeMessage = memo(function WelcomeMessage({ activeThreadId }: { active
         <div className={clsx('max-w-[720px] text-sm leading-7', ui.welcomeDesc)}>
           这里保留真实的 durable thread 与 run 行为，只验证 Vite consumer 在非 Next.js 环境下的主聊天链路。
         </div>
-      </div>
-    </div>
-  );
-});
-
-const ReasoningPanel = memo(function ReasoningPanel({
-  content,
-  thinking = false
-}: {
-  content: string;
-  thinking?: boolean;
-}) {
-  const [manualExpanded, setManualExpanded] = useState(thinking);
-  const contentRef = useRef<HTMLDivElement | null>(null);
-  const expanded = thinking || manualExpanded;
-
-  useEffect(() => {
-    if (!thinking || !expanded) {
-      return;
-    }
-
-    const element = contentRef.current;
-    if (!element) {
-      return;
-    }
-
-    const distanceToBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
-    if (distanceToBottom < 120) {
-      window.requestAnimationFrame(() => {
-        element.scrollTop = element.scrollHeight;
-      });
-    }
-  }, [content, thinking, expanded]);
-
-  return (
-    <div className="overflow-hidden" data-reasoning-panel="true">
-      <button
-        type="button"
-        onClick={() => {
-          if (!thinking) {
-            setManualExpanded((current) => !current);
-          }
-        }}
-        className="flex w-full items-center justify-between gap-3 py-1 text-left"
-        aria-expanded={expanded}
-      >
-        <div className="flex min-w-0 items-center gap-2.5">
-          <Atom className={clsx('h-4 w-4 text-[color:var(--chat-reasoning-accent)]', thinking && 'animate-pulse')} />
-          <span
-            className={clsx(
-              'truncate text-sm font-medium',
-              thinking ? 'chat-reasoning-shimmer-text' : 'text-[color:var(--chat-reasoning-text)]'
-            )}
-          >
-            {thinking ? '思考中...' : '已思考'}
-          </span>
-        </div>
-        {expanded ? (
-          <ChevronDown className="h-4 w-4 text-[color:var(--chat-icon-muted)]" />
-        ) : (
-          <ChevronRight className="h-4 w-4 text-[color:var(--chat-icon-muted)]" />
-        )}
-      </button>
-
-      {expanded ? (
-        <div ref={contentRef} className="mt-2 max-h-80 overflow-y-auto border-l border-[color:var(--chat-reasoning-divider)] pl-4">
-          {content ? (
-            <MarkdownRenderer
-              className={reasoningMarkdownClassName}
-              plainTextClassName={reasoningMarkdownClassName}
-              text={content}
-            />
-          ) : (
-            <div className="text-sm italic leading-7 text-[color:var(--chat-reasoning-text)]">思考中...</div>
-          )}
-        </div>
-      ) : null}
-    </div>
-  );
-});
-
-const MessageActions = memo(function MessageActions({
-  available = true,
-  items,
-  align = 'start',
-  onActionClick
-}: {
-  available?: boolean;
-  items: Array<{
-    disabled?: boolean;
-    icon: ComponentType<{ className?: string }>;
-    key: string;
-    label: string;
-  }>;
-  align?: 'start' | 'end';
-  onActionClick: (key: string) => void;
-}) {
-  return (
-    <div
-      className={clsx(
-        'absolute inset-x-0 bottom-0 flex w-full px-4',
-        available
-          ? 'pointer-events-none translate-y-1 opacity-0 transition duration-150 ease-out group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100'
-          : 'pointer-events-none invisible',
-        align === 'end' ? 'justify-end' : 'justify-start'
-      )}
-      data-message-actions="true"
-      data-message-actions-available={available ? 'true' : 'false'}
-    >
-      <div className="flex items-center gap-1">
-        {items.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            disabled={!available || item.disabled}
-            title={item.label}
-            aria-label={item.label}
-            onClick={() => {
-              if (available && !item.disabled) {
-                onActionClick(item.key);
-              }
-            }}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-[color:var(--chat-icon-muted)] transition hover:bg-[var(--chat-hover)] hover:text-[color:var(--chat-text)] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <item.icon className="h-[15px] w-[15px]" />
-          </button>
-        ))}
       </div>
     </div>
   );
