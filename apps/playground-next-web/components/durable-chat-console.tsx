@@ -8,6 +8,7 @@ import { ChatHeader } from './chat-shell/chat-header';
 import { ChatMessageList } from './chat-shell/message-list';
 import { ComposerDock } from './chat-shell/composer-dock';
 import { DurableLogPane } from './chat-shell/durable-log-pane';
+import { ShareDialog } from './chat-shell/share-dialog';
 import { ChatSidebar } from './chat-shell/sidebar';
 import { ui } from './chat-shell/ui';
 import { useDurableChatRuntime } from '@/features/durable-chat/runtime/use-durable-chat-runtime';
@@ -54,8 +55,14 @@ export function DurableChatConsole() {
         <div className={clsx('flex flex-1 min-h-0 min-w-0 relative flex-col overflow-hidden', ui.chatPane)}>
           <ChatHeader
             currentThreadTitle={runtime.currentThreadTitle}
+            currentThreadPinned={runtime.currentThreadPinned}
+            threadActionsDisabled={runtime.threadActionsDisabled}
             sidebarOpen={runtime.sidebarOpen}
             onOpenSidebar={runtime.onOpenSidebar}
+            onRenameThread={runtime.onRenameThread}
+            onToggleThreadPin={runtime.onToggleThreadPin}
+            onArchiveThread={runtime.onArchiveThread}
+            onOpenShareDialog={runtime.onOpenShareDialog}
             onToggleLog={runtime.onToggleLog}
           />
 
@@ -131,6 +138,18 @@ export function DurableChatConsole() {
           onSelectRun={runtime.onSelectRun}
         />
       </div>
+      <ShareDialog
+        open={runtime.shareDialogOpen}
+        loadingCurrentShare={runtime.loadingCurrentShare}
+        creatingShare={runtime.creatingShare}
+        revokingShare={runtime.revokingShare}
+        copied={runtime.shareCopied}
+        error={runtime.shareError}
+        shareUrl={runtime.shareUrl}
+        onClose={runtime.onCloseShareDialog}
+        onCreateOrCopy={runtime.onCreateOrCopyShare}
+        onRevoke={runtime.onRevokeShare}
+      />
     </main>
   );
 }

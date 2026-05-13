@@ -8,16 +8,26 @@ import type {
   ThreadDto
 } from '@agent-infra/contracts';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { assistantMessageHasVisibleContent } from '@/components/chat-shell/helpers';
-import { fetchThreadMessagesResponse } from '@/features/durable-chat/repo/chat-api';
+import { assistantMessageHasVisibleContent, copyTextToClipboard } from '@/components/chat-shell/helpers';
+import {
+  archiveThread,
+  createThreadSnapshotShare,
+  fetchCurrentThreadShare,
+  fetchPlaygroundThreads,
+  fetchThreadMessagesResponse,
+  pinThread,
+  renameThread,
+  revokeThreadSnapshotShare,
+  unpinThread,
+  type PlaygroundThreadDto
+} from '@/features/durable-chat/repo/chat-api';
 import { persistSelectedRunId, readPersistedRunId } from '@/features/durable-chat/repo/run-selection-storage';
 import {
   runCreateThreadRecord,
   runInitializeRuntime,
   runRefreshMeta,
-  runRefreshThreads,
   runResetDraftThreadState,
   runStopViewingLiveResponse
 } from '@/features/durable-chat/runtime/chat-session-flow';
@@ -139,8 +149,21 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const pendingPrependAnchorRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
   const shouldAutoScrollRef = useRef(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [threadActionBusy, setThreadActionBusy] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [loadingCurrentShare, setLoadingCurrentShare] = useState(false);
+  const [creatingShare, setCreatingShare] = useState(false);
+  const [revokingShare, setRevokingShare] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareThreadId, setShareThreadId] = useState<string | null>(null);
+  const [sharePublicId, setSharePublicId] = useState<string | null>(null);
 
-  const activeThread = useMemo(() => threads.find((thread) => thread.id === activeThreadId) ?? null, [threads, activeThreadId]);
+  const activeThread = useMemo(
+    () => (threads.find((thread) => thread.id === activeThreadId) as PlaygroundThreadDto | undefined) ?? null,
+    [threads, activeThreadId]
+  );
   const selectedModelOption = useMemo(
     () => meta?.modelOptions.find((option) => option.key === selectedModelKey) ?? meta?.modelOptions[0] ?? null,
     [meta, selectedModelKey]
@@ -149,6 +172,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const runEvents = timeline?.runEvents ?? [];
   const toolInvocations = timeline?.toolInvocations ?? [];
   const currentThreadTitle = activeThread?.title?.trim() || activeThreadId || 'New chat';
+  const currentThreadPinned = activeThread?.pinned === true;
   const responseStatus = deriveMainChatResponseStatus({
     activeResponseRun,
     activeThreadId,
@@ -166,6 +190,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     [messages, optimisticUserMessage]
   );
   const hasOlderMessages = messagePageInfo?.hasOlder === true;
+  const threadActionsDisabled = !activeThreadId || isChatResponding || threadActionBusy;
 
   useEffect(() => {
     installChatRenderDiagnostics();
@@ -174,6 +199,19 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   useEffect(() => {
     activeThreadIdRef.current = activeThreadId;
   }, [activeThreadId]);
+
+  useEffect(() => {
+    if (!shareDialogOpen || !shareThreadId || activeThreadId === shareThreadId) {
+      return;
+    }
+
+    setShareDialogOpen(false);
+    setShareError(null);
+    setShareCopied(false);
+    setShareThreadId(null);
+    setSharePublicId(null);
+    setShareUrl(null);
+  }, [activeThreadId, shareDialogOpen, shareThreadId]);
 
   useEffect(() => {
     logOpenRef.current = logOpen;
@@ -407,11 +445,224 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }
 
   async function refreshThreads() {
-    return runRefreshThreads({
-      actions: {
-        setThreads
+    const result = await fetchPlaygroundThreads();
+    if (!result.ok) {
+      throw new Error(result.error ?? `Failed to load threads (${result.status})`);
+    }
+
+    setThreads(result.data.threads);
+    return result.data.threads;
+  }
+
+  function buildShareUrl(publicId: string) {
+    if (typeof window === 'undefined') {
+      return `/share/${publicId}`;
+    }
+
+    return `${window.location.origin}/share/${publicId}`;
+  }
+
+  function updateThreadInList(thread: ThreadDto) {
+    setThreads((current) =>
+      current.map((candidate) =>
+        candidate.id === thread.id
+          ? {
+              ...candidate,
+              ...thread
+            }
+          : candidate
+      )
+    );
+  }
+
+  async function renameActiveThread() {
+    const threadId = activeThreadIdRef.current;
+    const currentTitle = activeThread?.title?.trim() ?? '';
+    if (!threadId || threadActionBusy) {
+      return;
+    }
+
+    const nextTitle = window.prompt('重命名对话', currentTitle);
+    if (nextTitle === null) {
+      return;
+    }
+
+    const normalizedTitle = nextTitle.trim();
+    if (!normalizedTitle || normalizedTitle === currentTitle) {
+      return;
+    }
+
+    setThreadActionBusy(true);
+    setError(null);
+    try {
+      const result = await renameThread(threadId, normalizedTitle);
+      if (!result.ok || !result.data.thread) {
+        throw new Error(result.error ?? 'failed to rename thread');
       }
-    });
+
+      updateThreadInList(result.data.thread);
+      await refreshThreads();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'failed to rename thread');
+    } finally {
+      setThreadActionBusy(false);
+    }
+  }
+
+  async function toggleActiveThreadPin() {
+    const threadId = activeThreadIdRef.current;
+    if (!threadId || threadActionBusy) {
+      return;
+    }
+
+    setThreadActionBusy(true);
+    setError(null);
+    try {
+      const result = currentThreadPinned ? await unpinThread(threadId) : await pinThread(threadId);
+      if (!result.ok || !result.data.thread) {
+        throw new Error(result.error ?? 'failed to update thread pin');
+      }
+
+      updateThreadInList(result.data.thread);
+      await refreshThreads();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'failed to update thread pin');
+    } finally {
+      setThreadActionBusy(false);
+    }
+  }
+
+  async function archiveActiveThread() {
+    const threadId = activeThreadIdRef.current;
+    if (!threadId || threadActionBusy) {
+      return;
+    }
+
+    if (!window.confirm('归档这个对话？')) {
+      return;
+    }
+
+    setThreadActionBusy(true);
+    setError(null);
+    try {
+      const result = await archiveThread(threadId);
+      if (!result.ok) {
+        throw new Error(result.error ?? 'failed to archive thread');
+      }
+
+      await refreshThreads();
+      stopViewingLiveResponse();
+      resetDraftThreadState();
+      navigateToNewChat({ replace: true });
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'failed to archive thread');
+    } finally {
+      setThreadActionBusy(false);
+    }
+  }
+
+  async function openShareDialog() {
+    const threadId = activeThreadIdRef.current;
+    if (!threadId) {
+      return;
+    }
+
+    setShareDialogOpen(true);
+    setShareError(null);
+    setShareCopied(false);
+    setShareThreadId(threadId);
+    setSharePublicId(null);
+    setShareUrl(null);
+    setLoadingCurrentShare(true);
+    try {
+      const result = await fetchCurrentThreadShare(threadId);
+      if (!result.ok) {
+        throw new Error(result.error ?? 'failed to load current share');
+      }
+
+      const publicId = result.data.share?.publicId ?? null;
+      setSharePublicId(publicId);
+      setShareUrl(publicId ? buildShareUrl(publicId) : null);
+    } catch (error) {
+      setShareError(error instanceof Error ? error.message : 'failed to load current share');
+    } finally {
+      setLoadingCurrentShare(false);
+    }
+  }
+
+  function closeShareDialog() {
+    setShareDialogOpen(false);
+    setShareError(null);
+    setShareCopied(false);
+    setShareThreadId(null);
+    setSharePublicId(null);
+    setShareUrl(null);
+  }
+
+  async function createOrCopyShare() {
+    const threadId = shareThreadId;
+    if (!threadId || loadingCurrentShare || creatingShare) {
+      return;
+    }
+
+    if (threadId !== activeThreadIdRef.current) {
+      closeShareDialog();
+      return;
+    }
+
+    if (shareUrl) {
+      await copyTextToClipboard(shareUrl);
+      setShareCopied(true);
+      return;
+    }
+
+    setCreatingShare(true);
+    setShareError(null);
+    try {
+      const result = await createThreadSnapshotShare(threadId);
+      if (!result.ok || !result.data.share?.publicId) {
+        throw new Error(result.error ?? 'failed to create share');
+      }
+
+      const publicId = result.data.share.publicId;
+      const url = buildShareUrl(publicId);
+      setSharePublicId(publicId);
+      setShareUrl(url);
+      await copyTextToClipboard(url);
+      setShareCopied(true);
+    } catch (error) {
+      setShareError(error instanceof Error ? error.message : 'failed to create share');
+    } finally {
+      setCreatingShare(false);
+    }
+  }
+
+  async function revokeShare() {
+    if (!sharePublicId || !shareThreadId) {
+      return;
+    }
+
+    if (shareThreadId !== activeThreadIdRef.current) {
+      closeShareDialog();
+      return;
+    }
+
+    setRevokingShare(true);
+    setShareError(null);
+    try {
+      const result = await revokeThreadSnapshotShare(sharePublicId);
+      if (!result.ok) {
+        throw new Error(result.error ?? 'failed to revoke share');
+      }
+
+      setSharePublicId(null);
+      setShareUrl(null);
+      setShareCopied(false);
+    } catch (error) {
+      setShareError(error instanceof Error ? error.message : 'failed to revoke share');
+    } finally {
+      setRevokingShare(false);
+    }
   }
 
   async function loadLogInspector(
@@ -790,6 +1041,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
 
   return {
     activeThreadId,
+    creatingShare,
+    currentThreadPinned,
     currentThreadTitle,
     displayedMessages,
     draft,
@@ -802,18 +1055,35 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     liveAssistantDraft,
     liveStreamRunId,
     loadingMessages,
+    loadingCurrentShare,
     logOpen,
     messagesViewportRef,
     meta,
+    onArchiveThread: () => {
+      void archiveActiveThread();
+    },
+    onCloseShareDialog: closeShareDialog,
     onCloseSidebar: () => setSidebarOpen(false),
+    onCreateOrCopyShare: () => {
+      void createOrCopyShare();
+    },
     onDraftChange: setDraft,
     onNewChat: startNewChat,
     onOpenSidebar: () => setSidebarOpen(true),
+    onOpenShareDialog: () => {
+      void openShareDialog();
+    },
     onOpenThread: openThread,
     onLoadOlderMessages: () => {
       void loadOlderMessages();
     },
     onScrollToBottom: scrollToMessagesBottom,
+    onRenameThread: () => {
+      void renameActiveThread();
+    },
+    onRevokeShare: () => {
+      void revokeShare();
+    },
     onSelectedModelKeyChange: setSelectedModelKey,
     onSelectedThinkingEnabledChange: setSelectedThinkingEnabled,
     onSelectedReasoningEffortChange: setSelectedReasoningEffort,
@@ -824,11 +1094,15 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       void sendMessage();
     },
     onStop: stopViewingLiveResponse,
+    onToggleThreadPin: () => {
+      void toggleActiveThreadPin();
+    },
     onToggleLog: () => setLogOpen((current) => !current),
     persistingTurn,
     recentRuns,
     recentRunsError,
     recentRunsLoading,
+    revokingShare,
     responseStatus,
     runEvents,
     selectedModelKey,
@@ -840,10 +1114,15 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     selectedRunId,
     sendAbortControllerRef,
     sendDisabled,
+    shareCopied,
+    shareDialogOpen,
+    shareError,
+    shareUrl,
     showResponseLoading,
     showScrollToBottom,
     sidebarOpen,
     textareaRef,
+    threadActionsDisabled,
     threads,
     timelineError,
     timelineLoading,

@@ -228,7 +228,7 @@ Loop 0 decision:
 - [ ] Port message list.
 - [ ] Port answer containers.
 - [ ] Port loading semantics.
-- [ ] Port thread rename/archive/pin actions.
+- [x] Port thread rename/archive/pin actions.
 - [ ] Port search status presentation only after search backend exists.
 - [ ] Port attach-stream frontend only after backend exists.
 
@@ -243,7 +243,7 @@ Loop 0 decision:
 
 - [x] Port public share runtime.
 - [x] Port public share presentation using the main transcript rendering chain.
-- [ ] Port share dialog.
+- [x] Port share dialog.
 - [ ] Port replay runtime.
 - [ ] Port replay presentation.
 - [ ] Port replay controls.
@@ -361,13 +361,13 @@ Loop 0 decisions:
 
 ### Loop 5: Thread Management UI, Share API, And Public Share View
 
-- [ ] Port thread action UI.
+- [x] Port thread action UI.
 - [x] Add share API parity.
 - [x] Port public share view.
 - [x] Preserve share sanitization.
-- [x] Run targeted verification for share API and public share view.
-- [x] Run codex review after verification and before commit for share API and public share view.
-- [x] Commit share API and public share view slice.
+- [x] Run targeted verification for share API, public share view, and thread action UI.
+- [x] Run codex review after verification and before commit for share API, public share view, and thread action UI.
+- [x] Commit share API, public share view, and thread action UI slices.
 
 ### Loop 6: Main Chat UI Port
 

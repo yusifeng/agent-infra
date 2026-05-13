@@ -1,22 +1,34 @@
 'use client';
 
 import clsx from 'clsx';
-import { Menu, PanelLeftOpen } from 'lucide-react';
+import { Archive, Menu, PanelLeftOpen, Pencil, Pin, PinOff, Share2 } from 'lucide-react';
 
 import { ChatAvatar, IconButton } from './shared';
 import { ui } from './ui';
 
 type ChatHeaderProps = {
   currentThreadTitle: string;
+  currentThreadPinned: boolean;
+  threadActionsDisabled: boolean;
   sidebarOpen: boolean;
   onOpenSidebar: () => void;
+  onRenameThread: () => void;
+  onToggleThreadPin: () => void;
+  onArchiveThread: () => void;
+  onOpenShareDialog: () => void;
   onToggleLog: () => void;
 };
 
 export function ChatHeader({
   currentThreadTitle,
+  currentThreadPinned,
+  threadActionsDisabled,
   sidebarOpen,
   onOpenSidebar,
+  onRenameThread,
+  onToggleThreadPin,
+  onArchiveThread,
+  onOpenShareDialog,
   onToggleLog
 }: ChatHeaderProps) {
   return (
@@ -32,6 +44,16 @@ export function ChatHeader({
       </div>
 
       <div className="flex gap-1">
+        <IconButton icon={Pencil} onClick={onRenameThread} size="small" title="重命名" disabled={threadActionsDisabled} />
+        <IconButton
+          icon={currentThreadPinned ? PinOff : Pin}
+          onClick={onToggleThreadPin}
+          size="small"
+          title={currentThreadPinned ? '取消置顶' : '置顶'}
+          disabled={threadActionsDisabled}
+        />
+        <IconButton icon={Share2} onClick={onOpenShareDialog} size="small" title="分享" disabled={threadActionsDisabled} />
+        <IconButton icon={Archive} onClick={onArchiveThread} size="small" title="归档" disabled={threadActionsDisabled} />
         <IconButton icon={Menu} onClick={onToggleLog} size="small" title="切换日志面板" />
       </div>
     </header>
