@@ -4,6 +4,8 @@ import type { MessageDto, SharedMessageDto } from '@agent-infra/contracts';
 
 import { ChatThemeProvider } from '@/components/chat-theme-provider';
 import { ChatMessageList } from '@/components/chat-shell/message-list';
+import { buildAnswerContainers } from '@/features/durable-chat/service/build-answer-containers';
+import { buildTranscriptBlocks } from '@/features/durable-chat/service/build-transcript-blocks';
 
 type ShareTranscriptProps = {
   messages: SharedMessageDto[];
@@ -36,6 +38,7 @@ function toMessageDto(message: SharedMessageDto, publicId: string): MessageDto {
 
 export function ShareTranscript({ messages, publicId }: ShareTranscriptProps) {
   const messageDtos = messages.map((message) => toMessageDto(message, publicId));
+  const transcriptBlocks = buildTranscriptBlocks(messageDtos);
 
   return (
     <ChatThemeProvider>
@@ -48,10 +51,13 @@ export function ShareTranscript({ messages, publicId }: ShareTranscriptProps) {
         loadingMessages={false}
         activeThreadId={`share:${publicId}`}
         messages={messageDtos}
+        answerContainers={buildAnswerContainers(transcriptBlocks)}
+        transcriptBlocks={transcriptBlocks}
         liveAssistantDraft={null}
         showLoadingText={false}
         centeredEmptyState={false}
         onLoadOlderMessages={() => undefined}
+        onOpenSearchResult={() => undefined}
       />
     </ChatThemeProvider>
   );

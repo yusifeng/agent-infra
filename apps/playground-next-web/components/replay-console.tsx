@@ -14,6 +14,8 @@ import { ui } from './chat-shell/ui';
 import type { AuthUserDto } from '@/features/auth/dto/project-auth-user-dto';
 import { fetchReplayThreadBasis } from '@/features/durable-chat/repo/replay-api';
 import type { PlaygroundThreadDto } from '@/features/durable-chat/repo/chat-api';
+import { buildAnswerContainers } from '@/features/durable-chat/service/build-answer-containers';
+import { buildTranscriptBlocks } from '@/features/durable-chat/service/build-transcript-blocks';
 
 type ReplayStatus = 'idle' | 'playing' | 'paused' | 'completed';
 
@@ -45,6 +47,8 @@ export function ReplayConsole({ currentUser, initialThreadId, onLogout }: Replay
     () => (cursor < 0 ? [] : messages.slice(0, Math.min(cursor + 1, messages.length))),
     [cursor, messages]
   );
+  const visibleTranscriptBlocks = useMemo(() => buildTranscriptBlocks(visibleMessages), [visibleMessages]);
+  const visibleAnswerContainers = useMemo(() => buildAnswerContainers(visibleTranscriptBlocks), [visibleTranscriptBlocks]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.innerWidth < 1024) {
@@ -196,10 +200,13 @@ export function ReplayConsole({ currentUser, initialThreadId, onLogout }: Replay
             loadingMessages={loading}
             activeThreadId={initialThreadId}
             messages={visibleMessages}
+            answerContainers={visibleAnswerContainers}
+            transcriptBlocks={visibleTranscriptBlocks}
             liveAssistantDraft={null}
             showLoadingText={false}
             centeredEmptyState={!loading && visibleMessages.length === 0}
             onLoadOlderMessages={() => undefined}
+            onOpenSearchResult={() => undefined}
           />
         </div>
 

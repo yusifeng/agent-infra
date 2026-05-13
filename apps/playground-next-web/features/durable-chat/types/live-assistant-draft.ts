@@ -1,1 +1,1 @@
-export type { LiveAssistantDraft } from '@agent-infra/durable-chat-client';
+export type { LiveAssistantDraft, LiveAssistantSegment, LiveAssistantToolState } from '@agent-infra/durable-chat-client';

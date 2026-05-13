@@ -16,8 +16,10 @@ import type {
   RevokeChatShareResponseDto,
   ThreadDto,
   ThreadShareStateResponseDto,
+  ToolInvocationDto,
   UpdateThreadResponseDto
 } from '@agent-infra/contracts';
+import { fetchRunTimelineResponse } from '@agent-infra/durable-chat-client';
 import { readApiError, readJsonRecordOrEmpty, type ApiResult } from '@agent-infra/durable-chat-client';
 
 export type PlaygroundThreadDto = ThreadDto & {
@@ -102,4 +104,24 @@ export async function revokeThreadSnapshotShare(publicId: string, signal?: Abort
     method: 'POST',
     signal
   });
+}
+
+export async function fetchSearchToolInvocations(runId: string, toolCallIds: string[], signal?: AbortSignal) {
+  const result = await fetchRunTimelineResponse(runId, signal);
+  if (!result.ok) {
+    return result;
+  }
+
+  const normalizedToolCallIds = new Set(toolCallIds);
+  const toolInvocations = result.data.toolInvocations.filter(
+    (candidate: ToolInvocationDto) => candidate.toolName === 'searchWeb' && normalizedToolCallIds.has(candidate.toolCallId)
+  );
+
+  return {
+    ...result,
+    data: {
+      ...result.data,
+      toolInvocations
+    }
+  };
 }

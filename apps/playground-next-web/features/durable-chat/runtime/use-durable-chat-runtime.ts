@@ -60,10 +60,13 @@ import {
   parseRunAttachSseChunk,
   resolveSettledChatPhase,
   shouldShowMainChatLoading,
-  upsertMessage,
   upsertRun
 } from '@/features/durable-chat/service/chat-runtime';
+import { buildAnswerContainers } from '@/features/durable-chat/service/build-answer-containers';
 import { buildDeepseekModePresentation } from '@/features/durable-chat/service/deepseek-mode-presentation';
+import { collectCompletedLiveSearchToolCallIds } from '@/features/durable-chat/service/research-activity';
+import { buildTranscriptPresentation } from '@/features/durable-chat/service/transcript-presentation';
+import { useSearchPanelState } from '@/features/durable-chat/runtime/use-search-panel-state';
 import type { DurableChatRuntimeOptions } from '@/features/durable-chat/types/runtime';
 
 const PENDING_NEW_THREAD_LOADING_ID = '__pending-new-thread__';
@@ -210,12 +213,31 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const showResponseLoading = shouldShowMainChatLoading(responseStatus);
   const sendDisabled = !draft.trim() || isChatResponding || !meta?.runtimeConfigured || !selectedModelOption;
   const inputLocked = isChatResponding;
-  const displayedMessages = useMemo(
-    () => (optimisticUserMessage ? upsertMessage(messages, optimisticUserMessage) : messages),
-    [messages, optimisticUserMessage]
+  const { displayedMessages, displayedTranscriptBlocks } = useMemo(
+    () =>
+      buildTranscriptPresentation({
+        messages,
+        optimisticUserMessage,
+        liveAssistantDraft
+      }),
+    [liveAssistantDraft, messages, optimisticUserMessage]
+  );
+  const displayedAnswerContainers = useMemo(
+    () => buildAnswerContainers(displayedTranscriptBlocks),
+    [displayedTranscriptBlocks]
   );
   const hasOlderMessages = messagePageInfo?.hasOlder === true;
   const threadActionsDisabled = !activeThreadId || isChatResponding || threadActionBusy;
+  const {
+    activeSearchResult,
+    getCachedSearchResult,
+    prefetchSearchResult,
+    searchPanelError,
+    searchPanelLoading,
+    searchPanelOpen,
+    onCloseSearchPanel,
+    onOpenSearchResult
+  } = useSearchPanelState(activeThreadId);
 
   useEffect(() => {
     installChatRenderDiagnostics();
@@ -236,6 +258,24 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  useEffect(() => {
+    const runId = liveAssistantDraft?.runId;
+    if (!runId) {
+      return;
+    }
+
+    const completedSearchToolCallIdGroups = liveAssistantDraft.segments
+      .map((segment) => collectCompletedLiveSearchToolCallIds(segment.tools))
+      .filter((toolCallIds) => toolCallIds.length > 0);
+    if (completedSearchToolCallIdGroups.length === 0) {
+      return;
+    }
+
+    void Promise.all(
+      completedSearchToolCallIdGroups.map((toolCallIds) => prefetchSearchResult(runId, toolCallIds).catch(() => null))
+    );
+  }, [liveAssistantDraft, prefetchSearchResult]);
 
   useEffect(() => {
     selectedRunIdRef.current = selectedRunId;
@@ -1328,7 +1368,9 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     creatingShare,
     currentThreadPinned,
     currentThreadTitle,
+    displayedAnswerContainers,
     displayedMessages,
+    displayedTranscriptBlocks,
     draft,
     deepseekModePresentation,
     durableRecoveryState,
@@ -1380,6 +1422,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     onSelectedWebSearchEnabledChange: setSelectedWebSearchEnabled,
     onSelectedThinkingEnabledChange: setSelectedThinkingEnabled,
     onSelectedReasoningEffortChange: setSelectedReasoningEffort,
+    onOpenSearchResult,
+    onCloseSearchPanel,
     onSelectRun: (runId: string) => {
       void loadRunTimeline(runId);
     },
@@ -1404,6 +1448,11 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     revokingShare,
     responseStatus,
     runEvents,
+    activeSearchResult,
+    searchPanelError,
+    searchPanelLoading,
+    searchPanelOpen,
+    getLiveSearchPanelData: getCachedSearchResult,
     selectedModelKey,
     selectedWebSearchEnabled,
     selectedThinkingEnabled,

@@ -100,11 +100,11 @@ Source analysis:
 
 ### 1.5 Message / Search / Replay / Share Definitions
 
-- [ ] Define whether Vite `ContentNode`, `TranscriptBlock`, and `AnswerContainer` presentation services are copied into Next or extracted without changing user-visible presentation.
-- [ ] Define how Next durable `MessageDto` pages feed Vite-style transcript projection.
-- [ ] Define how live assistant drafts feed Vite-style transcript projection.
-- [ ] Define how tool calls/results become user-facing Vite presentation instead of raw JSON cards.
-- [ ] Define SearchResultsPanel data inputs from persisted messages, timeline/tool data, and public snapshots.
+- [x] Define whether Vite `ContentNode`, `TranscriptBlock`, and `AnswerContainer` presentation services are copied into Next or extracted without changing user-visible presentation.
+- [x] Define how Next durable `MessageDto` pages feed Vite-style transcript projection.
+- [x] Define how live assistant drafts feed Vite-style transcript projection.
+- [x] Define how tool calls/results become user-facing Vite presentation instead of raw JSON cards.
+- [x] Define SearchResultsPanel data inputs from persisted messages, timeline/tool data, and public snapshots.
 - [ ] Define replay step model parity with Vite replay runtime.
 - [ ] Define public share snapshot presentation parity with Vite shared snapshot console.
 
@@ -171,16 +171,16 @@ Source analysis:
 
 ### 3.4 Message / Search Presentation
 
-- [ ] Port Vite transcript block projection services or equivalent presentation pipeline.
-- [ ] Port answer container rendering.
-- [ ] Port persisted assistant/user message presentation.
-- [ ] Port live assistant draft presentation.
-- [ ] Port loading, thinking, reasoning, and shimmer states.
-- [ ] Port research/search status rows.
-- [ ] Port `SearchResultsPanel`.
-- [ ] Port source favicon/site badge presentation.
-- [ ] Port tool call/result user-facing presentation.
-- [ ] Preserve markdown/code/copy behavior while matching Vite visual output.
+- [x] Port Vite transcript block projection services or equivalent presentation pipeline.
+- [x] Port answer container rendering.
+- [x] Port persisted assistant/user message presentation.
+- [x] Port live assistant draft presentation.
+- [x] Port loading, thinking, reasoning, and shimmer states.
+- [x] Port research/search status rows.
+- [x] Port `SearchResultsPanel`.
+- [x] Port source favicon/site badge presentation.
+- [x] Port tool call/result user-facing presentation.
+- [x] Preserve markdown/code/copy behavior while matching Vite visual output.
 
 ### 3.5 Dialogs And Thread Actions
 
@@ -221,7 +221,7 @@ Source analysis:
 - [x] Add or update auth helper tests for safe `next` redirect behavior.
 - [ ] Add or update auth UI behavior tests for login/register/forgot password where feasible.
 - [ ] Add or update email cooldown tests if cooldown hook is ported.
-- [ ] Add or update projection tests if transcript/search/replay presentation services are ported.
+- [x] Add or update projection tests if transcript/search/replay presentation services are ported.
 - [ ] Add or update share/replay presentation tests if Vite services are copied or adapted.
 
 ### 4.3 Browser Verification
@@ -244,9 +244,9 @@ Source analysis:
 - [ ] Verify composer idle, sending, responding, and stop states.
 - [ ] Verify web search toggle visible and wired.
 - [ ] Verify reasoning/thinking controls visible and wired.
-- [ ] Verify message list with markdown, code, reasoning, search, and tool outputs.
-- [ ] Use at least one real thread or fixture containing markdown, code, reasoning, search, and tool result data for rich transcript verification.
-- [ ] Verify search results panel.
+- [x] Verify message list with markdown, code, reasoning, search, and tool outputs.
+- [x] Use at least one real thread or fixture containing markdown, code, reasoning, search, and tool result data for rich transcript verification.
+- [x] Verify search results panel.
 - [ ] Verify rename/archive/share dialogs.
 - [ ] Verify `/replay/:threadId` desktop and mobile.
 - [ ] Verify `/share/:publicId` desktop and mobile.
@@ -302,17 +302,17 @@ Source analysis:
 
 ### Loop 3: Message And Search Presentation Parity
 
-- [ ] Port transcript projection services.
-- [ ] Port answer containers.
-- [ ] Port user/assistant/live message rendering.
-- [ ] Port reasoning/thinking/research/search presentation.
-- [ ] Port SearchResultsPanel and source/site badge UI.
-- [ ] Replace raw JSON tool cards with Vite-style user-facing presentation.
-- [ ] Browser-verify Vite baseline vs Next target for rich transcript states on desktop and mobile.
-- [ ] Use at least one real thread or fixture with markdown, code, reasoning, search, and tool result data.
-- [ ] Run targeted verification.
-- [ ] Run codex review after verification and before commit.
-- [ ] Commit.
+- [x] Port transcript projection services.
+- [x] Port answer containers.
+- [x] Port user/assistant/live message rendering.
+- [x] Port reasoning/thinking/research/search presentation.
+- [x] Port SearchResultsPanel and source/site badge UI.
+- [x] Replace raw JSON tool cards with Vite-style user-facing presentation.
+- [x] Browser-verify Vite baseline vs Next target for rich transcript states on desktop and mobile.
+- [x] Use at least one real thread or fixture with markdown, code, reasoning, search, and tool result data.
+- [x] Run targeted verification.
+- [x] Run codex review after verification and before commit.
+- [x] Commit.
 
 ### Loop 4: Dialogs, Menus, And Thread Actions Parity
 

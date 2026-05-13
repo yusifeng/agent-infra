@@ -7,6 +7,7 @@ import { ChatHeader } from './chat-shell/chat-header';
 import { ChatMessageList } from './chat-shell/message-list';
 import { ComposerDock } from './chat-shell/composer-dock';
 import { DurableLogPane } from './chat-shell/durable-log-pane';
+import { SearchResultsPanel } from './chat-shell/search-results-panel';
 import { ShareDialog } from './chat-shell/share-dialog';
 import { ChatSidebar } from './chat-shell/sidebar';
 import { ui } from './chat-shell/ui';
@@ -85,6 +86,8 @@ export function DurableChatConsole({ currentUser = null, initialThreadId = null,
                 loadingMessages={runtime.loadingMessages}
                 activeThreadId={runtime.activeThreadId}
                 messages={runtime.displayedMessages}
+                answerContainers={runtime.displayedAnswerContainers}
+                transcriptBlocks={runtime.displayedTranscriptBlocks}
                 liveAssistantDraft={runtime.liveAssistantDraft}
                 showLoadingText={
                   runtime.showResponseLoading &&
@@ -99,7 +102,9 @@ export function DurableChatConsole({ currentUser = null, initialThreadId = null,
                   )
                 }
                 centeredEmptyState={centeredEmptyState}
+                getLiveSearchPanelData={runtime.getLiveSearchPanelData}
                 onLoadOlderMessages={runtime.onLoadOlderMessages}
+                onOpenSearchResult={runtime.onOpenSearchResult}
               />
             </div>
             <ComposerDock
@@ -146,6 +151,13 @@ export function DurableChatConsole({ currentUser = null, initialThreadId = null,
           timelineLoading={runtime.timelineLoading}
           timelineError={runtime.timelineError}
           onSelectRun={runtime.onSelectRun}
+        />
+        <SearchResultsPanel
+          open={runtime.searchPanelOpen}
+          loading={runtime.searchPanelLoading}
+          error={runtime.searchPanelError}
+          result={runtime.activeSearchResult}
+          onClose={runtime.onCloseSearchPanel}
         />
       </div>
       <ShareDialog
