@@ -170,6 +170,12 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const shouldAutoScrollRef = useRef(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [threadActionBusy, setThreadActionBusy] = useState(false);
+  const [renameDialogThreadId, setRenameDialogThreadId] = useState<string | null>(null);
+  const [renameDraftTitle, setRenameDraftTitle] = useState('');
+  const [archiveDialogThreadId, setArchiveDialogThreadId] = useState<string | null>(null);
+  const [threadActionError, setThreadActionError] = useState<string | null>(null);
+  const [renamingThreadId, setRenamingThreadId] = useState<string | null>(null);
+  const [archivingThreadId, setArchivingThreadId] = useState<string | null>(null);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [loadingCurrentShare, setLoadingCurrentShare] = useState(false);
   const [creatingShare, setCreatingShare] = useState(false);
@@ -227,7 +233,12 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     [displayedTranscriptBlocks]
   );
   const hasOlderMessages = messagePageInfo?.hasOlder === true;
-  const threadActionsDisabled = !activeThreadId || isChatResponding || threadActionBusy;
+  const threadActionsDisabled =
+    !activeThreadId ||
+    isChatResponding ||
+    threadActionBusy ||
+    renamingThreadId !== null ||
+    archivingThreadId !== null;
   const {
     activeSearchResult,
     getCachedSearchResult,
@@ -715,24 +726,37 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     );
   }
 
-  async function renameThreadById(threadId: string) {
-    const currentTitle = threads.find((thread) => thread.id === threadId)?.title?.trim() ?? '';
-    if (!threadId || threadActionBusy) {
+  function openRenameDialogForThread(threadId: string) {
+    if (!threadId || threadActionBusy || renamingThreadId !== null) {
       return;
     }
 
-    const nextTitle = window.prompt('重命名对话', currentTitle);
-    if (nextTitle === null) {
-      return;
+    const currentTitle = threads.find((thread) => thread.id === threadId)?.title ?? '';
+    setRenameDialogThreadId(threadId);
+    setRenameDraftTitle(currentTitle);
+    setThreadActionError(null);
+  }
+
+  function closeRenameDialog() {
+    setRenameDialogThreadId(null);
+    setRenameDraftTitle('');
+    setThreadActionError(null);
+  }
+
+  async function submitRenameThread() {
+    const threadId = renameDialogThreadId;
+    const normalizedTitle = renameDraftTitle.trim();
+    if (!threadId) {
+      return false;
     }
 
-    const normalizedTitle = nextTitle.trim();
-    if (!normalizedTitle || normalizedTitle === currentTitle) {
-      return;
+    if (!normalizedTitle) {
+      setThreadActionError('请输入会话标题。');
+      return false;
     }
 
-    setThreadActionBusy(true);
-    setError(null);
+    setRenamingThreadId(threadId);
+    setThreadActionError(null);
     try {
       const result = await renameThread(threadId, normalizedTitle);
       if (!result.ok || !result.data.thread) {
@@ -741,20 +765,23 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
 
       updateThreadInList(result.data.thread);
       await refreshThreads();
+      closeRenameDialog();
+      return true;
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'failed to rename thread');
+      setThreadActionError(error instanceof Error ? error.message : '重命名会话失败。');
+      return false;
     } finally {
-      setThreadActionBusy(false);
+      setRenamingThreadId(null);
     }
   }
 
-  async function renameActiveThread() {
+  function renameActiveThread() {
     const threadId = activeThreadIdRef.current;
     if (!threadId) {
       return;
     }
 
-    await renameThreadById(threadId);
+    openRenameDialogForThread(threadId);
   }
 
   async function toggleThreadPinById(threadId: string, pinned: boolean) {
@@ -788,17 +815,28 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     await toggleThreadPinById(threadId, currentThreadPinned);
   }
 
-  async function archiveThreadById(threadId: string) {
-    if (!threadId || threadActionBusy) {
+  function openArchiveDialogForThread(threadId: string) {
+    if (!threadId || threadActionBusy || archivingThreadId !== null) {
       return;
     }
 
-    if (!window.confirm('归档这个对话？')) {
-      return;
+    setArchiveDialogThreadId(threadId);
+    setThreadActionError(null);
+  }
+
+  function closeArchiveDialog() {
+    setArchiveDialogThreadId(null);
+    setThreadActionError(null);
+  }
+
+  async function submitArchiveThread() {
+    const threadId = archiveDialogThreadId;
+    if (!threadId) {
+      return false;
     }
 
-    setThreadActionBusy(true);
-    setError(null);
+    setArchivingThreadId(threadId);
+    setThreadActionError(null);
     try {
       const result = await archiveThread(threadId);
       if (!result.ok) {
@@ -806,25 +844,28 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       }
 
       await refreshThreads();
+      closeArchiveDialog();
       if (threadId === activeThreadIdRef.current) {
         stopViewingLiveResponse();
         resetDraftThreadState();
         navigateToNewChat({ replace: true });
       }
+      return true;
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'failed to archive thread');
+      setThreadActionError(error instanceof Error ? error.message : '删除会话失败。');
+      return false;
     } finally {
-      setThreadActionBusy(false);
+      setArchivingThreadId(null);
     }
   }
 
-  async function archiveActiveThread() {
+  function archiveActiveThread() {
     const threadId = activeThreadIdRef.current;
     if (!threadId) {
       return;
     }
 
-    await archiveThreadById(threadId);
+    openArchiveDialogForThread(threadId);
   }
 
   async function openShareDialogForThread(threadId: string) {
@@ -1387,8 +1428,10 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     messagesViewportRef,
     meta,
     onArchiveThread: () => {
-      void archiveActiveThread();
+      archiveActiveThread();
     },
+    onCloseArchiveDialog: closeArchiveDialog,
+    onCloseRenameDialog: closeRenameDialog,
     onCloseShareDialog: closeShareDialog,
     onCloseSidebar: () => setSidebarOpen(false),
     onCreateOrCopyShare: () => {
@@ -1410,10 +1453,17 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     },
     onScrollToBottom: scrollToMessagesBottom,
     onRenameThread: () => {
-      void renameActiveThread();
+      renameActiveThread();
     },
     onRenameThreadById: (threadId: string) => {
-      void renameThreadById(threadId);
+      openRenameDialogForThread(threadId);
+    },
+    onRenameDraftTitleChange: setRenameDraftTitle,
+    onConfirmRenameThread: () => {
+      void submitRenameThread();
+    },
+    onConfirmArchiveThread: () => {
+      void submitArchiveThread();
     },
     onRevokeShare: () => {
       void revokeShare();
@@ -1438,7 +1488,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       void toggleThreadPinById(threadId, pinned);
     },
     onArchiveThreadById: (threadId: string) => {
-      void archiveThreadById(threadId);
+      openArchiveDialogForThread(threadId);
     },
     onToggleLog: () => setLogOpen((current) => !current),
     persistingTurn,
@@ -1447,6 +1497,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     recentRunsLoading,
     revokingShare,
     responseStatus,
+    archiveDialogThreadId,
+    archivingThreadId,
     runEvents,
     activeSearchResult,
     searchPanelError,
@@ -1462,6 +1514,9 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     selectedRunId,
     sendAbortControllerRef,
     sendDisabled,
+    renameDialogThreadId,
+    renameDraftTitle,
+    renamingThreadId,
     shareCopied,
     shareDialogOpen,
     shareError,
@@ -1470,6 +1525,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     showScrollToBottom,
     sidebarOpen,
     textareaRef,
+    threadActionError,
     threadActionsDisabled,
     threads,
     timelineError,

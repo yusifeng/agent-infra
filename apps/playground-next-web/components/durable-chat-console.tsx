@@ -10,6 +10,8 @@ import { DurableLogPane } from './chat-shell/durable-log-pane';
 import { SearchResultsPanel } from './chat-shell/search-results-panel';
 import { ShareDialog } from './chat-shell/share-dialog';
 import { ChatSidebar } from './chat-shell/sidebar';
+import { ThreadArchiveDialog } from './chat-shell/thread-archive-dialog';
+import { ThreadRenameDialog } from './chat-shell/thread-rename-dialog';
 import { ui } from './chat-shell/ui';
 import type { AuthUserDto } from '@/features/auth/dto/project-auth-user-dto';
 import { useDurableChatRuntime } from '@/features/durable-chat/runtime/use-durable-chat-runtime';
@@ -171,6 +173,22 @@ export function DurableChatConsole({ currentUser = null, initialThreadId = null,
         onClose={runtime.onCloseShareDialog}
         onCreateOrCopy={runtime.onCreateOrCopyShare}
         onRevoke={runtime.onRevokeShare}
+      />
+      <ThreadRenameDialog
+        open={runtime.renameDialogThreadId !== null}
+        title={runtime.renameDraftTitle}
+        loading={runtime.renamingThreadId !== null}
+        error={runtime.renameDialogThreadId !== null ? runtime.threadActionError : null}
+        onClose={runtime.onCloseRenameDialog}
+        onTitleChange={runtime.onRenameDraftTitleChange}
+        onConfirm={runtime.onConfirmRenameThread}
+      />
+      <ThreadArchiveDialog
+        open={runtime.archiveDialogThreadId !== null}
+        loading={runtime.archivingThreadId !== null}
+        error={runtime.archiveDialogThreadId !== null ? runtime.threadActionError : null}
+        onClose={runtime.onCloseArchiveDialog}
+        onConfirm={runtime.onConfirmArchiveThread}
       />
     </main>
   );

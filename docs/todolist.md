@@ -96,7 +96,7 @@ Source analysis:
 - [x] Define how Vite web search toggle maps to existing `webSearchEnabled` runtime input.
 - [x] Define how Vite reasoning/thinking controls map to current Next runtime state.
 - [ ] Define whether `DurableLogPane` remains hidden/debug-only or moves behind a Vite-compatible control.
-- [ ] Define how Vite thread groups, pinned state, row menus, rename/archive/share/pin actions map to current protected APIs.
+- [x] Define how Vite thread groups, pinned state, row menus, rename/archive/share/pin actions map to current protected APIs.
 
 ### 1.5 Message / Search / Replay / Share Definitions
 
@@ -124,7 +124,7 @@ Source analysis:
 
 - [x] Confirm web search toggle can call current stream API with `webSearchEnabled`.
 - [x] Confirm quick/expert mode UI can map to current model/reasoning controls.
-- [ ] Confirm thread row actions can call current rename/archive/pin/share routes.
+- [x] Confirm thread row actions can call current rename/archive/pin/share routes.
 - [ ] Confirm public share can load all data needed for Vite shared snapshot presentation.
 - [ ] Confirm replay can load all data needed for Vite replay presentation.
 - [x] Confirm auth pages can preserve existing Next cookie/session behavior while matching Vite UI.
@@ -184,11 +184,11 @@ Source analysis:
 
 ### 3.5 Dialogs And Thread Actions
 
-- [ ] Port rename dialog rather than using `window.prompt`.
-- [ ] Port archive/delete confirmation dialog rather than using `window.confirm`.
-- [ ] Port share dialog visual structure and focus behavior.
-- [ ] Port dropdown/menu interactions needed by sidebar and account controls.
-- [ ] Verify keyboard and focus behavior for dialogs/menus.
+- [x] Port rename dialog rather than using `window.prompt`.
+- [x] Port archive/delete confirmation dialog rather than using `window.confirm`.
+- [x] Port share dialog visual structure and focus behavior.
+- [x] Port dropdown/menu interactions needed by sidebar and account controls.
+- [x] Verify keyboard and focus behavior for dialogs/menus.
 
 ### 3.6 Replay UI
 
@@ -247,7 +247,7 @@ Source analysis:
 - [x] Verify message list with markdown, code, reasoning, search, and tool outputs.
 - [x] Use at least one real thread or fixture containing markdown, code, reasoning, search, and tool result data for rich transcript verification.
 - [x] Verify search results panel.
-- [ ] Verify rename/archive/share dialogs.
+- [x] Verify rename/archive/share dialogs.
 - [ ] Verify `/replay/:threadId` desktop and mobile.
 - [ ] Verify `/share/:publicId` desktop and mobile.
 
@@ -316,16 +316,16 @@ Source analysis:
 
 ### Loop 4: Dialogs, Menus, And Thread Actions Parity
 
-- [ ] Port rename dialog.
-- [ ] Port archive/delete confirmation dialog.
-- [ ] Port thread row action menus.
-- [ ] Port share dialog.
-- [ ] Port account dropdown.
-- [ ] Remove prompt/confirm-style interactions where Vite uses dialogs.
-- [ ] Browser-verify Vite baseline vs Next target for hover, menu, dialog, focus, and keyboard behavior.
-- [ ] Run targeted verification.
-- [ ] Run codex review after verification and before commit.
-- [ ] Commit.
+- [x] Port rename dialog.
+- [x] Port archive/delete confirmation dialog.
+- [x] Port thread row action menus.
+- [x] Port share dialog.
+- [x] Port account dropdown.
+- [x] Remove prompt/confirm-style interactions where Vite uses dialogs.
+- [x] Browser-verify Vite baseline vs Next target for hover, menu, dialog, focus, and keyboard behavior.
+- [x] Run targeted verification.
+- [x] Run codex review after verification and before commit.
+- [x] Commit.
 
 ### Loop 5: Public Share UI Parity
 
