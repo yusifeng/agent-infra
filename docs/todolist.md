@@ -64,7 +64,7 @@ Source analysis:
 - [x] Use `apps/playground-vite-web/src/features/durable-chat/durable-chat-console.tsx` as main chat shell reference.
 - [x] Use `apps/playground-vite-web/src/features/durable-chat/replay-console.tsx` as replay presentation reference.
 - [x] Use `apps/playground-vite-web/src/features/durable-chat/shared-snapshot-console.tsx` as public share presentation reference.
-- [ ] Reconcile public share work with `docs/source-of-truth/share-model.md`.
+- [x] Reconcile public share work with `docs/source-of-truth/share-model.md`.
 - [ ] Reconcile chat mode controls with `docs/source-of-truth/playground-chat-mode-model.md`.
 - [ ] Decide after implementation whether any stable UI parity rule belongs in `docs/source-of-truth`.
 
@@ -106,7 +106,7 @@ Source analysis:
 - [x] Define how tool calls/results become user-facing Vite presentation instead of raw JSON cards.
 - [x] Define SearchResultsPanel data inputs from persisted messages, timeline/tool data, and public snapshots.
 - [ ] Define replay step model parity with Vite replay runtime.
-- [ ] Define public share snapshot presentation parity with Vite shared snapshot console.
+- [x] Define public share snapshot presentation parity with Vite shared snapshot console.
 
 ## 2. Backend / Platform Boundary
 
@@ -125,7 +125,7 @@ Source analysis:
 - [x] Confirm web search toggle can call current stream API with `webSearchEnabled`.
 - [x] Confirm quick/expert mode UI can map to current model/reasoning controls.
 - [x] Confirm thread row actions can call current rename/archive/pin/share routes.
-- [ ] Confirm public share can load all data needed for Vite shared snapshot presentation.
+- [x] Confirm public share can load all data needed for Vite shared snapshot presentation.
 - [ ] Confirm replay can load all data needed for Vite replay presentation.
 - [x] Confirm auth pages can preserve existing Next cookie/session behavior while matching Vite UI.
 
@@ -200,12 +200,12 @@ Source analysis:
 
 ### 3.7 Public Share UI
 
-- [ ] Replace simplified document-style share page with Vite shared snapshot console parity.
-- [ ] Port shared snapshot transcript projection.
-- [ ] Port shared snapshot answer containers.
-- [ ] Port shared snapshot search panel.
-- [ ] Port loading, not-found, and empty states.
-- [ ] Keep public share read anonymous.
+- [x] Replace simplified document-style share page with Vite shared snapshot console parity.
+- [x] Port shared snapshot transcript projection.
+- [x] Port shared snapshot answer containers.
+- [x] Port shared snapshot search panel.
+- [x] Port loading, not-found, and empty states.
+- [x] Keep public share read anonymous.
 
 ## 4. Tests And Verification
 
@@ -222,7 +222,7 @@ Source analysis:
 - [ ] Add or update auth UI behavior tests for login/register/forgot password where feasible.
 - [ ] Add or update email cooldown tests if cooldown hook is ported.
 - [x] Add or update projection tests if transcript/search/replay presentation services are ported.
-- [ ] Add or update share/replay presentation tests if Vite services are copied or adapted.
+- [x] Add or update share/replay presentation tests if Vite services are copied or adapted.
 
 ### 4.3 Browser Verification
 
@@ -249,7 +249,7 @@ Source analysis:
 - [x] Verify search results panel.
 - [x] Verify rename/archive/share dialogs.
 - [ ] Verify `/replay/:threadId` desktop and mobile.
-- [ ] Verify `/share/:publicId` desktop and mobile.
+- [x] Verify `/share/:publicId` desktop and mobile.
 
 ### 4.4 Review And Commit Gates
 
@@ -329,14 +329,14 @@ Source analysis:
 
 ### Loop 5: Public Share UI Parity
 
-- [ ] Port Vite shared snapshot console presentation.
-- [ ] Port shared transcript projection and answer containers.
-- [ ] Port shared search panel.
-- [ ] Preserve anonymous public access and sanitization boundaries.
-- [ ] Browser-verify Vite baseline vs Next target for `/share/:publicId` desktop and mobile.
-- [ ] Run targeted verification.
-- [ ] Run codex review after verification and before commit.
-- [ ] Commit.
+- [x] Port Vite shared snapshot console presentation.
+- [x] Port shared transcript projection and answer containers.
+- [x] Port shared search panel.
+- [x] Preserve anonymous public access and sanitization boundaries.
+- [x] Browser-verify Vite baseline vs Next target for `/share/:publicId` desktop and mobile.
+- [x] Run targeted verification.
+- [x] Run codex review after verification and before commit.
+- [x] Commit.
 
 ### Loop 6: Replay UI Parity
 

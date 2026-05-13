@@ -17,7 +17,7 @@ share v1 当前已经落地，范围固定为：
 - immutable snapshot 持久化
 - public read API
 - revoke API
-- Vite 分享弹窗
+- Vite/Next 分享弹窗
 - `/share/:shareId` 只读分享页
 - 分享页搜索结果侧栏联动
 
@@ -110,6 +110,9 @@ v1 只支持：
 - `SearchResultsPanel`
 
 它是新的只读数据源，不是新的聊天渲染体系。
+
+Next App Router 中的 `/share/:shareId` 可以在 server route 中读取 immutable snapshot，
+再交给只读 client console 使用同一套投影链渲染；它不应改为读取原 thread live timeline。
 
 ## 持久化实体
 
