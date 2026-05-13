@@ -36,13 +36,13 @@ Source analysis:
 
 ### 0.3 Goals
 
-- [ ] Make `apps/playground-next-web` visually and interactively match `apps/playground-vite-web`.
+- [x] Make `apps/playground-next-web` visually and interactively match `apps/playground-vite-web`.
 - [x] Upgrade or align Next UI foundation to support Vite UI directly.
-- [ ] Replace temporary auth UI with Vite auth UI.
-- [ ] Replace or refactor current Next chat shell to match Vite sidebar/header/composer/message/search behavior.
-- [ ] Replace simplified replay and public share pages with Vite-equivalent presentation flows.
-- [ ] Verify parity with browser inspection/screenshots on desktop and mobile.
-- [ ] Keep each UI parity slice independently verifiable, reviewable, and committable.
+- [x] Replace temporary auth UI with Vite auth UI.
+- [x] Replace or refactor current Next chat shell to match Vite sidebar/header/composer/message/search behavior.
+- [x] Replace simplified replay and public share pages with Vite-equivalent presentation flows.
+- [x] Verify parity with browser inspection/screenshots on desktop and mobile.
+- [x] Keep each UI parity slice independently verifiable, reviewable, and committable.
 
 ### 0.4 Non-Goals
 
@@ -65,8 +65,8 @@ Source analysis:
 - [x] Use `apps/playground-vite-web/src/features/durable-chat/replay-console.tsx` as replay presentation reference.
 - [x] Use `apps/playground-vite-web/src/features/durable-chat/shared-snapshot-console.tsx` as public share presentation reference.
 - [x] Reconcile public share work with `docs/source-of-truth/share-model.md`.
-- [ ] Reconcile chat mode controls with `docs/source-of-truth/playground-chat-mode-model.md`.
-- [ ] Decide after implementation whether any stable UI parity rule belongs in `docs/source-of-truth`.
+- [x] Reconcile chat mode controls with `docs/source-of-truth/playground-chat-mode-model.md`.
+- [x] Decide after implementation whether any stable UI parity rule belongs in `docs/source-of-truth`.
 
 ### 1.2 UI Foundation Definitions
 
@@ -95,7 +95,7 @@ Source analysis:
 - [x] Define how Vite quick/expert mode UI maps to existing Next runtime/provider fields.
 - [x] Define how Vite web search toggle maps to existing `webSearchEnabled` runtime input.
 - [x] Define how Vite reasoning/thinking controls map to current Next runtime state.
-- [ ] Define whether `DurableLogPane` remains hidden/debug-only or moves behind a Vite-compatible control.
+- [x] Define whether `DurableLogPane` remains hidden/debug-only or moves behind a Vite-compatible control.
 - [x] Define how Vite thread groups, pinned state, row menus, rename/archive/share/pin actions map to current protected APIs.
 
 ### 1.5 Message / Search / Replay / Share Definitions
@@ -117,8 +117,8 @@ Source analysis:
 - [x] Keep existing stream and attach-stream routes.
 - [x] Keep existing share routes.
 - [x] Keep existing replay route data API.
-- [ ] Only change backend routes if a Vite UI interaction has no existing Next endpoint.
-- [ ] Avoid backend rewrites while doing UI parity unless tests prove a route contract gap.
+- [x] Only change backend routes if a Vite UI interaction has no existing Next endpoint.
+- [x] Avoid backend rewrites while doing UI parity unless tests prove a route contract gap.
 
 ### 2.2 Route / API Gaps To Check
 
@@ -219,8 +219,8 @@ Source analysis:
 ### 4.2 Focused Tests
 
 - [x] Add or update auth helper tests for safe `next` redirect behavior.
-- [ ] Add or update auth UI behavior tests for login/register/forgot password where feasible.
-- [ ] Add or update email cooldown tests if cooldown hook is ported.
+- [x] Add or update auth UI behavior tests for login/register/forgot password where feasible.
+- [x] Add or update email cooldown tests if cooldown hook is ported.
 - [x] Add or update projection tests if transcript/search/replay presentation services are ported.
 - [x] Add or update share/replay presentation tests if Vite services are copied or adapted.
 
@@ -236,14 +236,14 @@ Source analysis:
 - [x] Verify `/forgot-password` desktop.
 - [x] Verify `/forgot-password` mobile.
 - [x] Verify auth empty state, submitting state, error state, password visible/hidden state, code before-send state, code cooldown state, code cooldown-ended state, and reset-success notice state.
-- [ ] Verify `/new` desktop.
-- [ ] Verify `/new` mobile.
-- [ ] Verify `/chat/:threadId` desktop with a real thread.
-- [ ] Verify `/chat/:threadId` mobile with a real thread.
-- [ ] Verify sidebar open/closed and mobile overlay.
-- [ ] Verify composer idle, sending, responding, and stop states.
-- [ ] Verify web search toggle visible and wired.
-- [ ] Verify reasoning/thinking controls visible and wired.
+- [x] Verify `/new` desktop.
+- [x] Verify `/new` mobile.
+- [x] Verify `/chat/:threadId` desktop with a real thread.
+- [x] Verify `/chat/:threadId` mobile with a real thread.
+- [x] Verify sidebar open/closed and mobile overlay.
+- [x] Verify composer idle, sending, responding, and stop states.
+- [x] Verify web search toggle visible and wired.
+- [x] Verify reasoning/thinking controls visible and wired.
 - [x] Verify message list with markdown, code, reasoning, search, and tool outputs.
 - [x] Use at least one real thread or fixture containing markdown, code, reasoning, search, and tool result data for rich transcript verification.
 - [x] Verify search results panel.
@@ -253,11 +253,11 @@ Source analysis:
 
 ### 4.4 Review And Commit Gates
 
-- [ ] Run `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"` after each meaningful UI slice.
-- [ ] Use review tool timeout `timeout_ms >= 1200000`.
-- [ ] Run codex review after targeted verification and before committing each slice.
-- [ ] Commit immediately after clean review and passing targeted verification unless the user explicitly asks to batch.
-- [ ] Do not accumulate a second UI slice on top of a clean reviewed uncommitted slice.
+- [x] Run `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"` after each meaningful UI slice.
+- [x] Use review tool timeout `timeout_ms >= 1200000`.
+- [x] Run codex review after targeted verification and before committing each slice.
+- [x] Commit immediately after clean review and passing targeted verification unless the user explicitly asks to batch.
+- [x] Do not accumulate a second UI slice on top of a clean reviewed uncommitted slice.
 
 ## 5. Recommended Execution Order
 
@@ -351,11 +351,11 @@ Source analysis:
 
 ### Loop 7: Final UI Parity Audit
 
-- [ ] Re-run Vite-vs-Next UI parity audit across auth, chat, replay, and share.
-- [ ] Verify no temporary English auth UI remains.
-- [ ] Verify no old Next shell branding such as `Forma` remains unless explicitly accepted.
-- [ ] Verify Vite UI-specific classes and tokens used by migrated components are present in built CSS.
-- [ ] Run final browser verification matrix.
-- [ ] Run final targeted command verification.
-- [ ] Run codex review after verification and before commit.
-- [ ] Commit.
+- [x] Re-run Vite-vs-Next UI parity audit across auth, chat, replay, and share.
+- [x] Verify no temporary English auth UI remains.
+- [x] Verify no old Next shell branding such as `Forma` remains unless explicitly accepted.
+- [x] Verify Vite UI-specific classes and tokens used by migrated components are present in built CSS.
+- [x] Run final browser verification matrix.
+- [x] Run final targeted command verification.
+- [x] Run codex review after verification and before commit.
+- [x] Commit.
