@@ -31,6 +31,7 @@ import {
   type PlaygroundThreadDto
 } from '@/features/durable-chat/repo/chat-api';
 import { persistSelectedRunId, readPersistedRunId } from '@/features/durable-chat/repo/run-selection-storage';
+import { normalizePlaygroundStreamEvent, parsePlaygroundSseChunk } from '@/features/durable-chat/schema/playground-stream';
 import {
   runCreateThreadRecord,
   runInitializeRuntime,
@@ -663,6 +664,20 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     );
   }
 
+  function applyThreadTitleUpdated(threadId: string, title: string, updatedAt: string) {
+    setThreads((current) =>
+      current.map((thread) =>
+        thread.id === threadId
+          ? {
+              ...thread,
+              title,
+              updatedAt
+            }
+          : thread
+      )
+    );
+  }
+
   async function renameActiveThread() {
     const threadId = activeThreadIdRef.current;
     const currentTitle = activeThread?.title?.trim() ?? '';
@@ -1060,6 +1075,11 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         setTimelineLoading
       }
     });
+    try {
+      await refreshThreads();
+    } catch {
+      // Thread title refresh is a best-effort fallback after the durable turn reconciles.
+    }
   }
 
   async function createThreadRecord() {
@@ -1115,6 +1135,17 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         pendingNewThreadLoadingId: PENDING_NEW_THREAD_LOADING_ID,
         reconcileCompletedTurn,
         replaceCurrentPath
+      },
+      stream: {
+        parseChunk: parsePlaygroundSseChunk,
+        onEvent: (event) => {
+          const playgroundEvent = normalizePlaygroundStreamEvent(event);
+          if (!playgroundEvent) {
+            return;
+          }
+
+          applyThreadTitleUpdated(playgroundEvent.threadId, playgroundEvent.title, playgroundEvent.updatedAt);
+        }
       }
     });
   }

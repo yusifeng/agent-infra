@@ -12,7 +12,7 @@ It is intentionally narrow:
 The goal is not to cover every possible host or database.
 It records the setup that is already proven in this repository, so the next rollout does not need to rediscover the same constraints.
 
-## Current validated endpoints
+## Current deployment and smoke targets
 
 The current validated production domain is:
 
@@ -22,14 +22,21 @@ The validated preview shape is:
 
 - Vercel preview deployment for the `playground-next-web` project
 
-The following loop is already proven end-to-end:
+The deployment smoke command is expected to cover:
 
-- `/new`
+- authenticated `/new`
+- authenticated `/chat/:threadId`
+- authenticated `/replay/:threadId`
 - `GET /api/meta`
-- `GET /api/threads`
-- `POST /api/threads`
-- `POST /api/threads/:threadId/runs/stream`
-- `GET /api/threads/:threadId/messages`
+- authenticated `GET /api/threads`
+- authenticated `POST /api/threads`
+- authenticated `POST /api/threads/:threadId/runs/stream`
+- authenticated `GET /api/threads/:threadId/messages`
+
+Running that smoke requires `PLAYGROUND_NEXT_WEB_SMOKE_EMAIL` and
+`PLAYGROUND_NEXT_WEB_SMOKE_PASSWORD`; without them the script stops before
+calling deployment APIs so it cannot accidentally validate the removed anonymous
+flow.
 
 Additional Next routes covered by local build/tests, but still requiring
 deployment smoke validation on the target Vercel project:
@@ -174,10 +181,15 @@ Optional checks:
 - `PLAYGROUND_NEXT_WEB_SMOKE_EMAIL`
 - `PLAYGROUND_NEXT_WEB_SMOKE_PASSWORD`
 
-When both smoke auth variables are set, the smoke signs in through
-`POST /api/auth/sign-in` and reuses the returned session cookie for the thread,
-stream, and message checks. When they are absent, it keeps the pre-auth anonymous
-flow so current deployments can still be validated before `/api/threads` is
+The smoke is now always auth-aware. Set both smoke auth variables before running
+it:
+
+- `PLAYGROUND_NEXT_WEB_SMOKE_EMAIL`
+- `PLAYGROUND_NEXT_WEB_SMOKE_PASSWORD`
+
+The smoke signs in through `POST /api/auth/sign-in` and reuses the returned
+session cookie for the page, thread, stream, and message checks. The old
+anonymous thread smoke path is intentionally removed because `/api/threads` is
 session-gated.
 
 The smoke validates:
@@ -185,11 +197,10 @@ The smoke validates:
 - `/api/meta`
 - `/api/threads`
 - thread creation
+- `/chat/:threadId`
+- `/replay/:threadId`
 - `runs/stream`
 - persisted user and assistant messages
-
-Before `/api/threads` is session-gated, configure the smoke auth variables for
-the target deployment and keep this command green with an authenticated session.
 
 Preview deployments may still be protected by Vercel Authentication.
 If so, use a production domain or an otherwise reachable deployment URL for the smoke command.

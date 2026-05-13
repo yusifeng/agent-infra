@@ -77,7 +77,10 @@ async function signInForSmoke(baseUrl) {
   const password = process.env.PLAYGROUND_NEXT_WEB_SMOKE_PASSWORD;
 
   if (!email || !password) {
-    return null;
+    throw new Error(
+      'Authenticated deployment smoke requires PLAYGROUND_NEXT_WEB_SMOKE_EMAIL and PLAYGROUND_NEXT_WEB_SMOKE_PASSWORD. ' +
+        'Create a deployed smoke user, set both variables, and rerun the smoke command.'
+    );
   }
 
   const url = `${baseUrl}/api/auth/sign-in`;
@@ -237,6 +240,10 @@ async function main() {
     headers: authHeaders
   });
 
+  await fetchText(`${baseUrl}/replay/${encodeURIComponent(threadId)}`, {
+    headers: authHeaders
+  });
+
   const events = await collectSseEvents(`${baseUrl}/api/threads/${threadId}/runs/stream`, {
     method: 'POST',
     headers: mergeHeaders(authHeaders, {
@@ -281,7 +288,7 @@ async function main() {
     JSON.stringify(
       {
         assistantPreview: assistantText.slice(0, 120),
-        authenticated: Boolean(cookieHeader),
+        authenticated: true,
         dbMode: meta.dbMode,
         eventTypes,
         threadId

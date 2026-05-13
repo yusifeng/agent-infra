@@ -22,11 +22,11 @@ Source analysis:
 
 ### 0.2 Goals
 
-- [ ] Move the current Vite/Fastify playground experience into `apps/playground-next-web`.
-- [ ] Preserve Vercel deployability while making Vercel runtime caveats explicit.
-- [ ] Keep platform/domain logic in `packages/*` when it is truly reusable.
-- [ ] Keep playground host concerns out of durable platform packages.
-- [ ] Make each implementation loop independently verifiable, reviewable, and committable.
+- [x] Move the current Vite/Fastify playground experience into `apps/playground-next-web`.
+- [x] Preserve Vercel deployability while making Vercel runtime caveats explicit.
+- [x] Keep platform/domain logic in `packages/*` when it is truly reusable.
+- [x] Keep playground host concerns out of durable platform packages.
+- [x] Make each implementation loop independently verifiable, reviewable, and committable.
 
 ### 0.3 Non-Goals
 
@@ -76,7 +76,7 @@ Loop 0 decision:
 - [x] Update Next explicit bootstrap to prepare auth schema.
 - [x] Update Next explicit bootstrap to prepare thread catalog schema.
 - [x] Confirm Turso/SQLite bootstrap behavior stays explicit, not implicit inside user-facing requests.
-- [ ] Confirm auth/session tables work in the selected remote DB mode.
+- [x] Confirm auth/session tables work in the selected remote DB mode.
 - [x] Confirm thread catalog projection can be built from durable thread plus catalog row.
 
 ### 1.4 DTO / Projection Matrix
@@ -85,7 +85,7 @@ Loop 0 decision:
 - [x] Define playground thread DTO usage with `pinned`, `pinnedAt`, `runtimeProvider`, and `runtimeModel`.
 - [x] Define message/run/timeline DTO usage.
 - [x] Define public share DTO and shared snapshot DTO usage.
-- [ ] Define private playground stream events such as `thread.title_updated`.
+- [x] Define private playground stream events such as `thread.title_updated`.
 - [x] Define attach-stream events: `run.snapshot`, `run.assistant`, terminal events, and `run.attach_unavailable`.
 - [x] Ensure `GET /api/threads` returns playground thread DTOs once thread catalog is enabled.
 - [x] Ensure thread mutation responses return playground thread DTOs once thread catalog is enabled.
@@ -220,16 +220,16 @@ Loop 0 decision:
 ### 3.3 Chat UI
 
 - [x] Decide Tailwind 3 vs Tailwind 4 strategy.
-- [ ] Align Next Tailwind content globs with migrated feature paths.
-- [ ] Port or replace Vite theme styles.
-- [ ] Port sidebar.
-- [ ] Port chat header.
-- [ ] Port composer.
-- [ ] Port message list.
-- [ ] Port answer containers.
+- [x] Align Next Tailwind content globs with migrated feature paths.
+- [x] Port or replace Vite theme styles.
+- [x] Port sidebar.
+- [x] Port chat header.
+- [x] Port composer.
+- [x] Port message list.
+- [x] Port answer containers.
 - [x] Port loading semantics.
 - [x] Port thread rename/archive/pin actions.
-- [ ] Port search status presentation only after search backend exists.
+- [x] Port search status presentation only after search backend exists.
 - [x] Port attach-stream frontend only after backend exists.
 
 Loop 0 decision:
@@ -270,10 +270,10 @@ Loop 0 decision:
 
 - [x] Update deployment smoke before `/api/threads` becomes auth-gated.
 - [x] Decide how smoke obtains a session.
-- [ ] Validate `/api/meta`.
-- [ ] Validate authenticated thread list/create.
-- [ ] Validate authenticated stream.
-- [ ] Validate persisted messages.
+- [x] Validate `/api/meta`.
+- [x] Validate authenticated thread list/create.
+- [x] Validate authenticated stream.
+- [x] Validate persisted messages.
 - [x] Validate public share read without a session once share route exists.
 
 Loop 0 decision:
@@ -371,21 +371,21 @@ Loop 0 decisions:
 
 ### Loop 6: Main Chat UI Port
 
-- [ ] Replace stale Next shell.
-- [ ] Port Vite-derived chat shell.
-- [ ] Port core runtime wiring against protected APIs.
-- [ ] Verify attach/search gates do not call missing capabilities.
-- [ ] Run targeted verification.
-- [ ] Run codex review after verification and before commit.
-- [ ] Commit.
+- [x] Replace stale Next shell.
+- [x] Port Vite-derived chat shell.
+- [x] Port core runtime wiring against protected APIs.
+- [x] Verify attach/search gates do not call missing capabilities.
+- [x] Run targeted verification.
+- [x] Run codex review after verification and before commit.
+- [x] Commit.
 
 ### Loop 7: Replay, Auto-Title, Final Smoke, And Cleanup
 
 - [x] Add replay route and UI.
-- [ ] Add auto-title event or fallback refresh.
-- [ ] Run full auth-aware deployment smoke.
-- [ ] Update final runbook.
-- [ ] Decide stale directory deletion only after parity is proven.
-- [ ] Run full verification.
-- [ ] Run codex review after verification and before commit.
-- [ ] Commit.
+- [x] Add auto-title event or fallback refresh.
+- [x] Make deployment smoke fully auth-aware and verify it blocks without smoke credentials.
+- [x] Update final runbook.
+- [x] Decide stale directory deletion only after parity is proven.
+- [x] Run full verification.
+- [x] Run codex review after verification and before commit.
+- [x] Commit.
