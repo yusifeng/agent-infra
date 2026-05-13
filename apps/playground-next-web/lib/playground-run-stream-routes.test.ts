@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   Message,
   MessagePart,
-  Run
+  Run,
+  Thread
 } from '@agent-infra/core';
 import type {
   RunAttachStreamEventDto,
@@ -42,6 +43,20 @@ function createRun(overrides: Partial<Run> = {}): Run {
   };
 }
 
+function createThread(overrides: Partial<Thread> = {}): Thread {
+  return {
+    id: 'thread-1',
+    appId: 'playground',
+    userId: null,
+    title: 'New Thread',
+    status: 'active',
+    metadata: null,
+    createdAt: now(),
+    updatedAt: now(),
+    ...overrides
+  };
+}
+
 function createRunDto(overrides: Partial<RunDto> = {}): RunDto {
   return {
     id: 'run-1',
@@ -76,6 +91,30 @@ function createUserMessage(): Message & { parts: MessagePart[] } {
         partIndex: 0,
         type: 'text',
         textValue: 'hello',
+        jsonValue: null,
+        createdAt: now()
+      }
+    ]
+  };
+}
+
+function createAssistantMessage(): Message & { parts: MessagePart[] } {
+  return {
+    id: 'message-2',
+    threadId: 'thread-1',
+    runId: 'run-1',
+    role: 'assistant',
+    seq: 2,
+    status: 'completed',
+    metadata: null,
+    createdAt: now(),
+    parts: [
+      {
+        id: 'part-2',
+        messageId: 'message-2',
+        partIndex: 0,
+        type: 'text',
+        textValue: 'Here is the answer.',
         jsonValue: null,
         createdAt: now()
       }
@@ -153,26 +192,57 @@ function mockRuntimeServices(overrides: {
   isPlaygroundWebSearchConfigured?: ReturnType<typeof vi.fn>;
 } = {}) {
   const runTurn = vi.fn().mockResolvedValue(undefined);
+  const prepare = vi.fn().mockResolvedValue({
+    provider: 'openai',
+    model: 'gpt-4o-mini'
+  });
+  const generateText = vi.fn().mockResolvedValue({
+    provider: 'openai',
+    model: 'gpt-4o-mini',
+    text: 'Generated Thread Title'
+  });
   const startText = vi.fn().mockResolvedValue({
-    run: createRun(),
+    run: createRun({ triggerMessageId: 'message-1' }),
     userMessage: createUserMessage(),
     runtimeSelection: {
       provider: 'openai',
       model: 'gpt-4o-mini'
     }
   });
+  const rename = vi.fn().mockResolvedValue(createThread({
+    title: 'Generated Thread Title',
+    updatedAt: new Date('2026-01-01T00:00:10.000Z')
+  }));
+  const findThreadById = vi.fn().mockResolvedValue(createThread());
+  const listMessagesByThread = vi.fn().mockResolvedValue([createUserMessage(), createAssistantMessage()]);
+  const findRunById = vi.fn().mockResolvedValue(createRun({
+    status: 'completed',
+    triggerMessageId: 'message-1'
+  }));
   const services = {
     app: {
+      threads: {
+        rename
+      },
       turns: {
         startText
       }
     },
     durableRuntime: {
+      generateText,
+      prepare,
       runTurn
     },
     repos: {
-      runRepo: {},
-      messageRepo: {},
+      runRepo: {
+        findById: findRunById
+      },
+      messageRepo: {
+        listByThread: listMessagesByThread
+      },
+      threadRepo: {
+        findById: findThreadById
+      },
       toolRepo: {},
       runEventRepo: {}
     }
@@ -187,7 +257,13 @@ function mockRuntimeServices(overrides: {
 
   return {
     getPlaygroundRuntimeServices,
+    findRunById,
+    findThreadById,
+    generateText,
     isPlaygroundWebSearchConfigured,
+    listMessagesByThread,
+    prepare,
+    rename,
     runTurn,
     services,
     startText
@@ -363,6 +439,99 @@ describe('playground run stream route', () => {
     const completedEvents = events.filter((event) => event.type === 'run.completed');
     expect(events.map((event) => event.type)).toEqual(['run.ready', 'run.state', 'run.completed', 'run.state']);
     expect(completedEvents).toHaveLength(1);
+  });
+
+  it('emits a private thread title update after a completed run auto-titles the thread', async () => {
+    mockThreadAccess();
+    const completedRun = createRun({ status: 'completed', finishedAt: now() });
+    const { generateText, rename, runTurn } = mockRuntimeServices();
+    runTurn.mockImplementation(async (
+      _repos: unknown,
+      _input: unknown,
+      callbacks: { onPersistedUpdate(update: { run: Run }): void }
+    ) => {
+      callbacks.onPersistedUpdate({ run: completedRun });
+    });
+    const { POST } = await importStreamRoute();
+
+    const response = await POST(new Request('http://localhost/api/threads/thread-1/runs/stream', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'hello' })
+    }), {
+      params: Promise.resolve({ threadId: 'thread-1' })
+    });
+
+    const events = await readSseEvents(response);
+    expect(events.map((event) => event.type)).toEqual(['run.ready', 'run.state', 'run.completed', 'thread.title_updated']);
+    expect(events.at(-1)?.data).toEqual({
+      type: 'thread.title_updated',
+      threadId: 'thread-1',
+      title: 'Generated Thread Title',
+      updatedAt: '2026-01-01T00:00:10.000Z'
+    });
+    expect(generateText).toHaveBeenCalledWith(expect.objectContaining({
+      maxTokens: 48,
+      reasoningEffort: 'off',
+      temperature: 0.2,
+      userPrompt: expect.stringContaining('User question:')
+    }));
+    expect(rename).toHaveBeenCalledWith({
+      threadId: 'thread-1',
+      title: 'Generated Thread Title'
+    });
+  });
+
+  it('does not auto-title when the thread already has a non-default title', async () => {
+    mockThreadAccess();
+    const completedRun = createRun({ status: 'completed', finishedAt: now() });
+    const { findThreadById, generateText, rename, runTurn } = mockRuntimeServices();
+    findThreadById.mockResolvedValue(createThread({ title: 'Existing Title' }));
+    runTurn.mockImplementation(async (
+      _repos: unknown,
+      _input: unknown,
+      callbacks: { onPersistedUpdate(update: { run: Run }): void }
+    ) => {
+      callbacks.onPersistedUpdate({ run: completedRun });
+    });
+    const { POST } = await importStreamRoute();
+
+    const response = await POST(new Request('http://localhost/api/threads/thread-1/runs/stream', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'hello' })
+    }), {
+      params: Promise.resolve({ threadId: 'thread-1' })
+    });
+
+    const events = await readSseEvents(response);
+    expect(events.map((event) => event.type)).toEqual(['run.ready', 'run.state', 'run.completed']);
+    expect(generateText).not.toHaveBeenCalled();
+    expect(rename).not.toHaveBeenCalled();
+  });
+
+  it('keeps the completed stream intact when auto-title generation fails', async () => {
+    mockThreadAccess();
+    const completedRun = createRun({ status: 'completed', finishedAt: now() });
+    const { generateText, rename, runTurn } = mockRuntimeServices();
+    generateText.mockRejectedValue(new Error('title model unavailable'));
+    runTurn.mockImplementation(async (
+      _repos: unknown,
+      _input: unknown,
+      callbacks: { onPersistedUpdate(update: { run: Run }): void }
+    ) => {
+      callbacks.onPersistedUpdate({ run: completedRun });
+    });
+    const { POST } = await importStreamRoute();
+
+    const response = await POST(new Request('http://localhost/api/threads/thread-1/runs/stream', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'hello' })
+    }), {
+      params: Promise.resolve({ threadId: 'thread-1' })
+    });
+
+    const events = await readSseEvents(response);
+    expect(events.map((event) => event.type)).toEqual(['run.ready', 'run.state', 'run.completed']);
+    expect(rename).not.toHaveBeenCalled();
   });
 
   it('emits one terminal failed event when runtime execution fails', async () => {

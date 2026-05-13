@@ -11,13 +11,16 @@ import {
   buildRunStateEvent,
   buildRunTerminalEvent,
   buildRunTextTurnErrorResponse,
-  encodeSseEvent,
   getRouteErrorMessage,
   getRouteErrorStatus,
   parseRunTextTurnInput,
   toRunDto
 } from '@agent-infra/durable-chat-server';
 
+import {
+  createRuntimeThreadTitleGenerator,
+  maybeAutoTitleThread
+} from '@/features/thread-title/auto-thread-title';
 import { getPlaygroundRunStreamHub } from '@/lib/playground-run-stream-hub';
 import {
   bindRuntimeIfUnset,
@@ -26,10 +29,36 @@ import {
   resolveThreadRuntimeBinding
 } from '@/lib/playground-thread-access';
 
+type ThreadTitleUpdatedEventDto = {
+  type: 'thread.title_updated';
+  threadId: string;
+  title: string;
+  updatedAt: string;
+};
+
+type StreamWritableEventDto = RunStreamEventDto | ThreadTitleUpdatedEventDto;
+
+function buildThreadTitleUpdatedEvent(input: {
+  threadId: string;
+  title: string;
+  updatedAt: string;
+}): ThreadTitleUpdatedEventDto {
+  return {
+    type: 'thread.title_updated',
+    threadId: input.threadId,
+    title: input.title,
+    updatedAt: input.updatedAt
+  };
+}
+
+function encodeStreamSseEvent(payload: StreamWritableEventDto) {
+  return `event: ${payload.type}\ndata: ${JSON.stringify(payload)}\n\n`;
+}
+
 async function writeSseEvent(
   writer: WritableStreamDefaultWriter<Uint8Array>,
   encoder: TextEncoder,
-  payload: RunStreamEventDto,
+  payload: StreamWritableEventDto,
   state: { closed: boolean }
 ) {
   if (state.closed) {
@@ -37,7 +66,7 @@ async function writeSseEvent(
   }
 
   try {
-    await writer.write(encoder.encode(encodeSseEvent(payload)));
+    await writer.write(encoder.encode(encodeStreamSseEvent(payload)));
     return true;
   } catch {
     state.closed = true;
@@ -93,11 +122,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
   const streamState = { closed: false };
   let writeChain = Promise.resolve<unknown>(undefined);
   let finalRunSnapshot: RunStreamFailedEventDto['run'] = null;
+  let finalRunCompleted = false;
   let terminalEventSent = false;
   let streamVersion = 0;
   const runStreamHub = getPlaygroundRunStreamHub();
 
-  const enqueueSseEvent = (payload: RunStreamEventDto) => {
+  const enqueueSseEvent = (payload: StreamWritableEventDto) => {
     writeChain = writeChain.then(() => writeSseEvent(writer, encoder, payload, streamState));
   };
 
@@ -166,6 +196,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
           onPersistedUpdate: (update) => {
             if (update.run) {
               finalRunSnapshot = toRunDto(update.run);
+              finalRunCompleted = update.run.status === 'completed';
               const stateEvent = buildRunStateEvent(runId, update.run);
               enqueueSseEvent(stateEvent);
               publishHubEvent(stateEvent);
@@ -186,6 +217,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
           }
         }
       );
+
+      if (finalRunCompleted) {
+        const autoTitleResult = await maybeAutoTitleThread({
+          services,
+          threadId,
+          runId,
+          generator: createRuntimeThreadTitleGenerator(services.durableRuntime)
+        });
+
+        if (autoTitleResult.outcome === 'renamed') {
+          enqueueSseEvent(buildThreadTitleUpdatedEvent({
+            threadId,
+            title: autoTitleResult.title,
+            updatedAt: autoTitleResult.updatedAt
+          }));
+        }
+      }
     } catch (error) {
       if (!terminalEventSent) {
         const failedEvent: RunStreamFailedEventDto = {
