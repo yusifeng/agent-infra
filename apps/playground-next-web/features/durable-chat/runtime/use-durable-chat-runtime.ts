@@ -1217,6 +1217,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
 
   function startNewChat() {
     stopViewingLiveResponse();
+    resetDraftThreadState();
     setDurableRecoveryState({
       phase: 'idle',
       message: null
