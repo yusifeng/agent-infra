@@ -107,10 +107,17 @@ Current `AgentEvent` union from `pi-agent-core`:
 
 - `turn_start`
 - `turn_end`
-- `message_update`
 - `tool_execution_update`
 
 These events are not dropped. They are currently preserved through `run_events` and can be rendered in the run log, but they do not yet update additional durable projections.
+
+### Live-only in the current runtime contract
+
+- assistant `message_update`
+
+Assistant `message_update` events are received by `runtime-pi` and used to drive live assistant draft updates over stream transports, but they are not persisted as durable `run_events` in the current contract. Final assistant content still settles through durable `message` / `message_part` writes at `message_end`.
+
+This keeps per-token or per-delta stream traffic out of SQL while preserving durable lifecycle and terminal facts. If durable assistant checkpoints are added later, they must define an explicit payload shape, checkpoint cadence, and event-volume boundary instead of silently turning every stream delta into a persisted event.
 
 ## What Is Already Good Enough For `v0`
 
@@ -193,15 +200,16 @@ In other words:
 
 ## Why `message_update` Matters
 
-`message_update` is the key bridge between observability and live output.
+`message_update` is the key bridge between live output and eventual durable transcript settlement.
 
 Today it is already:
 
 - received from `pi-agent-core`
-- persisted into `run_events`
-- available to SSE consumers as a raw event trace
+- used by `runtime-pi` to update the transient live assistant draft
+- available to SSE / attach-stream consumers as live stream state
 
-What is still missing is formal platform semantics for it as a live transcript signal.
+It is intentionally not a durable `run_event` in the current runtime contract.
+What is still needed is clear platform language for it as a live transcript signal that reconciles back to durable messages on terminal run state.
 
 For `v0`, that should mean:
 
