@@ -1,6 +1,7 @@
 import type { LiveAssistantToolState } from '@agent-infra/durable-chat-client';
 
 import { asRecord, deriveHostname } from '@/features/durable-chat/schema/search-panel';
+import type { ActiveSearchPanelData } from '@/features/durable-chat/types/search';
 import type { AssistantTurnItem, SearchSummaryEntry } from '@/features/durable-chat/types/transcript-blocks';
 
 export type ResearchPendingEntry =
@@ -68,6 +69,35 @@ export type ResearchStatusLabelViewModel = {
     sourceName: string;
   }>;
 };
+
+export type ResearchTimelineSourcePreview = {
+  hostname: string;
+  sourceName: string;
+};
+
+export type ResearchTimelinePagePreview = {
+  title: string;
+  url: string;
+  hostname: string;
+  sourceName: string;
+};
+
+export type ResearchTimelineRow =
+  | {
+      kind: 'search';
+      id: string;
+      state: 'running' | 'completed';
+      label: string;
+      sources: ResearchTimelineSourcePreview[];
+      searchToolCallIds: string[];
+    }
+  | {
+      kind: 'browse';
+      id: string;
+      state: 'running' | 'completed';
+      label: string;
+      pages: ResearchTimelinePagePreview[];
+    };
 
 function isSearchSummaryItem(item: AssistantTurnItem): item is Extract<AssistantTurnItem, { type: 'search-summary' }> {
   return item.type === 'search-summary';
@@ -287,6 +317,130 @@ export function buildResearchSummaryLabelViewModel(summary: ResearchActivityView
   };
 }
 
+function dedupeSources(sources: ResearchTimelineSourcePreview[]) {
+  return Array.from(new Map(sources.map((source) => [`${source.hostname}:${source.sourceName}`, source])).values());
+}
+
+function normalizeHttpUrl(rawUrl: string) {
+  const url = rawUrl.trim();
+  if (!url) {
+    return null;
+  }
+
+  try {
+    const parsedUrl = new URL(url);
+    return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:' ? parsedUrl.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function createPagePreview(args: {
+  title?: string | null;
+  url: string;
+  hostname?: string | null;
+  sourceName?: string | null;
+}): ResearchTimelinePagePreview | null {
+  const url = normalizeHttpUrl(args.url);
+  if (!url) {
+    return null;
+  }
+
+  const hostname = args.hostname?.trim() || deriveHostname(url);
+  const sourceName = args.sourceName?.trim() || hostname || url;
+  const title = args.title?.trim() || sourceName || url;
+
+  return {
+    title,
+    url,
+    hostname,
+    sourceName
+  };
+}
+
+function panelDataSources(panelData: ActiveSearchPanelData) {
+  const results = panelData.sections.flatMap((section) => section.results);
+  return dedupeSources(
+    panelData.sourceNames
+      .map((sourceName) => {
+        const result = results.find((candidate) => candidate.sourceName === sourceName);
+        return result
+          ? {
+              hostname: result.hostname,
+              sourceName
+            }
+          : null;
+      })
+      .filter((entry): entry is ResearchTimelineSourcePreview => Boolean(entry))
+  );
+}
+
+export function buildResearchTimelineRowsFromActivity(
+  activity: ResearchActivityViewModel,
+  options: { includePending?: boolean } = {}
+): ResearchTimelineRow[] {
+  const rows: ResearchTimelineRow[] = [];
+  const includePending = options.includePending ?? true;
+  const pendingSearchCount = activity.pendingEntries.filter((entry) => entry.kind === 'search').length;
+  const pendingOpenEntries = activity.pendingEntries.filter((entry): entry is Extract<ResearchPendingEntry, { kind: 'open' }> => entry.kind === 'open');
+  const totalResults = activity.searches.reduce((total, entry) => total + entry.resultCount, 0);
+
+  if (includePending && pendingSearchCount > 0) {
+    rows.push({
+      kind: 'search',
+      id: 'search:running',
+      state: 'running',
+      label: pendingSearchCount === 1 ? '正在搜索网页' : `正在搜索 ${pendingSearchCount} 个查询`,
+      sources: [],
+      searchToolCallIds: []
+    });
+  }
+
+  if (totalResults > 0) {
+    rows.push({
+      kind: 'search',
+      id: `search:completed:${activity.searchToolCallIds.join(',')}`,
+      state: 'completed',
+      label: `搜索到 ${totalResults} 个网页`,
+      sources: dedupeSources(activity.searches.flatMap((entry) => entry.sources)).slice(0, 4),
+      searchToolCallIds: activity.searchToolCallIds
+    });
+  }
+
+  if (includePending && pendingOpenEntries.length > 0) {
+    rows.push({
+      kind: 'browse',
+      id: 'browse:running',
+      state: 'running',
+      label: pendingOpenEntries.length === 1 ? '正在浏览页面' : `正在浏览 ${pendingOpenEntries.length} 个页面`,
+      pages: pendingOpenEntries
+        .map((entry) => createPagePreview({ url: entry.url }))
+        .filter((entry): entry is ResearchTimelinePagePreview => Boolean(entry))
+    });
+  }
+
+  if (activity.openedPages.length > 0) {
+    rows.push({
+      kind: 'browse',
+      id: `browse:completed:${activity.openedPages.map((entry) => entry.toolCallId).join(',')}`,
+      state: 'completed',
+      label: `浏览 ${activity.openedPages.length} 个页面`,
+      pages: activity.openedPages
+        .map((entry) =>
+          createPagePreview({
+            title: entry.title,
+            url: entry.finalUrl,
+            hostname: entry.hostname,
+            sourceName: entry.siteName || entry.hostname || entry.title
+          })
+        )
+        .filter((entry): entry is ResearchTimelinePagePreview => Boolean(entry))
+    });
+  }
+
+  return rows;
+}
+
 export function buildResearchStatusLabelViewModel(summary: ResearchActivityViewModel): ResearchStatusLabelViewModel | null {
   const pendingSearchCount = summary.pendingEntries.filter((entry) => entry.kind === 'search').length;
   const pendingOpenCount = summary.pendingEntries.filter((entry) => entry.kind === 'open').length;
@@ -349,6 +503,65 @@ export function collectCompletedLiveSearchToolCallIds(tools: LiveAssistantToolSt
       .filter((entry) => entry.kind === 'search' && entry.state === 'completed')
       .map((entry) => entry.toolCallId)
   )];
+}
+
+export function buildLiveResearchTimelineRows(
+  tools: LiveAssistantToolState[],
+  panelData?: ActiveSearchPanelData | null
+): ResearchTimelineRow[] {
+  const rows: ResearchTimelineRow[] = [];
+  const entries = collectLiveResearchEntries(tools);
+  const pendingSearchCount = entries.filter((entry) => entry.kind === 'search' && entry.state === 'start').length;
+  const pendingOpenEntries = entries.filter((entry) => entry.kind === 'open' && entry.state === 'start');
+  const completedOpenEntries = entries.filter((entry) => entry.kind === 'open' && entry.state === 'completed');
+
+  if (pendingSearchCount > 0) {
+    rows.push({
+      kind: 'search',
+      id: 'live-search:running',
+      state: 'running',
+      label: pendingSearchCount === 1 ? '正在搜索网页' : `正在搜索 ${pendingSearchCount} 个查询`,
+      sources: [],
+      searchToolCallIds: []
+    });
+  }
+
+  if (panelData && panelData.resultCount > 0) {
+    rows.push({
+      kind: 'search',
+      id: `live-search:completed:${panelData.toolCallIds.join(',')}`,
+      state: 'completed',
+      label: `搜索到 ${panelData.resultCount} 个网页`,
+      sources: panelDataSources(panelData).slice(0, 4),
+      searchToolCallIds: panelData.toolCallIds
+    });
+  }
+
+  if (pendingOpenEntries.length > 0) {
+    rows.push({
+      kind: 'browse',
+      id: 'live-browse:running',
+      state: 'running',
+      label: pendingOpenEntries.length === 1 ? '正在浏览页面' : `正在浏览 ${pendingOpenEntries.length} 个页面`,
+      pages: pendingOpenEntries
+        .map((entry) => createPagePreview({ url: entry.label }))
+        .filter((entry): entry is ResearchTimelinePagePreview => Boolean(entry))
+    });
+  }
+
+  if (completedOpenEntries.length > 0) {
+    rows.push({
+      kind: 'browse',
+      id: `live-browse:completed:${completedOpenEntries.map((entry) => entry.toolCallId).join(',')}`,
+      state: 'completed',
+      label: `浏览 ${completedOpenEntries.length} 个页面`,
+      pages: completedOpenEntries
+        .map((entry) => createPagePreview({ url: entry.label }))
+        .filter((entry): entry is ResearchTimelinePagePreview => Boolean(entry))
+    });
+  }
+
+  return rows;
 }
 
 export function buildLiveResearchStatusLabelViewModel(tools: LiveAssistantToolState[]): ResearchStatusLabelViewModel | null {

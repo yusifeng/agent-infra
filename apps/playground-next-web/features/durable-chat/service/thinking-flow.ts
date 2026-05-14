@@ -1,7 +1,7 @@
 import {
   buildResearchActivityViewModel,
-  buildResearchStatusLabelViewModel,
-  buildResearchSummaryLabelViewModel
+  buildResearchTimelineRowsFromActivity,
+  type ResearchTimelineRow
 } from '@/features/durable-chat/service/research-activity';
 import {
   buildVisibleLiveAssistantSegments
@@ -13,7 +13,7 @@ import type { AssistantTurnItem, TranscriptBlock } from '@/features/durable-chat
 export type PersistedResearchToken = {
   kind: 'persisted-research';
   id: string;
-  item: Extract<AssistantTurnItem, { type: 'search-status' | 'search-summary' }>;
+  items: AssistantTurnItem[];
   runId: string | null;
 };
 
@@ -21,7 +21,7 @@ export type LiveSummaryToken = {
   kind: 'live-summary';
   id: string;
   runId: string | null;
-  searchEntries: NonNullable<ReturnType<typeof buildResearchStatusLabelViewModel>>;
+  rows: ResearchTimelineRow[];
 };
 
 export type ReasoningToken = {
@@ -124,11 +124,8 @@ export function buildThinkingFlowSections(tokens: ThinkingFlowToken[], openTrail
 }
 
 function isPersistedResearchEntryVisible(entry: PersistedResearchToken, showPersistedResearchStatus: boolean) {
-  const activity = buildResearchActivityViewModel([entry.item]);
-  return Boolean(
-    (showPersistedResearchStatus ? buildResearchStatusLabelViewModel(activity) : null) ||
-      buildResearchSummaryLabelViewModel(activity)
-  );
+  const activity = buildResearchActivityViewModel(entry.items);
+  return buildResearchTimelineRowsFromActivity(activity, { includePending: showPersistedResearchStatus }).length > 0;
 }
 
 export function isThinkingFlowSectionVisible(section: ThinkingFlowSection, showPersistedResearchStatus: boolean) {
@@ -151,9 +148,27 @@ export function isThinkingFlowSectionVisible(section: ThinkingFlowSection, showP
 
 export function buildPersistedThinkingTokens(items: AssistantTurnItem[], runId: string | null): ThinkingFlowToken[] {
   const tokens: ThinkingFlowToken[] = [];
+  let pendingResearchItems: AssistantTurnItem[] = [];
+  let pendingResearchId: string | null = null;
+
+  function flushPendingResearchItems() {
+    if (!pendingResearchItems.length || !pendingResearchId) {
+      return;
+    }
+
+    tokens.push({
+      kind: 'persisted-research',
+      id: pendingResearchId,
+      items: pendingResearchItems,
+      runId
+    });
+    pendingResearchItems = [];
+    pendingResearchId = null;
+  }
 
   for (const item of items) {
     if (item.type === 'reasoning') {
+      flushPendingResearchItems();
       const text = item.part.textValue?.trim();
       if (text) {
         tokens.push({
@@ -165,17 +180,16 @@ export function buildPersistedThinkingTokens(items: AssistantTurnItem[], runId: 
       continue;
     }
 
-    if (item.type === 'search-status' || item.type === 'search-summary') {
-      tokens.push({
-        kind: 'persisted-research',
-        id: item.id,
-        item,
-        runId
-      });
+    if (item.type === 'search-status' || item.type === 'search-summary' || item.type === 'tool-part') {
+      if (!pendingResearchItems.length) {
+        pendingResearchId = item.id;
+      }
+      pendingResearchItems.push(item);
       continue;
     }
 
     if (item.type === 'text') {
+      flushPendingResearchItems();
       tokens.push({
         kind: 'persisted-text',
         id: item.id,
@@ -184,6 +198,7 @@ export function buildPersistedThinkingTokens(items: AssistantTurnItem[], runId: 
     }
   }
 
+  flushPendingResearchItems();
   return tokens;
 }
 
@@ -200,7 +215,7 @@ export function buildLiveThinkingTokens(
   const tokens: ThinkingFlowToken[] = [];
   const visibleSegments = buildVisibleLiveAssistantSegments(liveAssistantDraft, getLiveSearchPanelData);
 
-  for (const { segment, searchEntries } of visibleSegments) {
+  for (const { segment, researchRows } of visibleSegments) {
     const reasoning = segment.reasoning?.trim();
     if (reasoning) {
       tokens.push({
@@ -219,12 +234,12 @@ export function buildLiveThinkingTokens(
       });
     }
 
-    if (searchEntries) {
+    if (researchRows.length > 0) {
       tokens.push({
         kind: 'live-summary',
         id: `${segment.id}:research`,
         runId: liveAssistantDraft.runId,
-        searchEntries
+        rows: researchRows
       });
     }
   }

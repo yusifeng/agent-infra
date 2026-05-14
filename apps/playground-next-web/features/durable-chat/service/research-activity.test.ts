@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest';
 import type { MessagePartDto } from '@agent-infra/contracts';
 
 import {
+  buildLiveResearchTimelineRows,
   buildLiveResearchStatusLabelViewModel,
   buildResearchActivityViewModel,
-  buildResearchSummaryLabelViewModel
+  buildResearchSummaryLabelViewModel,
+  buildResearchTimelineRowsFromActivity
 } from '@/features/durable-chat/service/research-activity';
 import type { AssistantTurnItem } from '@/features/durable-chat/types/transcript-blocks';
 
@@ -113,6 +115,31 @@ describe('research-activity', () => {
       sourceName: 'Example Wiki',
       title: '速水玲香 - 人物条目'
     });
+
+    expect(buildResearchTimelineRowsFromActivity(activity)).toEqual([
+      {
+        kind: 'search',
+        id: 'search:completed:call-search-1',
+        state: 'completed',
+        label: '搜索到 10 个网页',
+        sources: [{ sourceName: '百度百科', hostname: 'baike.baidu.com' }],
+        searchToolCallIds: ['call-search-1']
+      },
+      {
+        kind: 'browse',
+        id: 'browse:completed:call-open-1',
+        state: 'completed',
+        label: '浏览 1 个页面',
+        pages: [
+          {
+            title: '速水玲香 - 人物条目',
+            url: 'https://example.com/character',
+            hostname: 'example.com',
+            sourceName: 'Example Wiki'
+          }
+        ]
+      }
+    ]);
   });
 
   it('does not build a user-visible summary from policy-only entries', () => {
@@ -189,6 +216,261 @@ describe('research-activity', () => {
     });
   });
 
+  it('builds separate live timeline rows without exposing completed-search fallback text', () => {
+    const rows = buildLiveResearchTimelineRows(
+      [
+        {
+          toolCallId: 'call-search-1',
+          toolName: 'searchWeb',
+          phase: 'completed',
+          input: { query: '速水玲香 金田一少年事件簿' }
+        },
+        {
+          toolCallId: 'call-open-1',
+          toolName: 'openUrl',
+          phase: 'completed',
+          input: { url: 'https://example.com/character' }
+        }
+      ],
+      {
+        runId: 'run-1',
+        toolCallIds: ['call-search-1'],
+        provider: 'test',
+        resultCount: 10,
+        sourceNames: ['Example Wiki'],
+        sections: [
+          {
+            toolCallId: 'call-search-1',
+            query: '速水玲香 金田一少年事件簿',
+            resultCount: 10,
+            results: [
+              {
+                rank: 1,
+                title: '速水玲香 - 人物条目',
+                url: 'https://example.com/character',
+                snippet: '人物介绍',
+                sourceName: 'Example Wiki',
+                hostname: 'example.com'
+              }
+            ]
+          }
+        ]
+      }
+    );
+
+    expect(rows).toEqual([
+      {
+        kind: 'search',
+        id: 'live-search:completed:call-search-1',
+        state: 'completed',
+        label: '搜索到 10 个网页',
+        sources: [{ sourceName: 'Example Wiki', hostname: 'example.com' }],
+        searchToolCallIds: ['call-search-1']
+      },
+      {
+        kind: 'browse',
+        id: 'live-browse:completed:call-open-1',
+        state: 'completed',
+        label: '浏览 1 个页面',
+        pages: [
+          {
+            title: 'example.com',
+            url: 'https://example.com/character',
+            hostname: 'example.com',
+            sourceName: 'example.com'
+          }
+        ]
+      }
+    ]);
+    expect(rows.map((row) => row.label)).not.toContain('已完成搜索');
+  });
+
+  it('omits live completed search rows until result counts are available', () => {
+    const rows = buildLiveResearchTimelineRows([
+      {
+        toolCallId: 'call-search-1',
+        toolName: 'searchWeb',
+        phase: 'completed',
+        input: { query: '速水玲香 金田一少年事件簿' }
+      }
+    ]);
+
+    expect(rows).toEqual([]);
+  });
+
+  it('keeps running and completed persisted timeline rows visible in mixed states', () => {
+    const items: AssistantTurnItem[] = [
+      {
+        type: 'search-status',
+        id: 'search-status-1',
+        status: {
+          runId: 'run-1',
+          entries: [{ toolCallId: 'call-search-pending', query: 'pending query' }]
+        }
+      },
+      {
+        type: 'search-summary',
+        id: 'search-summary-1',
+        summary: {
+          runId: 'run-1',
+          entries: [
+            {
+              toolCallId: 'call-search-1',
+              query: 'completed query',
+              resultCount: 10,
+              sourceNames: ['Example Wiki'],
+              sources: [{ sourceName: 'Example Wiki', hostname: 'example.com' }]
+            }
+          ]
+        }
+      },
+      {
+        type: 'tool-part',
+        id: 'tool-call-open-1',
+        part: createPart({
+          id: 'tool-call-open-1',
+          type: 'tool-call',
+          jsonValue: {
+            toolName: 'openUrl',
+            toolCallId: 'call-open-pending',
+            input: { url: 'https://example.com/pending' }
+          }
+        })
+      },
+      {
+        type: 'tool-part',
+        id: 'tool-result-open-1',
+        part: createPart({
+          id: 'tool-result-open-1',
+          type: 'tool-result',
+          jsonValue: {
+            toolName: 'openUrl',
+            toolCallId: 'call-open-1',
+            details: {
+              status: 'success',
+              url: 'https://example.com/done',
+              finalUrl: 'https://example.com/done',
+              title: 'Completed Page',
+              siteName: 'Example Wiki',
+              contentQuality: 'good'
+            }
+          }
+        })
+      }
+    ];
+
+    const rows = buildResearchTimelineRowsFromActivity(buildResearchActivityViewModel(items));
+
+    expect(rows.map((row) => row.label)).toEqual([
+      '正在搜索网页',
+      '搜索到 10 个网页',
+      '正在浏览页面',
+      '浏览 1 个页面'
+    ]);
+
+    expect(buildResearchTimelineRowsFromActivity(buildResearchActivityViewModel(items), { includePending: false }).map((row) => row.label)).toEqual([
+      '搜索到 10 个网页',
+      '浏览 1 个页面'
+    ]);
+  });
+
+  it('keeps running and completed live timeline rows visible in mixed states', () => {
+    const rows = buildLiveResearchTimelineRows(
+      [
+        {
+          toolCallId: 'call-search-pending',
+          toolName: 'searchWeb',
+          phase: 'start',
+          input: { query: 'pending query' }
+        },
+        {
+          toolCallId: 'call-search-1',
+          toolName: 'searchWeb',
+          phase: 'completed',
+          input: { query: 'completed query' }
+        },
+        {
+          toolCallId: 'call-open-pending',
+          toolName: 'openUrl',
+          phase: 'start',
+          input: { url: 'https://example.com/pending' }
+        },
+        {
+          toolCallId: 'call-open-1',
+          toolName: 'openUrl',
+          phase: 'completed',
+          input: { url: 'https://example.com/done' }
+        }
+      ],
+      {
+        runId: 'run-1',
+        toolCallIds: ['call-search-1'],
+        provider: 'test',
+        resultCount: 10,
+        sourceNames: ['Example Wiki'],
+        sections: [
+          {
+            toolCallId: 'call-search-1',
+            query: 'completed query',
+            resultCount: 10,
+            results: [
+              {
+                rank: 1,
+                title: 'Completed Page',
+                url: 'https://example.com/done',
+                snippet: 'Done',
+                sourceName: 'Example Wiki',
+                hostname: 'example.com'
+              }
+            ]
+          }
+        ]
+      }
+    );
+
+    expect(rows.map((row) => row.label)).toEqual([
+      '正在搜索网页',
+      '搜索到 10 个网页',
+      '正在浏览页面',
+      '浏览 1 个页面'
+    ]);
+  });
+
+  it('does not expose non-http browse URLs as page preview links', () => {
+    const items: AssistantTurnItem[] = [
+      {
+        type: 'tool-part',
+        id: 'tool-result-open-unsafe',
+        part: createPart({
+          id: 'tool-result-open-unsafe',
+          type: 'tool-result',
+          jsonValue: {
+            toolName: 'openUrl',
+            toolCallId: 'call-open-unsafe',
+            details: {
+              status: 'success',
+              url: 'javascript:alert(1)',
+              finalUrl: 'javascript:alert(1)',
+              title: 'Unsafe Page',
+              siteName: 'Unsafe',
+              contentQuality: 'good'
+            }
+          }
+        })
+      }
+    ];
+
+    const rows = buildResearchTimelineRowsFromActivity(buildResearchActivityViewModel(items));
+
+    expect(rows).toMatchObject([
+      {
+        kind: 'browse',
+        label: '浏览 1 个页面',
+        pages: []
+      }
+    ]);
+  });
+
   it('keeps pending entries internal when a matching summary arrives without exposing a persisted status label', () => {
     const items: AssistantTurnItem[] = [
       {
@@ -221,5 +503,6 @@ describe('research-activity', () => {
 
     expect(activity.pendingEntries).toHaveLength(0);
     expect(buildResearchSummaryLabelViewModel(activity)?.text).toBe('搜索到 10 个网页');
+    expect(buildResearchTimelineRowsFromActivity(activity).map((row) => row.label)).toEqual(['搜索到 10 个网页']);
   });
 });

@@ -3,7 +3,7 @@
 import type { MessageDto, MessagePartDto, RuntimePiMetaDto } from '@agent-infra/contracts';
 import { getMessageRenderKey } from '@agent-infra/durable-chat-client';
 import clsx from 'clsx';
-import { Atom, ChevronDown, ChevronRight, Copy, Loader2, RotateCw, Search, Trash2 } from 'lucide-react';
+import { Atom, ChevronDown, ChevronRight, Copy, FileText, Loader2, RotateCw, Search, Trash2 } from 'lucide-react';
 import { memo, useMemo, useState, type CSSProperties } from 'react';
 
 import type { AnswerContainer } from '@/features/durable-chat/types/answer-containers';
@@ -32,8 +32,8 @@ import {
 } from '@/features/durable-chat/service/live-assistant-presentation';
 import {
   buildResearchActivityViewModel,
-  buildResearchStatusLabelViewModel,
-  buildResearchSummaryLabelViewModel
+  buildResearchTimelineRowsFromActivity,
+  type ResearchTimelineRow
 } from '@/features/durable-chat/service/research-activity';
 import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
 import type { DurableRecoveryState } from '@/features/durable-chat/types/runtime';
@@ -47,6 +47,7 @@ const transcriptRowPerformanceStyle: CSSProperties = {
 };
 
 const reasoningMarkdownClassName = 'text-sm leading-7 text-[color:var(--chat-reasoning-text)]';
+const maxInlineBrowsePageCount = 4;
 
 const WelcomeMessage = memo(function WelcomeMessage({ activeThreadId }: { activeThreadId: string | null }) {
   if (!activeThreadId) {
@@ -80,153 +81,120 @@ const ResearchSummaryLabel = memo(function ResearchSummaryLabel({
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
 }) {
   const activity = useMemo(() => buildResearchActivityViewModel(items), [items]);
-  const statusViewModel = useMemo(
-    () => (showPersistedResearchStatus ? buildResearchStatusLabelViewModel(activity) : null),
+  const rows = useMemo(
+    () => buildResearchTimelineRowsFromActivity(activity, { includePending: showPersistedResearchStatus }),
     [activity, showPersistedResearchStatus]
   );
-  const summaryViewModel = useMemo(() => buildResearchSummaryLabelViewModel(activity), [activity]);
-  const [expanded, setExpanded] = useState(false);
 
-  if (!statusViewModel && !summaryViewModel) {
+  if (rows.length === 0) {
     return null;
   }
 
-  return (
-    <div className="space-y-1.5 pt-0.5">
-      {statusViewModel ? (
-        <div className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 text-left text-[13px] text-[color:var(--chat-text-tertiary)]">
-          {statusViewModel.isSearching ? (
-            <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[color:var(--chat-text-tertiary)]" />
-          ) : (
-            <Search className="h-4 w-4 shrink-0 text-[color:var(--chat-text-tertiary)]" />
-          )}
-          <span className="truncate font-normal">{statusViewModel.text}</span>
-        </div>
-      ) : null}
-
-      {summaryViewModel ? (
-      <div className="space-y-1">
-        <button
-          type="button"
-          onClick={() => setExpanded((current) => !current)}
-          className="inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 text-left text-[13px] text-[color:var(--chat-text-tertiary)] transition hover:bg-[var(--chat-hover)] hover:text-[color:var(--chat-text-secondary)]"
-          title="查看搜索与浏览摘要"
-        >
-          <Search className="h-4 w-4 shrink-0 text-[color:var(--chat-text-tertiary)]" />
-          <span className="truncate font-normal">{summaryViewModel.text}</span>
-          {summaryViewModel.sources.length > 0 ? (
-            <span className="flex shrink-0 items-center pl-0.5">
-              {summaryViewModel.sources.map((source, index) => (
-                <SiteIconBadge
-                  key={`${source.hostname}:${source.sourceName}`}
-                  hostname={source.hostname}
-                  label={source.sourceName}
-                  className={clsx('h-4 w-4 border border-white', index === 0 ? '' : '-ml-1')}
-                  fallbackClassName="bg-indigo-100 text-indigo-700"
-                />
-              ))}
-            </span>
-          ) : null}
-          {expanded ? (
-            <ChevronDown className="h-4 w-4 shrink-0 text-[color:var(--chat-icon-muted)]" />
-          ) : (
-            <ChevronRight className="h-4 w-4 shrink-0 text-[color:var(--chat-icon-muted)]" />
-          )}
-        </button>
-
-        {expanded ? (
-          <div className="space-y-2 border-l border-[color:var(--chat-border)] pl-4 text-[13px] text-[color:var(--chat-text-secondary)]">
-            {summaryViewModel.detailQueries.length > 0 ? (
-              <div className="space-y-1">
-                <div className="font-medium text-[color:var(--chat-text)]">搜索查询</div>
-                <ul className="space-y-1">
-                  {summaryViewModel.detailQueries.map((query) => (
-                    <li key={query} className="truncate">- {query}</li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-
-            {summaryViewModel.detailPages.length > 0 ? (
-              <div className="space-y-1">
-                <div className="font-medium text-[color:var(--chat-text)]">浏览页面</div>
-                <ul className="space-y-1">
-                  {summaryViewModel.detailPages.map((page) => (
-                    <li key={`${page.url}:${page.title}`} className="truncate">
-                      - {page.sourceName} · {page.title}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-
-            {runId && onOpenSearchResult && activity.searchToolCallIds.length > 0 ? (
-              <div>
-                <button
-                  type="button"
-                  onClick={() => onOpenSearchResult(runId, activity.searchToolCallIds)}
-                  className="text-[13px] font-medium text-[color:var(--chat-link)] transition hover:opacity-80"
-                >
-                  查看搜索结果
-                </button>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-      ) : null}
-    </div>
-  );
+  return <ResearchTimelineRows onOpenSearchResult={onOpenSearchResult} rows={rows} runId={runId} />;
 });
 
-const LiveResearchLabel = memo(function LiveResearchLabel({
+const ResearchTimelineRows = memo(function ResearchTimelineRows({
   runId,
-  searchEntries,
+  rows,
   onOpenSearchResult
 }: {
   runId: string | null;
-  searchEntries: NonNullable<ReturnType<typeof buildResearchStatusLabelViewModel>>;
+  rows: ResearchTimelineRow[];
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
 }) {
-  const isClickable = Boolean(runId && onOpenSearchResult && searchEntries.searchToolCallIds?.length);
+  const [expandedBrowseRowIds, setExpandedBrowseRowIds] = useState<Set<string>>(() => new Set());
 
   return (
-    <button
-      type="button"
-      disabled={!isClickable}
-      onClick={() => {
-        if (runId && onOpenSearchResult && searchEntries.searchToolCallIds?.length) {
-          onOpenSearchResult(runId, searchEntries.searchToolCallIds);
+    <div className="space-y-2 pt-0.5">
+      {rows.map((row) => {
+        if (row.kind === 'search') {
+          const isClickable = Boolean(runId && onOpenSearchResult && row.searchToolCallIds.length > 0);
+          const content = (
+            <>
+              {row.state === 'running' ? (
+                <Loader2 className="h-5 w-5 shrink-0 animate-spin text-[color:var(--chat-text-tertiary)]" />
+              ) : (
+                <Search className="h-5 w-5 shrink-0 text-[color:var(--chat-text-tertiary)]" />
+              )}
+              <span className="truncate">{row.label}</span>
+              {row.sources.length > 0 ? (
+                <span className="flex shrink-0 items-center pl-0.5">
+                  {row.sources.map((source, index) => (
+                    <SiteIconBadge
+                      key={`${source.hostname}:${source.sourceName}`}
+                      hostname={source.hostname}
+                      label={source.sourceName}
+                      className={clsx('h-5 w-5 border border-white', index === 0 ? '' : '-ml-1.5')}
+                      fallbackClassName="bg-indigo-100 text-indigo-700"
+                    />
+                  ))}
+                </span>
+              ) : null}
+            </>
+          );
+
+          return isClickable ? (
+            <button
+              key={row.id}
+              type="button"
+              onClick={() => onOpenSearchResult?.(runId!, row.searchToolCallIds)}
+              className="inline-flex max-w-full items-center gap-2 py-0.5 text-left text-sm leading-7 text-[color:var(--chat-reasoning-text)] transition hover:text-[color:var(--chat-text-secondary)]"
+              title="查看搜索结果"
+            >
+              {content}
+            </button>
+          ) : (
+            <div key={row.id} className="inline-flex max-w-full items-center gap-2 py-0.5 text-sm leading-7 text-[color:var(--chat-reasoning-text)]">
+              {content}
+            </div>
+          );
         }
-      }}
-      className={clsx(
-        'inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-1 text-left text-[13px] text-[color:var(--chat-text-tertiary)]',
-        isClickable ? 'transition hover:bg-[var(--chat-hover)] hover:text-[color:var(--chat-text-secondary)]' : 'cursor-default'
-      )}
-    >
-      {searchEntries.isSearching ? (
-        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[color:var(--chat-text-tertiary)]" />
-      ) : (
-        <Search className="h-4 w-4 shrink-0 text-[color:var(--chat-text-tertiary)]" />
-      )}
-      <span className="truncate font-normal">{searchEntries.text}</span>
-      {searchEntries.sources?.length ? (
-        <span className="flex shrink-0 items-center pl-0.5">
-          {searchEntries.sources.map((source, index) => (
-            <SiteIconBadge
-              key={`${source.hostname}:${source.sourceName}`}
-              hostname={source.hostname}
-              label={source.sourceName}
-              className={clsx('h-4 w-4 border border-white', index === 0 ? '' : '-ml-1')}
-              fallbackClassName="bg-indigo-100 text-indigo-700"
-            />
-          ))}
-        </span>
-      ) : null}
-      {!searchEntries.isSearching && isClickable ? (
-        <ChevronRight className="h-4 w-4 shrink-0 text-[color:var(--chat-icon-muted)]" />
-      ) : null}
-    </button>
+
+        const expanded = expandedBrowseRowIds.has(row.id);
+        const visiblePages = expanded ? row.pages : row.pages.slice(0, maxInlineBrowsePageCount);
+        const hiddenPageCount = Math.max(0, row.pages.length - visiblePages.length);
+
+        return (
+          <div key={row.id} className="flex max-w-full flex-wrap items-baseline gap-x-3 gap-y-1 py-0.5 text-sm leading-7 text-[color:var(--chat-reasoning-text)]">
+            <span className="inline-flex min-w-0 items-center gap-2">
+              {row.state === 'running' ? (
+                <Loader2 className="h-5 w-5 shrink-0 animate-spin text-[color:var(--chat-text-tertiary)]" />
+              ) : (
+                <FileText className="h-5 w-5 shrink-0 text-[color:var(--chat-text-tertiary)]" />
+              )}
+              <span className="shrink-0">{row.label}</span>
+            </span>
+            {visiblePages.map((page) => (
+              <a
+                key={`${row.id}:${page.url}:${page.title}`}
+                href={page.url}
+                target="_blank"
+                rel="noreferrer"
+                className="max-w-full truncate border-b border-dotted border-[color:var(--chat-text-tertiary)] text-[color:var(--chat-reasoning-text)] transition hover:text-[color:var(--chat-link)]"
+                title={page.url}
+              >
+                {page.title}↗
+              </a>
+            ))}
+            {hiddenPageCount > 0 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setExpandedBrowseRowIds((current) => {
+                    const next = new Set(current);
+                    next.add(row.id);
+                    return next;
+                  });
+                }}
+                className="rounded-md bg-[var(--chat-surface-muted)] px-2 py-0.5 text-[13px] text-[color:var(--chat-text-secondary)] transition hover:text-[color:var(--chat-text)]"
+              >
+                查看全部
+              </button>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
   );
 });
 
@@ -293,7 +261,7 @@ const ThinkingTimelinePanel = memo(function ThinkingTimelinePanel({
               return (
                 <ResearchSummaryLabel
                   key={entry.id}
-                  items={[entry.item]}
+                  items={entry.items}
                   onOpenSearchResult={onOpenSearchResult}
                   runId={entry.runId}
                   showPersistedResearchStatus={showPersistedResearchStatus}
@@ -302,11 +270,11 @@ const ThinkingTimelinePanel = memo(function ThinkingTimelinePanel({
             }
 
             return (
-              <LiveResearchLabel
+              <ResearchTimelineRows
                 key={entry.id}
                 onOpenSearchResult={onOpenSearchResult}
+                rows={entry.rows}
                 runId={entry.runId}
-                searchEntries={entry.searchEntries}
               />
             );
           })}
@@ -404,17 +372,17 @@ const AssistantTurnContent = memo(function AssistantTurnContent({
           return section.entry.kind === 'persisted-research' ? (
             <ResearchSummaryLabel
               key={section.id}
-              items={[section.entry.item]}
+              items={section.entry.items}
               onOpenSearchResult={onOpenSearchResult}
               runId={section.entry.runId}
               showPersistedResearchStatus={showPersistedResearchStatus}
             />
           ) : (
-            <LiveResearchLabel
+            <ResearchTimelineRows
               key={section.id}
               onOpenSearchResult={onOpenSearchResult}
+              rows={section.entry.rows}
               runId={section.entry.runId}
-              searchEntries={section.entry.searchEntries}
             />
           );
         }
@@ -481,17 +449,17 @@ const LiveAssistantContent = memo(function LiveAssistantContent({
           return section.entry.kind === 'persisted-research' ? (
             <ResearchSummaryLabel
               key={section.id}
-              items={[section.entry.item]}
+              items={section.entry.items}
               onOpenSearchResult={onOpenSearchResult}
               runId={section.entry.runId}
               showPersistedResearchStatus
             />
           ) : (
-            <LiveResearchLabel
+            <ResearchTimelineRows
               key={section.id}
               onOpenSearchResult={onOpenSearchResult}
+              rows={section.entry.rows}
               runId={section.entry.runId}
-              searchEntries={section.entry.searchEntries}
             />
           );
         }
@@ -663,17 +631,17 @@ const AnswerContainerCard = memo(function AnswerContainerCard({
             return section.entry.kind === 'persisted-research' ? (
               <ResearchSummaryLabel
                 key={section.id}
-                items={[section.entry.item]}
+                items={section.entry.items}
                 onOpenSearchResult={onOpenSearchResult}
                 runId={section.entry.runId}
                 showPersistedResearchStatus={showPersistedResearchStatus}
               />
             ) : (
-              <LiveResearchLabel
+              <ResearchTimelineRows
                 key={section.id}
                 onOpenSearchResult={onOpenSearchResult}
+                rows={section.entry.rows}
                 runId={section.entry.runId}
-                searchEntries={section.entry.searchEntries}
               />
             );
           }
