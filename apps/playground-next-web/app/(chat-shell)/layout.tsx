@@ -1,5 +1,3 @@
-import './chat-shell.css';
-
 import { ChatShellRouter } from '@/components/chat-shell/chat-shell-router';
 import { ChatThemeProvider } from '@/components/chat-theme-provider';
 

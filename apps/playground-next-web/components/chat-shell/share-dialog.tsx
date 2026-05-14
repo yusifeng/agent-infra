@@ -49,7 +49,7 @@ export function ShareDialog(props: ShareDialogProps) {
       <DialogContent aria-label="创建分享链接" className="max-w-xl" showClose={false}>
         <DialogClose
           onClick={onClose}
-          className="absolute top-4 right-4 rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+          className="absolute top-4 right-4 rounded-full p-2 text-[color:var(--chat-dialog-close-text)] transition hover:bg-[var(--chat-dialog-close-hover-bg)] hover:text-[color:var(--chat-dialog-close-hover-text)]"
           aria-label="关闭分享弹窗"
         >
           <X className="h-5 w-5" />
@@ -62,8 +62,8 @@ export function ShareDialog(props: ShareDialogProps) {
         </DialogHeader>
 
         {shareUrl ? (
-          <div className="mt-6 flex items-center overflow-hidden rounded-full border border-slate-200 bg-slate-50 pl-5 pr-1.5">
-            <div className="min-w-0 flex-1 truncate text-[14px] text-slate-900">{shareUrl}</div>
+          <div className="mt-6 flex items-center overflow-hidden rounded-full border border-[color:var(--chat-neutral-border)] bg-[var(--chat-neutral-bg)] pl-5 pr-1.5">
+            <div className="min-w-0 flex-1 truncate text-[14px] text-[color:var(--chat-neutral-text)]">{shareUrl}</div>
             <Button
               type="button"
               onClick={onCreateOrCopy}
@@ -86,7 +86,7 @@ export function ShareDialog(props: ShareDialogProps) {
           </Button>
         )}
 
-        {error ? <div className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
+        {error ? <div className="mt-4 rounded-2xl bg-[var(--chat-error-bg)] px-4 py-3 text-sm text-[color:var(--chat-error-text)]">{error}</div> : null}
 
         {hasShare ? (
           <div className="mt-4 flex justify-end">

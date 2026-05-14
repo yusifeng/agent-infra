@@ -5,7 +5,7 @@ type PureDeepseekProps = {
   height?: number;
 };
 
-const DEEPSEEK_BRAND_COLOR = '#3964fe';
+const DEEPSEEK_BRAND_COLOR = 'currentColor';
 
 export function PureDeepseek({ className, title = 'DeepSeek', width = 35, height = 26 }: PureDeepseekProps) {
   return (

@@ -139,12 +139,12 @@ export function AuthForm({ mode }: AuthFormProps) {
   }
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(66,99,235,0.12),_transparent_20%),linear-gradient(180deg,_#ffffff_0%,_#fbfdff_52%,_#f5f8ff_100%)] px-6 py-10 text-slate-950">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,_rgba(90,140,255,0.05),_transparent_26%),radial-gradient(circle_at_82%_18%,_rgba(90,140,255,0.04),_transparent_24%),radial-gradient(circle_at_50%_100%,_rgba(148,163,184,0.06),_transparent_32%)]" />
+    <main className="min-h-screen overflow-hidden px-6 py-10 text-[color:var(--auth-text)] [background:var(--auth-page-bg)]">
+      <div className="pointer-events-none absolute inset-0 [background:var(--auth-page-ambient-bg)]" />
       <div className="relative mx-auto flex min-h-[calc(100vh-5rem)] max-w-[24rem] flex-col items-center justify-center">
         <section className="w-full">
           <div className="mb-10 flex flex-col items-center gap-3 text-center">
-            <DeepseekLogo className="h-auto w-[13.5rem]" title="Playground" />
+            <DeepseekLogo className="h-auto w-[13.5rem] text-[color:var(--chat-brand-accent)]" title="Playground" />
             <h1 className="sr-only">
               {isLogin ? '登录到 Playground' : isRegister ? '注册你的 Playground 账号' : '重置 Playground 密码'}
             </h1>
@@ -158,7 +158,7 @@ export function AuthForm({ mode }: AuthFormProps) {
               <Input
                 id={`${mode}-email`}
                 autoComplete="email"
-                className="h-[42px] rounded-full border-slate-200/80 bg-white/90 px-5 text-sm shadow-[0_8px_24px_rgba(148,163,184,0.08)] placeholder:text-slate-400 focus-visible:border-[#4263eb]/40 focus-visible:ring-[#4263eb]/20"
+                className="h-[42px] rounded-full border-[color:var(--auth-field-border)] bg-[var(--auth-field-bg)] px-5 text-sm [box-shadow:var(--auth-field-shadow)] placeholder:text-[color:var(--auth-subtle-text)] focus-visible:border-[color:var(--auth-field-focus-border)] focus-visible:ring-[color:var(--auth-field-focus-ring)]"
                 placeholder="请输入邮箱"
                 required
                 type="email"
@@ -172,7 +172,7 @@ export function AuthForm({ mode }: AuthFormProps) {
                 <label className="sr-only" htmlFor={`${mode}-code`}>
                   邮箱验证码
                 </label>
-                <div className="flex h-[42px] items-center rounded-full border border-slate-200/80 bg-white/90 pr-1.5 shadow-[0_8px_24px_rgba(148,163,184,0.08)] focus-within:border-[#4263eb]/40 focus-within:ring-3 focus-within:ring-[#4263eb]/20">
+                <div className="flex h-[42px] items-center rounded-full border border-[color:var(--auth-field-border)] bg-[var(--auth-field-bg)] pr-1.5 [box-shadow:var(--auth-field-shadow)] focus-within:border-[color:var(--auth-field-focus-border)] focus-within:ring-3 focus-within:ring-[color:var(--auth-field-focus-ring)]">
                   <Input
                     id={`${mode}-code`}
                     autoComplete="one-time-code"
@@ -182,9 +182,9 @@ export function AuthForm({ mode }: AuthFormProps) {
                     value={code}
                     onChange={(event) => setCode(event.target.value)}
                   />
-                  <div className="h-6 w-px bg-slate-200" />
+                  <div className="h-6 w-px bg-[var(--auth-divider)]" />
                   <Button
-                    className="h-[36px] shrink-0 rounded-full px-3.5 text-[13px] font-semibold text-[#4263eb] hover:bg-transparent hover:text-[#3458f4]"
+                    className="h-[36px] shrink-0 rounded-full px-3.5 text-[13px] font-semibold text-[color:var(--auth-accent)] hover:bg-transparent hover:text-[color:var(--auth-accent-hover)]"
                     disabled={sendingCode || isCooldownActive}
                     size="sm"
                     type="button"
@@ -205,7 +205,7 @@ export function AuthForm({ mode }: AuthFormProps) {
                 <Input
                   id={isForgotPassword ? 'forgot-password-new-password' : `${mode}-password`}
                   autoComplete={isLogin ? 'current-password' : 'new-password'}
-                  className="h-[42px] rounded-full border-slate-200/80 bg-white/90 px-5 pr-12 text-sm shadow-[0_8px_24px_rgba(148,163,184,0.08)] placeholder:text-slate-400 focus-visible:border-[#4263eb]/40 focus-visible:ring-[#4263eb]/20"
+                  className="h-[42px] rounded-full border-[color:var(--auth-field-border)] bg-[var(--auth-field-bg)] px-5 pr-12 text-sm [box-shadow:var(--auth-field-shadow)] placeholder:text-[color:var(--auth-subtle-text)] focus-visible:border-[color:var(--auth-field-focus-border)] focus-visible:ring-[color:var(--auth-field-focus-ring)]"
                   placeholder={isForgotPassword ? '请输入新密码' : '请输入密码'}
                   required
                   type={passwordVisible ? 'text' : 'password'}
@@ -220,7 +220,7 @@ export function AuthForm({ mode }: AuthFormProps) {
                 />
                 <Button
                   aria-label={passwordVisible ? '隐藏密码' : '显示密码'}
-                  className="absolute inset-y-0 right-2 my-auto rounded-full text-slate-400 hover:bg-transparent hover:text-[#4263eb]"
+                  className="absolute inset-y-0 right-2 my-auto rounded-full text-[color:var(--auth-subtle-text)] hover:bg-transparent hover:text-[color:var(--auth-accent)]"
                   size="icon-sm"
                   type="button"
                   variant="ghost"
@@ -232,19 +232,19 @@ export function AuthForm({ mode }: AuthFormProps) {
             </div>
 
             {isRegister ? (
-              <p className="pt-1 text-center text-[12px] leading-5 text-slate-400">
+              <p className="pt-1 text-center text-[12px] leading-5 text-[color:var(--auth-subtle-text)]">
                 注册登录即代表已阅读并同意我们的
-                <span className="mx-1 font-medium text-slate-500">用户协议</span>
+                <span className="mx-1 font-medium text-[color:var(--auth-muted-text)]">用户协议</span>
                 与
-                <span className="ml-1 font-medium text-slate-500">隐私政策</span>
+                <span className="ml-1 font-medium text-[color:var(--auth-muted-text)]">隐私政策</span>
               </p>
             ) : null}
 
-            {notice ? <p className="text-center text-[13px] text-emerald-700">{notice}</p> : null}
-            {error ? <p className="text-center text-[13px] text-rose-600">{error}</p> : null}
+            {notice ? <p className="text-center text-[13px] text-[color:var(--auth-success-text)]">{notice}</p> : null}
+            {error ? <p className="text-center text-[13px] text-[color:var(--auth-error-text)]">{error}</p> : null}
 
             <Button
-              className="mt-2 h-[42px] rounded-full bg-[linear-gradient(135deg,#4c6fff_0%,#3458f4_100%)] text-sm font-semibold text-white shadow-[0_16px_32px_rgba(76,111,255,0.24)] hover:brightness-105"
+              className="mt-2 h-[42px] rounded-full bg-[image:var(--auth-submit-bg)] text-sm font-semibold text-[color:var(--color-white)] [box-shadow:var(--auth-submit-shadow)] hover:brightness-105"
               disabled={submitting}
               size="lg"
               type="submit"
@@ -254,24 +254,24 @@ export function AuthForm({ mode }: AuthFormProps) {
 
             {isLogin ? (
               <div className="-mt-1 flex justify-end">
-                <Link className="text-[13px] font-medium text-slate-500 hover:text-[#4263eb]" href={buildAuthHref('/forgot-password', searchParams)}>
+                <Link className="text-[13px] font-medium text-[color:var(--auth-muted-text)] hover:text-[color:var(--auth-accent)]" href={buildAuthHref('/forgot-password', searchParams)}>
                   忘记密码？
                 </Link>
               </div>
             ) : null}
 
-            <div className="flex items-center gap-4 pt-3 text-[13px] text-slate-400">
-              <div className="h-px flex-1 bg-slate-200/80" />
-              <p className="shrink-0 text-slate-500">
+            <div className="flex items-center gap-4 pt-3 text-[13px] text-[color:var(--auth-subtle-text)]">
+              <div className="h-px flex-1 bg-[var(--auth-divider)]" />
+              <p className="shrink-0 text-[color:var(--auth-muted-text)]">
                 {isLogin ? '还没有账号？' : isRegister ? '已有账号？' : '想起密码了？'}
                 <Link
-                  className="ml-1 font-medium text-[#4263eb] hover:text-[#3458f4]"
+                  className="ml-1 font-medium text-[color:var(--auth-accent)] hover:text-[color:var(--auth-accent-hover)]"
                   href={buildAuthHref(isLogin ? '/register' : '/login', searchParams)}
                 >
                   {isLogin ? '去注册' : '去登录'}
                 </Link>
               </p>
-              <div className="h-px flex-1 bg-slate-200/80" />
+              <div className="h-px flex-1 bg-[var(--auth-divider)]" />
             </div>
           </form>
         </section>

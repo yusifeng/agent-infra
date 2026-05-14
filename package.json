@@ -6,6 +6,7 @@
   "scripts": {
     "build": "pnpm -r build",
     "audit:theme:vite": "node scripts/audit-vite-theme-usage.mjs",
+    "check:colors:next": "node scripts/check-color-convergence.mjs apps/playground-next-web --allow-file apps/playground-next-web/app/globals.css --allow-file apps/playground-next-web/components/chat-shell/durable-log-pane.tsx --allow-file apps/playground-next-web/app/site-icons/[hostname]/route.ts",
     "check:colors:vite": "node scripts/check-color-convergence.mjs apps/playground-vite-web/src --allow-file apps/playground-vite-web/src/theme.css --allow-file apps/playground-vite-web/src/features/durable-chat/components/chat-shell.css",
     "dev": "pnpm --filter playground-next-web dev:prepared",
     "dev:next-web": "pnpm --filter playground-next-web dev:prepared",

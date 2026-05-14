@@ -143,7 +143,7 @@ const ResearchTimelineRows = memo(function ResearchTimelineRows({
                       hostname={source.hostname}
                       label={source.sourceName}
                       className={clsx('h-5 w-5 border border-white', index === 0 ? '' : '-ml-1.5')}
-                      fallbackClassName="bg-indigo-100 text-indigo-700"
+                      fallbackClassName="bg-[var(--chat-site-icon-fallback-bg)] text-[color:var(--chat-site-icon-fallback-text)]"
                     />
                   ))}
                 </span>

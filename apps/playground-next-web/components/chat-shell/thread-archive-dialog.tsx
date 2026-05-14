@@ -34,7 +34,7 @@ export function ThreadArchiveDialog(props: ThreadArchiveDialogProps) {
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        {error ? <div className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
+        {error ? <div className="mt-4 rounded-2xl bg-[var(--chat-error-bg)] px-4 py-3 text-sm text-[color:var(--chat-error-text)]">{error}</div> : null}
 
         <AlertDialogFooter>
           <AlertDialogCancel asChild>

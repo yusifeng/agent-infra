@@ -48,7 +48,7 @@ export function ThreadRenameDialog(props: ThreadRenameDialogProps) {
           />
         </label>
 
-        {error ? <div className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
+        {error ? <div className="mt-4 rounded-2xl bg-[var(--chat-error-bg)] px-4 py-3 text-sm text-[color:var(--chat-error-text)]">{error}</div> : null}
 
         <DialogFooter>
           <Button type="button" variant="outline" className="h-11 rounded-full px-5" onClick={onClose}>

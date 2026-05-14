@@ -114,7 +114,7 @@ export function ComposerDock({
         {showDeepseekLanding ? (
           <div className="mb-[38px] flex flex-col items-center px-4 text-center">
             <div className="flex items-center gap-2.5 text-[color:var(--chat-text)]">
-              <PureDeepseek className="h-7 w-auto shrink-0" title="DeepSeek" />
+              <PureDeepseek className="h-7 w-auto shrink-0 text-[color:var(--chat-brand-accent)]" title="DeepSeek" />
               <h2 className="text-[24px] font-semibold leading-none tracking-[-0.03em]">{centeredTitle}</h2>
             </div>
             <div className="mt-[22px] inline-flex items-center rounded-full border border-[color:var(--chat-border)] bg-[var(--chat-surface)] p-0.5 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
@@ -131,8 +131,8 @@ export function ComposerDock({
                 className={cn(
                   'h-9 min-w-[136px] rounded-full px-5 text-[13px] font-semibold shadow-none',
                   deepseekModePresentation.selectedMode === 'quick'
-                    ? 'border border-[#b7c7ff] bg-[#eef3ff] text-[#3964fe] hover:bg-[#eef3ff] hover:text-[#3964fe]'
-                    : 'border border-transparent text-[#6b7280] hover:bg-transparent hover:text-[#111827]'
+                    ? 'border border-[color:var(--chat-mode-active-border)] bg-[var(--chat-mode-active-bg)] text-[color:var(--chat-mode-active-text)] hover:bg-[var(--chat-mode-active-bg)] hover:text-[color:var(--chat-mode-active-text)]'
+                    : 'border border-transparent text-[color:var(--chat-mode-inactive-text)] hover:bg-transparent hover:text-[color:var(--chat-mode-inactive-strong-text)]'
                 )}
               >
                 <QuickModeIcon className="h-4 w-4" selected={deepseekModePresentation.selectedMode === 'quick'} />
@@ -151,8 +151,8 @@ export function ComposerDock({
                 className={cn(
                   'h-9 min-w-[136px] rounded-full px-5 text-[13px] font-semibold shadow-none',
                   deepseekModePresentation.selectedMode === 'expert'
-                    ? 'border border-[#b7c7ff] bg-[#eef3ff] text-[#3964fe] hover:bg-[#eef3ff] hover:text-[#3964fe]'
-                    : 'border border-transparent text-[#111827] hover:bg-transparent hover:text-[#111827]'
+                    ? 'border border-[color:var(--chat-mode-active-border)] bg-[var(--chat-mode-active-bg)] text-[color:var(--chat-mode-active-text)] hover:bg-[var(--chat-mode-active-bg)] hover:text-[color:var(--chat-mode-active-text)]'
+                    : 'border border-transparent text-[color:var(--chat-mode-inactive-strong-text)] hover:bg-transparent hover:text-[color:var(--chat-mode-inactive-strong-text)]'
                 )}
               >
                 <ExpertModeIcon className="h-4 w-4" selected={deepseekModePresentation.selectedMode === 'expert'} />

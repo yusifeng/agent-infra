@@ -43,16 +43,16 @@ export function formatDuration(startedAt?: string | null, finishedAt?: string | 
 export function statusBadgeTone(status: RunDto['status'] | ToolInvocationDto['status'] | MessageDto['status'] | 'idle') {
   switch (status) {
     case 'running':
-      return 'bg-amber-100 text-amber-800';
+      return 'bg-[var(--chat-status-running-bg)] text-[color:var(--chat-status-running-text)]';
     case 'queued':
     case 'created':
-      return 'bg-slate-200 text-slate-700';
+      return 'bg-[var(--chat-status-pending-bg)] text-[color:var(--chat-status-pending-text)]';
     case 'completed':
-      return 'bg-emerald-100 text-emerald-800';
+      return 'bg-[var(--chat-status-success-bg)] text-[color:var(--chat-status-success-text)]';
     case 'failed':
-      return 'bg-rose-100 text-rose-800';
+      return 'bg-[var(--chat-status-danger-bg)] text-[color:var(--chat-status-danger-text)]';
     default:
-      return 'bg-slate-100 text-slate-600';
+      return 'bg-[var(--chat-status-idle-bg)] text-[color:var(--chat-status-idle-text)]';
   }
 }
 

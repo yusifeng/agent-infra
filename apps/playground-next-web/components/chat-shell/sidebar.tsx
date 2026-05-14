@@ -221,7 +221,7 @@ function AccountMenuCard({
           type="button"
         >
           <div className="flex min-w-0 flex-1 items-center gap-3">
-            <div className="flex size-8 items-center justify-center rounded-full bg-[linear-gradient(135deg,#d7e3ff_0%,#edf3ff_100%)] text-sm font-semibold text-[#4263eb]">
+            <div className="flex size-8 items-center justify-center rounded-full bg-[image:var(--chat-sidebar-avatar-bg)] text-sm font-semibold text-[color:var(--chat-sidebar-avatar-text)]">
               {monogram}
             </div>
             <div className="min-w-0 truncate text-[length:var(--chat-sidebar-user-font-size)] font-medium text-[color:var(--chat-sidebar-text)]" title={email}>

@@ -68,7 +68,7 @@ export function SearchResultsPanel({ open, loading, error, result, onClose }: Se
                             hostname={item.hostname}
                             label={item.sourceName}
                             className="h-4 w-4"
-                            fallbackClassName="bg-indigo-100 text-indigo-700"
+                            fallbackClassName="bg-[var(--chat-site-icon-fallback-bg)] text-[color:var(--chat-site-icon-fallback-text)]"
                           />
                           <span className="font-medium text-[color:var(--chat-text-secondary)]">{item.sourceName}</span>
                           {item.publishedAtLabel ? <span>{item.publishedAtLabel}</span> : null}

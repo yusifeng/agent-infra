@@ -47,7 +47,7 @@ export function IconButton({
 }
 
 export function ChatAvatar({ title, size }: { title: string; size?: number }) {
-  return <DeepseekLogo className={size ? 'w-auto' : 'h-[23px] w-auto'} title={title} width={143} height={23} />;
+  return <DeepseekLogo className={clsx(size ? 'w-auto' : 'h-[23px] w-auto', 'text-[color:var(--chat-brand-accent)]')} title={title} width={143} height={23} />;
 }
 
 export function AnimatedEmoji({ emoji, size = 40 }: { emoji: string; size?: number }) {

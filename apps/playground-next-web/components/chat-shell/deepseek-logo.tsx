@@ -5,7 +5,7 @@ type DeepseekLogoProps = {
   height?: number;
 };
 
-const DEEPSEEK_LOGO_COLOR = '#3964fe';
+const DEEPSEEK_LOGO_COLOR = 'currentColor';
 
 export function DeepseekLogo({ className, title = 'DeepSeek', width = 143, height = 23 }: DeepseekLogoProps) {
   return (

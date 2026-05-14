@@ -48,24 +48,24 @@ export function ChatHeader({
       <div className="flex min-w-0 items-center gap-3">
         {!sidebarOpen ? (
           <>
-            <PureDeepseek className="shrink-0" title="DeepSeek" width={27} height={20} />
-            <div className="flex h-10 w-[76px] shrink-0 items-center rounded-full border border-[rgba(217,223,232,0.95)] bg-white px-1.5 shadow-[0_1px_2px_rgba(72,104,178,0.04),0_8px_18px_rgba(106,111,117,0.08)]">
+            <PureDeepseek className="shrink-0 text-[color:var(--chat-brand-accent)]" title="DeepSeek" width={27} height={20} />
+            <div className="flex h-10 w-[76px] shrink-0 items-center rounded-full border border-[color:var(--chat-header-control-border)] bg-[var(--chat-header-control-bg)] px-1.5 shadow-[var(--chat-header-control-shadow)]">
               <IconButton
                 icon={PanelLeft}
                 onClick={onOpenSidebar}
                 size="default"
                 title="打开侧边栏"
-                className="h-8 w-8 rounded-full hover:bg-[rgba(57,100,254,0.08)]"
+                className="h-8 w-8 rounded-full hover:bg-[var(--chat-header-control-hover-bg)]"
               />
               {onNewChat ? (
                 <>
-                  <div className="mx-2 h-5 w-px bg-[rgba(217,223,232,0.95)]" />
+                  <div className="mx-2 h-5 w-px bg-[var(--chat-header-control-border)]" />
                   <IconButton
                     icon={CirclePlus}
                     onClick={onNewChat}
                     size="default"
                     title="开启新对话"
-                    className="h-8 w-8 rounded-full hover:bg-[rgba(57,100,254,0.08)]"
+                    className="h-8 w-8 rounded-full hover:bg-[var(--chat-header-control-hover-bg)]"
                   />
                 </>
               ) : null}
@@ -78,9 +78,9 @@ export function ChatHeader({
             {modeLabel ? (
               <div className="mt-1 flex items-center gap-1.5 text-[12px] font-medium leading-none text-[color:var(--chat-text-secondary)]">
                 {mode === 'quick' ? (
-                  <QuickModeIcon className="h-[13px] w-[13px] shrink-0 text-[#3964fe]" selected />
+                  <QuickModeIcon className="h-[13px] w-[13px] shrink-0 text-[color:var(--chat-brand-accent)]" selected />
                 ) : (
-                  <ExpertModeIcon className="h-[13px] w-[13px] shrink-0 text-[#3964fe]" selected />
+                  <ExpertModeIcon className="h-[13px] w-[13px] shrink-0 text-[color:var(--chat-brand-accent)]" selected />
                 )}
                 <span>{modeLabel}</span>
               </div>
