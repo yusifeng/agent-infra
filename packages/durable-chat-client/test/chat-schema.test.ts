@@ -12,6 +12,18 @@ describe('durable-chat-client schema', () => {
   });
 
   it('filters invalid message and run rows from api responses', () => {
+    const usage = {
+      schemaVersion: 1,
+      normalizationStatus: 'complete',
+      tokens: {
+        input: 12,
+        output: 8,
+        total: 20
+      },
+      rawProviderUsage: {
+        assistantMessages: [{ input: 12, output: 8, totalTokens: 20 }]
+      }
+    };
     const messages = normalizeThreadMessagesResponse({
       messages: [
         {
@@ -42,7 +54,7 @@ describe('durable-chat-client schema', () => {
         provider: 'openai',
         model: 'gpt-4o-mini',
         status: 'running',
-        usage: null,
+        usage,
         error: null,
         startedAt: null,
         finishedAt: null,
@@ -59,7 +71,7 @@ describe('durable-chat-client schema', () => {
           provider: 'openai',
           model: 'gpt-4o-mini',
           status: 'completed',
-          usage: null,
+          usage,
           error: null,
           startedAt: null,
           finishedAt: null,
@@ -79,7 +91,9 @@ describe('durable-chat-client schema', () => {
       endCursor: 'cursor-2'
     });
     expect(messages.activeRun?.id).toBe('run-active');
+    expect(messages.activeRun?.usage).toEqual(usage);
     expect(runs.runs).toHaveLength(1);
+    expect(runs.runs[0]?.usage).toEqual(usage);
   });
 
   it('normalizes runtime meta arrays and keeps missing fields optional', () => {

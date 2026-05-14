@@ -12,6 +12,36 @@ export type ChatShareStatus = 'active' | 'revoked';
 
 export type ChatShareSnapshotPayloadFormat = 'messages_v1';
 
+export type RunUsageNormalizationStatus = 'complete' | 'partial' | 'missing' | 'malformed';
+
+export interface RunUsageTokensV1 {
+  input?: number;
+  output?: number;
+  cacheRead?: number;
+  cacheWrite?: number;
+  reasoning?: number;
+  total?: number;
+}
+
+export interface RunUsageEstimatedCostV1 {
+  currency: string;
+  amountMicros: number;
+  source: string;
+  version?: string | null;
+}
+
+export interface RunUsageSummaryV1 {
+  schemaVersion: 1;
+  provider?: string | null;
+  model?: string | null;
+  normalizationStatus: RunUsageNormalizationStatus;
+  tokens: RunUsageTokensV1;
+  estimatedCost?: RunUsageEstimatedCostV1 | null;
+  rawProviderUsage?: Record<string, unknown> | null;
+}
+
+export type RunUsage = RunUsageSummaryV1 | Record<string, unknown>;
+
 export interface Thread {
   id: string;
   appId: string;
@@ -31,7 +61,7 @@ export interface Run {
   provider?: string | null;
   model?: string | null;
   status: RunStatus;
-  usage?: Record<string, unknown> | null;
+  usage?: RunUsage | null;
   error?: string | null;
   startedAt?: Date | null;
   finishedAt?: Date | null;

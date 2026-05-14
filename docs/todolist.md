@@ -20,10 +20,10 @@
 ### 0.2 Goals
 
 - [ ] Define a stable v1 contract for run trace and usage semantics before adding new UI or billing-like features.
-- [ ] Make run usage shape versioned, parseable, and test-covered while preserving current durable run behavior.
+- [x] Make run usage shape versioned, parseable, and test-covered while preserving current durable run behavior.
 - [ ] Define the boundary between raw `run_events` and typed timeline/read projections.
 - [ ] Resolve the `message_update` durable trace discrepancy explicitly in code and docs.
-- [ ] Keep token/usage attribution at durable `run/thread/app` level in shared infra, with `appId` resolved outside `runtime-pi`.
+- [x] Keep token/usage attribution at durable `run/thread/app` level in shared infra, with `appId` resolved outside `runtime-pi`.
 - [ ] Leave host user attribution to consumer hosts such as `playground-fastify-server`.
 - [ ] Create a foundation that later supports one-row-per-run usage records, server-side cancel, replay/eval fixtures, and adapter contract hardening.
 
@@ -62,25 +62,25 @@
 
 ### 1.3 Usage summary model
 
-- [ ] Define `RunUsageSummaryV1` as the first stable usage summary shape.
-- [ ] Include `schemaVersion: 1`.
-- [ ] Include `provider` and `model` fields or define why they remain only on `Run`.
-- [ ] Include normalized token fields for input, output, cache read, cache write, and total tokens without defaulting unknown values to zero.
-- [ ] Include reasoning tokens as optional now if provider raw usage exposes them; otherwise leave absent.
-- [ ] Define optional estimated cost fields as best-effort estimates only; omit normalized cost if pricing source/version is unavailable.
-- [ ] Include pricing source/version only if cost estimates are emitted.
-- [ ] Preserve raw provider usage in `RunUsageSummaryV1.rawProviderUsage` when available.
-- [ ] Do not defer raw usage preservation to future usage records.
-- [ ] Include `normalizationStatus: complete | partial | missing | malformed`.
-- [ ] Define whether `Run.usage` is `null` only when provider usage is entirely absent, or whether missing usage is represented as a versioned summary with `normalizationStatus: missing`.
-- [ ] Define behavior when provider usage is missing or malformed.
-- [ ] Ensure usage summary failure never changes an otherwise truthful terminal run status.
+- [x] Define `RunUsageSummaryV1` as the first stable usage summary shape.
+- [x] Include `schemaVersion: 1`.
+- [x] Include `provider` and `model` fields or define why they remain only on `Run`.
+- [x] Include normalized token fields for input, output, cache read, cache write, and total tokens without defaulting unknown values to zero.
+- [x] Include reasoning tokens as optional now if provider raw usage exposes them; otherwise leave absent.
+- [x] Define optional estimated cost fields as best-effort estimates only; omit normalized cost if pricing source/version is unavailable.
+- [x] Include pricing source/version only if cost estimates are emitted.
+- [x] Preserve raw provider usage in `RunUsageSummaryV1.rawProviderUsage` when available.
+- [x] Do not defer raw usage preservation to future usage records.
+- [x] Include `normalizationStatus: complete | partial | missing | malformed`.
+- [x] Define whether `Run.usage` is `null` only when provider usage is entirely absent, or whether missing usage is represented as a versioned summary with `normalizationStatus: missing`.
+- [x] Define behavior when provider usage is missing or malformed.
+- [x] Ensure usage summary failure never changes an otherwise truthful terminal run status.
 
 ### 1.4 Attribution model
 
 - [ ] Define shared attribution in terms of `runId`, `threadId`, and `appId`.
-- [ ] Default decision: `runtime-pi` does not resolve or write `appId`.
-- [ ] For Loop 2, do not require `appId` inside `RunUsageSummaryV1`.
+- [x] Default decision: `runtime-pi` does not resolve or write `appId`.
+- [x] For Loop 2, do not require `appId` inside `RunUsageSummaryV1`.
 - [ ] For typed timeline/accounting reads, resolve `appId` at app/read boundary from `run.threadId -> thread.appId` when needed.
 - [ ] For future usage records, define `appId` resolution at app/service or repository boundary, not in the runtime adapter.
 - [ ] Keep host user attribution outside shared packages.
@@ -98,22 +98,22 @@
 
 ### 2.1 `packages/core`
 
-- [ ] Add or expose `RunUsageSummaryV1` type.
+- [x] Add or expose `RunUsageSummaryV1` type.
 - [ ] Do not put the timeline projector in core for Loop 1.
-- [ ] Add only the shared usage summary type needed by `Run.usage`.
-- [ ] Keep `Run.usage` backward-compatible enough for existing consumers.
+- [x] Add only the shared usage summary type needed by `Run.usage`.
+- [x] Keep `Run.usage` backward-compatible enough for existing consumers.
 - [ ] Keep `RunEvent.payload` raw and flexible.
 - [ ] Do not add user/auth/account domain types.
 
 ### 2.2 `packages/runtime-pi`
 
-- [ ] Replace the current unversioned usage summary with `RunUsageSummaryV1`.
-- [ ] Preserve current terminal run update behavior at `agent_end`.
-- [ ] Ensure missing provider usage follows the chosen missing-usage contract without fabricating zero-token usage.
-- [ ] Ensure malformed usage does not throw after the run has otherwise completed.
+- [x] Replace the current unversioned usage summary with `RunUsageSummaryV1`.
+- [x] Preserve current terminal run update behavior at `agent_end`.
+- [x] Ensure missing provider usage follows the chosen missing-usage contract without fabricating zero-token usage.
+- [x] Ensure malformed usage does not throw after the run has otherwise completed.
 - [x] Keep assistant `message_update` live-only in this slice and preserve current attach-stream live behavior.
-- [ ] Keep live assistant stream behavior compatible with attach-stream semantics.
-- [ ] Keep `runtime_error` durable failure writes intact.
+- [x] Keep live assistant stream behavior compatible with attach-stream semantics.
+- [x] Keep `runtime_error` durable failure writes intact.
 
 ### 2.3 `packages/app`
 
@@ -126,23 +126,23 @@
 
 ### 2.4 `packages/contracts`
 
-- [ ] Export a `RunUsageDto` that accepts `RunUsageSummaryV1` while preserving backward-compatible unknown usage objects.
+- [x] Export a `RunUsageDto` that accepts `RunUsageSummaryV1` while preserving backward-compatible unknown usage objects.
 - [ ] Add typed timeline DTOs only after app-level projection shape is fixed.
 - [ ] Preserve raw run events in timeline responses.
 - [ ] Ensure unknown raw payload fields continue to round-trip safely.
 
 ### 2.5 `packages/durable-chat-server`
 
-- [ ] Serialize versioned `Run.usage` without losing fields.
+- [x] Serialize versioned `Run.usage` without losing fields.
 - [ ] Extend timeline response builders only after app-level typed projection and contracts DTOs are defined.
 - [ ] Do not implement projection semantics in route helper code.
 - [ ] Keep protected route access checks host-owned in playground routes, not in shared server helpers.
 
 ### 2.6 `packages/db`
 
-- [ ] Keep `runs.usage_json` as the Loop 1 persistence location.
-- [ ] Do not add `run_usage_records` in this todo unless this todo is explicitly revised; Loop 1/2 persistence remains `runs.usage_json`.
-- [ ] Preserve versioned usage JSON round-trip without schema changes.
+- [x] Keep `runs.usage_json` as the Loop 1 persistence location.
+- [x] Do not add `run_usage_records` in this todo unless this todo is explicitly revised; Loop 1/2 persistence remains `runs.usage_json`.
+- [x] Preserve versioned usage JSON round-trip without schema changes.
 - [ ] If future usage records are introduced, support SQLite and PostgreSQL/Turso paths together.
 - [ ] Preserve raw JSON fields for run events and tool invocations.
 
@@ -150,8 +150,8 @@
 
 ### 3.1 Durable chat client
 
-- [ ] Update schema normalization to accept `RunUsageSummaryV1` without treating live stream state as usage truth.
-- [ ] Keep terminal reconcile behavior durable-first.
+- [x] Update schema normalization to accept `RunUsageSummaryV1` without treating live stream state as usage truth.
+- [x] Keep terminal reconcile behavior durable-first.
 - [ ] Do not add usage dashboards or product analytics UI in this todo.
 
 ### 3.2 Playground Fastify host
@@ -171,28 +171,28 @@
 
 ### 4.1 Runtime tests
 
-- [ ] Add `runtime-pi` tests for `RunUsageSummaryV1` on completed runs.
-- [ ] Cover missing provider usage.
+- [x] Add `runtime-pi` tests for `RunUsageSummaryV1` on completed runs.
+- [x] Cover missing provider usage.
 - [ ] Cover malformed or partial provider usage if the adapter can observe it.
-- [ ] Cover failed runtime path still writes `runtime_error` and terminal failed run state.
-- [ ] Cover the chosen `message_update` durable/live behavior.
+- [x] Cover failed runtime path still writes `runtime_error` and terminal failed run state.
+- [x] Cover the chosen `message_update` durable/live behavior.
 
 ### 4.2 App / contract / server tests
 
 - [ ] Add or update app tests for typed timeline projection if implemented there.
-- [ ] Add contract/server DTO tests for versioned usage serialization.
+- [x] Add contract/server DTO tests for versioned usage serialization.
 - [ ] Ensure raw run events remain available when typed projections are present.
 - [ ] Ensure unknown event payloads do not break timeline response building.
 
 ### 4.3 DB tests
 
-- [ ] Keep existing `runs.usage_json` round-trip coverage valid for versioned usage.
-- [ ] Add DB tests only if persistence behavior changes beyond JSON shape.
-- [ ] Defer usage record table tests until the follow-up record/ledger slice.
+- [x] Keep existing `runs.usage_json` round-trip coverage valid for versioned usage.
+- [x] Add DB tests only if persistence behavior changes beyond JSON shape.
+- [x] Defer usage record table tests until the follow-up record/ledger slice.
 
 ### 4.4 Client / playground tests
 
-- [ ] Add durable-chat-client schema tests if `RunDto.usage` parsing changes.
+- [x] Add durable-chat-client schema tests if `RunDto.usage` parsing changes.
 - [ ] Add Fastify host access tests only if new protected usage/timeline route behavior is introduced.
 - [ ] Avoid broad UI tests unless a visible validation UI is added.
 
@@ -218,12 +218,12 @@
 
 ### Loop 2: Usage Summary v1 in Runtime and Contracts
 
-- [ ] Add `RunUsageSummaryV1` types.
-- [ ] Update `runtime-pi` usage summary creation.
-- [ ] Update DTO/schema normalization as needed.
-- [ ] Add focused runtime and DTO/client tests.
-- [ ] Verify missing usage and failure paths.
-- [ ] Capture package-level acceptance evidence for touched behavior.
+- [x] Add `RunUsageSummaryV1` types.
+- [x] Update `runtime-pi` usage summary creation.
+- [x] Update DTO/schema normalization as needed.
+- [x] Add focused runtime and DTO/client tests.
+- [x] Verify missing usage and failure paths.
+- [x] Capture package-level acceptance evidence for touched behavior.
 - [ ] Complete repository review workflow without expanding the slice scope.
 - [ ] Close the slice only after acceptance evidence and review are clean.
 

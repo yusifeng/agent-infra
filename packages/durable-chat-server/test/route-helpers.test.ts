@@ -32,6 +32,19 @@ describe('durable chat server route helpers', () => {
   });
 
   it('serializes nullable runs into dto shapes', () => {
+    const usage = {
+      schemaVersion: 1,
+      normalizationStatus: 'complete',
+      tokens: {
+        input: 5,
+        output: 7,
+        total: 12
+      },
+      rawProviderUsage: {
+        assistantMessages: [{ input: 5, output: 7, totalTokens: 12 }]
+      }
+    };
+
     expect(toRunDto(null)).toBeNull();
 
     expect(
@@ -42,7 +55,7 @@ describe('durable chat server route helpers', () => {
         provider: 'deepseek',
         model: 'deepseek-v4-flash',
         status: 'completed',
-        usage: null,
+        usage,
         error: null,
         startedAt: new Date('2026-01-01T00:00:00.000Z'),
         finishedAt: new Date('2026-01-01T00:00:01.000Z'),
@@ -55,7 +68,7 @@ describe('durable chat server route helpers', () => {
       provider: 'deepseek',
       model: 'deepseek-v4-flash',
       status: 'completed',
-      usage: null,
+      usage,
       error: null,
       startedAt: '2026-01-01T00:00:00.000Z',
       finishedAt: '2026-01-01T00:00:01.000Z',

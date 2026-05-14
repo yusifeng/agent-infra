@@ -271,8 +271,10 @@ async function createContextWithOverrides(overrides: Partial<typeof createContex
 function createAssistantMessage(input: {
   content: AssistantMessage['content'];
   stopReason?: AssistantMessage['stopReason'];
+  omitUsage?: boolean;
+  usage?: unknown;
 }): AssistantMessage {
-  return {
+  const message: AssistantMessage = {
     role: 'assistant',
     content: input.content,
     api: 'scripted-test-api',
@@ -295,6 +297,14 @@ function createAssistantMessage(input: {
     stopReason: input.stopReason ?? 'stop',
     timestamp: Date.now()
   };
+
+  if (input.omitUsage) {
+    delete (message as { usage?: unknown }).usage;
+  } else if (input.usage !== undefined) {
+    (message as { usage?: unknown }).usage = input.usage;
+  }
+
+  return message;
 }
 
 function registerScriptedToolUseProvider(steps: Array<(context: Context) => ReturnType<typeof createAssistantMessageEventStream>>) {
@@ -416,7 +426,7 @@ function createToolUseTextThenToolOnlyStep(text: string, toolCallId: string, que
   };
 }
 
-function createFinalTextStep(text: string) {
+function createFinalTextStep(text: string, options: { omitUsage?: boolean; usage?: unknown } = {}) {
   return (_context: Context) => {
     const stream = createAssistantMessageEventStream();
 
@@ -450,7 +460,9 @@ function createFinalTextStep(text: string) {
       });
 
       const finalMessage = createAssistantMessage({
-        content: [{ type: 'text', text }]
+        content: [{ type: 'text', text }],
+        omitUsage: options.omitUsage,
+        usage: options.usage
       });
 
       stream.push({
@@ -796,12 +808,60 @@ describe('runAssistantTurnWithPiInternal', () => {
     const events = await ctx.runEventRepo.listByRun(run.id);
 
     expect(storedRun?.status).toBe('completed');
+    expect(storedRun?.usage).toMatchObject({
+      schemaVersion: 1,
+      normalizationStatus: 'complete',
+      tokens: {
+        input: expect.any(Number),
+        output: expect.any(Number),
+        cacheRead: expect.any(Number),
+        cacheWrite: expect.any(Number),
+        total: expect.any(Number)
+      },
+      estimatedCost: expect.objectContaining({
+        currency: 'USD',
+        amountMicros: expect.any(Number),
+        source: 'pi-ai-message-usage'
+      }),
+      rawProviderUsage: {
+        assistantMessages: [expect.any(Object)]
+      }
+    });
     expect(messages).toHaveLength(2);
     expect(messages[1]?.role).toBe('assistant');
     expect(messages[1]?.parts.map((part) => part.type)).toEqual(['text']);
     expect(events.map((event) => event.type)).toContain('agent_start');
     expect(events.map((event) => event.type)).toContain('message_end');
     expect(events.at(-1)?.type).toBe('agent_end');
+  });
+
+  it('marks run usage as missing instead of fabricating zero-token usage', async () => {
+    const { ctx, thread, run } = await createContext();
+    await createSeedThread(ctx.messageRepo, thread.id, 'hello without usage');
+
+    const scripted = registerScriptedToolUseProvider([createFinalTextStep('No usage available.', { omitUsage: true })]);
+    unregisterCallbacks.push(scripted.unregister);
+
+    await runAssistantTurnWithPiInternal(
+      ctx,
+      { threadId: thread.id, runId: run.id },
+      {
+        model: scripted.model,
+        getApiKey: async () => 'scripted-key'
+      }
+    );
+
+    const storedRun = await ctx.runRepo.findById(run.id);
+    expect(storedRun?.status).toBe('completed');
+    expect(storedRun?.usage).toEqual({
+      schemaVersion: 1,
+      provider: 'scripted-test-provider',
+      model: 'scripted-test-model',
+      normalizationStatus: 'missing',
+      tokens: {},
+      estimatedCost: null,
+      rawProviderUsage: null
+    });
   });
 
   it('runs through the public runtime object with explicit tool injection', async () => {

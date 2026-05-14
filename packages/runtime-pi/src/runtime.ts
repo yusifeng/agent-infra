@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 
-import type { Message as StoredMessage } from '@agent-infra/core';
+import type { Message as StoredMessage, RunUsageSummaryV1, RunUsageTokensV1 } from '@agent-infra/core';
 import { Agent, type AgentEvent, type AgentTool } from '@mariozechner/pi-agent-core';
 import {
   completeSimple,
@@ -407,48 +407,129 @@ async function resolveTools(
   return await tools(context);
 }
 
-function createUsageSummary(messages: PiMessage[]) {
-  return messages.reduce(
-    (usage, message) => {
-      if (message.role !== 'assistant') {
-        return usage;
-      }
-
-      usage.input += message.usage.input;
-      usage.output += message.usage.output;
-      usage.cacheRead += message.usage.cacheRead;
-      usage.cacheWrite += message.usage.cacheWrite;
-      usage.totalTokens += message.usage.totalTokens;
-      usage.cost.input += message.usage.cost.input;
-      usage.cost.output += message.usage.cost.output;
-      usage.cost.cacheRead += message.usage.cost.cacheRead;
-      usage.cost.cacheWrite += message.usage.cost.cacheWrite;
-      usage.cost.total += message.usage.cost.total;
-      return usage;
-    },
-    {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-      totalTokens: 0,
-      cost: {
-        input: 0,
-        output: 0,
-        cacheRead: 0,
-        cacheWrite: 0,
-        total: 0
-      }
-    }
-  );
-}
-
 function asRecordOrNull(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null;
   }
 
   return value as Record<string, unknown>;
+}
+
+function cloneJsonRecord(value: Record<string, unknown>): Record<string, unknown> {
+  return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+}
+
+function readFiniteNumber(record: Record<string, unknown>, key: string): number | null {
+  const value = record[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function addTokenValue(tokens: RunUsageTokensV1, key: keyof RunUsageTokensV1, value: number | null) {
+  if (value === null) {
+    return false;
+  }
+
+  tokens[key] = (tokens[key] ?? 0) + value;
+  return true;
+}
+
+function getEstimatedCostMicros(usage: Record<string, unknown>) {
+  const cost = asRecordOrNull(usage.cost);
+  if (!cost) {
+    return null;
+  }
+
+  const total = readFiniteNumber(cost, 'total');
+  return total === null ? null : Math.round(total * 1_000_000);
+}
+
+function createUsageSummary(messages: PiMessage[], input: Pick<RuntimePiInput, 'provider' | 'model'>): RunUsageSummaryV1 {
+  const assistantMessages = messages.filter((message) => message.role === 'assistant');
+  const tokens: RunUsageTokensV1 = {};
+  const rawAssistantUsages: Record<string, unknown>[] = [];
+  let estimatedCostMicros = 0;
+  let hasEstimatedCost = false;
+  let sawUsageRecord = false;
+  let sawMissing = assistantMessages.length === 0;
+  let sawPartial = false;
+  let sawMalformed = false;
+
+  for (const message of assistantMessages) {
+    const rawUsage = getMessageUsage(message);
+    if (rawUsage === null || rawUsage === undefined) {
+      sawMissing = true;
+      continue;
+    }
+
+    const usage = asRecordOrNull(rawUsage);
+    if (!usage) {
+      sawMalformed = true;
+      continue;
+    }
+
+    sawUsageRecord = true;
+    rawAssistantUsages.push(cloneJsonRecord(usage));
+
+    const inputTokens = readFiniteNumber(usage, 'input');
+    const outputTokens = readFiniteNumber(usage, 'output');
+    const cacheReadTokens = readFiniteNumber(usage, 'cacheRead');
+    const cacheWriteTokens = readFiniteNumber(usage, 'cacheWrite');
+    const totalTokens = readFiniteNumber(usage, 'totalTokens');
+    const reasoningTokens = readFiniteNumber(usage, 'reasoning');
+
+    const completeTokenRecord =
+      inputTokens !== null &&
+      outputTokens !== null &&
+      cacheReadTokens !== null &&
+      cacheWriteTokens !== null &&
+      totalTokens !== null;
+    if (!completeTokenRecord) {
+      sawPartial = true;
+    }
+
+    addTokenValue(tokens, 'input', inputTokens);
+    addTokenValue(tokens, 'output', outputTokens);
+    addTokenValue(tokens, 'cacheRead', cacheReadTokens);
+    addTokenValue(tokens, 'cacheWrite', cacheWriteTokens);
+    addTokenValue(tokens, 'total', totalTokens);
+    addTokenValue(tokens, 'reasoning', reasoningTokens);
+
+    const costMicros = getEstimatedCostMicros(usage);
+    if (costMicros !== null) {
+      estimatedCostMicros += costMicros;
+      hasEstimatedCost = true;
+    }
+  }
+
+  const normalizationStatus: RunUsageSummaryV1['normalizationStatus'] = sawMalformed
+    ? 'malformed'
+    : !sawUsageRecord
+      ? 'missing'
+      : sawMissing || sawPartial
+        ? 'partial'
+        : 'complete';
+
+  return {
+    schemaVersion: 1,
+    provider: input.provider ?? null,
+    model: input.model ?? null,
+    normalizationStatus,
+    tokens,
+    estimatedCost: hasEstimatedCost
+      ? {
+          currency: 'USD',
+          amountMicros: estimatedCostMicros,
+          source: 'pi-ai-message-usage',
+          version: null
+        }
+      : null,
+    rawProviderUsage:
+      rawAssistantUsages.length > 0
+        ? {
+            assistantMessages: rawAssistantUsages
+          }
+        : null
+  };
 }
 
 function extractTextContent(content: ToolResultMessage['content']) {
@@ -465,13 +546,30 @@ function summarizeUsage(value: unknown) {
     return null;
   }
 
-  return {
-    input: usage.input ?? 0,
-    output: usage.output ?? 0,
-    cacheRead: usage.cacheRead ?? 0,
-    cacheWrite: usage.cacheWrite ?? 0,
-    totalTokens: usage.totalTokens ?? 0
-  };
+  const summary: Record<string, number> = {};
+  const input = readFiniteNumber(usage, 'input');
+  const output = readFiniteNumber(usage, 'output');
+  const cacheRead = readFiniteNumber(usage, 'cacheRead');
+  const cacheWrite = readFiniteNumber(usage, 'cacheWrite');
+  const totalTokens = readFiniteNumber(usage, 'totalTokens');
+
+  if (input !== null) {
+    summary.input = input;
+  }
+  if (output !== null) {
+    summary.output = output;
+  }
+  if (cacheRead !== null) {
+    summary.cacheRead = cacheRead;
+  }
+  if (cacheWrite !== null) {
+    summary.cacheWrite = cacheWrite;
+  }
+  if (totalTokens !== null) {
+    summary.totalTokens = totalTokens;
+  }
+
+  return Object.keys(summary).length > 0 ? summary : null;
 }
 
 function getMessageProvider(message: unknown) {
@@ -1104,7 +1202,11 @@ async function handleAgentEvent(
       usage: createUsageSummary(
         event.messages.filter(
           (message): message is PiMessage => message.role === 'assistant' || message.role === 'toolResult' || message.role === 'user'
-        )
+        ),
+        {
+          provider: String(model.provider),
+          model: model.id
+        }
       )
     });
 

@@ -4,6 +4,7 @@ import type {
   ChatShareStatus,
   MessagePartType,
   MessageRole,
+  RunUsageSummaryV1,
   RunStatus,
   ToolInvocationStatus
 } from '@agent-infra/core';
@@ -22,6 +23,8 @@ export interface ThreadDto {
   archivedAt?: IsoDateString | null;
 }
 
+export type RunUsageDto = RunUsageSummaryV1 | Record<string, unknown>;
+
 export interface RunDto {
   id: string;
   threadId: string;
@@ -29,7 +32,7 @@ export interface RunDto {
   provider?: string | null;
   model?: string | null;
   status: RunStatus;
-  usage?: Record<string, unknown> | null;
+  usage?: RunUsageDto | null;
   error?: string | null;
   startedAt?: IsoDateString | null;
   finishedAt?: IsoDateString | null;

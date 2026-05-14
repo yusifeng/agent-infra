@@ -63,8 +63,8 @@ function copyJsonValue(value: unknown): unknown {
   return value;
 }
 
-function copyRecord(record: Record<string, unknown> | null | undefined): Record<string, unknown> | null | undefined {
-  return record ? (copyJsonValue(record) as Record<string, unknown>) : record;
+function copyRecord<T>(record: T | null | undefined): T | null | undefined {
+  return record ? (copyJsonValue(record) as T) : record;
 }
 
 function copyRun(run: RunDto): RunDto {
