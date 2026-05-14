@@ -16,7 +16,7 @@ It records the setup that is already proven in this repository, so the next roll
 
 The current validated production domain is:
 
-- `https://next-infra.zhangdawei.org`
+- `https://deepseek.zhangdawei.org`
 
 The validated preview shape is:
 
@@ -152,7 +152,7 @@ The script:
 1. reads deployment values from the repository-root `.env`
 2. trims values before writing them to Vercel production env
 3. forces `PLAYGROUND_DB_MODE=turso`
-4. adds `https://next-infra.zhangdawei.org` to `AUTH_ALLOWED_ORIGINS`
+4. adds `https://deepseek.zhangdawei.org` to `AUTH_ALLOWED_ORIGINS`
 5. bootstraps the Turso schema
 6. runs `playground-next-web` typecheck and production build
 7. deploys with `vercel --prod --yes`
@@ -170,7 +170,7 @@ pnpm --filter playground-next-web deploy:production -- --skip-build
 pnpm --filter playground-next-web deploy:production -- --skip-deploy
 pnpm --filter playground-next-web deploy:production -- --skip-verify
 pnpm --filter playground-next-web deploy:production -- --verify-signup-code
-pnpm --filter playground-next-web deploy:production -- --base-url=https://next-infra.zhangdawei.org
+pnpm --filter playground-next-web deploy:production -- --base-url=https://deepseek.zhangdawei.org
 ```
 
 `--verify-signup-code` calls `POST /api/auth/email/request-signup-code` and may
@@ -198,7 +198,7 @@ pnpm --filter playground-next-web smoke:deployment
 
 Defaults:
 
-- base URL: `https://next-infra.zhangdawei.org`
+- base URL: `https://deepseek.zhangdawei.org`
 - prompt: `Reply with exactly ok.`
 
 You can target another deployment explicitly:
@@ -248,11 +248,11 @@ If so, use a production domain or an otherwise reachable deployment URL for the 
 
 The current validated custom domain setup is:
 
-- domain host: `next-infra.zhangdawei.org`
+- domain host: `deepseek.zhangdawei.org`
 - DNS provider: Cloudflare
 - record:
   - `CNAME`
-  - `next-infra`
+  - `deepseek`
   - `cname.vercel-dns.com`
   - `DNS only`
 

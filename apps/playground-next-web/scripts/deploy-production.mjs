@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 
 const repoRoot = path.resolve(import.meta.dirname, '../../..');
 const appName = 'playground-next-web';
-const defaultBaseUrl = 'https://next-infra.zhangdawei.org';
+const defaultBaseUrl = 'https://deepseek.zhangdawei.org';
 
 function parseArgs(argv) {
   const options = {

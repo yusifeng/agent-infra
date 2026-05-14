@@ -1,4 +1,4 @@
-const DEFAULT_BASE_URL = 'https://next-infra.zhangdawei.org';
+const DEFAULT_BASE_URL = 'https://deepseek.zhangdawei.org';
 const DEFAULT_PROMPT = 'Reply with exactly ok.';
 const DEFAULT_THREAD_TITLE = 'Next deployment smoke';
 
