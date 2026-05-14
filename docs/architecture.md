@@ -105,6 +105,42 @@ That surface already has enough runtime and boundary complexity to justify featu
 In the current `playground-next-web` implementation, `components/chat-shell/*` may remain as the presentational UI layer while feature-local `schema / repo / service / runtime / types` hold the application logic.
 Do not introduce an external state-management library for this feature unless reducer-plus-service extraction has already failed to keep the runtime understandable.
 
+### Durable chat consumer layering
+
+Durable chat consumer features in `apps/playground-next-web` and
+`apps/playground-vite-web` should use the same practical layer boundaries:
+
+- `schema`: parse unknown API, stream, URL, or storage shapes into known data.
+- `repo`: own HTTP/SSE/storage/browser boundary access and return normalized
+  results.
+- `service`: own pure derive, merge, projection, presentation, and action-policy
+  rules.
+- `runtime`: coordinate side effects, lifecycle, state machines, abort
+  controllers, scrolling, hydration, send/reconcile, attach, and recovery.
+- `ui` or `components`: bind props, render, and forward user interactions.
+
+Rules that should not drift back into large hooks or components:
+
+- transcript block construction
+- search/result artifact parsing
+- copy/action visibility policy
+- composer send/toggle policy
+- live/persisted transcript merge rules
+- browser storage and clipboard parsing
+
+Testing should follow the same boundary:
+
+- parsing and normalization in `schema` tests
+- HTTP/storage/browser behavior in `repo` tests
+- display and merge rules in `service` tests
+- orchestration, recovery, polling, attach, and reconcile behavior in `runtime`
+  tests
+- only high-value rendering and interaction checks in UI tests
+
+Do not split hooks or components just to make the tree look cleaner. Extract when
+the target layer has a real ownership boundary and focused verification can prove
+the behavior stayed stable.
+
 ## Why `thread` instead of `session`
 
 `thread` maps better to a durable conversation timeline that can contain many runs and messages over time.

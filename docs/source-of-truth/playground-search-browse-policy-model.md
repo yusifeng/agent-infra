@@ -1,6 +1,6 @@
 # Playground Search / Browse Policy 模型说明
 
-这份说明定义 `apps/playground-fastify-server` 与 `apps/playground-vite-web`
+这份说明定义 playground host / consumer
 当前采用的 **search planner + openUrl 业务规则**。
 
 它记录长期事实和边界，不是某一次任务的执行说明。
@@ -41,6 +41,7 @@ shared infra 继续只提供：
 这些规则属于：
 
 - `apps/playground-fastify-server`
+- `apps/playground-next-web`
 - `apps/playground-vite-web`
 
 的业务层决策。

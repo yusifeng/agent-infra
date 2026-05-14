@@ -21,10 +21,10 @@
   - thread-level snapshot share 的持久化实体、public id、snapshot payload、
     internal/public contracts，以及 Vite 只读分享页应复用的内容边界
 - `playground-host-auth-model.md`
-  - playground Fastify/Vite 宿主侧 auth 的边界、ownership 规则、
+  - playground host/consumer 宿主侧 auth 的边界、ownership 规则、
     session/cookie 模型、受保护路由语义，以及为什么它不进入 shared packages
 - `playground-chat-mode-model.md`
-  - playground Fastify/Vite 在 `/new` centered landing 上采用的
+  - playground host/consumer 在 `/new` centered landing 上采用的
     DeepSeek 双模式语义、host meta 暴露规则、模式到真实模型的映射，
     以及非 DeepSeek fallback 的降级边界
 - `playground-fastify-env-db-mode.md`
@@ -32,12 +32,12 @@
     作为唯一 DB 类型选择器的规则、prepared scripts 约束，
     以及 `/api/meta` 的 DB 报告必须与真实 `DbConfig` 一致
 - `playground-thread-auto-title-model.md`
-  - playground Fastify/Vite 的 thread auto-title 业务边界、
+  - playground host/consumer 的 thread auto-title 业务边界、
     run 完成后的触发规则、默认标题态判断、
     event-primary / refresh-fallback 更新链路，以及 `header + sidebar active item`
     的共享打字机表现规则
 - `playground-search-browse-policy-model.md`
-  - playground Fastify/Vite 的 search planner / openUrl 业务边界、
+  - playground host/consumer 的 search planner / openUrl 业务边界、
     host-level tool execution gate、`search/browse/answer` phase、
     `quick/expert` 搜索预算，以及前端聚合搜索/浏览摘要的展示规则
 - `run-attach-stream-model.md`
@@ -49,6 +49,10 @@
   - Run Trace & Usage Contract v1 的 durable raw trace、typed timeline projection、
     versioned usage summary、`message_update` live-only 边界、app/thread/run
     attribution 规则，以及 usage records、cancel、replay/eval 的后续进入条件
+- `message-pagination-model.md`
+  - durable transcript pagination 的 `threadId + seq` cursor 基础、
+    `limit/before/after` 查询语义、`pageInfo` 边界、分层职责，
+    以及 live overlay 与 durable page window 的关系
 
 ## 不适合放在这里的内容
 

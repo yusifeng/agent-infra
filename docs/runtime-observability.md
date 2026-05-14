@@ -1,5 +1,10 @@
 # Runtime Observability
 
+Current stable run trace and usage semantics are defined in
+[`source-of-truth/run-trace-usage-contract.md`](./source-of-truth/run-trace-usage-contract.md).
+This document remains as background context for how the observability model
+reached that contract.
+
 ## Purpose
 
 This document defines what `agent-infra` currently means by runtime observability, what is already implemented, and what belongs in `v0` versus later phases.

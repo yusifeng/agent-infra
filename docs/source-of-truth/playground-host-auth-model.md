@@ -1,6 +1,6 @@
 # Playground Host Auth 模型说明
 
-这份说明定义 `apps/playground-fastify-server` 与 `apps/playground-vite-web` 当前采用的 **宿主侧 auth 模型**。
+这份说明定义 playground host / consumer 当前采用的 **宿主侧 auth 模型**。
 
 它记录的是长期事实和边界，不是某一次任务的执行步骤。
 
@@ -8,14 +8,14 @@
 
 playground host auth 当前已经落地，范围固定为：
 
-- Fastify host 本地 auth schema
+- playground host 本地 auth schema
 - 邮箱验证码注册
 - 邮箱 + 密码登录
 - 邮箱验证码重置密码
 - HttpOnly cookie session
 - request-scoped current user
 - thread catalog ownership 绑定到宿主 auth user
-- Vite `/login` / `/register` / `/forgot-password` / auth gate
+- playground consumer `/login` / `/register` / `/forgot-password` / auth gate
 
 ## 核心边界
 
@@ -24,6 +24,7 @@ playground host auth 当前已经落地，范围固定为：
 auth user、identity、password、session、email challenge 都只存在于：
 
 - `apps/playground-fastify-server`
+- `apps/playground-next-web`
 - `apps/playground-vite-web`
 
 它们不会进入：
@@ -229,14 +230,14 @@ session 不是 JWT，也不是 stateless cookie session。
 
 ### 4. 当前用户解析
 
-Fastify request 在进入受保护路由前，会按下面顺序解析当前用户：
+host request 在进入受保护路由前，会按下面顺序解析当前用户：
 
 1. 从 cookie 读取 session token
 2. 计算 `token_hash`
 3. 查询 `auth_sessions`
 4. 验证未过期、未撤销
 5. 查询 `auth_users` 与 `auth_identities`
-6. 写入 request-scoped `currentUser`
+6. 写入 request-scoped `currentUser` 或等价的 host-local 当前用户上下文
 
 ## 路由边界
 
@@ -276,9 +277,9 @@ public share route 不依赖当前用户，保持可匿名访问。
 
 ## 前端边界
 
-### 1. auth gate 属于 Vite consumer 本地能力
+### 1. auth gate 属于 playground consumer 本地能力
 
-Vite 使用 app-local auth runtime：
+playground consumer 使用 app-local auth runtime：
 
 - 启动先请求 `/api/auth/me`
 - 未登录进入 `/login` / `/register` / `/forgot-password`

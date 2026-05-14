@@ -55,6 +55,8 @@ The completed baseline includes:
 - replay-oriented APIs or derived views
 - explicit resume-safe runtime behavior
 - stronger snapshot and recovery semantics
+- optimization of `/chat/:threadId` initial load ordering if duplicate
+  initialization requests become a measured problem
 
 ## Candidate Track 3: Artifact And File Lifecycle
 
@@ -74,4 +76,8 @@ The completed baseline includes:
 - keep `playground-next-web` a clean reference consumer
 - continue hardening `durable-chat-server` and `durable-chat-client` as the reusable adoption surface
 - keep transport codec/runtime helpers out of `packages/contracts` unless a second consumer or transport proves the need
+- improve reload/reconnect, long-thread paging, and run-centric navigation when
+  those changes validate shared runtime or observability contracts
+- keep visual polish explicitly lower priority than core runtime, contract, DB,
+  and app-layer work
 - improve adoption without turning the harness into a product

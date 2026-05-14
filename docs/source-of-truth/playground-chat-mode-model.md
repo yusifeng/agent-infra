@@ -1,6 +1,6 @@
 # Playground Chat Mode 模型说明
 
-这份说明定义 `apps/playground-fastify-server` 与 `apps/playground-vite-web` 当前采用的
+这份说明定义 playground host / consumer 当前采用的
 **playground chat 模式与 `/new` landing 语义**。
 
 它记录长期事实和边界，不是某一次 UI 调整的执行说明。
@@ -14,8 +14,8 @@ playground chat 当前固定支持一组面向 DeepSeek 的双模式入口：
 
 这组模式只用于：
 
-- `playground-fastify-server` 暴露的 host meta
-- `playground-vite-web` 的 `/new` centered landing shell
+- playground host 暴露的 host meta
+- playground consumer 的 `/new` centered landing shell
 
 它不是 shared package 的通用 provider 模式系统。
 
@@ -42,6 +42,7 @@ shared 层继续只认识：
 当前 thread 的持久化运行绑定只存在于：
 
 - `apps/playground-fastify-server`
+- `apps/playground-next-web`
 - `playground_thread_catalog.runtime_provider`
 - `playground_thread_catalog.runtime_model`
 

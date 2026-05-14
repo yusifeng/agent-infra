@@ -1,6 +1,6 @@
 # Playground Thread Auto Title 模型说明
 
-这份说明定义 `apps/playground-fastify-server` 与 `apps/playground-vite-web`
+这份说明定义 playground host / consumer
 当前采用的 **thread auto-title 业务规则**。
 
 它记录长期事实和边界，不是某一次任务的执行说明。
@@ -26,6 +26,7 @@ shared infra 继续只提供：
 是否启用 auto-title、何时触发、如何生成，属于：
 
 - `apps/playground-fastify-server`
+- `apps/playground-next-web`
 - `apps/playground-vite-web`
 
 的业务层决策。

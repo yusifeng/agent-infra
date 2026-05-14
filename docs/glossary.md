@@ -8,7 +8,7 @@
 ### 原始消息（Raw message）
 
 后端持久化后的 `MessageDto`。原始消息是 transcript 历史的 durable 真相源，
-但在 Vite UI 中**不会**按 1:1 的方式直接渲染。
+但在 durable chat UI 中**不会**按 1:1 的方式直接渲染。
 
 ### 消息片段（Message part）
 
@@ -62,7 +62,7 @@ live assistant draft 内部的子单元，用于按 tool 边界拆分 assistant 
 
 ### Transcript 块（Transcript block）
 
-Vite 页面上的顶层渲染单元。页面渲染消费的是 `TranscriptBlock[]`，而不是原始
+durable chat 页面上的顶层渲染单元。页面渲染消费的是 `TranscriptBlock[]`，而不是原始
 消息数组。
 
 当前的 block 类型有：
@@ -72,7 +72,7 @@ Vite 页面上的顶层渲染单元。页面渲染消费的是 `TranscriptBlock[
 
 ### Assistant turn
 
-Vite UI 中用于表示一段 assistant 展示单元的 persisted transcript block。
+durable chat UI 中用于表示一段 assistant 展示单元的 persisted transcript block。
 一个 assistant turn 内部可能包含多个 item，它**不等价于**一条原始消息。
 
 ### Assistant turn item
