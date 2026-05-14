@@ -30,7 +30,8 @@ function filterDemoModelOptions(
   modelOptions: ReturnType<typeof listAvailableRuntimePiModelOptionsFromEnv>
 ) {
   const flashOption = modelOptions.find((option) => option.provider === 'deepseek' && option.model === 'deepseek-v4-flash');
-  return flashOption ? [flashOption] : modelOptions;
+  const proOption = modelOptions.find((option) => option.provider === 'deepseek' && option.model === 'deepseek-v4-pro');
+  return flashOption && proOption ? [flashOption, proOption] : modelOptions;
 }
 
 export function getPlaygroundDbInfo(): PlaygroundDbInfo {

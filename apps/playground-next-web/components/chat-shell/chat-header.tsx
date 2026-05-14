@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Archive, CirclePlus, History, Menu, PanelLeft, Pencil, Pin, PinOff, Share2 } from 'lucide-react';
+import { CirclePlus, PanelLeft, Share2 } from 'lucide-react';
 
 import { IconButton } from './shared';
 import { ExpertModeIcon, QuickModeIcon } from './mode-icons';
@@ -9,36 +9,24 @@ import { PureDeepseek } from './pure-deepseek';
 
 type ChatHeaderProps = {
   currentThreadTitle?: string | null;
-  currentThreadPinned: boolean;
   threadActionsDisabled: boolean;
   sidebarOpen: boolean;
   onOpenSidebar: () => void;
   onNewChat?: (() => void) | undefined;
   mode?: 'quick' | 'expert' | null;
   trailingContent?: ReactNode;
-  onRenameThread: () => void;
-  onToggleThreadPin: () => void;
-  onArchiveThread: () => void;
-  onOpenReplay: () => void;
   onOpenShareDialog: () => void;
-  onToggleLog: () => void;
 };
 
 export function ChatHeader({
   currentThreadTitle = null,
-  currentThreadPinned,
   threadActionsDisabled,
   sidebarOpen,
   onOpenSidebar,
   onNewChat,
   mode = null,
   trailingContent,
-  onRenameThread,
-  onToggleThreadPin,
-  onArchiveThread,
-  onOpenReplay,
-  onOpenShareDialog,
-  onToggleLog
+  onOpenShareDialog
 }: ChatHeaderProps) {
   const modeLabel = mode === 'expert' ? '专家模式' : mode === 'quick' ? '快速模式' : null;
   const showThreadMeta = Boolean(currentThreadTitle);
@@ -91,18 +79,7 @@ export function ChatHeader({
       <div className="flex-1" />
       {trailingContent ? <div className="flex shrink-0 items-center gap-1">{trailingContent}</div> : null}
       <div className="flex shrink-0 items-center gap-1">
-        <IconButton icon={Pencil} onClick={onRenameThread} size="small" title="重命名" disabled={threadActionsDisabled} />
-        <IconButton
-          icon={currentThreadPinned ? PinOff : Pin}
-          onClick={onToggleThreadPin}
-          size="small"
-          title={currentThreadPinned ? '取消置顶' : '置顶'}
-          disabled={threadActionsDisabled}
-        />
         <IconButton icon={Share2} onClick={onOpenShareDialog} size="small" title="分享" disabled={threadActionsDisabled} />
-        <IconButton icon={History} onClick={onOpenReplay} size="small" title="回放" disabled={threadActionsDisabled} />
-        <IconButton icon={Archive} onClick={onArchiveThread} size="small" title="归档" disabled={threadActionsDisabled} />
-        <IconButton icon={Menu} onClick={onToggleLog} size="small" title="切换日志面板" />
       </div>
     </header>
   );

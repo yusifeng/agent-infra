@@ -1,9 +1,13 @@
 import './globals.css';
 
+import { TooltipProvider } from '@/components/ui/tooltip';
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <TooltipProvider>{children}</TooltipProvider>
+      </body>
     </html>
   );
 }

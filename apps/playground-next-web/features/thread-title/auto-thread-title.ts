@@ -5,8 +5,10 @@ import type { PlaygroundAppServices } from '@/lib/playground-base-services';
 import { isDefaultThreadTitle } from './default-thread-title';
 
 const MAX_SOURCE_TEXT_LENGTH = 800;
+const MAX_GENERATED_TITLE_CJK_CHARS = 12;
+const MAX_GENERATED_TITLE_WORDS = 6;
 const AUTO_THREAD_TITLE_SYSTEM_PROMPT =
-  'Generate a concise chat thread title based on this completed Q&A turn. Focus on the main topic or task, not a full-sentence answer. Return only the title text, without quotes, markdown, or punctuation decoration.';
+  'Generate a concise chat thread title based on this completed Q&A turn. Focus on the main topic or task, not a full-sentence answer. Return only the title text, without quotes, markdown, or punctuation decoration. Keep it within 12 Chinese characters or 6 English words.';
 
 export type ThreadTitleGenerator = {
   generateTitle(input: { sourceText: string }): Promise<string | null>;
@@ -94,14 +96,23 @@ export function normalizeGeneratedThreadTitle(title: string | null | undefined) 
 
   const normalizedTitle = title
     .trim()
-    .replace(/^["'“”‘’]+|["'“”‘’]+$/g, '')
+    .replace(/^["'“”‘’【】\[\]（）()]+|["'“”‘’【】\[\]（）()]+$/g, '')
     .replace(/\s+/g, ' ');
 
   if (!normalizedTitle || isDefaultThreadTitle(normalizedTitle)) {
     return null;
   }
 
-  return normalizedTitle;
+  if (/[\u3400-\u9fff]/u.test(normalizedTitle)) {
+    return normalizedTitle.length > MAX_GENERATED_TITLE_CJK_CHARS
+      ? normalizedTitle.slice(0, MAX_GENERATED_TITLE_CJK_CHARS).trim()
+      : normalizedTitle;
+  }
+
+  const words = normalizedTitle.split(/\s+/u);
+  return words.length > MAX_GENERATED_TITLE_WORDS
+    ? words.slice(0, MAX_GENERATED_TITLE_WORDS).join(' ')
+    : normalizedTitle;
 }
 
 export async function maybeAutoTitleThread(args: {
@@ -190,7 +201,7 @@ export function createRuntimeThreadTitleGenerator(runtime: ThreadTitleRuntime): 
             systemPrompt: AUTO_THREAD_TITLE_SYSTEM_PROMPT,
             userPrompt: `Completed Q&A turn:\n${sourceText}`,
             temperature: 0.2,
-            maxTokens: 48,
+            maxTokens: 24,
             reasoningEffort: 'off'
           });
 

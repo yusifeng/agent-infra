@@ -4,7 +4,7 @@ import { ArrowUp, Atom, ChevronDown, Globe } from 'lucide-react';
 import type { MutableRefObject, RefObject } from 'react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { buildComposerState } from '@/features/durable-chat/service/composer-state';
 import type { DeepseekModePresentation } from '@/features/durable-chat/service/deepseek-mode-presentation';
 import { cn } from '@/lib/utils';
@@ -14,14 +14,12 @@ import { PureDeepseek } from './pure-deepseek';
 import { composerMaxWithTW, ui } from './ui';
 
 type ComposerDockProps = {
-  activeThreadId: string | null;
   draft: string;
   isResponding: boolean;
   sendDisabled: boolean;
   inputLocked: boolean;
   selectedWebSearchEnabled: boolean;
   selectedThinkingEnabled: boolean;
-  selectedReasoningEffort: 'high' | 'max';
   selectedModelOption: RuntimePiMetaDto['modelOptions'][number] | null;
   deepseekModePresentation: DeepseekModePresentation;
   onSelectedModelKeyChange: (value: string) => void;
@@ -33,21 +31,18 @@ type ComposerDockProps = {
   onDraftChange: (value: string) => void;
   onSelectedWebSearchEnabledChange: (value: boolean) => void;
   onSelectedThinkingEnabledChange: (value: boolean) => void;
-  onSelectedReasoningEffortChange: (value: 'high' | 'max') => void;
   onSend: () => void;
   onStop: () => void;
   onScrollToBottom: () => void;
 };
 
 export function ComposerDock({
-  activeThreadId,
   draft,
   isResponding,
   sendDisabled,
   inputLocked,
   selectedWebSearchEnabled,
   selectedThinkingEnabled,
-  selectedReasoningEffort,
   selectedModelOption,
   deepseekModePresentation,
   onSelectedModelKeyChange,
@@ -59,7 +54,6 @@ export function ComposerDock({
   onDraftChange,
   onSelectedWebSearchEnabledChange,
   onSelectedThinkingEnabledChange,
-  onSelectedReasoningEffortChange,
   onSend,
   onStop,
   onScrollToBottom
@@ -76,15 +70,15 @@ export function ComposerDock({
   const showDeepseekLanding = centered && deepseekModePresentation.selectedMode !== null;
   const centeredTitle =
     deepseekModePresentation.selectedMode === 'expert' ? '使用专家模式开始对话' : '使用快速模式开始对话';
-  const centeredPlaceholder =
-    deepseekModePresentation.selectedMode === 'expert' ? '给 DeepSeek 专家模式发送消息' : '给 DeepSeek 快速模式发送消息';
-  const placeholder = showDeepseekLanding
-    ? centeredPlaceholder
-    : activeThreadId
-      ? '继续这个 durable thread...'
-      : centered
-        ? '开始一个新对话'
-        : '给 durable chat 发送消息';
+  const placeholder = '给 DeepSeek 发送消息';
+  const modeToggleClassName = (active: boolean) =>
+    cn(
+      buttonVariants({ variant: 'outline', size: 'sm' }),
+      'h-9 shrink-0 rounded-full',
+      active
+        ? 'border-[color:var(--chat-reasoning-divider)] bg-[var(--chat-surface-muted)] text-[color:var(--chat-reasoning-accent)] hover:text-[color:var(--chat-reasoning-accent)]'
+        : 'border-[color:var(--chat-border)] bg-[var(--chat-surface)] text-[color:var(--chat-text-secondary)] hover:border-[color:var(--chat-border-strong)] hover:bg-[var(--chat-hover)] hover:text-[color:var(--chat-text-secondary)]'
+    );
 
   return (
     <div
@@ -165,7 +159,7 @@ export function ComposerDock({
         <form
           className={clsx(
             ui.composerCard,
-            centered && 'rounded-[28px] border-[color:color-mix(in_srgb,var(--chat-border)_78%,white)] shadow-[0_24px_64px_rgba(15,23,42,0.08)]'
+            centered && 'border-[color:color-mix(in_srgb,var(--chat-border)_78%,white)] shadow-[0_24px_64px_rgba(15,23,42,0.08)]'
           )}
           onSubmit={(event) => {
             event.preventDefault();
@@ -174,8 +168,8 @@ export function ComposerDock({
             }
           }}
         >
-          <div className="flex flex-col">
-            <div className="px-4 py-3">
+          <div className="relative h-full">
+            <div className="px-4 py-3 pb-[52px]">
               <textarea
                 ref={textareaRef}
                 value={draft}
@@ -199,68 +193,55 @@ export function ComposerDock({
               />
             </div>
 
-            <div className="flex items-center justify-between gap-3 p-3">
+            <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 p-3">
               <div className="flex min-w-0 items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => onSelectedWebSearchEnabledChange(!selectedWebSearchEnabled)}
-                  disabled={composerState.searchToggleDisabled}
-                  className={cn(
-                    buttonVariants({ variant: 'outline', size: 'sm' }),
-                    'h-9 shrink-0 rounded-full',
-                    selectedWebSearchEnabled
-                      ? 'border-[color:var(--chat-reasoning-divider)] bg-[var(--chat-surface-muted)] text-[color:var(--chat-reasoning-accent)] hover:text-[color:var(--chat-reasoning-accent)]'
-                      : 'border-[color:var(--chat-border)] bg-[var(--chat-surface)] text-[color:var(--chat-text-secondary)] hover:border-[color:var(--chat-border-strong)] hover:bg-[var(--chat-hover)] hover:text-[color:var(--chat-text-secondary)]'
-                  )}
-                  aria-pressed={selectedWebSearchEnabled}
-                >
-                  <Globe className="h-4 w-4" />
-                  <span>网页搜索</span>
-                </button>
-
                 {composerState.isDeepseekModel ? (
-                  <>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => onSelectedThinkingEnabledChange(!selectedThinkingEnabled)}
+                        disabled={composerState.thinkingToggleDisabled}
+                        className={modeToggleClassName(selectedThinkingEnabled)}
+                        aria-pressed={selectedThinkingEnabled}
+                      >
+                        <Atom className="h-4 w-4" />
+                        <span>深度思考</span>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      hideArrow
+                      side="top"
+                      sideOffset={8}
+                      className="rounded-[12px] bg-[#2b2b2b] px-3 py-1.5 text-[13px] leading-5 text-white"
+                    >
+                      先思考后回答，解决推理问题
+                    </TooltipContent>
+                  </Tooltip>
+                ) : null}
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
                     <button
                       type="button"
-                      onClick={() => onSelectedThinkingEnabledChange(!selectedThinkingEnabled)}
-                      disabled={composerState.thinkingToggleDisabled}
-                      className={cn(
-                        buttonVariants({ variant: 'outline', size: 'sm' }),
-                        'h-9 shrink-0 rounded-full',
-                        selectedThinkingEnabled
-                          ? 'border-[color:var(--chat-reasoning-divider)] bg-[var(--chat-surface-muted)] text-[color:var(--chat-reasoning-accent)] hover:text-[color:var(--chat-reasoning-accent)]'
-                          : 'border-[color:var(--chat-border)] bg-[var(--chat-surface)] text-[color:var(--chat-text-secondary)] hover:border-[color:var(--chat-border-strong)] hover:bg-[var(--chat-hover)] hover:text-[color:var(--chat-text-secondary)]'
-                      )}
-                      aria-pressed={selectedThinkingEnabled}
+                      onClick={() => onSelectedWebSearchEnabledChange(!selectedWebSearchEnabled)}
+                      disabled={composerState.searchToggleDisabled}
+                      className={modeToggleClassName(selectedWebSearchEnabled)}
+                      aria-pressed={selectedWebSearchEnabled}
                     >
-                      <Atom className="h-4 w-4" />
-                      <span>深度思考</span>
+                      <Globe className="h-4 w-4" />
+                      <span>智能搜索</span>
                     </button>
-
-                    <Select
-                      value={selectedReasoningEffort}
-                      onValueChange={(value) => onSelectedReasoningEffortChange(value as 'high' | 'max')}
-                      disabled={composerState.reasoningSelectDisabled}
-                    >
-                      <SelectTrigger
-                        className={cn(
-                          'h-9 w-[132px] shrink-0 rounded-full px-3',
-                          selectedThinkingEnabled
-                            ? 'border-[color:var(--chat-reasoning-divider)] bg-[var(--chat-surface-muted)] text-[color:var(--chat-reasoning-accent)] hover:text-[color:var(--chat-reasoning-accent)]'
-                            : 'border-[color:var(--chat-border)] bg-[var(--chat-surface)] text-[color:var(--chat-text-tertiary)] opacity-70 hover:text-[color:var(--chat-text-tertiary)]'
-                        )}
-                        aria-label="思考程度"
-                      >
-                        <span className="mr-1">思考程度</span>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="high">高</SelectItem>
-                        <SelectItem value="max">最高</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </>
-                ) : null}
+                  </TooltipTrigger>
+                  <TooltipContent
+                    hideArrow
+                    side="top"
+                    sideOffset={8}
+                    className="rounded-[12px] bg-[#2b2b2b] px-3 py-1.5 text-[13px] leading-5 text-white"
+                  >
+                    按需搜索网页
+                  </TooltipContent>
+                </Tooltip>
               </div>
 
               <div className="flex items-center">

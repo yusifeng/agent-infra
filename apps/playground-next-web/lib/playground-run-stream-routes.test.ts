@@ -595,7 +595,7 @@ describe('playground run stream route', () => {
       updatedAt: '2026-01-01T00:00:10.000Z'
     });
     expect(generateText).toHaveBeenCalledWith(expect.objectContaining({
-      maxTokens: 48,
+      maxTokens: 24,
       reasoningEffort: 'off',
       temperature: 0.2,
       userPrompt: expect.stringContaining('User question:')

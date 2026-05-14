@@ -2,7 +2,7 @@ export const WAVING_HAND_EMOJI_URL =
   'https://registry.npmmirror.com/@lobehub/fluent-emoji-anim-1/latest/files/assets/1f44b.webp';
 
 export const maxWithTW = 'max-w-3xl';
-export const composerMaxWithTW = 'max-w-[820px]';
+export const composerMaxWithTW = 'max-w-[762px]';
 export const messageListMinHeight = { minHeight: 'max(0px, calc(-400px + 100dvh))' };
 
 export const ui = {
@@ -25,7 +25,7 @@ export const ui = {
   toolResult: 'border border-[color:var(--chat-tool-result-border)] bg-[color:var(--chat-tool-result-bg)]',
   codeBlock: 'bg-[var(--chat-code-bg)] text-[var(--chat-code-text)]',
   composerDock: 'bg-[var(--chat-bg)] backdrop-blur-[8px]',
-  composerCard: 'rounded-xl border border-[color:var(--chat-border)] bg-[var(--chat-surface)] shadow-[var(--chat-shadow-card)]',
+  composerCard: 'h-[124px] rounded-[24px] border border-[color:var(--chat-border)] bg-[var(--chat-surface)] shadow-[var(--chat-shadow-card)]',
   textarea: 'border-none bg-transparent text-[color:var(--chat-text)] outline-none placeholder:text-[color:var(--chat-placeholder)]',
   scrollButton: 'border border-[color:var(--chat-border)] bg-[var(--chat-surface)]',
   logPane: 'bg-[var(--chat-bg)]',

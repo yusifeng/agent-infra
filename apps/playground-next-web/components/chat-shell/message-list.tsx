@@ -529,6 +529,7 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
     | {
         type: 'live';
         liveAssistantDraft: LiveAssistantDraft;
+        actionsAvailable?: boolean;
         getLiveSearchPanelData?: (runId: string, toolCallIds: string[]) => ActiveSearchPanelData | null;
         onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
       }
@@ -553,12 +554,11 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
         }
   );
 
-  const isCompleted = props.type === 'persisted-turn';
   const copyText =
     props.type === 'persisted-turn'
       ? props.actionContext.copyText
       : collectLiveDraftCopyText(props.liveAssistantDraft);
-  const showActions = props.type === 'persisted-turn' ? props.actionContext.showActions : isCompleted && copyText.length > 0;
+  const showActions = props.type === 'persisted-turn' ? props.actionContext.showActions : props.actionsAvailable === true && copyText.length > 0;
   const hasVisibleContent =
     props.type === 'persisted-turn'
       ? buildThinkingFlowSections(buildPersistedThinkingTokens(props.block.items, props.block.runId), false).some((section) =>
@@ -801,16 +801,19 @@ const TranscriptBlockCard = memo(function TranscriptBlockCard({
 });
 
 const LiveAssistantCard = memo(function LiveAssistantCard({
+  actionsAvailable = false,
   getLiveSearchPanelData,
   liveAssistantDraft,
   onOpenSearchResult
 }: {
+  actionsAvailable?: boolean;
   liveAssistantDraft: LiveAssistantDraft;
   getLiveSearchPanelData?: (runId: string, toolCallIds: string[]) => ActiveSearchPanelData | null;
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
 }) {
   return (
     <AssistantTranscriptCard
+      actionsAvailable={actionsAvailable}
       getLiveSearchPanelData={getLiveSearchPanelData}
       liveAssistantDraft={liveAssistantDraft}
       onOpenSearchResult={onOpenSearchResult}
@@ -842,6 +845,7 @@ type ChatMessageListProps = {
   answerContainers?: AnswerContainer[];
   transcriptBlocks: TranscriptBlock[];
   liveAssistantDraft: LiveAssistantDraft | null;
+  liveAssistantActionsAvailable?: boolean;
   showLoadingText: boolean;
   centeredEmptyState: boolean;
   showPersistedResearchStatus?: boolean;
@@ -863,6 +867,7 @@ export const ChatMessageList = memo(function ChatMessageList({
   answerContainers = [],
   transcriptBlocks,
   liveAssistantDraft,
+  liveAssistantActionsAvailable = false,
   showLoadingText,
   centeredEmptyState,
   showPersistedResearchStatus = false,
@@ -898,15 +903,18 @@ export const ChatMessageList = memo(function ChatMessageList({
     transcriptBlockKeys: transcriptBlocks.map((block) => block.id).join('|')
   });
 
+  const hasRuntimeWarning = !meta?.runtimeConfigured && Boolean(meta?.runtimeConfigError);
+  const hasRecoveryNotice = durableRecoveryState.phase !== 'idle' && Boolean(durableRecoveryState.message);
+
   return (
     <div className={clsx('flex-1 p-6', centeredEmptyState && 'flex-none pb-3')}>
-      {!meta?.runtimeConfigured && meta?.runtimeConfigError ? (
+      {hasRuntimeWarning ? (
         <div className={clsx(`${maxWithTW} mx-auto mb-4 w-full rounded-xl px-4 py-3 text-sm`, ui.warningBanner)}>
-          {meta.runtimeConfigError}
+          {meta?.runtimeConfigError}
         </div>
       ) : null}
 
-      {durableRecoveryState.phase !== 'idle' && durableRecoveryState.message ? (
+      {hasRecoveryNotice ? (
         <div className={clsx(`${maxWithTW} mx-auto mb-4 w-full rounded-xl px-4 py-3 text-sm`, ui.infoBanner)}>
           <div className="flex items-center gap-2">
             {durableRecoveryState.phase === 'recovering' ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -986,6 +994,7 @@ export const ChatMessageList = memo(function ChatMessageList({
             ))}
             {liveAssistantDraft ? (
               <LiveAssistantCard
+                actionsAvailable={liveAssistantActionsAvailable}
                 getLiveSearchPanelData={getLiveSearchPanelData}
                 liveAssistantDraft={liveAssistantDraft}
                 onOpenSearchResult={onOpenSearchResult}

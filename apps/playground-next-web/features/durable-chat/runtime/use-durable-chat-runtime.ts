@@ -217,6 +217,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   });
   const isChatResponding = shouldShowMainChatLoading(responseStatus);
   const showResponseLoading = shouldShowMainChatLoading(responseStatus);
+  const liveAssistantActionsAvailable = liveAssistantDraft !== null && persistingTurn && !isChatResponding;
   const sendDisabled = !draft.trim() || isChatResponding || !meta?.runtimeConfigured || !selectedModelOption;
   const inputLocked = isChatResponding;
   const { displayedMessages, displayedTranscriptBlocks } = useMemo(
@@ -1398,7 +1399,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   return {
     activeThreadId,
     creatingShare,
-    currentThreadPinned,
     currentThreadTitle: currentVisibleThreadTitle,
     displayedAnswerContainers,
     displayedMessages,
@@ -1412,10 +1412,10 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     inputLocked,
     isChatResponding,
     liveAssistantDraft,
+    liveAssistantActionsAvailable,
     liveStreamRunId,
     loadingMessages,
     loadingCurrentShare,
-    logOpen,
     messagesViewportRef,
     meta,
     onArchiveThread: () => {
@@ -1434,7 +1434,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     onOpenShareDialog: () => {
       void openShareDialog();
     },
-    onOpenReplay: openReplay,
     onOpenThread: openThread,
     onOpenThreadShareDialog: (threadId: string) => {
       void openShareDialogForThread(threadId);
@@ -1462,12 +1461,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     onSelectedModelKeyChange: setSelectedModelKey,
     onSelectedWebSearchEnabledChange: setSelectedWebSearchEnabled,
     onSelectedThinkingEnabledChange: setSelectedThinkingEnabled,
-    onSelectedReasoningEffortChange: setSelectedReasoningEffort,
     onOpenSearchResult,
     onCloseSearchPanel,
-    onSelectRun: (runId: string) => {
-      void loadRunTimeline(runId);
-    },
     onSend: () => {
       void sendMessage();
     },
@@ -1481,16 +1476,10 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     onArchiveThreadById: (threadId: string) => {
       openArchiveDialogForThread(threadId);
     },
-    onToggleLog: () => setLogOpen((current) => !current),
-    persistingTurn,
-    recentRuns,
-    recentRunsError,
-    recentRunsLoading,
     revokingShare,
     responseStatus,
     archiveDialogThreadId,
     archivingThreadId,
-    runEvents,
     activeSearchResult,
     searchPanelError,
     searchPanelLoading,
@@ -1499,10 +1488,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     selectedModelKey,
     selectedWebSearchEnabled,
     selectedThinkingEnabled,
-    selectedReasoningEffort,
     selectedModelOption,
-    selectedRun,
-    selectedRunId,
     sendAbortControllerRef,
     sendDisabled,
     renameDialogThreadId,
@@ -1519,8 +1505,5 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     threadActionError,
     threadActionsDisabled,
     threads: visibleThreads,
-    timelineError,
-    timelineLoading,
-    toolInvocations
   };
 }

@@ -2,13 +2,16 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { getPlaygroundDbInfo } from './playground-meta';
+import { getPlaygroundDbInfo, getPlaygroundMeta } from './playground-meta';
 
 const ENV_KEYS = [
   'PLAYGROUND_DB_MODE',
   'SQLITE_PATH',
   'TURSO_DATABASE_URL',
-  'DATABASE_URL'
+  'DATABASE_URL',
+  'DEEPSEEK_API_KEY',
+  'OPENAI_API_KEY',
+  'OPENAI_MODEL'
 ] as const;
 
 const originalEnv = new Map<string, string | undefined>(
@@ -65,5 +68,19 @@ describe('playground meta db info', () => {
       mode: 'turso',
       connectionString: 'libsql://example.turso.io'
     });
+  });
+});
+
+describe('playground meta runtime model options', () => {
+  it('exposes both DeepSeek quick and expert options when DeepSeek is configured', () => {
+    clearDbEnv();
+    process.env.DEEPSEEK_API_KEY = 'test-deepseek-key';
+
+    const meta = getPlaygroundMeta({}, { mode: 'sqlite', connectionString: 'file:test.db' });
+
+    expect(meta.modelOptions.map((option) => option.model)).toEqual([
+      'deepseek-v4-flash',
+      'deepseek-v4-pro'
+    ]);
   });
 });

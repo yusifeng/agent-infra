@@ -31,7 +31,7 @@ import { ui } from './ui';
 
 function ThreadTitle({ thread }: { thread: PlaygroundThreadDto }) {
   const title = thread.title?.trim() || 'New Thread';
-  return <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[length:var(--chat-sidebar-item-font-size)] leading-[1.2]">{title}</span>;
+  return <span className="truncate text-[length:var(--chat-sidebar-item-font-size)] leading-[1.2]" title={title}>{title}</span>;
 }
 
 type ChatSidebarProps = {
