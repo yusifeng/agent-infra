@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizeRuntimeMetaResponse, normalizeThreadMessagesResponse, normalizeThreadRunsResponse } from '../src/schema/api';
+import {
+  normalizeRunTimelineResponse,
+  normalizeRuntimeMetaResponse,
+  normalizeThreadMessagesResponse,
+  normalizeThreadRunsResponse
+} from '../src/schema/api';
 import { normalizeRunAttachStreamEvent, normalizeRunStreamEvent } from '../src/schema/run-stream';
 import { normalizeStoredRunId } from '../src/schema/storage';
 
@@ -116,6 +121,105 @@ describe('durable-chat-client schema', () => {
     expect(meta.runtimeConfigured).toBe(true);
     expect(meta.modelOptions).toHaveLength(1);
     expect(meta.defaultModelKey).toBeUndefined();
+  });
+
+  it('normalizes run timeline projection while preserving raw events', () => {
+    const timeline = normalizeRunTimelineResponse({
+      run: {
+        id: 'run-1',
+        threadId: 'thread-1',
+        triggerMessageId: null,
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+        status: 'completed',
+        usage: null,
+        error: null,
+        startedAt: null,
+        finishedAt: null,
+        createdAt: '2026-01-01T00:00:00.000Z'
+      },
+      runEvents: [
+        {
+          id: 'event-1',
+          threadId: 'thread-1',
+          runId: 'run-1',
+          seq: 1,
+          type: 'agent_start',
+          payload: { provider: 'openai' },
+          createdAt: '2026-01-01T00:00:00.000Z'
+        }
+      ],
+      toolInvocations: [],
+      projection: {
+        schemaVersion: 1,
+        items: [
+          {
+            kind: 'run_lifecycle',
+            phase: 'started',
+            runEventId: 'event-1',
+            seq: 1
+          },
+          {
+            kind: 'unknown_event',
+            type: 'custom_event',
+            runEventId: 'event-2',
+            seq: 2
+          },
+          {
+            kind: 'run_lifecycle',
+            phase: 'cancelled',
+            runEventId: 'event-cancelled',
+            seq: 3
+          },
+          {
+            kind: 'tool_invocation',
+            phase: 'started',
+            toolCallId: 'call-1',
+            toolName: 'searchWeb',
+            toolInvocationId: null,
+            runEventId: 'event-3',
+            seq: 4
+          },
+          {
+            kind: 'broken'
+          }
+        ]
+      }
+    });
+
+    expect(timeline.runEvents).toHaveLength(1);
+    expect(timeline.projection).toEqual({
+      schemaVersion: 1,
+      items: [
+        {
+          kind: 'run_lifecycle',
+          phase: 'started',
+          runEventId: 'event-1',
+          seq: 1
+        },
+        {
+          kind: 'unknown_event',
+          type: 'custom_event',
+          runEventId: 'event-2',
+          seq: 2
+        },
+        {
+          kind: 'run_lifecycle',
+          phase: 'cancelled',
+          runEventId: 'event-cancelled',
+          seq: 3
+        },
+        {
+          kind: 'tool_invocation',
+          phase: 'started',
+          toolCallId: 'call-1',
+          toolName: 'searchWeb',
+          toolInvocationId: null,
+          runEventId: 'event-3',
+          seq: 4
+        }
+      ]
+    });
   });
 
   it('rejects malformed run stream events', () => {

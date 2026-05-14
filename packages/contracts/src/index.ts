@@ -87,6 +87,46 @@ export interface RunEventDto {
   createdAt: IsoDateString;
 }
 
+export interface RunTimelineProjectionDto {
+  schemaVersion: 1;
+  items: RunTimelineItemDto[];
+}
+
+export type RunTimelineItemDto =
+  | {
+      kind: 'run_lifecycle';
+      phase: 'started' | 'completed' | 'failed' | 'cancelled';
+      runEventId: string;
+      seq: number;
+    }
+  | {
+      kind: 'assistant_message';
+      phase: 'started' | 'completed' | 'failed';
+      runEventId: string;
+      seq: number;
+    }
+  | {
+      kind: 'tool_invocation';
+      phase: 'started' | 'completed' | 'failed';
+      toolCallId: string;
+      toolName: string;
+      toolInvocationId?: string | null;
+      runEventId: string;
+      seq: number;
+    }
+  | {
+      kind: 'runtime_error';
+      message: string;
+      runEventId: string;
+      seq: number;
+    }
+  | {
+      kind: 'unknown_event';
+      type: string;
+      runEventId: string;
+      seq: number;
+    };
+
 export interface RuntimePiModelOptionDto {
   key: string;
   provider: string;
@@ -271,6 +311,7 @@ export interface RunTimelineResponseDto {
   run: RunDto | null;
   runEvents: RunEventDto[];
   toolInvocations: ToolInvocationDto[];
+  projection?: RunTimelineProjectionDto | null;
   error?: string;
 }
 

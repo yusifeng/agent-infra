@@ -531,7 +531,18 @@ describe('durable chat server route helpers', () => {
             finishedAt: new Date('2026-01-01T00:00:01.000Z'),
             createdAt: new Date('2026-01-01T00:00:00.000Z')
           }
-        ]
+        ],
+        projection: {
+          schemaVersion: 1,
+          items: [
+            {
+              kind: 'run_lifecycle',
+              phase: 'started',
+              runEventId: 'event-1',
+              seq: 1
+            }
+          ]
+        }
       })
     ).toEqual({
       run: {
@@ -574,7 +585,18 @@ describe('durable chat server route helpers', () => {
           finishedAt: '2026-01-01T00:00:01.000Z',
           createdAt: '2026-01-01T00:00:00.000Z'
         }
-      ]
+      ],
+      projection: {
+        schemaVersion: 1,
+        items: [
+          {
+            kind: 'run_lifecycle',
+            phase: 'started',
+            runEventId: 'event-1',
+            seq: 1
+          }
+        ]
+      }
     });
   });
 });

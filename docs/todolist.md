@@ -19,12 +19,12 @@
 
 ### 0.2 Goals
 
-- [ ] Define a stable v1 contract for run trace and usage semantics before adding new UI or billing-like features.
+- [x] Define a stable v1 contract for run trace and usage semantics before adding new UI or billing-like features.
 - [x] Make run usage shape versioned, parseable, and test-covered while preserving current durable run behavior.
-- [ ] Define the boundary between raw `run_events` and typed timeline/read projections.
-- [ ] Resolve the `message_update` durable trace discrepancy explicitly in code and docs.
+- [x] Define the boundary between raw `run_events` and typed timeline/read projections.
+- [x] Resolve the `message_update` durable trace discrepancy explicitly in code and docs.
 - [x] Keep token/usage attribution at durable `run/thread/app` level in shared infra, with `appId` resolved outside `runtime-pi`.
-- [ ] Leave host user attribution to consumer hosts such as `playground-fastify-server`.
+- [x] Leave host user attribution to consumer hosts such as `playground-fastify-server`.
 - [ ] Create a foundation that later supports one-row-per-run usage records, server-side cancel, replay/eval fixtures, and adapter contract hardening.
 
 ### 0.3 Non-goals
@@ -56,8 +56,8 @@
 - [x] Update observability docs to say assistant `message_update` is not a durable `run_event` in this slice.
 - [x] Record summarized durable assistant checkpoints as a deferred option requiring exact payload, checkpoint cadence, and event volume constraints.
 - [x] Preserve raw `run_events` as append-only process facts.
-- [ ] Define typed timeline projection as a read model over durable `run`, `run_events`, and `tool_invocations`, not as a replacement for raw events.
-- [ ] Define how unknown event types and payload fields are preserved and surfaced.
+- [x] Define typed timeline projection as a read model over durable `run`, `run_events`, and `tool_invocations`, not as a replacement for raw events.
+- [x] Define how unknown event types and payload fields are preserved and surfaced.
 - [x] Define terminal trace expectations for `completed` and `failed` runs now, and reserve `cancelled` semantics for the follow-up cancel slice.
 
 ### 1.3 Usage summary model
@@ -78,32 +78,32 @@
 
 ### 1.4 Attribution model
 
-- [ ] Define shared attribution in terms of `runId`, `threadId`, and `appId`.
+- [x] Define shared attribution in terms of `runId`, `threadId`, and `appId`.
 - [x] Default decision: `runtime-pi` does not resolve or write `appId`.
 - [x] For Loop 2, do not require `appId` inside `RunUsageSummaryV1`.
-- [ ] For typed timeline/accounting reads, resolve `appId` at app/read boundary from `run.threadId -> thread.appId` when needed.
-- [ ] For future usage records, define `appId` resolution at app/service or repository boundary, not in the runtime adapter.
-- [ ] Keep host user attribution outside shared packages.
-- [ ] Document that playground can aggregate by joining `playground_thread_catalog.owner_user_id -> thread_id -> runs`.
-- [ ] Do not add shared user-level usage APIs in this todo.
+- [x] For typed timeline/accounting reads, resolve `appId` at app/read boundary from `run.threadId -> thread.appId` when needed.
+- [x] For future usage records, define `appId` resolution at app/service or repository boundary, not in the runtime adapter.
+- [x] Keep host user attribution outside shared packages.
+- [x] Document that playground can aggregate by joining `playground_thread_catalog.owner_user_id -> thread_id -> runs`.
+- [x] Do not add shared user-level usage APIs in this todo.
 
 ### 1.5 Follow-up boundaries
 
-- [ ] Record `run_usage_records` or ledger table as a follow-up after summary and typed trace semantics are stable.
-- [ ] Prefer a one-row-per-run usage record first only after queryable aggregation by app/thread/run becomes a demonstrated need.
-- [ ] Defer metric-per-row ledger design until multiple usage-producing events per run, post-run adjustments, or immutable accounting history are real requirements.
-- [ ] Record server-side cancel as a follow-up that depends on terminal trace and partial usage semantics.
+- [x] Record `run_usage_records` or ledger table as a follow-up after summary and typed trace semantics are stable.
+- [x] Prefer a one-row-per-run usage record first only after queryable aggregation by app/thread/run becomes a demonstrated need.
+- [x] Defer metric-per-row ledger design until multiple usage-producing events per run, post-run adjustments, or immutable accounting history are real requirements.
+- [x] Record server-side cancel as a follow-up that depends on terminal trace and partial usage semantics.
 
 ## 2. Backend / Platform
 
 ### 2.1 `packages/core`
 
 - [x] Add or expose `RunUsageSummaryV1` type.
-- [ ] Do not put the timeline projector in core for Loop 1.
+- [x] Do not put the timeline projector in core for Loop 1.
 - [x] Add only the shared usage summary type needed by `Run.usage`.
 - [x] Keep `Run.usage` backward-compatible enough for existing consumers.
-- [ ] Keep `RunEvent.payload` raw and flexible.
-- [ ] Do not add user/auth/account domain types.
+- [x] Keep `RunEvent.payload` raw and flexible.
+- [x] Do not add user/auth/account domain types.
 
 ### 2.2 `packages/runtime-pi`
 
@@ -117,26 +117,26 @@
 
 ### 2.3 `packages/app`
 
-- [ ] Build typed timeline projection in `packages/app`, either directly in `runs.getTimeline` or in a pure helper used by it.
-- [ ] Keep raw `runEvents` and `toolInvocations` available alongside the typed projection.
-- [ ] Ensure each typed timeline item can reference its source raw event or tool invocation when applicable.
-- [ ] Keep `runs.getTimeline` durable-first and independent from SSE/live stream state.
-- [ ] Ensure completed, failed, and future cancelled runs can all be represented by the typed timeline projection.
-- [ ] Do not add usage aggregation or user-scoped APIs in Loop 1.
+- [x] Build typed timeline projection in `packages/app`, either directly in `runs.getTimeline` or in a pure helper used by it.
+- [x] Keep raw `runEvents` and `toolInvocations` available alongside the typed projection.
+- [x] Ensure each typed timeline item can reference its source raw event or tool invocation when applicable.
+- [x] Keep `runs.getTimeline` durable-first and independent from SSE/live stream state.
+- [x] Ensure completed, failed, and future cancelled runs can all be represented by the typed timeline projection.
+- [x] Do not add usage aggregation or user-scoped APIs in Loop 1.
 
 ### 2.4 `packages/contracts`
 
 - [x] Export a `RunUsageDto` that accepts `RunUsageSummaryV1` while preserving backward-compatible unknown usage objects.
-- [ ] Add typed timeline DTOs only after app-level projection shape is fixed.
-- [ ] Preserve raw run events in timeline responses.
-- [ ] Ensure unknown raw payload fields continue to round-trip safely.
+- [x] Add typed timeline DTOs only after app-level projection shape is fixed.
+- [x] Preserve raw run events in timeline responses.
+- [x] Ensure unknown raw payload fields continue to round-trip safely.
 
 ### 2.5 `packages/durable-chat-server`
 
 - [x] Serialize versioned `Run.usage` without losing fields.
-- [ ] Extend timeline response builders only after app-level typed projection and contracts DTOs are defined.
-- [ ] Do not implement projection semantics in route helper code.
-- [ ] Keep protected route access checks host-owned in playground routes, not in shared server helpers.
+- [x] Extend timeline response builders only after app-level typed projection and contracts DTOs are defined.
+- [x] Do not implement projection semantics in route helper code.
+- [x] Keep protected route access checks host-owned in playground routes, not in shared server helpers.
 
 ### 2.6 `packages/db`
 
@@ -144,7 +144,7 @@
 - [x] Do not add `run_usage_records` in this todo unless this todo is explicitly revised; Loop 1/2 persistence remains `runs.usage_json`.
 - [x] Preserve versioned usage JSON round-trip without schema changes.
 - [ ] If future usage records are introduced, support SQLite and PostgreSQL/Turso paths together.
-- [ ] Preserve raw JSON fields for run events and tool invocations.
+- [x] Preserve raw JSON fields for run events and tool invocations.
 
 ## 3. Frontend / Consumer Boundary
 
@@ -152,20 +152,20 @@
 
 - [x] Update schema normalization to accept `RunUsageSummaryV1` without treating live stream state as usage truth.
 - [x] Keep terminal reconcile behavior durable-first.
-- [ ] Do not add usage dashboards or product analytics UI in this todo.
+- [x] Do not add usage dashboards or product analytics UI in this todo.
 
 ### 3.2 Playground Fastify host
 
-- [ ] Keep user access and ownership checks based on host auth and thread catalog.
-- [ ] Do not write playground owner ids into shared durable thread or run records.
-- [ ] If an existing timeline route response expands to include usage/projection, keep the existing `loadAccessibleRun`/catalog ownership access model.
-- [ ] Do not add a new user-scoped usage aggregation route in this todo.
+- [x] Keep user access and ownership checks based on host auth and thread catalog.
+- [x] Do not write playground owner ids into shared durable thread or run records.
+- [x] If an existing timeline route response expands to include usage/projection, keep the existing `loadAccessibleRun`/catalog ownership access model.
+- [x] Do not add a new user-scoped usage aggregation route in this todo.
 
 ### 3.3 Playground UI validation
 
-- [ ] Add only minimal inspector or display changes needed to validate the contract.
-- [ ] Do not make UI display the source of truth for usage or trace semantics.
-- [ ] Keep screenshots out of scope unless the validation surface visibly changes.
+- [x] Add only minimal inspector or display changes needed to validate the contract.
+- [x] Do not make UI display the source of truth for usage or trace semantics.
+- [x] Keep screenshots out of scope unless the validation surface visibly changes.
 
 ## 4. Tests
 
@@ -179,10 +179,10 @@
 
 ### 4.2 App / contract / server tests
 
-- [ ] Add or update app tests for typed timeline projection if implemented there.
+- [x] Add or update app tests for typed timeline projection if implemented there.
 - [x] Add contract/server DTO tests for versioned usage serialization.
-- [ ] Ensure raw run events remain available when typed projections are present.
-- [ ] Ensure unknown event payloads do not break timeline response building.
+- [x] Ensure raw run events remain available when typed projections are present.
+- [x] Ensure unknown event payloads do not break timeline response building.
 
 ### 4.3 DB tests
 
@@ -193,8 +193,8 @@
 ### 4.4 Client / playground tests
 
 - [x] Add durable-chat-client schema tests if `RunDto.usage` parsing changes.
-- [ ] Add Fastify host access tests only if new protected usage/timeline route behavior is introduced.
-- [ ] Avoid broad UI tests unless a visible validation UI is added.
+- [x] Add Fastify host access tests only if new protected usage/timeline route behavior is introduced.
+- [x] Avoid broad UI tests unless a visible validation UI is added.
 
 ### 4.5 Review and verification
 
@@ -224,19 +224,19 @@
 - [x] Add focused runtime and DTO/client tests.
 - [x] Verify missing usage and failure paths.
 - [x] Capture package-level acceptance evidence for touched behavior.
-- [ ] Complete repository review workflow without expanding the slice scope.
-- [ ] Close the slice only after acceptance evidence and review are clean.
+- [x] Complete repository review workflow without expanding the slice scope.
+- [x] Close the slice only after acceptance evidence and review are clean.
 
 ### Loop 3: Typed Timeline Projection
 
-- [ ] Define typed timeline projection shape.
-- [ ] Build projection over existing durable run, raw run events, and tool invocations.
-- [ ] Preserve raw `runEvents` in responses.
-- [ ] Add app/contract/server tests around known and unknown events.
-- [ ] Validate failed run timeline behavior.
-- [ ] Capture package-level acceptance evidence for touched behavior.
-- [ ] Complete repository review workflow without expanding the slice scope.
-- [ ] Close the slice only after acceptance evidence and review are clean.
+- [x] Define typed timeline projection shape.
+- [x] Build projection over existing durable run, raw run events, and tool invocations.
+- [x] Preserve raw `runEvents` in responses.
+- [x] Add app/contract/server tests around known and unknown events.
+- [x] Validate failed run timeline behavior.
+- [x] Capture package-level acceptance evidence for touched behavior.
+- [x] Complete repository review workflow without expanding the slice scope.
+- [x] Close the slice only after acceptance evidence and review are clean.
 
 ### Loop 4: Source-of-Truth Promotion and Closeout
 

@@ -329,31 +329,36 @@ export function applyRunStateToTimeline(
       return {
         run: event.run,
         runEvents: [],
-        toolInvocations: []
+        toolInvocations: [],
+        projection: null
       };
     case 'run.state':
       return {
         run: event.run,
         runEvents: current?.runEvents ?? [],
-        toolInvocations: current?.toolInvocations ?? []
+        toolInvocations: current?.toolInvocations ?? [],
+        projection: current?.projection ?? null
       };
     case 'run.completed':
       return {
         run: event.run,
         runEvents: current?.runEvents ?? [],
-        toolInvocations: current?.toolInvocations ?? []
+        toolInvocations: current?.toolInvocations ?? [],
+        projection: current?.projection ?? null
       };
     case 'run.failed':
       return {
         run: event.run,
         runEvents: current?.runEvents ?? [],
-        toolInvocations: current?.toolInvocations ?? []
+        toolInvocations: current?.toolInvocations ?? [],
+        projection: current?.projection ?? null
       };
     default:
       return current ?? {
         run: null,
         runEvents: [],
-        toolInvocations: []
+        toolInvocations: [],
+        projection: null
       };
   }
 }

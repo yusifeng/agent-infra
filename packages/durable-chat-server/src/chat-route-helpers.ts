@@ -1,5 +1,5 @@
-import type { CreateThreadSnapshotShareResult, PublicChatShareResult, RunTextTurnResult, StartTextTurnResult } from '@agent-infra/app';
-import type { Message, MessagePageResult, MessagePart, Run, RunEvent, Thread, ToolInvocation } from '@agent-infra/core';
+import type { CreateThreadSnapshotShareResult, PublicChatShareResult, RunTextTurnResult, RunTimelineResult, StartTextTurnResult } from '@agent-infra/app';
+import type { Message, MessagePageResult, MessagePart, Run, Thread } from '@agent-infra/core';
 import type {
   CreateThreadShareResponseDto,
   PublicChatShareResponseDto,
@@ -316,15 +316,12 @@ export function buildThreadRunsErrorResponse(error: unknown, fallbackMessage: st
   };
 }
 
-export function buildRunTimelineResponse(timeline: {
-  run: Run | null;
-  runEvents: RunEvent[];
-  toolInvocations: ToolInvocation[];
-}): RunTimelineResponseDto {
+export function buildRunTimelineResponse(timeline: Pick<RunTimelineResult, 'run' | 'runEvents' | 'toolInvocations' | 'projection'>): RunTimelineResponseDto {
   return {
     run: toRunDto(timeline.run),
     runEvents: timeline.runEvents.map(toRunEventDto),
-    toolInvocations: timeline.toolInvocations.map(toToolInvocationDto)
+    toolInvocations: timeline.toolInvocations.map(toToolInvocationDto),
+    projection: timeline.projection
   };
 }
 
@@ -333,6 +330,7 @@ export function buildRunTimelineErrorResponse(error: unknown, fallbackMessage: s
     run: null,
     runEvents: [],
     toolInvocations: [],
+    projection: null,
     error: getRouteErrorMessage(error, fallbackMessage)
   };
 }

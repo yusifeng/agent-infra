@@ -690,18 +690,228 @@ describe('createAgentInfraApp', () => {
   });
 
   it('returns run timeline data from the app boundary', async () => {
-    const { app } = createDependencies(createHappyRuntime());
+    const { app, repositories } = createDependencies(createHappyRuntime());
     const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Timeline path' });
 
     const turn = await app.turns.runText({
       threadId: thread.id,
       text: 'Timeline please'
     });
+
+    await repositories.runEventRepo.append({
+      id: 'event-message-start',
+      threadId: thread.id,
+      runId: turn.run.id,
+      seq: await repositories.runEventRepo.nextSeq(turn.run.id),
+      type: 'message_start',
+      payload: { role: 'assistant' }
+    });
+    await repositories.toolRepo.create({
+      id: 'tool-1',
+      threadId: thread.id,
+      runId: turn.run.id,
+      messageId: `assistant-${turn.run.id}`,
+      toolName: 'searchWeb',
+      toolCallId: 'call-search',
+      status: 'completed',
+      input: { query: 'agent infra' },
+      output: { text: 'result' },
+      error: null,
+      startedAt: new Date('2026-04-10T01:00:01.000Z'),
+      finishedAt: new Date('2026-04-10T01:00:02.000Z')
+    });
+    await repositories.runEventRepo.append({
+      id: 'event-tool-start',
+      threadId: thread.id,
+      runId: turn.run.id,
+      seq: await repositories.runEventRepo.nextSeq(turn.run.id),
+      type: 'tool_execution_start',
+      payload: { toolName: 'searchWeb', toolCallId: 'call-search' }
+    });
+    await repositories.runEventRepo.append({
+      id: 'event-tool-end',
+      threadId: thread.id,
+      runId: turn.run.id,
+      seq: await repositories.runEventRepo.nextSeq(turn.run.id),
+      type: 'tool_execution_end',
+      payload: { toolName: 'searchWeb', toolCallId: 'call-search', isError: false }
+    });
+    await repositories.toolRepo.create({
+      id: 'tool-2',
+      threadId: thread.id,
+      runId: turn.run.id,
+      messageId: `assistant-${turn.run.id}`,
+      toolName: 'fetchPage',
+      toolCallId: 'call-fetch',
+      status: 'failed',
+      input: { url: 'https://example.test' },
+      output: null,
+      error: 'fetch failed',
+      startedAt: new Date('2026-04-10T01:00:03.000Z'),
+      finishedAt: new Date('2026-04-10T01:00:04.000Z')
+    });
+    await repositories.runEventRepo.append({
+      id: 'event-tool-failed-start',
+      threadId: thread.id,
+      runId: turn.run.id,
+      seq: await repositories.runEventRepo.nextSeq(turn.run.id),
+      type: 'tool_execution_start',
+      payload: { toolName: 'fetchPage', toolCallId: 'call-fetch' }
+    });
+    await repositories.runEventRepo.append({
+      id: 'event-tool-failed-end',
+      threadId: thread.id,
+      runId: turn.run.id,
+      seq: await repositories.runEventRepo.nextSeq(turn.run.id),
+      type: 'tool_execution_end',
+      payload: { toolName: 'fetchPage', toolCallId: 'call-fetch' }
+    });
+    await repositories.runEventRepo.append({
+      id: 'event-message-end',
+      threadId: thread.id,
+      runId: turn.run.id,
+      seq: await repositories.runEventRepo.nextSeq(turn.run.id),
+      type: 'message_end',
+      payload: { role: 'assistant', stopReason: 'stop' }
+    });
+    await repositories.runEventRepo.append({
+      id: 'event-unknown',
+      threadId: thread.id,
+      runId: turn.run.id,
+      seq: await repositories.runEventRepo.nextSeq(turn.run.id),
+      type: 'custom_runtime_note',
+      payload: { note: 'preserved as unknown' }
+    });
+
     const timeline = await app.runs.getTimeline({ runId: turn.run.id });
 
     expect(timeline.run.id).toBe(turn.run.id);
-    expect(timeline.runEvents.map((event) => event.type)).toEqual(['agent_start']);
-    expect(timeline.toolInvocations).toEqual([]);
+    expect(timeline.runEvents.map((event) => event.type)).toEqual([
+      'agent_start',
+      'message_start',
+      'tool_execution_start',
+      'tool_execution_end',
+      'tool_execution_start',
+      'tool_execution_end',
+      'message_end',
+      'custom_runtime_note'
+    ]);
+    expect(timeline.toolInvocations).toHaveLength(2);
+    expect(timeline.projection).toEqual({
+      schemaVersion: 1,
+      items: [
+        {
+          kind: 'run_lifecycle',
+          phase: 'started',
+          runEventId: `event-${turn.run.id}-1`,
+          seq: 1
+        },
+        {
+          kind: 'assistant_message',
+          phase: 'started',
+          runEventId: 'event-message-start',
+          seq: 2
+        },
+        {
+          kind: 'tool_invocation',
+          phase: 'started',
+          toolCallId: 'call-search',
+          toolName: 'searchWeb',
+          toolInvocationId: 'tool-1',
+          runEventId: 'event-tool-start',
+          seq: 3
+        },
+        {
+          kind: 'tool_invocation',
+          phase: 'completed',
+          toolCallId: 'call-search',
+          toolName: 'searchWeb',
+          toolInvocationId: 'tool-1',
+          runEventId: 'event-tool-end',
+          seq: 4
+        },
+        {
+          kind: 'tool_invocation',
+          phase: 'started',
+          toolCallId: 'call-fetch',
+          toolName: 'fetchPage',
+          toolInvocationId: 'tool-2',
+          runEventId: 'event-tool-failed-start',
+          seq: 5
+        },
+        {
+          kind: 'tool_invocation',
+          phase: 'failed',
+          toolCallId: 'call-fetch',
+          toolName: 'fetchPage',
+          toolInvocationId: 'tool-2',
+          runEventId: 'event-tool-failed-end',
+          seq: 6
+        },
+        {
+          kind: 'assistant_message',
+          phase: 'completed',
+          runEventId: 'event-message-end',
+          seq: 7
+        },
+        {
+          kind: 'unknown_event',
+          type: 'custom_runtime_note',
+          runEventId: 'event-unknown',
+          seq: 8
+        }
+      ]
+    });
+  });
+
+  it('projects cancelled run lifecycle without reporting completion', async () => {
+    const { app, repositories } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Cancelled timeline' });
+    const run = await repositories.runRepo.create({
+      id: 'run-cancelled',
+      threadId: thread.id,
+      triggerMessageId: null,
+      provider: 'deepseek',
+      model: 'deepseek-v4-flash',
+      status: 'cancelled',
+      usage: null,
+      error: null,
+      startedAt: new Date('2026-04-10T01:00:00.000Z'),
+      finishedAt: new Date('2026-04-10T01:00:05.000Z')
+    });
+    await repositories.runEventRepo.append({
+      id: 'event-cancelled-start',
+      threadId: thread.id,
+      runId: run.id,
+      seq: 1,
+      type: 'agent_start',
+      payload: null
+    });
+    await repositories.runEventRepo.append({
+      id: 'event-cancelled-end',
+      threadId: thread.id,
+      runId: run.id,
+      seq: 2,
+      type: 'agent_end',
+      payload: null
+    });
+
+    const timeline = await app.runs.getTimeline({ runId: run.id });
+
+    expect(timeline.projection.items).toEqual([
+      {
+        kind: 'run_lifecycle',
+        phase: 'started',
+        runEventId: 'event-cancelled-start',
+        seq: 1
+      },
+      {
+        kind: 'run_lifecycle',
+        phase: 'cancelled',
+        runEventId: 'event-cancelled-end',
+        seq: 2
+      }
+    ]);
   });
 
   it('lists recent runs for a thread in reverse chronological order', async () => {

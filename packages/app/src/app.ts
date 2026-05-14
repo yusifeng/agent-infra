@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 
-import type { Message, MessagePart, Run, ToolInvocation } from '@agent-infra/core';
+import type { Message, MessagePart, Run, RunEvent, ToolInvocation } from '@agent-infra/core';
 
 import {
   ActiveChatShareExistsError,
@@ -26,6 +26,8 @@ import type {
   CreateThreadInput,
   PublicChatShareResult,
   RunTextTurnInput,
+  RunTimelineItemV1,
+  RunTimelineProjectionV1,
   RuntimeSelection,
   SharedMessagePartSnapshot,
   SharedMessageSnapshot,
@@ -138,6 +140,130 @@ function toSnapshotPayloadJson(payload: SharedThreadSnapshotPayload): Record<str
 
 function fromSnapshotPayloadJson(payload: Record<string, unknown>): SharedThreadSnapshotPayload {
   return payload as unknown as SharedThreadSnapshotPayload;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function readString(value: unknown) {
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+function readBoolean(value: unknown) {
+  return typeof value === 'boolean' ? value : null;
+}
+
+function findToolInvocationByCallId(toolInvocations: ToolInvocation[], toolCallId: string | null) {
+  return toolCallId ? toolInvocations.find((invocation) => invocation.toolCallId === toolCallId) ?? null : null;
+}
+
+function readTerminalRunPhase(run: Run): 'completed' | 'failed' | 'cancelled' {
+  if (run.status === 'failed' || run.status === 'cancelled') {
+    return run.status;
+  }
+
+  return 'completed';
+}
+
+function readToolEndPhase(isError: boolean | null, invocation: ToolInvocation | null): 'completed' | 'failed' {
+  if (isError === true || invocation?.status === 'failed') {
+    return 'failed';
+  }
+
+  return 'completed';
+}
+
+function buildRunTimelineProjection(
+  run: Awaited<ReturnType<typeof loadRunOrThrow>>,
+  runEvents: RunEvent[],
+  toolInvocations: ToolInvocation[]
+): RunTimelineProjectionV1 {
+  const items: RunTimelineItemV1[] = [];
+
+  for (const event of runEvents) {
+    const payload = asRecord(event.payload);
+
+    if (event.type === 'agent_start') {
+      items.push({
+        kind: 'run_lifecycle',
+        phase: 'started',
+        runEventId: event.id,
+        seq: event.seq
+      });
+      continue;
+    }
+
+    if (event.type === 'agent_end') {
+      items.push({
+        kind: 'run_lifecycle',
+        phase: readTerminalRunPhase(run),
+        runEventId: event.id,
+        seq: event.seq
+      });
+      continue;
+    }
+
+    if (event.type === 'message_start' && payload?.role === 'assistant') {
+      items.push({
+        kind: 'assistant_message',
+        phase: 'started',
+        runEventId: event.id,
+        seq: event.seq
+      });
+      continue;
+    }
+
+    if (event.type === 'message_end' && payload?.role === 'assistant') {
+      const stopReason = readString(payload.stopReason);
+      items.push({
+        kind: 'assistant_message',
+        phase: stopReason === 'error' || stopReason === 'aborted' ? 'failed' : 'completed',
+        runEventId: event.id,
+        seq: event.seq
+      });
+      continue;
+    }
+
+    if (event.type === 'tool_execution_start' || event.type === 'tool_execution_end') {
+      const toolCallId = readString(payload?.toolCallId);
+      const invocation = findToolInvocationByCallId(toolInvocations, toolCallId);
+      const toolName = readString(payload?.toolName) ?? invocation?.toolName ?? 'unknown';
+      const isError = readBoolean(payload?.isError);
+      items.push({
+        kind: 'tool_invocation',
+        phase: event.type === 'tool_execution_start' ? 'started' : readToolEndPhase(isError, invocation),
+        toolCallId: toolCallId ?? invocation?.toolCallId ?? 'unknown',
+        toolName,
+        toolInvocationId: invocation?.id ?? null,
+        runEventId: event.id,
+        seq: event.seq
+      });
+      continue;
+    }
+
+    if (event.type === 'runtime_error') {
+      items.push({
+        kind: 'runtime_error',
+        message: readString(payload?.message) ?? run.error ?? 'runtime error',
+        runEventId: event.id,
+        seq: event.seq
+      });
+      continue;
+    }
+
+    items.push({
+      kind: 'unknown_event',
+      type: event.type,
+      runEventId: event.id,
+      seq: event.seq
+    });
+  }
+
+  return {
+    schemaVersion: 1,
+    items
+  };
 }
 
 function sanitizeShareToolPartJson(
@@ -472,7 +598,8 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
         return {
           run,
           runEvents,
-          toolInvocations
+          toolInvocations,
+          projection: buildRunTimelineProjection(run, runEvents, toolInvocations)
         };
       },
       async listByThread(input) {

@@ -4,6 +4,8 @@ import type {
   MessagePartDto,
   RunDto,
   RunEventDto,
+  RunTimelineItemDto,
+  RunTimelineProjectionDto,
   RunTimelineResponseDto,
   RuntimePiMetaDto,
   ThreadDto,
@@ -248,6 +250,99 @@ function normalizeRunEvent(value: unknown): RunEventDto | null {
   };
 }
 
+function normalizeRunTimelineItem(value: unknown): RunTimelineItemDto | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const kind = asString(record.kind);
+  const phase = asString(record.phase);
+  const runEventId = asString(record.runEventId);
+  const seq = asNumber(record.seq);
+  if (!kind || !runEventId || seq === null) {
+    return null;
+  }
+
+  if (kind === 'run_lifecycle' && (phase === 'started' || phase === 'completed' || phase === 'failed' || phase === 'cancelled')) {
+    return {
+      kind,
+      phase,
+      runEventId,
+      seq
+    };
+  }
+
+  if (kind === 'assistant_message' && (phase === 'started' || phase === 'completed' || phase === 'failed')) {
+    return {
+      kind,
+      phase,
+      runEventId,
+      seq
+    };
+  }
+
+  if (kind === 'tool_invocation' && (phase === 'started' || phase === 'completed' || phase === 'failed')) {
+    const toolCallId = asString(record.toolCallId);
+    const toolName = asString(record.toolName);
+    if (!toolCallId || !toolName) {
+      return null;
+    }
+
+    return {
+      kind,
+      phase,
+      toolCallId,
+      toolName,
+      toolInvocationId: asNullableString(record.toolInvocationId),
+      runEventId,
+      seq
+    };
+  }
+
+  if (kind === 'runtime_error') {
+    const message = asString(record.message);
+    if (!message) {
+      return null;
+    }
+
+    return {
+      kind,
+      message,
+      runEventId,
+      seq
+    };
+  }
+
+  if (kind === 'unknown_event') {
+    const type = asString(record.type);
+    if (!type) {
+      return null;
+    }
+
+    return {
+      kind,
+      type,
+      runEventId,
+      seq
+    };
+  }
+
+  return null;
+}
+
+function normalizeRunTimelineProjection(value: unknown): RunTimelineProjectionDto | null {
+  const record = asRecord(value);
+  if (!record || record.schemaVersion !== 1 || !Array.isArray(record.items)) {
+    return null;
+  }
+
+  return {
+    schemaVersion: 1,
+    items: record.items.map(normalizeRunTimelineItem).filter((item): item is RunTimelineItemDto => item !== null)
+  };
+}
+
 function normalizeModelOption(value: unknown): RuntimePiMetaDto['modelOptions'][number] | null {
   const record = asRecord(value);
   if (!record) {
@@ -336,6 +431,7 @@ export function normalizeRunTimelineResponse(value: unknown): RunTimelineRespons
     toolInvocations: Array.isArray(record.toolInvocations)
       ? record.toolInvocations.map(normalizeToolInvocation).filter((tool): tool is ToolInvocationDto => tool !== null)
       : [],
+    projection: record.projection === undefined ? undefined : normalizeRunTimelineProjection(record.projection),
     error: readApiError(record) ?? undefined
   };
 }
