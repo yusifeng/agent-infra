@@ -124,7 +124,7 @@
 
 .chat-shell-theme .markdown-body {
   color: var(--chat-text);
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.82;
   overflow-wrap: anywhere;
   word-break: break-word;

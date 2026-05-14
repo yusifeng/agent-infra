@@ -129,6 +129,22 @@ function buildReplaySearchSummaryBlock(step: Extract<ReplayStep, { kind: 'search
   };
 }
 
+function buildReplayToolPartBlock(step: Extract<ReplayStep, { kind: 'tool-part' }>): TranscriptBlock {
+  return {
+    type: 'assistant-turn',
+    id: `replay-assistant:${step.id}`,
+    runId: step.runId,
+    sourceMessages: [],
+    items: [
+      {
+        type: 'tool-part',
+        id: `replay-tool-part:${step.id}`,
+        part: step.part
+      }
+    ]
+  };
+}
+
 function buildReplayStepBlock(step: ReplayStep): TranscriptBlock | null {
   if (step.kind === 'done') {
     return null;
@@ -142,7 +158,24 @@ function buildReplayStepBlock(step: ReplayStep): TranscriptBlock | null {
     return buildReplaySearchLoadingBlock(step);
   }
 
+  if (step.kind === 'tool-part') {
+    return buildReplayToolPartBlock(step);
+  }
+
   return buildReplaySearchSummaryBlock(step);
+}
+
+function getOpenUrlToolCallId(step: ReplayStep, partType: 'tool-call' | 'tool-result') {
+  if (step.kind !== 'tool-part' || step.part.type !== partType) {
+    return null;
+  }
+
+  const value = step.part.jsonValue;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  return value.toolName === 'openUrl' && typeof value.toolCallId === 'string' ? value.toolCallId : null;
 }
 
 function getVisibleSteps(session: ReplaySession, cursor: ReplayCursor) {
@@ -154,10 +187,16 @@ function getVisibleSteps(session: ReplaySession, cursor: ReplayCursor) {
   const completedSearchToolCallIds = new Set(
     rawVisibleSteps.flatMap((step) => (step.kind === 'search-summary' ? step.toolCallIds : []))
   );
+  const completedOpenUrlToolCallIds = new Set(
+    rawVisibleSteps
+      .map((step) => getOpenUrlToolCallId(step, 'tool-result'))
+      .filter((toolCallId): toolCallId is string => Boolean(toolCallId))
+  );
 
   return rawVisibleSteps.filter((step) => {
     if (step.kind !== 'search-loading') {
-      return true;
+      const openUrlCallToolCallId = getOpenUrlToolCallId(step, 'tool-call');
+      return !openUrlCallToolCallId || !completedOpenUrlToolCallIds.has(openUrlCallToolCallId);
     }
 
     return !step.toolCallIds.every((toolCallId) => completedSearchToolCallIds.has(toolCallId));

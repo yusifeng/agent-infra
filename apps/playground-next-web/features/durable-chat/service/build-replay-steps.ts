@@ -1,4 +1,4 @@
-import type { MessageDto } from '@agent-infra/contracts';
+import type { MessageDto, MessagePartDto } from '@agent-infra/contracts';
 
 import { buildContentNodes } from '@/features/durable-chat/service/build-content-nodes';
 import { getReplayNodeDelayMs, getReplayTextDelayMs } from '@/features/durable-chat/service/replay-timing';
@@ -9,7 +9,8 @@ import type {
   ReplaySession,
   ReplayStep,
   ReplayTextRole,
-  ReplayTextStep
+  ReplayTextStep,
+  ReplayToolPartStep
 } from '@/features/durable-chat/types/replay';
 import type { SearchSummaryEntry, TranscriptBlock } from '@/features/durable-chat/types/transcript-blocks';
 
@@ -109,6 +110,37 @@ function createSearchSummaryStep(params: {
   };
 }
 
+function createToolPartStep(params: {
+  threadId: string;
+  blockId: string;
+  runId: string | null;
+  messageId: string;
+  part: MessagePartDto;
+}): ReplayToolPartStep {
+  return {
+    id: `${params.blockId}:${params.part.id}:tool-part`,
+    kind: 'tool-part',
+    threadId: params.threadId,
+    runId: params.runId,
+    messageId: params.messageId,
+    blockId: params.blockId,
+    part: params.part,
+    delayMs: getReplayNodeDelayMs('tool-part')
+  };
+}
+
+function isReplayToolPart(part: MessagePartDto) {
+  const value = part.jsonValue;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+
+  return (
+    (part.type === 'tool-call' || part.type === 'tool-result') &&
+    value.toolName === 'openUrl'
+  );
+}
+
 export function buildReplayStepsFromContentNodes(contentNodes: ContentNode[], fallbackThreadId = ''): ReplayStep[] {
   const threadId = resolveThreadId(contentNodes) || fallbackThreadId;
   const steps: ReplayStep[] = [];
@@ -157,6 +189,19 @@ export function buildReplayStepsFromContentNodes(contentNodes: ContentNode[], fa
           toolCallId: node.toolCallId,
           query: node.query || null,
           sourceNames: []
+        })
+      );
+      continue;
+    }
+
+    if (node.kind === 'assistant-tool-part' && isReplayToolPart(node.part)) {
+      steps.push(
+        createToolPartStep({
+          threadId,
+          blockId,
+          runId: node.runId,
+          messageId,
+          part: node.part
         })
       );
       continue;

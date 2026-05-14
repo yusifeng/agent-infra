@@ -18,5 +18,9 @@ export function getReplayNodeDelayMs(kind: Exclude<ReplayStepKind, 'text'>, opti
     return 180;
   }
 
+  if (kind === 'tool-part') {
+    return 180;
+  }
+
   return 0;
 }

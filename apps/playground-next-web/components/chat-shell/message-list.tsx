@@ -4,7 +4,7 @@ import type { MessageDto, MessagePartDto, RuntimePiMetaDto } from '@agent-infra/
 import { getMessageRenderKey } from '@agent-infra/durable-chat-client';
 import clsx from 'clsx';
 import { Atom, ChevronDown, ChevronRight, Copy, FileText, Loader2, RotateCw, Search, Trash2 } from 'lucide-react';
-import { memo, useMemo, useState, type CSSProperties } from 'react';
+import { memo, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 
 import type { AnswerContainer } from '@/features/durable-chat/types/answer-containers';
 import { buildAnswerContainerActionContexts } from '@/features/durable-chat/service/build-answer-container-actions';
@@ -46,8 +46,31 @@ const transcriptRowPerformanceStyle: CSSProperties = {
   contentVisibility: 'auto'
 };
 
-const reasoningMarkdownClassName = 'text-sm leading-7 text-[color:var(--chat-reasoning-text)]';
+const reasoningTimelineTextClassName = 'text-sm leading-7 text-[color:var(--chat-text-secondary)]';
+const reasoningMarkdownClassName = reasoningTimelineTextClassName;
 const maxInlineBrowsePageCount = 4;
+
+const TimelineItem = memo(function TimelineItem({
+  children,
+  marker
+}: {
+  children: ReactNode;
+  marker: ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-[24px_minmax(0,1fr)] gap-3">
+      <div className="relative flex justify-center pt-[6px]">
+        <div className="absolute bottom-[-3px] top-[24px] w-px bg-[color:var(--chat-reasoning-divider)]" />
+        <div className="relative z-10 flex h-4 w-4 items-center justify-center bg-[var(--chat-bg)] text-[color:var(--chat-text-secondary)]">
+          {marker}
+        </div>
+      </div>
+      <div className="mb-1.5 min-w-0">{children}</div>
+    </div>
+  );
+});
+
+const reasoningDotMarker = <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--chat-text-secondary)]" />;
 
 const WelcomeMessage = memo(function WelcomeMessage({ activeThreadId }: { activeThreadId: string | null }) {
   if (!activeThreadId) {
@@ -105,17 +128,12 @@ const ResearchTimelineRows = memo(function ResearchTimelineRows({
   const [expandedBrowseRowIds, setExpandedBrowseRowIds] = useState<Set<string>>(() => new Set());
 
   return (
-    <div className="space-y-2 pt-0.5">
+    <div>
       {rows.map((row) => {
         if (row.kind === 'search') {
           const isClickable = Boolean(runId && onOpenSearchResult && row.searchToolCallIds.length > 0);
           const content = (
             <>
-              {row.state === 'running' ? (
-                <Loader2 className="h-5 w-5 shrink-0 animate-spin text-[color:var(--chat-text-tertiary)]" />
-              ) : (
-                <Search className="h-5 w-5 shrink-0 text-[color:var(--chat-text-tertiary)]" />
-              )}
               <span className="truncate">{row.label}</span>
               {row.sources.length > 0 ? (
                 <span className="flex shrink-0 items-center pl-0.5">
@@ -132,21 +150,34 @@ const ResearchTimelineRows = memo(function ResearchTimelineRows({
               ) : null}
             </>
           );
+          const marker =
+            row.state === 'running' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />;
+          const searchRowClassName = clsx(
+            'inline-flex max-w-full items-center gap-2 text-left transition',
+            reasoningTimelineTextClassName,
+            row.state === 'running'
+              ? 'rounded-full bg-[var(--chat-surface-muted)] px-3 py-1 leading-6'
+              : 'py-0.5',
+            isClickable && row.state !== 'running' && '-mx-2 rounded-md px-2 hover:bg-[var(--chat-hover)]'
+          );
 
-          return isClickable ? (
-            <button
-              key={row.id}
-              type="button"
-              onClick={() => onOpenSearchResult?.(runId!, row.searchToolCallIds)}
-              className="inline-flex max-w-full items-center gap-2 py-0.5 text-left text-sm leading-7 text-[color:var(--chat-reasoning-text)] transition hover:text-[color:var(--chat-text-secondary)]"
-              title="查看搜索结果"
-            >
-              {content}
-            </button>
-          ) : (
-            <div key={row.id} className="inline-flex max-w-full items-center gap-2 py-0.5 text-sm leading-7 text-[color:var(--chat-reasoning-text)]">
-              {content}
-            </div>
+          return (
+            <TimelineItem key={row.id} marker={marker}>
+              {isClickable ? (
+                <button
+                  type="button"
+                  onClick={() => onOpenSearchResult?.(runId!, row.searchToolCallIds)}
+                  className={searchRowClassName}
+                  title="查看搜索结果"
+                >
+                  {content}
+                </button>
+              ) : (
+                <div className={searchRowClassName}>
+                  {content}
+                </div>
+              )}
+            </TimelineItem>
           );
         }
 
@@ -155,43 +186,43 @@ const ResearchTimelineRows = memo(function ResearchTimelineRows({
         const hiddenPageCount = Math.max(0, row.pages.length - visiblePages.length);
 
         return (
-          <div key={row.id} className="flex max-w-full flex-wrap items-baseline gap-x-3 gap-y-1 py-0.5 text-sm leading-7 text-[color:var(--chat-reasoning-text)]">
-            <span className="inline-flex min-w-0 items-center gap-2">
-              {row.state === 'running' ? (
-                <Loader2 className="h-5 w-5 shrink-0 animate-spin text-[color:var(--chat-text-tertiary)]" />
-              ) : (
-                <FileText className="h-5 w-5 shrink-0 text-[color:var(--chat-text-tertiary)]" />
-              )}
-              <span className="shrink-0">{row.label}</span>
-            </span>
-            {visiblePages.map((page) => (
-              <a
-                key={`${row.id}:${page.url}:${page.title}`}
-                href={page.url}
-                target="_blank"
-                rel="noreferrer"
-                className="max-w-full truncate border-b border-dotted border-[color:var(--chat-text-tertiary)] text-[color:var(--chat-reasoning-text)] transition hover:text-[color:var(--chat-link)]"
-                title={page.url}
-              >
-                {page.title}↗
-              </a>
-            ))}
-            {hiddenPageCount > 0 ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setExpandedBrowseRowIds((current) => {
-                    const next = new Set(current);
-                    next.add(row.id);
-                    return next;
-                  });
-                }}
-                className="rounded-md bg-[var(--chat-surface-muted)] px-2 py-0.5 text-[13px] text-[color:var(--chat-text-secondary)] transition hover:text-[color:var(--chat-text)]"
-              >
-                查看全部
-              </button>
-            ) : null}
-          </div>
+          <TimelineItem
+            key={row.id}
+            marker={row.state === 'running' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+          >
+            <div className={clsx('flex max-w-full flex-wrap items-center gap-x-3 gap-y-1 py-0.5', reasoningTimelineTextClassName)}>
+              <span className="inline-flex min-w-0 items-center">
+                <span className="shrink-0">{row.label}</span>
+              </span>
+              {visiblePages.map((page) => (
+                <a
+                  key={`${row.id}:${page.url}:${page.title}`}
+                  href={page.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="max-w-full truncate text-[color:var(--chat-text-secondary)] underline decoration-dotted underline-offset-4 transition hover:text-[color:var(--chat-link)]"
+                  title={page.url}
+                >
+                  {page.title}↗
+                </a>
+              ))}
+              {hiddenPageCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExpandedBrowseRowIds((current) => {
+                      const next = new Set(current);
+                      next.add(row.id);
+                      return next;
+                    });
+                  }}
+                  className="rounded-md bg-[var(--chat-surface-muted)] px-2 py-0.5 text-[13px] text-[color:var(--chat-text-secondary)] transition hover:text-[color:var(--chat-text)]"
+                >
+                  查看全部
+                </button>
+              ) : null}
+            </div>
+          </TimelineItem>
         );
       })}
     </div>
@@ -243,17 +274,17 @@ const ThinkingTimelinePanel = memo(function ThinkingTimelinePanel({
       </button>
 
       {expanded ? (
-        <div className="mt-2 space-y-3 border-l border-[color:var(--chat-reasoning-divider)] pl-4">
+        <div className="mt-2">
           {entries.map((entry) => {
             if (entry.kind === 'reasoning') {
               return (
-                <div key={entry.id}>
+                <TimelineItem key={entry.id} marker={reasoningDotMarker}>
                   <MarkdownRenderer
                     className={reasoningMarkdownClassName}
                     plainTextClassName={reasoningMarkdownClassName}
                     text={entry.text}
                   />
-                </div>
+                </TimelineItem>
               );
             }
 

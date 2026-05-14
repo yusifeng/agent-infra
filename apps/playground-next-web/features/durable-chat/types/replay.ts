@@ -1,3 +1,5 @@
+import type { MessagePartDto } from '@agent-infra/contracts';
+
 import type { TranscriptBlock } from '@/features/durable-chat/types/transcript-blocks';
 import type { AnswerContainer } from '@/features/durable-chat/types/answer-containers';
 
@@ -9,7 +11,7 @@ export type ReplayMode = 'thread';
 
 export type ReplayStatus = 'idle' | 'playing' | 'paused' | 'completed';
 
-export type ReplayStepKind = 'text' | 'search-loading' | 'search-summary' | 'done';
+export type ReplayStepKind = 'text' | 'search-loading' | 'search-summary' | 'tool-part' | 'done';
 
 export type ReplayTextRole = 'user' | 'assistant';
 
@@ -52,6 +54,11 @@ export type ReplaySearchSummaryStep = ReplayBaseStep & {
   }>;
 };
 
+export type ReplayToolPartStep = ReplayBaseStep & {
+  kind: 'tool-part';
+  part: MessagePartDto;
+};
+
 export type ReplayDoneStep = ReplayBaseStep & {
   kind: 'done';
 };
@@ -60,6 +67,7 @@ export type ReplayStep =
   | ReplayTextStep
   | ReplaySearchLoadingStep
   | ReplaySearchSummaryStep
+  | ReplayToolPartStep
   | ReplayDoneStep;
 
 export type ReplaySession = {

@@ -65,6 +65,39 @@ function createSearchResultPart(toolCallId: string, query: string, messageId: st
   });
 }
 
+function createOpenUrlResultPart(toolCallId: string, messageId: string) {
+  return createPart({
+    id: `${messageId}:${toolCallId}:result`,
+    type: 'tool-result',
+    messageId,
+    jsonValue: {
+      toolName: 'openUrl',
+      toolCallId,
+      details: {
+        status: 'success',
+        url: 'https://example.com/character',
+        finalUrl: 'https://example.com/character',
+        title: '速水玲香 - 百度百科',
+        siteName: '百度百科',
+        contentQuality: 'good'
+      }
+    }
+  });
+}
+
+function createOpenUrlCallPart(toolCallId: string, messageId: string) {
+  return createPart({
+    id: `${messageId}:${toolCallId}:call`,
+    type: 'tool-call',
+    messageId,
+    jsonValue: {
+      toolName: 'openUrl',
+      toolCallId,
+      input: { url: 'https://example.com/character' }
+    }
+  });
+}
+
 describe('buildReplaySteps', () => {
   it('builds text -> search-loading -> search-summary -> text steps at transcript item granularity', () => {
     const messages = [
@@ -197,6 +230,56 @@ describe('buildReplaySteps', () => {
     ]);
     expect(steps.filter((step) => step.kind === 'search-summary')).toHaveLength(2);
     expect(steps.filter((step) => step.kind === 'search-loading')).toHaveLength(2);
+  });
+
+  it('preserves openUrl tool parts as replay tool-part steps', () => {
+    const messages = [
+      createMessage({
+        id: 'tool-1',
+        role: 'tool',
+        runId: 'run-1',
+        seq: 1,
+        parts: [
+          createOpenUrlCallPart('call-open-1', 'tool-1'),
+          createOpenUrlResultPart('call-open-1', 'tool-1')
+        ]
+      })
+    ];
+
+    const steps = buildReplayStepsFromContentNodes(buildContentNodes(messages));
+
+    expect(steps.map((step) => step.kind)).toEqual(['tool-part', 'tool-part', 'done']);
+    expect(steps[0]).toMatchObject({
+      kind: 'tool-part',
+      runId: 'run-1'
+    });
+  });
+
+  it('does not preserve unrelated tool parts as replay tool-part steps', () => {
+    const messages = [
+      createMessage({
+        id: 'tool-1',
+        role: 'tool',
+        runId: 'run-1',
+        seq: 1,
+        parts: [
+          createPart({
+            id: 'tool-1:other-call',
+            type: 'tool-call',
+            messageId: 'tool-1',
+            jsonValue: {
+              toolName: 'otherTool',
+              toolCallId: 'call-other-1',
+              input: {}
+            }
+          })
+        ]
+      })
+    ];
+
+    const steps = buildReplayStepsFromContentNodes(buildContentNodes(messages));
+
+    expect(steps.map((step) => step.kind)).toEqual(['done']);
   });
 
   it('supports pure text replies without creating fake search nodes', () => {

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import type { MessagePartDto } from '@agent-infra/contracts';
+
 import { buildReplayPresentation } from '@/features/durable-chat/service/replay-presentation';
 import type { ReplayCursor, ReplaySession, ReplayStep } from '@/features/durable-chat/types/replay';
 
@@ -41,6 +43,38 @@ function createStep(overrides: Partial<ReplayStep> & Pick<ReplayStep, 'id' | 'ki
       resultCount: 10,
       sourceNames: ['The Verge'],
       sources: [{ sourceName: 'The Verge', hostname: 'theverge.com' }],
+      ...overrides
+    };
+  }
+
+  if (overrides.kind === 'tool-part') {
+    const partType = typeof overrides.part?.type === 'string' ? overrides.part.type : 'tool-result';
+    return {
+      ...base,
+      part: {
+        id: `${partType}-open-1`,
+        messageId: 'tool-message-1',
+        partIndex: 0,
+        type: partType,
+        textValue: null,
+        jsonValue: {
+          toolName: 'openUrl',
+          toolCallId: 'call-open-1',
+          ...(partType === 'tool-call'
+            ? { input: { url: 'https://example.com/character' } }
+            : {
+                details: {
+                  status: 'success',
+                  url: 'https://example.com/character',
+                  finalUrl: 'https://example.com/character',
+                  title: '速水玲香 - 百度百科',
+                  siteName: '百度百科',
+                  contentQuality: 'good'
+                }
+              })
+        },
+        createdAt: '2026-05-08T00:00:00.000Z'
+      } satisfies MessagePartDto,
       ...overrides
     };
   }
@@ -131,6 +165,56 @@ describe('buildReplayPresentation', () => {
       'replay-assistant:text-1',
       'replay-assistant:summary-1',
       'replay-assistant:loading-2'
+    ]);
+  });
+
+  it('builds replay tool-part blocks for openUrl render', () => {
+    const session = createSession([
+      createStep({ id: 'open-1', kind: 'tool-part' }),
+      createStep({ id: 'done-1', kind: 'done', runId: null, messageId: null, blockId: null, delayMs: 0 })
+    ]);
+
+    const presentation = buildReplayPresentation(session, createCursor({ stepIndex: 0, status: 'playing' }));
+
+    expect(presentation.transcriptBlocks).toHaveLength(1);
+    expect(presentation.transcriptBlocks[0]).toMatchObject({
+      type: 'assistant-turn',
+      items: [{ type: 'tool-part' }]
+    });
+    expect(presentation.answerContainers[0]?.transcriptBlockIds).toEqual(['replay-assistant:open-1']);
+  });
+
+  it('hides openUrl call once the matching result is visible', () => {
+    const session = createSession([
+      createStep({
+        id: 'open-call-1',
+        kind: 'tool-part',
+        part: {
+          id: 'tool-call-open-1',
+          messageId: 'tool-message-1',
+          partIndex: 0,
+          type: 'tool-call',
+          textValue: null,
+          jsonValue: {
+            toolName: 'openUrl',
+            toolCallId: 'call-open-1',
+            input: { url: 'https://example.com/character' }
+          },
+          createdAt: '2026-05-08T00:00:00.000Z'
+        }
+      }),
+      createStep({ id: 'open-result-1', kind: 'tool-part' }),
+      createStep({ id: 'done-1', kind: 'done', runId: null, messageId: null, blockId: null, delayMs: 0 })
+    ]);
+
+    const loadingPresentation = buildReplayPresentation(session, createCursor({ stepIndex: 0, status: 'playing' }));
+    expect(loadingPresentation.transcriptBlocks.map((block) => block.id)).toEqual([
+      'replay-assistant:open-call-1'
+    ]);
+
+    const completedPresentation = buildReplayPresentation(session, createCursor({ stepIndex: 1, status: 'playing' }));
+    expect(completedPresentation.transcriptBlocks.map((block) => block.id)).toEqual([
+      'replay-assistant:open-result-1'
     ]);
   });
 
