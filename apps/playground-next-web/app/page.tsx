@@ -1,5 +1,10 @@
-import { redirect } from 'next/navigation';
+import { ChatShellEntry } from '@/components/chat-shell/chat-shell-entry';
+import { ChatThemeProvider } from '@/components/chat-theme-provider';
 
 export default function HomePage() {
-  redirect('/new');
+  return (
+    <ChatThemeProvider>
+      <ChatShellEntry />
+    </ChatThemeProvider>
+  );
 }
