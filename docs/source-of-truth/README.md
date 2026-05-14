@@ -45,6 +45,10 @@
     transient stream state 与 durable transcript state 的边界、
     version / live draft identity / unavailable fallback 规则，
     以及刷新页面和切换 thread 后重新订阅运行中 run 的用户可见行为
+- `run-trace-usage-contract.md`
+  - Run Trace & Usage Contract v1 的 durable raw trace、typed timeline projection、
+    versioned usage summary、`message_update` live-only 边界、app/thread/run
+    attribution 规则，以及 usage records、cancel、replay/eval 的后续进入条件
 
 ## 不适合放在这里的内容
 

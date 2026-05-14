@@ -6,6 +6,32 @@ The completed `v0` scope and closeout rationale live in [`v0-closeout.md`](./v0-
 
 The roadmap after `v0` should be read as a set of candidate tracks, not as a promise to build every item in order.
 
+## Selected Next Infra Track: Run Trace And Usage Contract v1
+
+The next infra track is `Run Trace And Usage Contract v1`.
+
+This track combines the most valuable parts of observability hardening and usage
+tracking without turning shared infra into a billing or user-management product.
+The source of truth lives in
+[`source-of-truth/run-trace-usage-contract.md`](./source-of-truth/run-trace-usage-contract.md).
+
+Completed foundation:
+
+- assistant `message_update` is explicitly live-only in the current contract
+- raw `run_events` remain append-only durable process facts
+- timeline responses preserve raw `runEvents` and `toolInvocations`
+- `packages/app` provides a typed timeline projection over durable records
+- `Run.usage` uses a versioned `RunUsageSummaryV1` stored in `runs.usage_json`
+- shared attribution stays at `runId` / `threadId` / `appId`
+- host user attribution remains outside shared packages
+
+Deferred until real need is demonstrated:
+
+- `run_usage_records` or ledger tables for queryable aggregation
+- server-side cancel and runtime abort mechanics
+- replay/eval fixtures
+- broader runtime adapter contract hardening
+
 ## Completed `v0`
 
 The completed baseline includes:

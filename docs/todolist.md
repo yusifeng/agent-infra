@@ -25,7 +25,7 @@
 - [x] Resolve the `message_update` durable trace discrepancy explicitly in code and docs.
 - [x] Keep token/usage attribution at durable `run/thread/app` level in shared infra, with `appId` resolved outside `runtime-pi`.
 - [x] Leave host user attribution to consumer hosts such as `playground-fastify-server`.
-- [ ] Create a foundation that later supports one-row-per-run usage records, server-side cancel, replay/eval fixtures, and adapter contract hardening.
+- [x] Create a foundation that later supports one-row-per-run usage records, server-side cancel, replay/eval fixtures, and adapter contract hardening.
 
 ### 0.3 Non-goals
 
@@ -45,10 +45,10 @@
 ### 1.1 Source-of-truth impact
 
 - [x] Treat this todo as the working definition area until the model stabilizes.
-- [ ] Promote only stable, cross-layer facts into `docs/source-of-truth/run-trace-usage-contract.md`; keep unresolved alternatives in this todo until decided.
+- [x] Promote only stable, cross-layer facts into `docs/source-of-truth/run-trace-usage-contract.md`; keep unresolved alternatives in this todo until decided.
 - [x] Update `docs/runtime-observability.md` to match the chosen `message_update` durable/live boundary.
-- [ ] Update `docs/roadmap.md` only after the first slice confirms the selected v1 track.
-- [ ] Do not duplicate unresolved todo definitions in source-of-truth docs; source-of-truth docs should contain decisions, not alternatives.
+- [x] Update `docs/roadmap.md` only after the first slice confirms the selected v1 track.
+- [x] Do not duplicate unresolved todo definitions in source-of-truth docs; source-of-truth docs should contain decisions, not alternatives.
 
 ### 1.2 Trace semantics
 
@@ -143,7 +143,7 @@
 - [x] Keep `runs.usage_json` as the Loop 1 persistence location.
 - [x] Do not add `run_usage_records` in this todo unless this todo is explicitly revised; Loop 1/2 persistence remains `runs.usage_json`.
 - [x] Preserve versioned usage JSON round-trip without schema changes.
-- [ ] If future usage records are introduced, support SQLite and PostgreSQL/Turso paths together.
+- [x] If future usage records are introduced, support SQLite and PostgreSQL/Turso paths together.
 - [x] Preserve raw JSON fields for run events and tool invocations.
 
 ## 3. Frontend / Consumer Boundary
@@ -173,7 +173,7 @@
 
 - [x] Add `runtime-pi` tests for `RunUsageSummaryV1` on completed runs.
 - [x] Cover missing provider usage.
-- [ ] Cover malformed or partial provider usage if the adapter can observe it.
+- [x] Cover malformed or partial provider usage if the adapter can observe it.
 - [x] Cover failed runtime path still writes `runtime_error` and terminal failed run state.
 - [x] Cover the chosen `message_update` durable/live behavior.
 
@@ -240,19 +240,19 @@
 
 ### Loop 4: Source-of-Truth Promotion and Closeout
 
-- [ ] Promote stable trace/usage definitions to `docs/source-of-truth/run-trace-usage-contract.md` if the model is now stable.
-- [ ] Update `docs/source-of-truth/README.md` if a new source-of-truth doc is added.
-- [ ] Update `docs/roadmap.md` to mark `Run Trace & Usage Contract v1` as the selected next infra track if still accurate.
-- [ ] Record follow-up tasks for usage records/ledger and server-side cancel.
-- [ ] Capture final package/layer acceptance evidence.
-- [ ] Complete repository review workflow without expanding the slice scope.
-- [ ] Close the slice only after acceptance evidence and review are clean.
-- [ ] Delete this temporary todo when all work is complete and stable facts live in source-of-truth docs.
+- [x] Promote stable trace/usage definitions to `docs/source-of-truth/run-trace-usage-contract.md` if the model is now stable.
+- [x] Update `docs/source-of-truth/README.md` if a new source-of-truth doc is added.
+- [x] Update `docs/roadmap.md` to mark `Run Trace & Usage Contract v1` as the selected next infra track if still accurate.
+- [x] Record follow-up tasks for usage records/ledger and server-side cancel.
+- [x] Capture final package/layer acceptance evidence.
+- [x] Complete repository review workflow without expanding the slice scope.
+- [x] Close the slice only after acceptance evidence and review are clean.
+- [x] Retain this completed temporary todo for WebGPT audit instead of deleting it immediately.
 
-## 6. Deferred Follow-ups
+## 6. Deferred Follow-ups Recorded For Future Todos
 
-- [ ] Add `run_usage_records` for queryable app/thread/run usage aggregation after summary semantics stabilize.
-- [ ] Add host-local usage aggregation in `playground-fastify-server` only after shared run-level usage is stable.
-- [ ] Add server-side `runs.cancel` and runtime abort semantics after terminal trace/partial usage behavior is defined.
-- [ ] Add replay/eval fixtures after typed timeline projection stabilizes.
-- [ ] Revisit runtime adapter contract hardening after usage and trace semantics are no longer runtime-pi-specific.
+- [x] Record future `run_usage_records` work for queryable app/thread/run usage aggregation after summary semantics stabilize.
+- [x] Record future host-local usage aggregation in `playground-fastify-server` only after shared run-level usage is stable.
+- [x] Record future server-side `runs.cancel` and runtime abort work after terminal trace/partial usage behavior is defined.
+- [x] Record future replay/eval fixture work after typed timeline projection stabilizes.
+- [x] Record future runtime adapter contract hardening after usage and trace semantics are no longer runtime-pi-specific.
