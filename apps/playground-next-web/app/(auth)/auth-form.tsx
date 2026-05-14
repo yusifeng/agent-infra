@@ -80,6 +80,7 @@ export function AuthForm({ mode }: AuthFormProps) {
   const isLogin = mode === 'login';
   const isRegister = mode === 'register';
   const isForgotPassword = mode === 'forgot-password';
+  const accountLabel = isLogin ? '账号或邮箱' : '邮箱';
 
   async function requestCode() {
     const emailInput = document.getElementById(`${mode}-email`) as HTMLInputElement | null;
@@ -153,15 +154,15 @@ export function AuthForm({ mode }: AuthFormProps) {
           <form className="flex flex-col gap-3.5" onSubmit={handleSubmit}>
             <div className="flex flex-col gap-3">
               <label className="sr-only" htmlFor={`${mode}-email`}>
-                邮箱
+                {accountLabel}
               </label>
               <Input
                 id={`${mode}-email`}
-                autoComplete="email"
+                autoComplete={isLogin ? 'username' : 'email'}
                 className="h-[42px] rounded-full border-[color:var(--auth-field-border)] bg-[var(--auth-field-bg)] px-5 text-sm [box-shadow:var(--auth-field-shadow)] placeholder:text-[color:var(--auth-subtle-text)] focus-visible:border-[color:var(--auth-field-focus-border)] focus-visible:ring-[color:var(--auth-field-focus-ring)]"
-                placeholder="请输入邮箱"
+                placeholder={isLogin ? '请输入账号或邮箱' : '请输入邮箱'}
                 required
-                type="email"
+                type={isLogin ? 'text' : 'email'}
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
               />
