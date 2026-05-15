@@ -126,6 +126,232 @@ Projection phase rules:
 
 The projection is durable-first and independent from SSE/live stream state.
 
+## Trace Span Projection
+
+`Trace Span Projection v1` is the machine-readable observability read model for
+one durable run.
+
+It is distinct from the other trace layers:
+
+- raw `run_events` are append-only durable process facts
+- timeline projection is a human-readable ordered inspection model
+- span projection is a machine-readable tree/read model for observability,
+  feedback subjects, future eval examples, and optional external exporters
+
+Span projection is built from persisted records. It does not persist or
+reconstruct live-only assistant `message_update` deltas.
+
+Phase 1 span projection is projection-only:
+
+- no DB migration
+- no durable `trace_spans` table
+- no runtime-written span rows
+- no `runs.metadata_json`
+- no shared user/auth/org/tenant/account model
+- no feedback, dataset/eval, prompt hub, or exporter implementation
+
+External systems such as LangSmith or OpenTelemetry may be added later as sinks.
+They must not replace internal durable truth.
+
+### Trace Response
+
+The v1 trace read returns the durable run and projection only:
+
+```ts
+interface RunTraceResult {
+  run: Run;
+  projection: TraceSpanProjectionV1;
+}
+```
+
+The public DTO follows the same boundary:
+
+```ts
+interface RunTraceResponseDto {
+  run: RunDto | null;
+  projection?: TraceSpanProjectionDto | null;
+  error?: string;
+}
+```
+
+Trace responses do not include raw `runEvents` or `toolInvocations` arrays. Raw
+payload inspection remains the responsibility of timeline reads. Trace spans
+instead include source references that point back to durable facts.
+
+### Trace Span Shape
+
+The v1 span kinds are intentionally conservative:
+
+- `agent`
+- `assistant_message`
+- `tool_invocation`
+- `runtime_error`
+- `unknown_event`
+
+`assistant_message` is not a provider LLM-call span. It represents durable
+assistant message lifecycle facts from assistant `message_start` and
+`message_end` events. A future runtime contract may add separate provider
+`llm_call` spans if provider-call boundaries become durable facts.
+
+The v1 span statuses are:
+
+- `queued`
+- `running`
+- `completed`
+- `failed`
+- `cancelled`
+- `unknown`
+
+The stable span fields are:
+
+- `schemaVersion`
+- `id`
+- `traceId`
+- `parentSpanId`
+- `kind`
+- `name`
+- `status`
+- `appId`
+- `threadId`
+- `runId`
+- `order`
+- `startedAt`
+- `finishedAt`
+- `durationMs`
+- `sourceRefs`
+
+Optional v1 fields are:
+
+- `provider`
+- `model`
+- `usageRef`
+- `tool`
+- `error`
+- `metadata`
+
+Phase 1 `metadata` is forward-compatible only. It should be `null` unless a value
+is derived from already-stable durable fields. Phase 1 does not define trace
+metadata or tag semantics.
+
+`appId` is non-null in span projection. The app boundary resolves it by loading
+`run.threadId -> thread.appId`. Missing run/thread/app attribution is an
+app-layer load error, not a nullable projection state.
+
+### Source References
+
+`TraceSpanSourceRefV1` references durable facts:
+
+- `run`
+- `run_event`
+- `tool_invocation`
+
+Message source references are deferred unless the projection can obtain stable
+durable message ids without inference.
+
+### Deterministic Span IDs
+
+Span ids must be deterministic across repeated reads of the same durable records:
+
+- root agent span: `span:run:${run.id}`
+- tool span with durable invocation: `span:tool:${toolInvocation.id}`
+- assistant message span with a start event:
+  `span:assistant_message:${messageStartEvent.id}`
+- event-only spans: `span:event:${event.id}`
+
+The default `traceId` is `run.id`.
+
+### Span Construction Rules
+
+Root agent span:
+
+- parent is `null`
+- status maps directly from `run.status`, including `cancelled`
+- timestamps prefer `run.startedAt` and `run.finishedAt`
+- source refs include the durable run and related `agent_start` / `agent_end`
+  events when available
+- may include run-level `provider`, `model`, and `usageRef`
+
+Assistant message span:
+
+- kind is `assistant_message`
+- parent is the root agent span
+- built from assistant `message_start` and `message_end` events
+- never built from live-only assistant `message_update`
+- maps `message_end.stopReason` values such as `error` or `aborted` to `failed`
+- records a structured diagnostic for unpaired start or end events
+
+If an assistant span is missing its end event, its status is derived from the
+root terminal state:
+
+- `running` when root is `queued` or `running`
+- `failed` when root is `failed`
+- `cancelled` when root is `cancelled`
+- `unknown` only when the terminal state cannot be interpreted
+
+Tool invocation span:
+
+- kind is `tool_invocation`
+- parent is always the root agent span in Phase 1
+- primary identity is durable `tool_invocation.id`
+- status prefers durable `tool_invocation.status`
+- matching `tool_execution_start` / `tool_execution_end` events enrich source
+  refs by `toolCallId`
+- full tool input/output remain on durable `tool_invocation` records, not stable
+  top-level span fields
+
+Nested tool parentage under assistant spans is deferred until message source refs
+or explicit assistant segment ids become part of the contract.
+
+Runtime error span:
+
+- kind is `runtime_error`
+- parent is the root agent span
+- source ref is the `runtime_error` event
+
+Unknown durable events:
+
+- project to `unknown_event` spans
+- increment diagnostics
+- do not fail the whole projection
+
+Event-only spans use `event.createdAt` for both `startedAt` and `finishedAt`, and
+`durationMs: 0`.
+
+`durationMs` is computed only when both timestamps are known. Negative durations
+are clamped to `0` and produce a `negative_duration_clamped` diagnostic.
+
+### Diagnostics
+
+Diagnostics are structured so tests and consumers can assert stable codes instead
+of brittle text.
+
+The v1 diagnostic codes are:
+
+- `unknown_event`
+- `orphan_event`
+- `missing_tool_invocation`
+- `unpaired_message_start`
+- `unpaired_message_end`
+- `unpaired_tool_start`
+- `unpaired_tool_end`
+- `nonterminal_child_on_terminal_run`
+- `negative_duration_clamped`
+
+Each warning includes:
+
+- `code`
+- `message`
+- `sourceRefs`
+
+The projection-level diagnostics include:
+
+- `unknownEventCount`
+- `orphanEventCount`
+- `warnings`
+
+Except for missing base run/thread/app attribution, unknown or incomplete source
+relationships should produce diagnostics rather than fail trace reads.
+
 ## Usage Summary
 
 `Run.usage` stores a versioned summary in `runs.usage_json`.
