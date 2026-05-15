@@ -2,7 +2,7 @@
 
 import type { RunDto, RunTimelineResponseDto, RunTraceResponseDto } from '@agent-infra/contracts';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { PlaygroundThreadDto } from '@/features/durable-chat/repo/chat-api';
 import {
@@ -211,6 +211,20 @@ export function useObservabilityConsole() {
   const selectedThread = threads.find((thread) => thread.id === selectedThreadId) ?? null;
   const selectedRun = runs.find((run) => run.id === selectedRunId) ?? timeline?.run ?? trace?.run ?? null;
 
+  const selectThread = useCallback(
+    (threadId: string) => {
+      router.push(`${pathname}${buildObservabilityQuery({ threadId, runId: null })}`, { scroll: false });
+    },
+    [pathname, router]
+  );
+
+  const selectRun = useCallback(
+    (runId: string) => {
+      router.push(`${pathname}${buildObservabilityQuery({ threadId: selectedThreadId, runId })}`, { scroll: false });
+    },
+    [pathname, router, selectedThreadId]
+  );
+
   return {
     threads,
     threadsLoading,
@@ -230,6 +244,8 @@ export function useObservabilityConsole() {
     trace,
     traceLoading,
     traceError,
+    selectThread,
+    selectRun,
     refresh: () => setRefreshVersion((current) => current + 1)
   };
 }

@@ -52,61 +52,61 @@ The practical result should be:
 
 ### Route And URL State
 
-- [ ] Add `/observability` as the management console route.
-- [ ] Use `threadId` and `runId` query params for durable selection state.
-- [ ] If `threadId` is missing, pick a safe default from accessible threads when available.
-- [ ] If `runId` is missing, pick a safe default from the selected thread's recent runs when available.
-- [ ] If a query value is stale, inaccessible, or missing from loaded data, show a recoverable state and allow reselection.
-- [ ] Avoid making `/observability/:threadId/:runId` route segments for the MVP unless query state creates concrete problems.
+- [x] Add `/observability` as the management console route.
+- [x] Use `threadId` and `runId` query params for durable selection state.
+- [x] If `threadId` is missing, pick a safe default from accessible threads when available.
+- [x] If `runId` is missing, pick a safe default from the selected thread's recent runs when available.
+- [x] If a query value is stale, inaccessible, or missing from loaded data, show a recoverable state and allow reselection.
+- [x] Avoid making `/observability/:threadId/:runId` route segments for the MVP unless query state creates concrete problems.
 
 ### Information Architecture
 
-- [ ] Column 1: thread list.
-- [ ] Column 2: run list for the selected thread.
-- [ ] Column 3: selected run content.
-- [ ] Selected run content includes a compact run header.
-- [ ] Selected run content includes `Timeline` and `Trace` tabs.
-- [ ] Keep the UI desktop-first for the MVP, with a functional narrow-screen fallback.
-- [ ] Avoid decorative dashboard chrome that does not expose runtime information.
+- [x] Column 1: thread list.
+- [x] Column 2: run list for the selected thread.
+- [x] Column 3: selected run content.
+- [x] Selected run content includes a compact run header.
+- [x] Selected run content includes `Timeline` and `Trace` tabs.
+- [x] Keep the UI desktop-first for the MVP, with a functional narrow-screen fallback.
+- [x] Avoid decorative dashboard chrome that does not expose runtime information.
 
 ### Data And Types
 
-- [ ] Use existing DTOs from `@agent-infra/contracts`.
-- [ ] Use existing API clients from `@agent-infra/durable-chat-client` where possible.
-- [ ] Add only presentation/view-model types needed to render trace data ergonomically.
-- [ ] Keep trace span semantics derived from `RunTraceResponseDto`.
-- [ ] Do not parse raw run events in the page when an existing typed projection exists.
-- [ ] Do not introduce new DB schema in this slice.
+- [x] Use existing DTOs from `@agent-infra/contracts`.
+- [x] Use existing API clients from `@agent-infra/durable-chat-client` where possible.
+- [x] Add only presentation/view-model types needed to render trace data ergonomically.
+- [x] Keep trace span semantics derived from `RunTraceResponseDto`.
+- [x] Do not parse raw run events in the page when an existing typed projection exists.
+- [x] Do not introduce new DB schema in this slice.
 
 ## Backend And Platform
 
-- [ ] Confirm that existing APIs provide enough data for the MVP.
-- [ ] Avoid backend route changes unless there is a concrete data gap.
-- [ ] If an API gap is found, add the narrowest package-level contract/server/client change.
-- [ ] Keep route handlers thin composition roots.
-- [ ] Do not add Next-only business logic that should belong in `packages/*`.
-- [ ] Preserve Fastify/Vite portability expectations when touching shared packages.
+- [x] Confirm that existing APIs provide enough data for the MVP.
+- [x] Avoid backend route changes unless there is a concrete data gap.
+- [x] If an API gap is found, add the narrowest package-level contract/server/client change.
+- [x] Keep route handlers thin composition roots.
+- [x] Do not add Next-only business logic that should belong in `packages/*`.
+- [x] Preserve Fastify/Vite portability expectations when touching shared packages.
 
 ## Frontend And Package Boundary
 
 ### Durable Chat Client
 
-- [ ] Re-export `fetchRunTraceResponse` from the Next app's local chat API adapter if the observability feature needs it.
-- [ ] Add a small trace presentation helper in `packages/durable-chat-client` only if the same projection is likely reusable outside Next.
-- [ ] Keep helper output presentational, for example flattened tree rows, depth, duration labels, and selected-span lookup.
-- [ ] Add tests for any new client helper.
-- [ ] Avoid expanding the existing chat log inspector state unless `/chat` actually consumes the new behavior.
+- [x] Re-export `fetchRunTraceResponse` from the Next app's local chat API adapter if the observability feature needs it.
+- [x] Add a small trace presentation helper in `packages/durable-chat-client` only if the same projection is likely reusable outside Next.
+- [x] Keep helper output presentational, for example flattened tree rows, depth, duration labels, and selected-span lookup.
+- [x] Add tests for any new client helper.
+- [x] Avoid expanding the existing chat log inspector state unless `/chat` actually consumes the new behavior.
 
 ### Next Observability Feature
 
-- [ ] Add an explicit `features/observability` area under `apps/playground-next-web`.
-- [ ] Put non-trivial page logic in feature files, not directly inside `app/observability/page.tsx`.
-- [ ] Reuse the existing auth shell/gate so the page follows host access rules.
-- [ ] Reuse existing app styling primitives where practical.
-- [ ] Keep the route page as a thin composition root.
-- [ ] Build data loading around existing thread, run, timeline, and trace fetchers.
-- [ ] Handle independent loading/error states for threads, runs, timeline, and trace.
-- [ ] Keep selected thread/run state synchronized with URL query params.
+- [x] Add an explicit `features/observability` area under `apps/playground-next-web`.
+- [x] Put non-trivial page logic in feature files, not directly inside `app/observability/page.tsx`.
+- [x] Reuse the existing auth shell/gate so the page follows host access rules.
+- [x] Reuse existing app styling primitives where practical.
+- [x] Keep the route page as a thin composition root.
+- [x] Build data loading around existing thread, run, timeline, and trace fetchers.
+- [x] Handle independent loading/error states for threads, runs, timeline, and trace.
+- [x] Keep selected thread/run state synchronized with URL query params.
 
 ### UI Behavior
 
@@ -128,7 +128,7 @@ The practical result should be:
 
 - [x] Loop 1 code review completed after package-level trace presentation work.
 - [x] Loop 2 code review completed after observability data-layer work.
-- [ ] Loop 3 code review completed after `/observability` shell work.
+- [x] Loop 3 code review completed after `/observability` shell work.
 - [ ] Loop 4 code review completed after timeline/trace content work.
 - [ ] Loop 5 final review completed if any unreviewed code remains.
 
@@ -159,19 +159,19 @@ The practical result should be:
 
 ### Loop 3: `/observability` Route And Three-Column Shell
 
-- [ ] Add `apps/playground-next-web/app/observability/page.tsx`.
-- [ ] Compose the page through the observability feature entry component.
-- [ ] Reuse the existing auth gate.
-- [ ] Render the three-column structure: thread, run, content.
-- [ ] Implement thread selection and run selection.
-- [ ] Implement loading, empty, and error states for the first two columns.
-- [ ] Keep the page independent from chat-shell routing.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Start or reuse the local Next dev server.
-- [ ] Verify `/observability` in the in-app browser.
-- [ ] Run `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`.
-- [ ] Address review findings.
-- [ ] Commit the slice if verification is clean.
+- [x] Add `apps/playground-next-web/app/observability/page.tsx`.
+- [x] Compose the page through the observability feature entry component.
+- [x] Reuse the existing auth gate.
+- [x] Render the three-column structure: thread, run, content.
+- [x] Implement thread selection and run selection.
+- [x] Implement loading, empty, and error states for the first two columns.
+- [x] Keep the page independent from chat-shell routing.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Start or reuse the local Next dev server.
+- [x] Verify `/observability` local reachability with HTTP because Browser automation was unavailable.
+- [x] Run `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`.
+- [x] Address review findings.
+- [x] Commit the slice if verification is clean.
 
 ### Loop 4: Timeline And Trace Content
 
