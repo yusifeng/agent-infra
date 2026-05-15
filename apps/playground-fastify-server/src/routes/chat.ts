@@ -18,6 +18,8 @@ import {
   buildRevokeChatShareResponse,
   buildRunAssistantEvent,
   buildRunReadyEvent,
+  buildRunTraceErrorResponse,
+  buildRunTraceResponse,
   buildRunTimelineErrorResponse,
   buildRunTimelineResponse,
   buildRunStateEvent,
@@ -692,6 +694,29 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
       return reply.send(buildRunTimelineResponse(timeline));
     } catch (error) {
       return reply.code(getRouteErrorStatus(error)).send(buildRunTimelineErrorResponse(error, 'failed to load run timeline'));
+    }
+  });
+
+  app.get<{ Params: { runId: string } }>('/api/runs/:runId/trace', async (request, reply) => {
+    const currentUser = requireAuthenticatedCurrentUser(request, reply);
+    if (!currentUser) {
+      return;
+    }
+
+    try {
+      request.requestTiming.annotate('base_services_state', describeServiceState(getPlaygroundBaseServicesState()));
+      request.requestTiming.annotate('app_services_state', describeServiceState(getPlaygroundAppServicesState()));
+      const services = await request.requestTiming.measureAsync('services.app', () => getAppServices());
+      await request.requestTiming.measureAsync('catalog.load_for_run_trace', () =>
+        loadAccessibleRun(services, request.params.runId, currentUser.id)
+      );
+      const trace = await request.requestTiming.measureAsync('runs.trace', () =>
+        services.app.runs.getTrace({ runId: request.params.runId })
+      );
+
+      return reply.send(buildRunTraceResponse(trace));
+    } catch (error) {
+      return reply.code(getRouteErrorStatus(error)).send(buildRunTraceErrorResponse(error, 'failed to load run trace'));
     }
   });
 

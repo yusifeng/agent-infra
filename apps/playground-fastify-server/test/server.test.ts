@@ -1033,6 +1033,55 @@ describe('playground-fastify-server', () => {
     });
   });
 
+  it('serves run trace only for runs owned by the signed-in user', async () => {
+    const server = await createTestServer({});
+    activeServers.push(server);
+    const ownerCookie = await registerAndSignIn(server, 'trace-owner@example.com');
+    const otherCookie = await registerAndSignIn(server, 'trace-other@example.com');
+    const threadId = await createThread(server, ownerCookie, 'Trace Thread');
+    const streamEvents = await streamSuccessfulTurn(server, ownerCookie, threadId, 'hello');
+    const runId = streamEvents.find((event) => event.type === 'run.ready')?.runId;
+    expect(runId).toBeTruthy();
+
+    const trace = await server.app.inject({
+      method: 'GET',
+      url: `/api/runs/${runId}/trace`,
+      headers: {
+        cookie: ownerCookie
+      }
+    });
+    expect(trace.statusCode).toBe(200);
+    expect(trace.json()).toMatchObject({
+      run: {
+        id: runId,
+        threadId,
+        status: 'completed'
+      },
+      projection: {
+        schemaVersion: 1,
+        traceId: runId,
+        rootSpanId: `span:run:${runId}`,
+        threadId,
+        runId,
+        status: 'completed'
+      }
+    });
+    expect(trace.json()).not.toHaveProperty('runEvents');
+    expect(trace.json()).not.toHaveProperty('toolInvocations');
+
+    const forbiddenTrace = await server.app.inject({
+      method: 'GET',
+      url: `/api/runs/${runId}/trace`,
+      headers: {
+        cookie: otherCookie
+      }
+    });
+    expect(forbiddenTrace.statusCode).toBe(404);
+    expect(forbiddenTrace.json()).toMatchObject({
+      error: `thread ${threadId} not found`
+    });
+  });
+
   it('attaches to the retained terminal stream snapshot after a completed turn', async () => {
     const server = await createTestServer({});
     activeServers.push(server);

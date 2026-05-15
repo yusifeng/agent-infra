@@ -23,8 +23,8 @@
 
 - [x] Define `Trace Span Projection v1` as the machine-readable observability read model that complements raw `run_events` and human-readable timeline projection.
 - [x] Build trace span projection in `packages/app` from durable records without adding new DB tables.
-- [ ] Expose trace span projection through contracts, durable-chat server helpers, durable-chat client normalization, and host route validation.
-- [ ] Keep projection logic out of route helpers and UI code.
+- [x] Expose trace span projection through contracts, durable-chat server helpers, durable-chat client normalization, and host route validation.
+- [x] Keep projection logic out of route helpers and UI code.
 - [x] Preserve raw event truth and do not mutate current run/message/tool persistence behavior.
 - [ ] Establish a stable subject model for later feedback, dataset/eval, prompt attribution, and LangSmith/OpenTelemetry exporter work.
 - [ ] Capture follow-up boundaries for trace context/metadata/tags, feedback, dataset/eval, prompt attribution, and exporters without implementing them in this slice.
@@ -271,10 +271,10 @@
 
 ### 2.8 Host routes
 
-- [ ] Add a validation route such as `GET /api/runs/:runId/trace` in host apps only after app/contracts/server/client shape is fixed.
-- [ ] Reuse the same access-check pattern as existing run timeline routes.
-- [ ] Keep host ownership checks host-local.
-- [ ] Do not write host owner ids into shared durable records.
+- [x] Add a validation route such as `GET /api/runs/:runId/trace` in host apps only after app/contracts/server/client shape is fixed.
+- [x] Reuse the same access-check pattern as existing run timeline routes.
+- [x] Keep host ownership checks host-local.
+- [x] Do not write host owner ids into shared durable records.
 
 ## 3. Frontend / Consumer Boundary
 
@@ -286,11 +286,11 @@
 
 ### 3.2 Playground UI validation
 
-- [ ] Add no UI by default in the first implementation loop.
-- [ ] If validation UI is needed, add only a minimal inspector/debug panel.
-- [ ] Do not build a LangSmith-like trace dashboard.
-- [ ] Do not make UI display the source of truth for trace semantics.
-- [ ] Keep screenshots out of scope unless a visible validation surface changes.
+- [x] Add no UI by default in the first implementation loop.
+- [x] If validation UI is needed, add only a minimal inspector/debug panel.
+- [x] Do not build a LangSmith-like trace dashboard.
+- [x] Do not make UI display the source of truth for trace semantics.
+- [x] Keep screenshots out of scope unless a visible validation surface changes.
 
 ## 4. Tests
 
@@ -326,9 +326,9 @@
 
 ### 4.4 Host route tests
 
-- [ ] Add host route tests only if the trace route is implemented in this slice.
-- [ ] Protected run trace route must reuse existing run access pattern.
-- [ ] Inaccessible run returns the same style of route error as timeline route.
+- [x] Add host route tests only if the trace route is implemented in this slice.
+- [x] Protected run trace route must reuse existing run access pattern.
+- [x] Inaccessible run returns the same style of route error as timeline route.
 
 ### 4.5 Verification and review
 
@@ -382,14 +382,14 @@
 
 ### Loop 4: Host Route Validation
 
-- [ ] Add `GET /api/runs/:runId/trace` to relevant host route layer only after shared helpers are stable.
-- [ ] Reuse existing accessible-run lookup and host ownership checks.
-- [ ] Add route tests if the host package already has adjacent route coverage for run timeline behavior.
-- [ ] Do not add UI unless needed for validation.
-- [ ] Capture targeted host verification and type-safety evidence if the route is added.
-- [ ] Code review gate: use the repository Review Profile.
-- [ ] Use the repository Review Profile.
-- [ ] Close the slice only after verification evidence and review are clean.
+- [x] Add `GET /api/runs/:runId/trace` to relevant host route layer only after shared helpers are stable.
+- [x] Reuse existing accessible-run lookup and host ownership checks.
+- [x] Add route tests if the host package already has adjacent route coverage for run timeline behavior.
+- [x] Do not add UI unless needed for validation.
+- [x] Capture targeted host verification and type-safety evidence if the route is added.
+- [x] Code review gate: use the repository Review Profile.
+- [x] Use the repository Review Profile.
+- [x] Close the slice only after verification evidence and review are clean.
 
 ### Loop 5: Closeout and Follow-up Recording
 
