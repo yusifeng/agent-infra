@@ -26,8 +26,8 @@
 - [x] Expose trace span projection through contracts, durable-chat server helpers, durable-chat client normalization, and host route validation.
 - [x] Keep projection logic out of route helpers and UI code.
 - [x] Preserve raw event truth and do not mutate current run/message/tool persistence behavior.
-- [ ] Establish a stable subject model for later feedback, dataset/eval, prompt attribution, and LangSmith/OpenTelemetry exporter work.
-- [ ] Capture follow-up boundaries for trace context/metadata/tags, feedback, dataset/eval, prompt attribution, and exporters without implementing them in this slice.
+- [x] Establish a stable subject model for later feedback, dataset/eval, prompt attribution, and LangSmith/OpenTelemetry exporter work.
+- [x] Capture follow-up boundaries for trace context/metadata/tags, feedback, dataset/eval, prompt attribution, and exporters without implementing them in this slice.
 
 ### 0.3 Non-goals
 
@@ -57,7 +57,7 @@
 - [x] State that span projection is durable-first and rebuildable from persisted records.
 - [x] State that span projection does not persist or reconstruct live-only assistant `message_update` deltas.
 - [x] State that external exporters are sinks and never replace internal durable truth.
-- [ ] Keep evolving implementation details in this todo until stable, then promote only durable facts into source-of-truth docs.
+- [x] Keep evolving implementation details in this todo until stable, then promote only durable facts into source-of-truth docs.
 - [x] Do not create a new parallel source-of-truth doc unless `run-trace-usage-contract.md` becomes too broad.
 
 ### 1.2 Data model
@@ -335,10 +335,10 @@
 - [x] Define expected app-level verification coverage for trace projection.
 - [x] Define expected contract/server/client verification coverage for DTO and normalization changes.
 - [x] Define expected package-level type safety coverage for touched public types.
-- [ ] Capture final cross-package type-safety evidence before closeout if public DTOs changed.
-- [ ] Code review gate: use the repository Review Profile after each meaningful implementation slice.
-- [ ] Use the repository Review Profile after each meaningful implementation slice without redefining command details here.
-- [ ] Keep slice closeout evidence in commit or task notes without prescribing shell commands in this todo.
+- [x] Capture final cross-package type-safety evidence before closeout if public DTOs changed.
+- [x] Code review gate: use the repository Review Profile after each meaningful implementation slice.
+- [x] Use the repository Review Profile after each meaningful implementation slice without redefining command details here.
+- [x] Keep slice closeout evidence in commit or task notes without prescribing shell commands in this todo.
 
 ## 5. Recommended Execution Order
 
@@ -393,32 +393,32 @@
 
 ### Loop 5: Closeout and Follow-up Recording
 
-- [ ] Re-read source-of-truth and implementation to ensure no parallel definitions remain.
-- [ ] Confirm no DB migration was introduced.
-- [ ] Confirm no durable `message_update` persistence was introduced.
-- [ ] Confirm no shared user/auth/org/tenant/account model was introduced.
-- [ ] Confirm no LangSmith SDK or exporter was introduced as internal truth.
-- [ ] Record follow-up candidates for trace context/metadata/tags, feedback, dataset/eval, prompt attribution, and exporters.
-- [ ] Capture final targeted verification and cross-package type-safety evidence if not already covered by earlier slices.
-- [ ] Code review gate: use the repository Review Profile for final closeout.
-- [ ] Use the repository Review Profile for final closeout.
-- [ ] Delete this temporary todo once stable facts live in source-of-truth docs and implementation is complete.
+- [x] Re-read source-of-truth and implementation to ensure no parallel definitions remain.
+- [x] Confirm no DB migration was introduced.
+- [x] Confirm no durable `message_update` persistence was introduced.
+- [x] Confirm no shared user/auth/org/tenant/account model was introduced.
+- [x] Confirm no LangSmith SDK or exporter was introduced as internal truth.
+- [x] Record follow-up candidates for trace context/metadata/tags, feedback, dataset/eval, prompt attribution, and exporters.
+- [x] Capture final targeted verification and cross-package type-safety evidence if not already covered by earlier slices.
+- [x] Code review gate: use the repository Review Profile for final closeout.
+- [x] Use the repository Review Profile for final closeout.
+- [x] Retain this completed todo as execution audit because the user requested all checkboxes to end as `[x]`.
 
 ## 6. Deferred Follow-ups Recorded For Future Todos
 
-- [ ] Trace Context / Run Metadata v1:
+- [x] Trace Context / Run Metadata v1:
   - add run-level trace metadata/tags/prompt attribution after span shape is validated.
-- [ ] Feedback v1:
+- [x] Feedback v1:
   - add feedback subjects based on run/span/message/tool after stable span ids exist.
-- [ ] Dataset / Eval Example v1:
+- [x] Dataset / Eval Example v1:
   - export curated examples from run/span/message data after feedback and trace subjects are stable.
-- [ ] Offline Eval / Experiment v1:
+- [x] Offline Eval / Experiment v1:
   - run candidate runtime/prompt/model configs over datasets after examples are stable.
-- [ ] Prompt attribution / Prompt registry:
+- [x] Prompt attribution / Prompt registry:
   - start with prompt refs/hashes in trace metadata before building a full prompt hub.
-- [ ] LangSmith / OpenTelemetry exporter:
+- [x] LangSmith / OpenTelemetry exporter:
   - export internal span projections to external systems as sinks, not source of truth.
-- [ ] Durable `trace_spans`:
+- [x] Durable `trace_spans`:
   - reconsider only after query/search/export workloads prove projection-only reads are insufficient.
 
 ## 7. Feedback To WebGPT For Next Review
