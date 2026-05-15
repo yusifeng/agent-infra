@@ -156,7 +156,7 @@
 - [x] Define `TraceProjectionDiagnosticV1` with stable `code`, `message`, and `sourceRefs`.
 - [x] Define `TraceSpanProjectionDiagnosticsV1` with `unknownEventCount`, `orphanEventCount`, and `warnings`.
 - [x] Avoid stable `tags` in Phase 1 unless trace context/tags are also defined; placeholder empty tags should not imply a supported filter model.
-- [ ] Define DTO equivalents in `packages/contracts` only after the app-layer shape is fixed.
+- [x] Define DTO equivalents in `packages/contracts` only after the app-layer shape is fixed.
 
 ### 1.4 Span construction rules
 
@@ -227,32 +227,32 @@
 
 ### 2.3 `packages/contracts`
 
-- [ ] Add `TraceSpanKindDto`, `TraceSpanStatusDto`, or equivalent inline literal DTO types.
-- [ ] Add `TraceSpanSourceRefDto`.
-- [ ] Add `TraceSpanDto`.
-- [ ] Add `TraceSpanProjectionDto`.
-- [ ] Add `RunTraceResponseDto`.
-- [ ] Define `RunTraceResponseDto` as `{ run: RunDto | null; projection?: TraceSpanProjectionDto | null; error?: string }`.
-- [ ] Keep DTO backward-compatible with unknown future metadata.
-- [ ] Do not move runtime codec/helper logic into `packages/contracts`.
+- [x] Add `TraceSpanKindDto`, `TraceSpanStatusDto`, or equivalent inline literal DTO types.
+- [x] Add `TraceSpanSourceRefDto`.
+- [x] Add `TraceSpanDto`.
+- [x] Add `TraceSpanProjectionDto`.
+- [x] Add `RunTraceResponseDto`.
+- [x] Define `RunTraceResponseDto` as `{ run: RunDto | null; projection?: TraceSpanProjectionDto | null; error?: string }`.
+- [x] Keep DTO backward-compatible with unknown future metadata.
+- [x] Do not move runtime codec/helper logic into `packages/contracts`.
 
 ### 2.4 `packages/durable-chat-server`
 
-- [ ] Add `buildRunTraceResponse` helper.
-- [ ] Add `buildRunTraceErrorResponse` helper if needed for route consistency.
-- [ ] Serialize app-provided trace projection only.
-- [ ] Do not implement span construction or source-ref matching in server helpers.
-- [ ] Add route-helper tests for successful and error responses.
+- [x] Add `buildRunTraceResponse` helper.
+- [x] Add `buildRunTraceErrorResponse` helper if needed for route consistency.
+- [x] Serialize app-provided trace projection only.
+- [x] Do not implement span construction or source-ref matching in server helpers.
+- [x] Add route-helper tests for successful and error responses.
 
 ### 2.5 `packages/durable-chat-client`
 
-- [ ] Add `normalizeRunTraceResponse`.
-- [ ] Add normalizers for trace projection, spans, source refs, diagnostics, optional tool/error/usage metadata.
-- [ ] Invalid projection schema should normalize to `null` or an error-safe response, following existing timeline schema conventions.
-- [ ] Invalid individual span/source-ref items should be filtered without failing the entire response when safe.
-- [ ] Unknown-event spans should be accepted.
-- [ ] Missing or invalid root span/rootSpanId should normalize projection to `null`.
-- [ ] Do not treat trace projection as live stream state.
+- [x] Add `normalizeRunTraceResponse`.
+- [x] Add normalizers for trace projection, spans, source refs, diagnostics, optional tool/error/usage metadata.
+- [x] Invalid projection schema should normalize to `null` or an error-safe response, following existing timeline schema conventions.
+- [x] Invalid individual span/source-ref items should be filtered without failing the entire response when safe.
+- [x] Unknown-event spans should be accepted.
+- [x] Missing or invalid root span/rootSpanId should normalize projection to `null`.
+- [x] Do not treat trace projection as live stream state.
 
 ### 2.6 `packages/db`
 
@@ -280,9 +280,9 @@
 
 ### 3.1 Durable chat client boundary
 
-- [ ] Add fetch helper for run trace response if a host route is added.
-- [ ] Keep trace response as durable read data, not live stream data.
-- [ ] Keep terminal reconcile behavior unchanged.
+- [x] Add fetch helper for run trace response if a host route is added.
+- [x] Keep trace response as durable read data, not live stream data.
+- [x] Keep terminal reconcile behavior unchanged.
 
 ### 3.2 Playground UI validation
 
@@ -311,18 +311,18 @@
 
 ### 4.2 Contract / server tests
 
-- [ ] DTO types cover trace projection and span fields.
-- [ ] Route helper serializes app-provided trace projection without projection logic.
-- [ ] Error response shape is stable.
-- [ ] No raw durable event fields are lost by existing timeline response changes.
+- [x] DTO types cover trace projection and span fields.
+- [x] Route helper serializes app-provided trace projection without projection logic.
+- [x] Error response shape is stable.
+- [x] No raw durable event fields are lost by existing timeline response changes.
 
 ### 4.3 Client schema tests
 
-- [ ] Valid trace response normalizes correctly.
-- [ ] Invalid projection schema normalizes safely.
-- [ ] Invalid individual span item is filtered or rejected according to the chosen convention.
-- [ ] Unknown-event span normalizes correctly.
-- [ ] Optional `metadata`, `tool`, `error`, and `usageRef` fields normalize safely.
+- [x] Valid trace response normalizes correctly.
+- [x] Invalid projection schema normalizes safely.
+- [x] Invalid individual span item is filtered or rejected according to the chosen convention.
+- [x] Unknown-event span normalizes correctly.
+- [x] Optional `metadata`, `tool`, `error`, and `usageRef` fields normalize safely.
 
 ### 4.4 Host route tests
 
@@ -333,8 +333,8 @@
 ### 4.5 Verification and review
 
 - [x] Define expected app-level verification coverage for trace projection.
-- [ ] Define expected contract/server/client verification coverage for DTO and normalization changes.
-- [ ] Define expected package-level type safety coverage for touched public types.
+- [x] Define expected contract/server/client verification coverage for DTO and normalization changes.
+- [x] Define expected package-level type safety coverage for touched public types.
 - [ ] Capture final cross-package type-safety evidence before closeout if public DTOs changed.
 - [ ] Code review gate: use the repository Review Profile after each meaningful implementation slice.
 - [ ] Use the repository Review Profile after each meaningful implementation slice without redefining command details here.
@@ -370,15 +370,15 @@
 
 ### Loop 3: Contracts, Server, Client
 
-- [ ] Add trace DTOs to `packages/contracts`.
-- [ ] Add durable-chat-server response builders for trace responses.
-- [ ] Add durable-chat-client trace response normalizers.
-- [ ] Add contract/server/client tests.
-- [ ] Capture downstream declaration freshness and type-safety evidence for affected packages.
-- [ ] Capture targeted contract/server/client verification evidence.
-- [ ] Code review gate: use the repository Review Profile.
-- [ ] Use the repository Review Profile.
-- [ ] Close the slice only after verification evidence and review are clean.
+- [x] Add trace DTOs to `packages/contracts`.
+- [x] Add durable-chat-server response builders for trace responses.
+- [x] Add durable-chat-client trace response normalizers.
+- [x] Add contract/server/client tests.
+- [x] Capture downstream declaration freshness and type-safety evidence for affected packages.
+- [x] Capture targeted contract/server/client verification evidence.
+- [x] Code review gate: use the repository Review Profile.
+- [x] Use the repository Review Profile.
+- [x] Close the slice only after verification evidence and review are clean.
 
 ### Loop 4: Host Route Validation
 

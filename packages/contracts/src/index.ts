@@ -127,6 +127,104 @@ export type RunTimelineItemDto =
       seq: number;
     };
 
+export type TraceSpanKindDto = 'agent' | 'assistant_message' | 'tool_invocation' | 'runtime_error' | 'unknown_event';
+
+export type TraceSpanStatusDto = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'unknown';
+
+export type TraceProjectionDiagnosticCodeDto =
+  | 'unknown_event'
+  | 'orphan_event'
+  | 'missing_tool_invocation'
+  | 'unpaired_message_start'
+  | 'unpaired_message_end'
+  | 'unpaired_tool_start'
+  | 'unpaired_tool_end'
+  | 'nonterminal_child_on_terminal_run'
+  | 'negative_duration_clamped';
+
+export type TraceSpanSourceRefDto =
+  | {
+      type: 'run';
+      id: string;
+    }
+  | {
+      type: 'run_event';
+      id: string;
+      seq: number;
+      eventType: string;
+    }
+  | {
+      type: 'tool_invocation';
+      id: string;
+      toolCallId: string;
+    };
+
+export interface TraceSpanUsageRefDto {
+  source: 'run.usage';
+  runId: string;
+}
+
+export interface TraceSpanToolDto {
+  toolInvocationId?: string | null;
+  toolCallId: string;
+  toolName: string;
+}
+
+export interface TraceSpanErrorDto {
+  message: string;
+}
+
+export interface TraceProjectionDiagnosticDto {
+  code: TraceProjectionDiagnosticCodeDto;
+  message: string;
+  sourceRefs: TraceSpanSourceRefDto[];
+}
+
+export interface TraceSpanProjectionDiagnosticsDto {
+  unknownEventCount: number;
+  orphanEventCount: number;
+  warnings: TraceProjectionDiagnosticDto[];
+}
+
+export interface TraceSpanDto {
+  schemaVersion: 1;
+  id: string;
+  traceId: string;
+  parentSpanId: string | null;
+  kind: TraceSpanKindDto;
+  name: string;
+  status: TraceSpanStatusDto;
+  appId: string;
+  threadId: string;
+  runId: string;
+  order: number;
+  startedAt: IsoDateString | null;
+  finishedAt: IsoDateString | null;
+  durationMs: number | null;
+  provider?: string | null;
+  model?: string | null;
+  usageRef?: TraceSpanUsageRefDto | null;
+  tool?: TraceSpanToolDto | null;
+  error?: TraceSpanErrorDto | null;
+  sourceRefs: TraceSpanSourceRefDto[];
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface TraceSpanProjectionDto {
+  schemaVersion: 1;
+  traceId: string;
+  rootSpanId: string;
+  appId: string;
+  threadId: string;
+  runId: string;
+  status: TraceSpanStatusDto;
+  startedAt: IsoDateString | null;
+  finishedAt: IsoDateString | null;
+  durationMs: number | null;
+  spans: TraceSpanDto[];
+  diagnostics: TraceSpanProjectionDiagnosticsDto;
+}
+
 export interface RuntimePiModelOptionDto {
   key: string;
   provider: string;
@@ -177,6 +275,10 @@ export interface RunTextTurnRequestDto {
 }
 
 export interface GetRunTimelineRequestDto {
+  runId: string;
+}
+
+export interface GetRunTraceRequestDto {
   runId: string;
 }
 
@@ -312,6 +414,12 @@ export interface RunTimelineResponseDto {
   runEvents: RunEventDto[];
   toolInvocations: ToolInvocationDto[];
   projection?: RunTimelineProjectionDto | null;
+  error?: string;
+}
+
+export interface RunTraceResponseDto {
+  run: RunDto | null;
+  projection?: TraceSpanProjectionDto | null;
   error?: string;
 }
 

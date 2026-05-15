@@ -1,4 +1,4 @@
-import type { CreateThreadSnapshotShareResult, PublicChatShareResult, RunTextTurnResult, RunTimelineResult, StartTextTurnResult } from '@agent-infra/app';
+import type { CreateThreadSnapshotShareResult, PublicChatShareResult, RunTextTurnResult, RunTimelineResult, RunTraceResult, StartTextTurnResult } from '@agent-infra/app';
 import type { Message, MessagePageResult, MessagePart, Run, Thread } from '@agent-infra/core';
 import type {
   CreateThreadShareResponseDto,
@@ -12,6 +12,7 @@ import type {
   RunStreamFailedEventDto,
   RunStreamReadyEventDto,
   RunStreamStateEventDto,
+  RunTraceResponseDto,
   RunTimelineResponseDto,
   RunTextTurnRequestDto,
   RunTextTurnResponseDto,
@@ -330,6 +331,21 @@ export function buildRunTimelineErrorResponse(error: unknown, fallbackMessage: s
     run: null,
     runEvents: [],
     toolInvocations: [],
+    projection: null,
+    error: getRouteErrorMessage(error, fallbackMessage)
+  };
+}
+
+export function buildRunTraceResponse(trace: Pick<RunTraceResult, 'run' | 'projection'>): RunTraceResponseDto {
+  return {
+    run: toRunDto(trace.run),
+    projection: trace.projection
+  };
+}
+
+export function buildRunTraceErrorResponse(error: unknown, fallbackMessage: string): RunTraceResponseDto {
+  return {
+    run: null,
     projection: null,
     error: getRouteErrorMessage(error, fallbackMessage)
   };

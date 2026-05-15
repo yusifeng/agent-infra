@@ -4,6 +4,8 @@ import type {
   MessagePartDto,
   RunDto,
   RunEventDto,
+  RunTraceResponseDto,
+  TraceProjectionDiagnosticCodeDto,
   RunTimelineItemDto,
   RunTimelineProjectionDto,
   RunTimelineResponseDto,
@@ -13,6 +15,13 @@ import type {
   ThreadMessagesPageInfoDto,
   ThreadRunsResponseDto,
   ThreadsResponseDto,
+  TraceProjectionDiagnosticDto,
+  TraceSpanDto,
+  TraceSpanKindDto,
+  TraceSpanProjectionDiagnosticsDto,
+  TraceSpanProjectionDto,
+  TraceSpanSourceRefDto,
+  TraceSpanStatusDto,
   ToolInvocationDto
 } from '@agent-infra/contracts';
 
@@ -40,6 +49,18 @@ function asNullableString(value: unknown) {
 
 function asNumber(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function asNullableNumber(value: unknown) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  return asNumber(value);
+}
+
+function isNullableNumber(value: unknown) {
+  return value === null || value === undefined || asNumber(value) !== null;
 }
 
 function asBoolean(value: unknown) {
@@ -343,6 +364,298 @@ function normalizeRunTimelineProjection(value: unknown): RunTimelineProjectionDt
   };
 }
 
+function normalizeTraceSpanKind(value: unknown): TraceSpanKindDto | null {
+  if (
+    value === 'agent' ||
+    value === 'assistant_message' ||
+    value === 'tool_invocation' ||
+    value === 'runtime_error' ||
+    value === 'unknown_event'
+  ) {
+    return value;
+  }
+
+  return null;
+}
+
+function normalizeTraceSpanStatus(value: unknown): TraceSpanStatusDto | null {
+  if (
+    value === 'queued' ||
+    value === 'running' ||
+    value === 'completed' ||
+    value === 'failed' ||
+    value === 'cancelled' ||
+    value === 'unknown'
+  ) {
+    return value;
+  }
+
+  return null;
+}
+
+function normalizeTraceProjectionDiagnosticCode(value: unknown): TraceProjectionDiagnosticCodeDto | null {
+  if (
+    value === 'unknown_event' ||
+    value === 'orphan_event' ||
+    value === 'missing_tool_invocation' ||
+    value === 'unpaired_message_start' ||
+    value === 'unpaired_message_end' ||
+    value === 'unpaired_tool_start' ||
+    value === 'unpaired_tool_end' ||
+    value === 'nonterminal_child_on_terminal_run' ||
+    value === 'negative_duration_clamped'
+  ) {
+    return value;
+  }
+
+  return null;
+}
+
+function normalizeTraceSpanSourceRef(value: unknown): TraceSpanSourceRefDto | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const type = asString(record.type);
+  const id = asString(record.id);
+  if (!type || !id) {
+    return null;
+  }
+
+  if (type === 'run') {
+    return {
+      type,
+      id
+    };
+  }
+
+  if (type === 'run_event') {
+    const seq = asNumber(record.seq);
+    const eventType = asString(record.eventType);
+    if (seq === null || !eventType) {
+      return null;
+    }
+
+    return {
+      type,
+      id,
+      seq,
+      eventType
+    };
+  }
+
+  if (type === 'tool_invocation') {
+    const toolCallId = asString(record.toolCallId);
+    if (!toolCallId) {
+      return null;
+    }
+
+    return {
+      type,
+      id,
+      toolCallId
+    };
+  }
+
+  return null;
+}
+
+function normalizeTraceSpanUsageRef(value: unknown): TraceSpanDto['usageRef'] {
+  const record = asRecord(value);
+  if (!record || record.source !== 'run.usage') {
+    return null;
+  }
+
+  const runId = asString(record.runId);
+  if (!runId) {
+    return null;
+  }
+
+  return {
+    source: 'run.usage',
+    runId
+  };
+}
+
+function normalizeTraceSpanTool(value: unknown): TraceSpanDto['tool'] {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const toolCallId = asString(record.toolCallId);
+  const toolName = asString(record.toolName);
+  if (!toolCallId || !toolName) {
+    return null;
+  }
+
+  return {
+    toolInvocationId: asNullableString(record.toolInvocationId),
+    toolCallId,
+    toolName
+  };
+}
+
+function normalizeTraceSpanError(value: unknown): TraceSpanDto['error'] {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const message = asString(record.message);
+  if (!message) {
+    return null;
+  }
+
+  return {
+    message
+  };
+}
+
+function normalizeTraceSpan(value: unknown): TraceSpanDto | null {
+  const record = asRecord(value);
+  if (!record || record.schemaVersion !== 1 || !Array.isArray(record.sourceRefs)) {
+    return null;
+  }
+
+  const id = asString(record.id);
+  const traceId = asString(record.traceId);
+  const parentSpanId = asNullableString(record.parentSpanId);
+  const kind = normalizeTraceSpanKind(record.kind);
+  const name = asString(record.name);
+  const status = normalizeTraceSpanStatus(record.status);
+  const appId = asString(record.appId);
+  const threadId = asString(record.threadId);
+  const runId = asString(record.runId);
+  const order = asNumber(record.order);
+  const startedAt = asNullableString(record.startedAt);
+  const finishedAt = asNullableString(record.finishedAt);
+  const durationMs = asNullableNumber(record.durationMs);
+
+  if (
+    !id ||
+    !traceId ||
+    !kind ||
+    !name ||
+    !status ||
+    !appId ||
+    !threadId ||
+    !runId ||
+    order === null ||
+    !isNullableNumber(record.durationMs)
+  ) {
+    return null;
+  }
+
+  return {
+    schemaVersion: 1,
+    id,
+    traceId,
+    parentSpanId,
+    kind,
+    name,
+    status,
+    appId,
+    threadId,
+    runId,
+    order,
+    startedAt,
+    finishedAt,
+    durationMs,
+    provider: asNullableString(record.provider),
+    model: asNullableString(record.model),
+    usageRef: normalizeTraceSpanUsageRef(record.usageRef),
+    tool: normalizeTraceSpanTool(record.tool),
+    error: normalizeTraceSpanError(record.error),
+    sourceRefs: record.sourceRefs.map(normalizeTraceSpanSourceRef).filter((sourceRef): sourceRef is TraceSpanSourceRefDto => sourceRef !== null),
+    metadata: asJsonRecordOrNull(record.metadata)
+  };
+}
+
+function normalizeTraceProjectionDiagnostic(value: unknown): TraceProjectionDiagnosticDto | null {
+  const record = asRecord(value);
+  if (!record || !Array.isArray(record.sourceRefs)) {
+    return null;
+  }
+
+  const code = normalizeTraceProjectionDiagnosticCode(record.code);
+  const message = asString(record.message);
+  if (!code || !message) {
+    return null;
+  }
+
+  return {
+    code,
+    message,
+    sourceRefs: record.sourceRefs.map(normalizeTraceSpanSourceRef).filter((sourceRef): sourceRef is TraceSpanSourceRefDto => sourceRef !== null)
+  };
+}
+
+function normalizeTraceSpanProjectionDiagnostics(value: unknown): TraceSpanProjectionDiagnosticsDto | null {
+  const record = asRecord(value);
+  if (!record || !Array.isArray(record.warnings)) {
+    return null;
+  }
+
+  const unknownEventCount = asNumber(record.unknownEventCount);
+  const orphanEventCount = asNumber(record.orphanEventCount);
+  if (unknownEventCount === null || orphanEventCount === null) {
+    return null;
+  }
+
+  return {
+    unknownEventCount,
+    orphanEventCount,
+    warnings: record.warnings
+      .map(normalizeTraceProjectionDiagnostic)
+      .filter((warning): warning is TraceProjectionDiagnosticDto => warning !== null)
+  };
+}
+
+function normalizeTraceSpanProjection(value: unknown): TraceSpanProjectionDto | null {
+  const record = asRecord(value);
+  if (!record || record.schemaVersion !== 1 || !Array.isArray(record.spans)) {
+    return null;
+  }
+
+  const traceId = asString(record.traceId);
+  const rootSpanId = asString(record.rootSpanId);
+  const appId = asString(record.appId);
+  const threadId = asString(record.threadId);
+  const runId = asString(record.runId);
+  const status = normalizeTraceSpanStatus(record.status);
+  const startedAt = asNullableString(record.startedAt);
+  const finishedAt = asNullableString(record.finishedAt);
+  const durationMs = asNullableNumber(record.durationMs);
+  const diagnostics = normalizeTraceSpanProjectionDiagnostics(record.diagnostics);
+  const spans = record.spans.map(normalizeTraceSpan).filter((span): span is TraceSpanDto => span !== null);
+
+  if (!traceId || !rootSpanId || !appId || !threadId || !runId || !status || !isNullableNumber(record.durationMs) || !diagnostics) {
+    return null;
+  }
+
+  const rootSpan = spans.find((span) => span.id === rootSpanId);
+  if (!rootSpan || rootSpan.parentSpanId !== null) {
+    return null;
+  }
+
+  return {
+    schemaVersion: 1,
+    traceId,
+    rootSpanId,
+    appId,
+    threadId,
+    runId,
+    status,
+    startedAt,
+    finishedAt,
+    durationMs,
+    spans,
+    diagnostics
+  };
+}
+
 function normalizeModelOption(value: unknown): RuntimePiMetaDto['modelOptions'][number] | null {
   const record = asRecord(value);
   if (!record) {
@@ -432,6 +745,15 @@ export function normalizeRunTimelineResponse(value: unknown): RunTimelineRespons
       ? record.toolInvocations.map(normalizeToolInvocation).filter((tool): tool is ToolInvocationDto => tool !== null)
       : [],
     projection: record.projection === undefined ? undefined : normalizeRunTimelineProjection(record.projection),
+    error: readApiError(record) ?? undefined
+  };
+}
+
+export function normalizeRunTraceResponse(value: unknown): RunTraceResponseDto {
+  const record = asRecord(value) ?? {};
+  return {
+    run: normalizeRun(record.run),
+    projection: record.projection === undefined ? undefined : normalizeTraceSpanProjection(record.projection),
     error: readApiError(record) ?? undefined
   };
 }

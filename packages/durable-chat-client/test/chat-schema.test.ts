@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  normalizeRunTraceResponse,
   normalizeRunTimelineResponse,
   normalizeRuntimeMetaResponse,
   normalizeThreadMessagesResponse,
@@ -220,6 +221,258 @@ describe('durable-chat-client schema', () => {
         }
       ]
     });
+  });
+
+  it('normalizes run trace projections and filters invalid span details safely', () => {
+    const trace = normalizeRunTraceResponse({
+      run: {
+        id: 'run-1',
+        threadId: 'thread-1',
+        triggerMessageId: null,
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+        status: 'completed',
+        usage: null,
+        error: null,
+        startedAt: null,
+        finishedAt: null,
+        createdAt: '2026-01-01T00:00:00.000Z'
+      },
+      projection: {
+        schemaVersion: 1,
+        traceId: 'run-1',
+        rootSpanId: 'span:run:run-1',
+        appId: 'playground-runtime-pi',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        status: 'completed',
+        startedAt: null,
+        finishedAt: null,
+        durationMs: null,
+        spans: [
+          {
+            schemaVersion: 1,
+            id: 'span:run:run-1',
+            traceId: 'run-1',
+            parentSpanId: null,
+            kind: 'agent',
+            name: 'agent',
+            status: 'completed',
+            appId: 'playground-runtime-pi',
+            threadId: 'thread-1',
+            runId: 'run-1',
+            order: 0,
+            startedAt: null,
+            finishedAt: null,
+            durationMs: null,
+            provider: 'openai',
+            model: 'gpt-4o-mini',
+            usageRef: { source: 'run.usage', runId: 'run-1' },
+            tool: null,
+            error: null,
+            sourceRefs: [{ type: 'run', id: 'run-1' }],
+            metadata: { promptKey: 'support-v1' }
+          },
+          {
+            schemaVersion: 1,
+            id: 'span:event:event-unknown',
+            traceId: 'run-1',
+            parentSpanId: 'span:run:run-1',
+            kind: 'unknown_event',
+            name: 'custom_event',
+            status: 'unknown',
+            appId: 'playground-runtime-pi',
+            threadId: 'thread-1',
+            runId: 'run-1',
+            order: 1,
+            startedAt: '2026-01-01T00:00:01.000Z',
+            finishedAt: '2026-01-01T00:00:01.000Z',
+            durationMs: 0,
+            provider: null,
+            model: null,
+            usageRef: null,
+            tool: {
+              toolInvocationId: null,
+              toolCallId: 'call-1',
+              toolName: 'searchWeb'
+            },
+            error: { message: 'ignored by unknown span consumers' },
+            sourceRefs: [
+              { type: 'run_event', id: 'event-unknown', seq: 2, eventType: 'custom_event' },
+              { type: 'broken_source' }
+            ],
+            metadata: null
+          },
+          {
+            id: 'broken-span'
+          }
+        ],
+        diagnostics: {
+          unknownEventCount: 1,
+          orphanEventCount: 0,
+          warnings: [
+            {
+              code: 'unknown_event',
+              message: 'unknown run event type: custom_event',
+              sourceRefs: [
+                { type: 'run_event', id: 'event-unknown', seq: 2, eventType: 'custom_event' },
+                { type: 'broken_source' }
+              ]
+            },
+            {
+              code: 'future_code',
+              message: 'not yet known',
+              sourceRefs: []
+            }
+          ]
+        }
+      }
+    });
+
+    expect(trace.run?.id).toBe('run-1');
+    expect(trace.projection).toEqual({
+      schemaVersion: 1,
+      traceId: 'run-1',
+      rootSpanId: 'span:run:run-1',
+      appId: 'playground-runtime-pi',
+      threadId: 'thread-1',
+      runId: 'run-1',
+      status: 'completed',
+      startedAt: null,
+      finishedAt: null,
+      durationMs: null,
+      spans: [
+        {
+          schemaVersion: 1,
+          id: 'span:run:run-1',
+          traceId: 'run-1',
+          parentSpanId: null,
+          kind: 'agent',
+          name: 'agent',
+          status: 'completed',
+          appId: 'playground-runtime-pi',
+          threadId: 'thread-1',
+          runId: 'run-1',
+          order: 0,
+          startedAt: null,
+          finishedAt: null,
+          durationMs: null,
+          provider: 'openai',
+          model: 'gpt-4o-mini',
+          usageRef: { source: 'run.usage', runId: 'run-1' },
+          tool: null,
+          error: null,
+          sourceRefs: [{ type: 'run', id: 'run-1' }],
+          metadata: { promptKey: 'support-v1' }
+        },
+        {
+          schemaVersion: 1,
+          id: 'span:event:event-unknown',
+          traceId: 'run-1',
+          parentSpanId: 'span:run:run-1',
+          kind: 'unknown_event',
+          name: 'custom_event',
+          status: 'unknown',
+          appId: 'playground-runtime-pi',
+          threadId: 'thread-1',
+          runId: 'run-1',
+          order: 1,
+          startedAt: '2026-01-01T00:00:01.000Z',
+          finishedAt: '2026-01-01T00:00:01.000Z',
+          durationMs: 0,
+          provider: null,
+          model: null,
+          usageRef: null,
+          tool: {
+            toolInvocationId: null,
+            toolCallId: 'call-1',
+            toolName: 'searchWeb'
+          },
+          error: { message: 'ignored by unknown span consumers' },
+          sourceRefs: [{ type: 'run_event', id: 'event-unknown', seq: 2, eventType: 'custom_event' }],
+          metadata: null
+        }
+      ],
+      diagnostics: {
+        unknownEventCount: 1,
+        orphanEventCount: 0,
+        warnings: [
+          {
+            code: 'unknown_event',
+            message: 'unknown run event type: custom_event',
+            sourceRefs: [{ type: 'run_event', id: 'event-unknown', seq: 2, eventType: 'custom_event' }]
+          }
+        ]
+      }
+    });
+  });
+
+  it('normalizes invalid run trace projections to null', () => {
+    const run = {
+      id: 'run-1',
+      threadId: 'thread-1',
+      triggerMessageId: null,
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+      status: 'completed',
+      usage: null,
+      error: null,
+      startedAt: null,
+      finishedAt: null,
+      createdAt: '2026-01-01T00:00:00.000Z'
+    };
+
+    expect(
+      normalizeRunTraceResponse({
+        run,
+        projection: {
+          schemaVersion: 2,
+          spans: []
+        }
+      }).projection
+    ).toBeNull();
+
+    expect(
+      normalizeRunTraceResponse({
+        run,
+        projection: {
+          schemaVersion: 1,
+          traceId: 'run-1',
+          rootSpanId: 'span:run:missing',
+          appId: 'playground-runtime-pi',
+          threadId: 'thread-1',
+          runId: 'run-1',
+          status: 'completed',
+          startedAt: null,
+          finishedAt: null,
+          durationMs: null,
+          spans: [
+            {
+              schemaVersion: 1,
+              id: 'span:run:run-1',
+              traceId: 'run-1',
+              parentSpanId: null,
+              kind: 'agent',
+              name: 'agent',
+              status: 'completed',
+              appId: 'playground-runtime-pi',
+              threadId: 'thread-1',
+              runId: 'run-1',
+              order: 0,
+              startedAt: null,
+              finishedAt: null,
+              durationMs: null,
+              sourceRefs: [{ type: 'run', id: 'run-1' }]
+            }
+          ],
+          diagnostics: {
+            unknownEventCount: 0,
+            orphanEventCount: 0,
+            warnings: []
+          }
+        }
+      }).projection
+    ).toBeNull();
   });
 
   it('rejects malformed run stream events', () => {

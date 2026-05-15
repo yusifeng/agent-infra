@@ -5,6 +5,8 @@ import { InvalidTurnTextError } from '@agent-infra/app';
 import { toRunDto } from '../src/api-dto';
 import {
   buildRunTextTurnResponse,
+  buildRunTraceErrorResponse,
+  buildRunTraceResponse,
   buildRunTimelineResponse,
   buildRunReadyEvent,
   buildRunTerminalEvent,
@@ -597,6 +599,130 @@ describe('durable chat server route helpers', () => {
           }
         ]
       }
+    });
+  });
+
+  it('serializes run trace responses without rebuilding projection data', () => {
+    expect(
+      buildRunTraceResponse({
+        run: {
+          id: 'run-1',
+          threadId: 'thread-1',
+          triggerMessageId: 'message-1',
+          provider: 'deepseek',
+          model: 'deepseek-v4-flash',
+          status: 'completed',
+          usage: null,
+          error: null,
+          startedAt: new Date('2026-01-01T00:00:00.000Z'),
+          finishedAt: new Date('2026-01-01T00:00:01.000Z'),
+          createdAt: new Date('2026-01-01T00:00:00.000Z')
+        },
+        projection: {
+          schemaVersion: 1,
+          traceId: 'run-1',
+          rootSpanId: 'span:run:run-1',
+          appId: 'playground-runtime-pi',
+          threadId: 'thread-1',
+          runId: 'run-1',
+          status: 'completed',
+          startedAt: '2026-01-01T00:00:00.000Z',
+          finishedAt: '2026-01-01T00:00:01.000Z',
+          durationMs: 1000,
+          spans: [
+            {
+              schemaVersion: 1,
+              id: 'span:run:run-1',
+              traceId: 'run-1',
+              parentSpanId: null,
+              kind: 'agent',
+              name: 'agent',
+              status: 'completed',
+              appId: 'playground-runtime-pi',
+              threadId: 'thread-1',
+              runId: 'run-1',
+              order: 0,
+              startedAt: '2026-01-01T00:00:00.000Z',
+              finishedAt: '2026-01-01T00:00:01.000Z',
+              durationMs: 1000,
+              provider: 'deepseek',
+              model: 'deepseek-v4-flash',
+              usageRef: null,
+              tool: null,
+              error: null,
+              sourceRefs: [{ type: 'run', id: 'run-1' }],
+              metadata: null
+            }
+          ],
+          diagnostics: {
+            unknownEventCount: 0,
+            orphanEventCount: 0,
+            warnings: []
+          }
+        }
+      })
+    ).toEqual({
+      run: {
+        id: 'run-1',
+        threadId: 'thread-1',
+        triggerMessageId: 'message-1',
+        provider: 'deepseek',
+        model: 'deepseek-v4-flash',
+        status: 'completed',
+        usage: null,
+        error: null,
+        startedAt: '2026-01-01T00:00:00.000Z',
+        finishedAt: '2026-01-01T00:00:01.000Z',
+        createdAt: '2026-01-01T00:00:00.000Z'
+      },
+      projection: {
+        schemaVersion: 1,
+        traceId: 'run-1',
+        rootSpanId: 'span:run:run-1',
+        appId: 'playground-runtime-pi',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        status: 'completed',
+        startedAt: '2026-01-01T00:00:00.000Z',
+        finishedAt: '2026-01-01T00:00:01.000Z',
+        durationMs: 1000,
+        spans: [
+          {
+            schemaVersion: 1,
+            id: 'span:run:run-1',
+            traceId: 'run-1',
+            parentSpanId: null,
+            kind: 'agent',
+            name: 'agent',
+            status: 'completed',
+            appId: 'playground-runtime-pi',
+            threadId: 'thread-1',
+            runId: 'run-1',
+            order: 0,
+            startedAt: '2026-01-01T00:00:00.000Z',
+            finishedAt: '2026-01-01T00:00:01.000Z',
+            durationMs: 1000,
+            provider: 'deepseek',
+            model: 'deepseek-v4-flash',
+            usageRef: null,
+            tool: null,
+            error: null,
+            sourceRefs: [{ type: 'run', id: 'run-1' }],
+            metadata: null
+          }
+        ],
+        diagnostics: {
+          unknownEventCount: 0,
+          orphanEventCount: 0,
+          warnings: []
+        }
+      }
+    });
+
+    expect(buildRunTraceErrorResponse(new InvalidTurnTextError(), 'fallback')).toEqual({
+      run: null,
+      projection: null,
+      error: 'text is required'
     });
   });
 });

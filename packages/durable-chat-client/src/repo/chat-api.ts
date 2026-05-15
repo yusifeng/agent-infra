@@ -1,5 +1,6 @@
 import type {
   CreateThreadResponseDto,
+  RunTraceResponseDto,
   RunTextTurnRequestDto,
   RunTimelineResponseDto,
   RuntimePiMetaDto,
@@ -10,6 +11,7 @@ import type {
 
 import {
   normalizeCreateThreadResponse,
+  normalizeRunTraceResponse,
   normalizeRunTimelineResponse,
   normalizeRuntimeMetaResponse,
   normalizeThreadMessagesResponse,
@@ -85,6 +87,10 @@ export async function fetchRuntimeMetaResponse() {
 
 export async function fetchRunTimelineResponse(runId: string, signal?: AbortSignal) {
   return fetchJson<RunTimelineResponseDto>(`/api/runs/${runId}/timeline`, normalizeRunTimelineResponse, { signal });
+}
+
+export async function fetchRunTraceResponse(runId: string, signal?: AbortSignal) {
+  return fetchJson<RunTraceResponseDto>(`/api/runs/${runId}/trace`, normalizeRunTraceResponse, { signal });
 }
 
 export async function fetchThreadMessagesResponse(threadId: string, options?: AbortSignal | FetchThreadMessagesOptions) {
