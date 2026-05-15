@@ -22,10 +22,10 @@
 ### 0.2 Goals
 
 - [x] Define `Trace Span Projection v1` as the machine-readable observability read model that complements raw `run_events` and human-readable timeline projection.
-- [ ] Build trace span projection in `packages/app` from durable records without adding new DB tables.
+- [x] Build trace span projection in `packages/app` from durable records without adding new DB tables.
 - [ ] Expose trace span projection through contracts, durable-chat server helpers, durable-chat client normalization, and host route validation.
 - [ ] Keep projection logic out of route helpers and UI code.
-- [ ] Preserve raw event truth and do not mutate current run/message/tool persistence behavior.
+- [x] Preserve raw event truth and do not mutate current run/message/tool persistence behavior.
 - [ ] Establish a stable subject model for later feedback, dataset/eval, prompt attribution, and LangSmith/OpenTelemetry exporter work.
 - [ ] Capture follow-up boundaries for trace context/metadata/tags, feedback, dataset/eval, prompt attribution, and exporters without implementing them in this slice.
 
@@ -204,26 +204,26 @@
 
 ### 2.1 `packages/core`
 
-- [ ] Do not change core durable domain types in Phase 1 unless implementation proves an unavoidable type gap.
-- [ ] Do not add `TraceSpan` as a durable core entity in Phase 1.
-- [ ] Do not add `Run.metadata` or `runs.metadata_json` in Phase 1.
-- [ ] Do not add repository interfaces for spans in Phase 1.
-- [ ] Keep `RunEvent.payload` raw and flexible.
+- [x] Do not change core durable domain types in Phase 1 unless implementation proves an unavoidable type gap.
+- [x] Do not add `TraceSpan` as a durable core entity in Phase 1.
+- [x] Do not add `Run.metadata` or `runs.metadata_json` in Phase 1.
+- [x] Do not add repository interfaces for spans in Phase 1.
+- [x] Keep `RunEvent.payload` raw and flexible.
 
 ### 2.2 `packages/app`
 
-- [ ] Add app-layer trace types to `packages/app/src/types.ts`.
-- [ ] Add a small pure projection module, for example `packages/app/src/trace-span-projection.ts`.
-- [ ] Keep new projection logic out of the already-large `packages/app/src/app.ts` except for orchestration.
-- [ ] Add `runs.getTrace(input: GetRunTraceInput): Promise<RunTraceResult>`.
-- [ ] Define `RunTraceResult` as `{ run: Run; projection: TraceSpanProjectionV1 }`.
-- [ ] Load run by id and throw existing `RunNotFoundError` semantics if missing.
-- [ ] Load thread to resolve non-null `appId`.
-- [ ] Load run events and tool invocations from durable repositories.
-- [ ] Build `TraceSpanProjectionV1` from durable state only.
-- [ ] Keep projection independent from SSE/live stream state.
-- [ ] Keep timeline projection behavior unchanged.
-- [ ] Keep raw `runEvents` and `toolInvocations` available through existing timeline route; trace endpoint v1 returns only `run + projection`.
+- [x] Add app-layer trace types to `packages/app/src/types.ts`.
+- [x] Add a small pure projection module, for example `packages/app/src/trace-span-projection.ts`.
+- [x] Keep new projection logic out of the already-large `packages/app/src/app.ts` except for orchestration.
+- [x] Add `runs.getTrace(input: GetRunTraceInput): Promise<RunTraceResult>`.
+- [x] Define `RunTraceResult` as `{ run: Run; projection: TraceSpanProjectionV1 }`.
+- [x] Load run by id and throw existing `RunNotFoundError` semantics if missing.
+- [x] Load thread to resolve non-null `appId`.
+- [x] Load run events and tool invocations from durable repositories.
+- [x] Build `TraceSpanProjectionV1` from durable state only.
+- [x] Keep projection independent from SSE/live stream state.
+- [x] Keep timeline projection behavior unchanged.
+- [x] Keep raw `runEvents` and `toolInvocations` available through existing timeline route; trace endpoint v1 returns only `run + projection`.
 
 ### 2.3 `packages/contracts`
 
@@ -256,18 +256,18 @@
 
 ### 2.6 `packages/db`
 
-- [ ] Do not add migrations in Phase 1.
-- [ ] Do not add `trace_spans`.
-- [ ] Do not add `runs.metadata_json`.
-- [ ] Keep existing run event and run usage persistence tests passing.
+- [x] Do not add migrations in Phase 1.
+- [x] Do not add `trace_spans`.
+- [x] Do not add `runs.metadata_json`.
+- [x] Keep existing run event and run usage persistence tests passing.
 
 ### 2.7 `packages/runtime-pi`
 
-- [ ] Do not add runtime span writes in Phase 1.
-- [ ] Do not persist assistant `message_update`.
-- [ ] Do not change usage summary creation in Phase 1.
-- [ ] Do not change runtime failure hardening unless tests reveal trace projection needs an already-available stable payload field.
-- [ ] If any event payload enrichment is considered, require explicit source-of-truth wording and tests before implementation.
+- [x] Do not add runtime span writes in Phase 1.
+- [x] Do not persist assistant `message_update`.
+- [x] Do not change usage summary creation in Phase 1.
+- [x] Do not change runtime failure hardening unless tests reveal trace projection needs an already-available stable payload field.
+- [x] If any event payload enrichment is considered, require explicit source-of-truth wording and tests before implementation.
 
 ### 2.8 Host routes
 
@@ -296,18 +296,18 @@
 
 ### 4.1 App projection tests
 
-- [ ] Completed run with agent lifecycle events projects one root `agent` span.
-- [ ] Root span has deterministic id, trace id, app/thread/run attribution, source refs, timestamps, and `completed` status.
-- [ ] Failed run projects root `failed` status.
-- [ ] Runtime failure with `runtime_error` event projects child `runtime_error` span.
-- [ ] Cancelled run projects root `cancelled` status.
-- [ ] Assistant `message_start` / `message_end` projects `assistant_message` span.
-- [ ] Assistant `message_end` with error or aborted stop reason projects failed assistant span.
-- [ ] Durable `tool_invocation` plus matching tool events projects one tool span.
-- [ ] Failed durable tool invocation projects failed tool span even if event payload is missing `isError`.
-- [ ] Unknown raw event projects `unknown_event` span and increments diagnostics.
-- [ ] Missing tool match or orphan event records a diagnostic without failing the whole projection.
-- [ ] Projection remains durable-first and does not depend on live/SSE state.
+- [x] Completed run with agent lifecycle events projects one root `agent` span.
+- [x] Root span has deterministic id, trace id, app/thread/run attribution, source refs, timestamps, and `completed` status.
+- [x] Failed run projects root `failed` status.
+- [x] Runtime failure with `runtime_error` event projects child `runtime_error` span.
+- [x] Cancelled run projects root `cancelled` status.
+- [x] Assistant `message_start` / `message_end` projects `assistant_message` span.
+- [x] Assistant `message_end` with error or aborted stop reason projects failed assistant span.
+- [x] Durable `tool_invocation` plus matching tool events projects one tool span.
+- [x] Failed durable tool invocation projects failed tool span even if event payload is missing `isError`.
+- [x] Unknown raw event projects `unknown_event` span and increments diagnostics.
+- [x] Missing tool match or orphan event records a diagnostic without failing the whole projection.
+- [x] Projection remains durable-first and does not depend on live/SSE state.
 
 ### 4.2 Contract / server tests
 
@@ -332,7 +332,7 @@
 
 ### 4.5 Verification and review
 
-- [ ] Define expected app-level verification coverage for trace projection.
+- [x] Define expected app-level verification coverage for trace projection.
 - [ ] Define expected contract/server/client verification coverage for DTO and normalization changes.
 - [ ] Define expected package-level type safety coverage for touched public types.
 - [ ] Capture final cross-package type-safety evidence before closeout if public DTOs changed.
@@ -356,17 +356,17 @@
 
 ### Loop 2: App Trace Projection
 
-- [ ] Add trace projection types to `packages/app/src/types.ts`.
-- [ ] Add pure projection builder module in `packages/app/src`.
-- [ ] Add `runs.getTrace`.
-- [ ] Load thread for `appId`.
-- [ ] Generate deterministic root, assistant-message, tool, runtime-error, and unknown-event spans.
-- [ ] Add structured diagnostics for unknown, orphaned, unpaired, and negative-duration cases.
-- [ ] Add focused app tests for completed, failed, cancelled, assistant, tool, runtime-error, unknown, and orphan cases.
-- [ ] Capture targeted app verification and type-safety evidence.
-- [ ] Code review gate: use the repository Review Profile.
-- [ ] Use the repository Review Profile.
-- [ ] Close the slice only after verification evidence and review are clean.
+- [x] Add trace projection types to `packages/app/src/types.ts`.
+- [x] Add pure projection builder module in `packages/app/src`.
+- [x] Add `runs.getTrace`.
+- [x] Load thread for `appId`.
+- [x] Generate deterministic root, assistant-message, tool, runtime-error, and unknown-event spans.
+- [x] Add structured diagnostics for unknown, orphaned, unpaired, and negative-duration cases.
+- [x] Add focused app tests for completed, failed, cancelled, assistant, tool, runtime-error, unknown, and orphan cases.
+- [x] Capture targeted app verification and type-safety evidence.
+- [x] Code review gate: use the repository Review Profile.
+- [x] Use the repository Review Profile.
+- [x] Close the slice only after verification evidence and review are clean.
 
 ### Loop 3: Contracts, Server, Client
 

@@ -19,12 +19,14 @@ import {
   TurnPersistenceError,
   TurnProjectionError
 } from './errors.js';
+import { buildTraceSpanProjection } from './trace-span-projection.js';
 import type {
   AgentInfraApp,
   AgentInfraAppDependencies,
   AgentInfraAppRepositories,
   CreateThreadInput,
   PublicChatShareResult,
+  RunTraceResult,
   RunTextTurnInput,
   RunTimelineItemV1,
   RunTimelineProjectionV1,
@@ -600,6 +602,24 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
           runEvents,
           toolInvocations,
           projection: buildRunTimelineProjection(run, runEvents, toolInvocations)
+        };
+      },
+      async getTrace(input): Promise<RunTraceResult> {
+        const run = await loadRunOrThrow(dependencies.repositories, input.runId);
+        const [thread, runEvents, toolInvocations] = await Promise.all([
+          loadThreadOrThrow(dependencies.repositories, run.threadId),
+          dependencies.repositories.runEventRepo.listByRun(input.runId),
+          dependencies.repositories.toolRepo.listByRun(input.runId)
+        ]);
+
+        return {
+          run,
+          projection: buildTraceSpanProjection({
+            run,
+            thread,
+            runEvents,
+            toolInvocations
+          })
         };
       },
       async listByThread(input) {

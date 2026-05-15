@@ -914,6 +914,348 @@ describe('createAgentInfraApp', () => {
     ]);
   });
 
+  it('returns run trace spans from durable app records', async () => {
+    const { app, repositories } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Trace path' });
+
+    const turn = await app.turns.runText({
+      threadId: thread.id,
+      text: 'Trace please'
+    });
+
+    await repositories.runEventRepo.append({
+      id: 'trace-message-start',
+      threadId: thread.id,
+      runId: turn.run.id,
+      seq: await repositories.runEventRepo.nextSeq(turn.run.id),
+      type: 'message_start',
+      payload: { role: 'assistant' }
+    });
+    await repositories.toolRepo.create({
+      id: 'trace-tool-1',
+      threadId: thread.id,
+      runId: turn.run.id,
+      messageId: `assistant-${turn.run.id}`,
+      toolName: 'searchWeb',
+      toolCallId: 'trace-call-search',
+      status: 'completed',
+      input: { query: 'agent infra' },
+      output: { text: 'result' },
+      error: null,
+      startedAt: new Date('2026-04-10T01:00:01.000Z'),
+      finishedAt: new Date('2026-04-10T01:00:02.000Z')
+    });
+    await repositories.runEventRepo.append({
+      id: 'trace-tool-start',
+      threadId: thread.id,
+      runId: turn.run.id,
+      seq: await repositories.runEventRepo.nextSeq(turn.run.id),
+      type: 'tool_execution_start',
+      payload: { toolName: 'searchWeb', toolCallId: 'trace-call-search' }
+    });
+    await repositories.runEventRepo.append({
+      id: 'trace-tool-end',
+      threadId: thread.id,
+      runId: turn.run.id,
+      seq: await repositories.runEventRepo.nextSeq(turn.run.id),
+      type: 'tool_execution_end',
+      payload: { toolName: 'searchWeb', toolCallId: 'trace-call-search', isError: false }
+    });
+    await repositories.toolRepo.create({
+      id: 'trace-tool-2',
+      threadId: thread.id,
+      runId: turn.run.id,
+      messageId: `assistant-${turn.run.id}`,
+      toolName: 'fetchPage',
+      toolCallId: 'trace-call-fetch',
+      status: 'failed',
+      input: { url: 'https://example.test' },
+      output: null,
+      error: 'fetch failed',
+      startedAt: new Date('2026-04-10T01:00:03.000Z'),
+      finishedAt: new Date('2026-04-10T01:00:04.000Z')
+    });
+    await repositories.runEventRepo.append({
+      id: 'trace-tool-failed-end',
+      threadId: thread.id,
+      runId: turn.run.id,
+      seq: await repositories.runEventRepo.nextSeq(turn.run.id),
+      type: 'tool_execution_end',
+      payload: { toolName: 'fetchPage', toolCallId: 'trace-call-fetch' }
+    });
+    await repositories.runEventRepo.append({
+      id: 'trace-message-end',
+      threadId: thread.id,
+      runId: turn.run.id,
+      seq: await repositories.runEventRepo.nextSeq(turn.run.id),
+      type: 'message_end',
+      payload: { role: 'assistant', stopReason: 'stop' }
+    });
+    await repositories.runEventRepo.append({
+      id: 'trace-unknown',
+      threadId: thread.id,
+      runId: turn.run.id,
+      seq: await repositories.runEventRepo.nextSeq(turn.run.id),
+      type: 'custom_runtime_note',
+      payload: { note: 'preserved as unknown' }
+    });
+
+    const trace = await app.runs.getTrace({ runId: turn.run.id });
+    const rootSpan = trace.projection.spans.find((span) => span.kind === 'agent');
+    const assistantSpan = trace.projection.spans.find((span) => span.kind === 'assistant_message');
+    const completedToolSpan = trace.projection.spans.find((span) => span.id === 'span:tool:trace-tool-1');
+    const failedToolSpan = trace.projection.spans.find((span) => span.id === 'span:tool:trace-tool-2');
+    const unknownSpan = trace.projection.spans.find((span) => span.kind === 'unknown_event');
+
+    expect(trace.run.id).toBe(turn.run.id);
+    expect(trace.projection).toEqual(
+      expect.objectContaining({
+        schemaVersion: 1,
+        traceId: turn.run.id,
+        rootSpanId: `span:run:${turn.run.id}`,
+        appId: 'playground-runtime-pi',
+        threadId: thread.id,
+        runId: turn.run.id,
+        status: 'completed',
+        durationMs: 5000
+      })
+    );
+    expect(rootSpan).toEqual(
+      expect.objectContaining({
+        id: `span:run:${turn.run.id}`,
+        parentSpanId: null,
+        status: 'completed',
+        provider: 'deepseek',
+        model: 'deepseek-v4-flash',
+        sourceRefs: expect.arrayContaining([
+          { type: 'run', id: turn.run.id },
+          { type: 'run_event', id: `event-${turn.run.id}-1`, seq: 1, eventType: 'agent_start' }
+        ])
+      })
+    );
+    expect(assistantSpan).toEqual(
+      expect.objectContaining({
+        id: 'span:assistant_message:trace-message-start',
+        parentSpanId: `span:run:${turn.run.id}`,
+        status: 'completed',
+        sourceRefs: [
+          { type: 'run_event', id: 'trace-message-start', seq: 2, eventType: 'message_start' },
+          { type: 'run_event', id: 'trace-message-end', seq: 6, eventType: 'message_end' }
+        ]
+      })
+    );
+    expect(completedToolSpan).toEqual(
+      expect.objectContaining({
+        parentSpanId: `span:run:${turn.run.id}`,
+        status: 'completed',
+        tool: {
+          toolInvocationId: 'trace-tool-1',
+          toolCallId: 'trace-call-search',
+          toolName: 'searchWeb'
+        }
+      })
+    );
+    expect(failedToolSpan).toEqual(
+      expect.objectContaining({
+        parentSpanId: `span:run:${turn.run.id}`,
+        status: 'failed',
+        error: { message: 'fetch failed' },
+        sourceRefs: expect.arrayContaining([
+          { type: 'tool_invocation', id: 'trace-tool-2', toolCallId: 'trace-call-fetch' },
+          { type: 'run_event', id: 'trace-tool-failed-end', seq: 5, eventType: 'tool_execution_end' }
+        ])
+      })
+    );
+    expect(unknownSpan).toEqual(
+      expect.objectContaining({
+        id: 'span:event:trace-unknown',
+        parentSpanId: `span:run:${turn.run.id}`,
+        name: 'custom_runtime_note',
+        status: 'unknown'
+      })
+    );
+    expect(trace.projection.diagnostics.unknownEventCount).toBe(1);
+    expect(trace.projection.diagnostics.warnings).toContainEqual({
+      code: 'unknown_event',
+      message: 'unknown run event type: custom_runtime_note',
+      sourceRefs: [{ type: 'run_event', id: 'trace-unknown', seq: 7, eventType: 'custom_runtime_note' }]
+    });
+  });
+
+  it('projects cancelled run trace without reporting completion', async () => {
+    const { app, repositories } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Cancelled trace' });
+    const run = await repositories.runRepo.create({
+      id: 'trace-run-cancelled',
+      threadId: thread.id,
+      triggerMessageId: null,
+      provider: 'deepseek',
+      model: 'deepseek-v4-flash',
+      status: 'cancelled',
+      usage: null,
+      error: null,
+      startedAt: new Date('2026-04-10T01:00:00.000Z'),
+      finishedAt: new Date('2026-04-10T01:00:05.000Z')
+    });
+    await repositories.runEventRepo.append({
+      id: 'trace-cancelled-start',
+      threadId: thread.id,
+      runId: run.id,
+      seq: 1,
+      type: 'agent_start',
+      payload: null
+    });
+    await repositories.runEventRepo.append({
+      id: 'trace-cancelled-end',
+      threadId: thread.id,
+      runId: run.id,
+      seq: 2,
+      type: 'agent_end',
+      payload: null
+    });
+
+    const trace = await app.runs.getTrace({ runId: run.id });
+
+    expect(trace.projection.status).toBe('cancelled');
+    expect(trace.projection.spans).toContainEqual(
+      expect.objectContaining({
+        id: 'span:run:trace-run-cancelled',
+        kind: 'agent',
+        status: 'cancelled',
+        durationMs: 5000
+      })
+    );
+  });
+
+  it('projects assistant message_end error payloads as failed spans', async () => {
+    const { app, repositories } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Assistant trace error' });
+    const run = await repositories.runRepo.create({
+      id: 'trace-run-message-error',
+      threadId: thread.id,
+      triggerMessageId: null,
+      provider: 'deepseek',
+      model: 'deepseek-v4-flash',
+      status: 'failed',
+      usage: null,
+      error: 'assistant failed',
+      startedAt: new Date('2026-04-10T01:00:00.000Z'),
+      finishedAt: new Date('2026-04-10T01:00:05.000Z')
+    });
+    await repositories.runEventRepo.append({
+      id: 'trace-message-error-start',
+      threadId: thread.id,
+      runId: run.id,
+      seq: 1,
+      type: 'message_start',
+      payload: { role: 'assistant' }
+    });
+    await repositories.runEventRepo.append({
+      id: 'trace-message-error-end',
+      threadId: thread.id,
+      runId: run.id,
+      seq: 2,
+      type: 'message_end',
+      payload: { role: 'assistant', stopReason: 'stop', error: { message: 'provider failed' } }
+    });
+
+    const trace = await app.runs.getTrace({ runId: run.id });
+
+    expect(trace.projection.spans).toContainEqual(
+      expect.objectContaining({
+        id: 'span:assistant_message:trace-message-error-start',
+        kind: 'assistant_message',
+        status: 'failed',
+        sourceRefs: [
+          { type: 'run_event', id: 'trace-message-error-start', seq: 1, eventType: 'message_start' },
+          { type: 'run_event', id: 'trace-message-error-end', seq: 2, eventType: 'message_end' }
+        ]
+      })
+    );
+  });
+
+  it('projects runtime errors and orphan trace events as diagnostics', async () => {
+    const { app, repositories } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Failed trace' });
+    const run = await repositories.runRepo.create({
+      id: 'trace-run-failed',
+      threadId: thread.id,
+      triggerMessageId: null,
+      provider: 'deepseek',
+      model: 'deepseek-v4-flash',
+      status: 'failed',
+      usage: null,
+      error: 'tool explosion',
+      startedAt: new Date('2026-04-10T01:00:00.000Z'),
+      finishedAt: new Date('2026-04-10T01:00:05.000Z')
+    });
+    await repositories.runEventRepo.append({
+      id: 'trace-failed-start',
+      threadId: thread.id,
+      runId: run.id,
+      seq: 1,
+      type: 'agent_start',
+      payload: null
+    });
+    await repositories.runEventRepo.append({
+      id: 'trace-unpaired-message-start',
+      threadId: thread.id,
+      runId: run.id,
+      seq: 2,
+      type: 'message_start',
+      payload: { role: 'assistant' }
+    });
+    await repositories.runEventRepo.append({
+      id: 'trace-orphan-tool-end',
+      threadId: thread.id,
+      runId: run.id,
+      seq: 3,
+      type: 'tool_execution_end',
+      payload: { toolName: 'searchWeb', toolCallId: 'missing-call', isError: true }
+    });
+    await repositories.runEventRepo.append({
+      id: 'trace-runtime-error',
+      threadId: thread.id,
+      runId: run.id,
+      seq: 4,
+      type: 'runtime_error',
+      payload: { message: 'tool explosion' }
+    });
+
+    const trace = await app.runs.getTrace({ runId: run.id });
+
+    expect(trace.projection.status).toBe('failed');
+    expect(trace.projection.spans).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'span:assistant_message:trace-unpaired-message-start',
+          kind: 'assistant_message',
+          status: 'failed'
+        }),
+        expect.objectContaining({
+          id: 'span:event:trace-orphan-tool-end',
+          kind: 'tool_invocation',
+          status: 'failed',
+          tool: {
+            toolInvocationId: null,
+            toolCallId: 'missing-call',
+            toolName: 'searchWeb'
+          }
+        }),
+        expect.objectContaining({
+          id: 'span:event:trace-runtime-error',
+          kind: 'runtime_error',
+          status: 'failed',
+          error: { message: 'tool explosion' }
+        })
+      ])
+    );
+    expect(trace.projection.diagnostics.orphanEventCount).toBe(1);
+    expect(trace.projection.diagnostics.warnings.map((warning) => warning.code)).toEqual(
+      expect.arrayContaining(['unpaired_message_start', 'orphan_event', 'missing_tool_invocation', 'unpaired_tool_end'])
+    );
+  });
+
   it('lists recent runs for a thread in reverse chronological order', async () => {
     const { app } = createDependencies(createHappyRuntime());
     const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Recent runs path' });

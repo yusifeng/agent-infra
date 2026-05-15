@@ -121,11 +121,20 @@ export interface GetRunTimelineInput {
   runId: string;
 }
 
+export interface GetRunTraceInput {
+  runId: string;
+}
+
 export interface RunTimelineResult {
   run: Run;
   runEvents: RunEvent[];
   toolInvocations: ToolInvocation[];
   projection: RunTimelineProjectionV1;
+}
+
+export interface RunTraceResult {
+  run: Run;
+  projection: TraceSpanProjectionV1;
 }
 
 export interface RunTimelineProjectionV1 {
@@ -167,6 +176,104 @@ export type RunTimelineItemV1 =
       runEventId: string;
       seq: number;
     };
+
+export type TraceSpanKindV1 = 'agent' | 'assistant_message' | 'tool_invocation' | 'runtime_error' | 'unknown_event';
+
+export type TraceSpanStatusV1 = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'unknown';
+
+export type TraceProjectionDiagnosticCodeV1 =
+  | 'unknown_event'
+  | 'orphan_event'
+  | 'missing_tool_invocation'
+  | 'unpaired_message_start'
+  | 'unpaired_message_end'
+  | 'unpaired_tool_start'
+  | 'unpaired_tool_end'
+  | 'nonterminal_child_on_terminal_run'
+  | 'negative_duration_clamped';
+
+export type TraceSpanSourceRefV1 =
+  | {
+      type: 'run';
+      id: string;
+    }
+  | {
+      type: 'run_event';
+      id: string;
+      seq: number;
+      eventType: string;
+    }
+  | {
+      type: 'tool_invocation';
+      id: string;
+      toolCallId: string;
+    };
+
+export interface TraceSpanUsageRefV1 {
+  source: 'run.usage';
+  runId: string;
+}
+
+export interface TraceSpanToolV1 {
+  toolInvocationId?: string | null;
+  toolCallId: string;
+  toolName: string;
+}
+
+export interface TraceSpanErrorV1 {
+  message: string;
+}
+
+export interface TraceProjectionDiagnosticV1 {
+  code: TraceProjectionDiagnosticCodeV1;
+  message: string;
+  sourceRefs: TraceSpanSourceRefV1[];
+}
+
+export interface TraceSpanProjectionDiagnosticsV1 {
+  unknownEventCount: number;
+  orphanEventCount: number;
+  warnings: TraceProjectionDiagnosticV1[];
+}
+
+export interface TraceSpanV1 {
+  schemaVersion: 1;
+  id: string;
+  traceId: string;
+  parentSpanId: string | null;
+  kind: TraceSpanKindV1;
+  name: string;
+  status: TraceSpanStatusV1;
+  appId: string;
+  threadId: string;
+  runId: string;
+  order: number;
+  startedAt: string | null;
+  finishedAt: string | null;
+  durationMs: number | null;
+  provider?: string | null;
+  model?: string | null;
+  usageRef?: TraceSpanUsageRefV1 | null;
+  tool?: TraceSpanToolV1 | null;
+  error?: TraceSpanErrorV1 | null;
+  sourceRefs: TraceSpanSourceRefV1[];
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface TraceSpanProjectionV1 {
+  schemaVersion: 1;
+  traceId: string;
+  rootSpanId: string;
+  appId: string;
+  threadId: string;
+  runId: string;
+  status: TraceSpanStatusV1;
+  startedAt: string | null;
+  finishedAt: string | null;
+  durationMs: number | null;
+  spans: TraceSpanV1[];
+  diagnostics: TraceSpanProjectionDiagnosticsV1;
+}
 
 export interface GetThreadRunsInput {
   threadId: string;
@@ -265,6 +372,7 @@ export interface AgentInfraApp {
   };
   runs: {
     getTimeline(input: GetRunTimelineInput): Promise<RunTimelineResult>;
+    getTrace(input: GetRunTraceInput): Promise<RunTraceResult>;
     listByThread(input: GetThreadRunsInput): Promise<Run[]>;
     getActiveByThread(input: GetActiveThreadRunInput): Promise<Run | null>;
   };
