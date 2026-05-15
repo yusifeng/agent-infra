@@ -27,11 +27,15 @@ The deployment smoke command is expected to cover:
 - authenticated `/new`
 - authenticated `/chat/:threadId`
 - authenticated `/replay/:threadId`
+- authenticated `/observability`
 - `GET /api/meta`
 - authenticated `GET /api/threads`
 - authenticated `POST /api/threads`
 - authenticated `POST /api/threads/:threadId/runs/stream`
 - authenticated `GET /api/threads/:threadId/messages`
+- authenticated `GET /api/threads/:threadId/runs`
+- authenticated `GET /api/runs/:runId/timeline`
+- authenticated `GET /api/runs/:runId/trace`
 
 Running that smoke requires `PLAYGROUND_NEXT_WEB_SMOKE_EMAIL` and
 `PLAYGROUND_NEXT_WEB_SMOKE_PASSWORD`; without them the script stops before

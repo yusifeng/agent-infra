@@ -130,7 +130,7 @@ The practical result should be:
 - [x] Loop 2 code review completed after observability data-layer work.
 - [x] Loop 3 code review completed after `/observability` shell work.
 - [x] Loop 4 code review completed after timeline/trace content work.
-- [ ] Loop 5 final review completed if any unreviewed code remains.
+- [x] Loop 5 final review completed if any unreviewed code remains.
 
 ### Loop 1: Package-Level Trace Presentation
 
@@ -192,15 +192,15 @@ The practical result should be:
 
 ### Loop 5: Closeout And Product Direction
 
-- [ ] Re-check whether source-of-truth docs need a small `/observability` note.
-- [ ] Update README/docs only where the new route needs to be discoverable.
-- [ ] Confirm no business/runtime complexity was added only to the playground page.
-- [ ] Confirm no trace semantics were duplicated in UI code.
-- [ ] Confirm Fastify/Vite consumers were not accidentally broken by shared package changes.
-- [ ] Run final targeted verification.
-- [ ] Run final `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"` if any unreviewed code remains.
-- [ ] Address final review findings.
-- [ ] Mark all completed todo items as `[x]`.
+- [x] Re-check whether source-of-truth docs need a small `/observability` note.
+- [x] Update README/docs only where the new route needs to be discoverable.
+- [x] Confirm no business/runtime complexity was added only to the playground page.
+- [x] Confirm no trace semantics were duplicated in UI code.
+- [x] Confirm Fastify/Vite consumers were not accidentally broken by shared package changes.
+- [x] Run final targeted verification.
+- [x] Run final `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"` if any unreviewed code remains.
+- [x] Address final review findings.
+- [x] Mark all completed todo items as `[x]`.
 
 ## Product Direction Notes
 
