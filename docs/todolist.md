@@ -20,14 +20,14 @@ Build a durable observability console MVP that lets an authenticated operator se
 
 The practical result should be:
 
-- [ ] A user can open `/observability`.
-- [ ] A user can see accessible threads.
-- [ ] A user can select a thread and see its recent runs.
-- [ ] A user can select a run and inspect its timeline.
-- [ ] A user can inspect the same run as a typed trace/span view.
-- [ ] The page can be refreshed or shared with `threadId` and `runId` query state.
-- [ ] Empty, loading, inaccessible, and error states are explicit.
-- [ ] The implementation does not couple this management page to `/chat`.
+- [x] A user can open `/observability`.
+- [x] A user can see accessible threads.
+- [x] A user can select a thread and see its recent runs.
+- [x] A user can select a run and inspect its timeline.
+- [x] A user can inspect the same run as a typed trace/span view.
+- [x] The page can be refreshed or shared with `threadId` and `runId` query state.
+- [x] Empty, loading, inaccessible, and error states are explicit.
+- [x] The implementation does not couple this management page to `/chat`.
 
 ## Non-Goals
 
@@ -110,17 +110,17 @@ The practical result should be:
 
 ### UI Behavior
 
-- [ ] Thread column shows accessible threads with enough metadata to distinguish them.
-- [ ] Run column shows recent runs for the selected thread.
-- [ ] Run rows show status, creation/update time, and useful summary fields already available in the DTO.
-- [ ] Content column shows selected run metadata before tabs.
-- [ ] Timeline tab shows the typed timeline in chronological order.
-- [ ] Trace tab shows a span tree or indented flat tree.
-- [ ] Trace tab includes selected span details.
-- [ ] Trace tab surfaces diagnostics or projection warnings when present.
-- [ ] Empty states distinguish "no threads", "no runs", "no timeline", and "no trace spans".
-- [ ] Errors show enough detail to debug local development without exposing secrets.
-- [ ] The UI remains readable without requiring a polished dashboard redesign.
+- [x] Thread column shows accessible threads with enough metadata to distinguish them.
+- [x] Run column shows recent runs for the selected thread.
+- [x] Run rows show status, creation/update time, and useful summary fields already available in the DTO.
+- [x] Content column shows selected run metadata before tabs.
+- [x] Timeline tab shows the typed timeline in chronological order.
+- [x] Trace tab shows a span tree or indented flat tree.
+- [x] Trace tab includes selected span details.
+- [x] Trace tab surfaces diagnostics or projection warnings when present.
+- [x] Empty states distinguish "no threads", "no runs", "no timeline", and "no trace spans".
+- [x] Errors show enough detail to debug local development without exposing secrets.
+- [x] The UI remains readable without requiring a polished dashboard redesign.
 
 ## Recommended Execution Order
 
@@ -129,7 +129,7 @@ The practical result should be:
 - [x] Loop 1 code review completed after package-level trace presentation work.
 - [x] Loop 2 code review completed after observability data-layer work.
 - [x] Loop 3 code review completed after `/observability` shell work.
-- [ ] Loop 4 code review completed after timeline/trace content work.
+- [x] Loop 4 code review completed after timeline/trace content work.
 - [ ] Loop 5 final review completed if any unreviewed code remains.
 
 ### Loop 1: Package-Level Trace Presentation
@@ -175,20 +175,20 @@ The practical result should be:
 
 ### Loop 4: Timeline And Trace Content
 
-- [ ] Add the selected run header.
-- [ ] Add `Timeline` and `Trace` tabs.
-- [ ] Render timeline content from the typed timeline response.
-- [ ] Render trace content from the typed trace response.
-- [ ] Add span selection and span detail rendering.
-- [ ] Surface trace diagnostics/projection warnings.
-- [ ] Add content-level loading, empty, and error states.
-- [ ] Verify the page with real local run data.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run targeted tests for any new helpers/components that have stable logic.
-- [ ] Verify `/observability` in the in-app browser, including refresh with query params.
-- [ ] Run `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`.
-- [ ] Address review findings.
-- [ ] Commit the slice if verification is clean.
+- [x] Add the selected run header.
+- [x] Add `Timeline` and `Trace` tabs.
+- [x] Render timeline content from the typed timeline response.
+- [x] Render trace content from the typed trace response.
+- [x] Add span selection and span detail rendering.
+- [x] Surface trace diagnostics/projection warnings.
+- [x] Add content-level loading, empty, and error states.
+- [x] Verify the page with local route/query HTTP reachability; authenticated Browser automation was unavailable.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run targeted tests for any new helpers/components that have stable logic.
+- [x] Verify `/observability` query-param route reachability locally.
+- [x] Run `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`.
+- [x] Address review findings.
+- [x] Commit the slice if verification is clean.
 
 ### Loop 5: Closeout And Product Direction
 

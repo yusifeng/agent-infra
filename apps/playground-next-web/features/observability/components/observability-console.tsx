@@ -76,8 +76,12 @@ function AuthenticatedObservabilityConsole({ currentUser, onLogout }: { currentU
         <RunContentPanel
           selectedRun={state.selectedRun}
           selectedThread={state.selectedThread}
+          timeline={state.timeline}
           timelineLoading={state.timelineLoading}
+          timelineError={state.timelineError}
+          trace={state.trace}
           traceLoading={state.traceLoading}
+          traceError={state.traceError}
         />
       </div>
     </main>
