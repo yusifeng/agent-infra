@@ -2,6 +2,7 @@ export * from './repo/chat-api.js';
 export * from './inspector/load-flow.js';
 export * from './inspector/run-selection-storage.js';
 export * from './inspector/state.js';
+export * from './inspector/trace-view-model.js';
 export * from './schema/api.js';
 export * from './schema/run-stream.js';
 export * from './schema/storage.js';

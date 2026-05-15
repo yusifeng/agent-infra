@@ -1,454 +1,211 @@
-# Trace Span Observability v1 Todo
-
-## 0. Context and Boundary
-
-### 0.1 Confirmed facts
-
-- [x] The current task is to borrow from LangSmith as an agent observability product reference model, not to integrate LangSmith as an internal source of truth.
-- [x] LangSmith-like observability should be interpreted as tracing/span inspection, trace context, feedback, datasets/evals, prompt attribution, and optional external export.
-- [x] `agent-infra` is TypeScript-first and already has durable `Thread`, `Run`, `Message`, `MessagePart`, `ToolInvocation`, and `RunEvent` records.
-- [x] `run_events` are append-only raw process facts with flexible payloads.
-- [x] `RunUsageSummaryV1` exists and is stored in `runs.usage_json`.
-- [x] `packages/app` already builds `RunTimelineProjectionV1` over durable `run`, raw `run_events`, and `tool_invocations`.
-- [x] Timeline responses preserve raw `runEvents` and `toolInvocations` alongside typed projection.
-- [x] Assistant `message_update` is live-only in the current contract and is not persisted as a durable `run_event`.
-- [x] `docs/source-of-truth/run-trace-usage-contract.md` is the governing source-of-truth document for trace and usage semantics.
-- [x] WebGPT agreed that the next mainline should be projection-only `Trace Span Projection v1`.
-- [x] WebGPT agreed that durable `trace_spans` should not be added before the span contract is proven.
-- [x] WebGPT's second review accepted the todo's main direction and accepted the adjustments from `llm_message` to `assistant_message`, nullable `appId` to non-null `appId`, deferred tags, deferred message source refs, and non-duplicated tool input/output.
-- [x] Shared packages must not introduce generic `User`, auth, account, organization, tenant, billing, quota, or invoice models.
-- [x] Playground routes and UI are validation surfaces, not the platform/product boundary.
-
-### 0.2 Goals
-
-- [x] Define `Trace Span Projection v1` as the machine-readable observability read model that complements raw `run_events` and human-readable timeline projection.
-- [x] Build trace span projection in `packages/app` from durable records without adding new DB tables.
-- [x] Expose trace span projection through contracts, durable-chat server helpers, durable-chat client normalization, and host route validation.
-- [x] Keep projection logic out of route helpers and UI code.
-- [x] Preserve raw event truth and do not mutate current run/message/tool persistence behavior.
-- [x] Establish a stable subject model for later feedback, dataset/eval, prompt attribution, and LangSmith/OpenTelemetry exporter work.
-- [x] Capture follow-up boundaries for trace context/metadata/tags, feedback, dataset/eval, prompt attribution, and exporters without implementing them in this slice.
-
-### 0.3 Non-goals
-
-- [x] Do not add a durable `trace_spans` table in this slice.
-- [x] Do not make runtime adapters write span rows.
-- [x] Do not integrate LangSmith SDK or LangSmith SaaS as internal source of truth.
-- [x] Do not add OpenTelemetry export in this slice.
-- [x] Do not add feedback, annotation queues, datasets, eval examples, experiments, or LLM-as-judge flows in this slice.
-- [x] Do not add prompt hub, prompt registry, prompt commit, or prompt promotion workflows in this slice.
-- [x] Do not add billing, invoices, quota, payments, credits, or budget enforcement.
-- [x] Do not add shared user/auth/org/tenant/account models.
-- [x] Do not persist assistant `message_update` stream deltas.
-- [x] Do not add server-side cancel or runtime abort mechanics.
-- [x] Do not build a LangSmith-like full UI in playground.
-- [x] Do not convert raw `run_events` into a typed-only model or remove raw payloads.
-- [x] Do not make `Trace Span Projection v1` a deterministic replay engine.
-
-## 1. Definitions First
-
-### 1.1 Source of truth
-
-- [x] Update `docs/source-of-truth/run-trace-usage-contract.md` with a `Trace Span Projection v1` section.
-- [x] Define the three trace layers explicitly:
-  - raw event log: append-only durable process facts
-  - timeline projection: human-readable ordered inspection model
-  - span projection: machine-readable observability tree/read model
-- [x] State that span projection is durable-first and rebuildable from persisted records.
-- [x] State that span projection does not persist or reconstruct live-only assistant `message_update` deltas.
-- [x] State that external exporters are sinks and never replace internal durable truth.
-- [x] Keep evolving implementation details in this todo until stable, then promote only durable facts into source-of-truth docs.
-- [x] Do not create a new parallel source-of-truth doc unless `run-trace-usage-contract.md` becomes too broad.
-
-### 1.2 Data model
-
-- [x] Keep Phase 1 persistence unchanged: no DB migration, no `trace_spans`, no `runs.metadata_json`.
-- [x] Treat `Run`, `Thread`, `RunEvent`, and `ToolInvocation` as the minimum durable inputs for trace projection.
-- [x] Resolve `appId` by loading `run.threadId -> thread.appId` in the app boundary.
-- [x] Do not represent `appId` as nullable in `TraceSpanProjectionV1`; missing thread/app attribution should be an app-layer load error.
-- [x] Use deterministic span ids so repeat reads of the same durable records produce stable span identities.
-- [x] Use `run.id` as the default `traceId` for Phase 1.
-- [x] Use deterministic span ids by source type:
-  - root: `span:run:${run.id}`
-  - tool with durable invocation: `span:tool:${toolInvocation.id}`
-  - assistant message with start event: `span:assistant_message:${messageStartEvent.id}`
-  - event-only spans: `span:event:${event.id}`
-- [x] Make the root agent span source reference the durable `run` and related `agent_start` / `agent_end` events when available.
-- [x] Build assistant-message spans from assistant `message_start` / `message_end` events, not from live `message_update`.
-- [x] Build tool spans primarily from durable `tool_invocations`, enriched with matching `tool_execution_start` / `tool_execution_end` events by `toolCallId`.
-- [x] In Phase 1, make every tool span a direct child of the root agent span.
-- [x] Do not infer tool parentage from event ordering or assistant-message seq windows.
-- [x] Build runtime-error spans from `runtime_error` events.
-- [x] Surface unknown durable event types without failing the projection.
-- [x] Track structured projection diagnostics for unknown, orphaned, unpaired, and duration-normalization cases.
-- [x] Define trace endpoint v1 response as `run + projection`, not raw `runEvents` / `toolInvocations` arrays.
-- [x] Keep raw `runEvents` and `toolInvocations` available through timeline APIs; trace source refs point back to those durable facts.
-
-### 1.3 Types / interfaces
-
-- [x] Define `TraceSpanKindV1` with conservative current-fact names:
-  - `agent`
-  - `assistant_message`
-  - `tool_invocation`
-  - `runtime_error`
-  - `unknown_event`
-- [x] Do not name the assistant span `llm_message` in Phase 1; current durable facts prove assistant message lifecycle, not provider LLM-call lifecycle.
-- [x] Define `TraceSpanStatusV1`:
-  - `queued`
-  - `running`
-  - `completed`
-  - `failed`
-  - `cancelled`
-  - `unknown`
-- [x] Define `TraceSpanSourceRefV1` for durable source references:
-  - `run`
-  - `run_event`
-  - `tool_invocation`
-- [x] Defer `message` source refs unless the projection can obtain stable message ids without inference.
-- [x] Define `TraceSpanV1` stable fields:
-  - `schemaVersion`
-  - `id`
-  - `traceId`
-  - `parentSpanId`
-  - `kind`
-  - `name`
-  - `status`
-  - `appId`
-  - `threadId`
-  - `runId`
-  - `order`
-  - `startedAt`
-  - `finishedAt`
-  - `durationMs`
-  - `sourceRefs`
-- [x] Define optional `TraceSpanV1` fields:
-  - `provider`
-  - `model`
-  - `usageRef`
-  - `tool`
-  - `error`
-  - `metadata`
-- [x] Treat Phase 1 `metadata` as a forward-compatible optional field that should be `null` unless derived from already-stable durable fields.
-- [x] Do not introduce trace metadata or tags semantics in Phase 1.
-- [x] Define `TraceSpanProjectionV1` stable fields:
-  - `schemaVersion`
-  - `traceId`
-  - `rootSpanId`
-  - `appId`
-  - `threadId`
-  - `runId`
-  - `status`
-  - `startedAt`
-  - `finishedAt`
-  - `durationMs`
-  - `spans`
-  - `diagnostics`
-- [x] Define `TraceProjectionDiagnosticCodeV1`:
-  - `unknown_event`
-  - `orphan_event`
-  - `missing_tool_invocation`
-  - `unpaired_message_start`
-  - `unpaired_message_end`
-  - `unpaired_tool_start`
-  - `unpaired_tool_end`
-  - `nonterminal_child_on_terminal_run`
-  - `negative_duration_clamped`
-- [x] Define `TraceProjectionDiagnosticV1` with stable `code`, `message`, and `sourceRefs`.
-- [x] Define `TraceSpanProjectionDiagnosticsV1` with `unknownEventCount`, `orphanEventCount`, and `warnings`.
-- [x] Avoid stable `tags` in Phase 1 unless trace context/tags are also defined; placeholder empty tags should not imply a supported filter model.
-- [x] Define DTO equivalents in `packages/contracts` only after the app-layer shape is fixed.
-
-### 1.4 Span construction rules
-
-- [x] Root agent span id should be deterministic, for example `span:run:${run.id}`.
-- [x] Root agent span status should map directly from `run.status`, including `cancelled`.
-- [x] Root agent span timestamps should prefer `run.startedAt` / `run.finishedAt`, with event timestamp fallback only if needed.
-- [x] Compute `durationMs` only when both timestamps are known.
-- [x] Clamp negative durations to `0` and add a `negative_duration_clamped` diagnostic.
-- [x] Root agent span should include `provider`, `model`, and `usageRef` when run-level data exists.
-- [x] Assistant-message span parent should be the root agent span.
-- [x] `assistant_message` is not a provider call span; it represents durable assistant message lifecycle only.
-- [x] Assistant-message span should use `assistant_message` kind until durable provider LLM-call facts exist.
-- [x] Assistant-message span status should map `message_end.stopReason` values such as `error` or `aborted` to `failed`; otherwise completed.
-- [x] Assistant span with missing end should record a structured diagnostic and derive status from root terminal state:
-  - `running` when root is `queued` or `running`
-  - `failed` when root is `failed`
-  - `cancelled` when root is `cancelled`
-  - `unknown` only when terminal state cannot be interpreted
-- [x] Event-only spans should use `event.createdAt` for both start and finish and `durationMs: 0`.
-- [x] Tool span parent should always be the root agent span in Phase 1.
-- [x] Revisit nested tool parentage only after message source refs or explicit assistant segment ids are part of the contract.
-- [x] Tool span status should prefer durable `tool_invocation.status`; event `isError` can enrich or fallback when needed.
-- [x] Tool span should not duplicate full tool input/output as stable top-level fields; raw tool records remain available through existing durable reads.
-- [x] Runtime-error span parent should be the root agent span.
-- [x] Unknown durable events should project to `unknown_event` spans and increment diagnostics.
-- [x] Orphaned event pairs or missing tool matches should not fail the entire projection; diagnostics should record the issue.
-
-### 1.5 WebGPT feedback adopted
-
-- [x] Adopt WebGPT's recommendation to build projection-only `Trace Span Projection v1` first.
-- [x] Adopt WebGPT's recommendation to keep durable spans out of Phase 1.
-- [x] Adopt WebGPT's recommendation that route helpers serialize app output only.
-- [x] Adopt WebGPT's recommendation that trace context / metadata / tags should follow span projection.
-- [x] Adopt WebGPT's recommendation that feedback, dataset/eval, and exporters depend on stable span subjects.
-- [x] Adjust WebGPT's proposed `llm_message` kind to `assistant_message` for Phase 1 because current durable facts are message lifecycle facts, not stable provider LLM-call facts.
-- [x] Adjust WebGPT's nullable `appId` suggestion to non-null `appId` because `Thread.appId` is required and should be resolved in `packages/app`.
-- [x] Defer WebGPT's stable `tags` field until trace context/tags are actually defined.
-- [x] Defer WebGPT's `message` source ref unless stable message ids are available without inference.
-- [x] Adopt WebGPT's second-review recommendation to fix tool spans as root children in Phase 1.
-- [x] Adopt WebGPT's second-review recommendation to define `/trace` response as `run + projection`.
-- [x] Adopt WebGPT's second-review recommendation to use source-type-specific deterministic span ids.
-- [x] Adopt WebGPT's second-review recommendation to make diagnostics structured rather than string-only.
-
-## 2. Backend / Platform
-
-### 2.1 `packages/core`
-
-- [x] Do not change core durable domain types in Phase 1 unless implementation proves an unavoidable type gap.
-- [x] Do not add `TraceSpan` as a durable core entity in Phase 1.
-- [x] Do not add `Run.metadata` or `runs.metadata_json` in Phase 1.
-- [x] Do not add repository interfaces for spans in Phase 1.
-- [x] Keep `RunEvent.payload` raw and flexible.
-
-### 2.2 `packages/app`
-
-- [x] Add app-layer trace types to `packages/app/src/types.ts`.
-- [x] Add a small pure projection module, for example `packages/app/src/trace-span-projection.ts`.
-- [x] Keep new projection logic out of the already-large `packages/app/src/app.ts` except for orchestration.
-- [x] Add `runs.getTrace(input: GetRunTraceInput): Promise<RunTraceResult>`.
-- [x] Define `RunTraceResult` as `{ run: Run; projection: TraceSpanProjectionV1 }`.
-- [x] Load run by id and throw existing `RunNotFoundError` semantics if missing.
-- [x] Load thread to resolve non-null `appId`.
-- [x] Load run events and tool invocations from durable repositories.
-- [x] Build `TraceSpanProjectionV1` from durable state only.
-- [x] Keep projection independent from SSE/live stream state.
-- [x] Keep timeline projection behavior unchanged.
-- [x] Keep raw `runEvents` and `toolInvocations` available through existing timeline route; trace endpoint v1 returns only `run + projection`.
-
-### 2.3 `packages/contracts`
-
-- [x] Add `TraceSpanKindDto`, `TraceSpanStatusDto`, or equivalent inline literal DTO types.
-- [x] Add `TraceSpanSourceRefDto`.
-- [x] Add `TraceSpanDto`.
-- [x] Add `TraceSpanProjectionDto`.
-- [x] Add `RunTraceResponseDto`.
-- [x] Define `RunTraceResponseDto` as `{ run: RunDto | null; projection?: TraceSpanProjectionDto | null; error?: string }`.
-- [x] Keep DTO backward-compatible with unknown future metadata.
-- [x] Do not move runtime codec/helper logic into `packages/contracts`.
-
-### 2.4 `packages/durable-chat-server`
-
-- [x] Add `buildRunTraceResponse` helper.
-- [x] Add `buildRunTraceErrorResponse` helper if needed for route consistency.
-- [x] Serialize app-provided trace projection only.
-- [x] Do not implement span construction or source-ref matching in server helpers.
-- [x] Add route-helper tests for successful and error responses.
-
-### 2.5 `packages/durable-chat-client`
-
-- [x] Add `normalizeRunTraceResponse`.
-- [x] Add normalizers for trace projection, spans, source refs, diagnostics, optional tool/error/usage metadata.
-- [x] Invalid projection schema should normalize to `null` or an error-safe response, following existing timeline schema conventions.
-- [x] Invalid individual span/source-ref items should be filtered without failing the entire response when safe.
-- [x] Unknown-event spans should be accepted.
-- [x] Missing or invalid root span/rootSpanId should normalize projection to `null`.
-- [x] Do not treat trace projection as live stream state.
-
-### 2.6 `packages/db`
-
-- [x] Do not add migrations in Phase 1.
-- [x] Do not add `trace_spans`.
-- [x] Do not add `runs.metadata_json`.
-- [x] Keep existing run event and run usage persistence tests passing.
-
-### 2.7 `packages/runtime-pi`
-
-- [x] Do not add runtime span writes in Phase 1.
-- [x] Do not persist assistant `message_update`.
-- [x] Do not change usage summary creation in Phase 1.
-- [x] Do not change runtime failure hardening unless tests reveal trace projection needs an already-available stable payload field.
-- [x] If any event payload enrichment is considered, require explicit source-of-truth wording and tests before implementation.
-
-### 2.8 Host routes
-
-- [x] Add a validation route such as `GET /api/runs/:runId/trace` in host apps only after app/contracts/server/client shape is fixed.
-- [x] Reuse the same access-check pattern as existing run timeline routes.
-- [x] Keep host ownership checks host-local.
-- [x] Do not write host owner ids into shared durable records.
-
-## 3. Frontend / Consumer Boundary
-
-### 3.1 Durable chat client boundary
-
-- [x] Add fetch helper for run trace response if a host route is added.
-- [x] Keep trace response as durable read data, not live stream data.
-- [x] Keep terminal reconcile behavior unchanged.
-
-### 3.2 Playground UI validation
-
-- [x] Add no UI by default in the first implementation loop.
-- [x] If validation UI is needed, add only a minimal inspector/debug panel.
-- [x] Do not build a LangSmith-like trace dashboard.
-- [x] Do not make UI display the source of truth for trace semantics.
-- [x] Keep screenshots out of scope unless a visible validation surface changes.
-
-## 4. Tests
-
-### 4.1 App projection tests
-
-- [x] Completed run with agent lifecycle events projects one root `agent` span.
-- [x] Root span has deterministic id, trace id, app/thread/run attribution, source refs, timestamps, and `completed` status.
-- [x] Failed run projects root `failed` status.
-- [x] Runtime failure with `runtime_error` event projects child `runtime_error` span.
-- [x] Cancelled run projects root `cancelled` status.
-- [x] Assistant `message_start` / `message_end` projects `assistant_message` span.
-- [x] Assistant `message_end` with error or aborted stop reason projects failed assistant span.
-- [x] Durable `tool_invocation` plus matching tool events projects one tool span.
-- [x] Failed durable tool invocation projects failed tool span even if event payload is missing `isError`.
-- [x] Unknown raw event projects `unknown_event` span and increments diagnostics.
-- [x] Missing tool match or orphan event records a diagnostic without failing the whole projection.
-- [x] Projection remains durable-first and does not depend on live/SSE state.
-
-### 4.2 Contract / server tests
-
-- [x] DTO types cover trace projection and span fields.
-- [x] Route helper serializes app-provided trace projection without projection logic.
-- [x] Error response shape is stable.
-- [x] No raw durable event fields are lost by existing timeline response changes.
-
-### 4.3 Client schema tests
-
-- [x] Valid trace response normalizes correctly.
-- [x] Invalid projection schema normalizes safely.
-- [x] Invalid individual span item is filtered or rejected according to the chosen convention.
-- [x] Unknown-event span normalizes correctly.
-- [x] Optional `metadata`, `tool`, `error`, and `usageRef` fields normalize safely.
-
-### 4.4 Host route tests
-
-- [x] Add host route tests only if the trace route is implemented in this slice.
-- [x] Protected run trace route must reuse existing run access pattern.
-- [x] Inaccessible run returns the same style of route error as timeline route.
-
-### 4.5 Verification and review
-
-- [x] Define expected app-level verification coverage for trace projection.
-- [x] Define expected contract/server/client verification coverage for DTO and normalization changes.
-- [x] Define expected package-level type safety coverage for touched public types.
-- [x] Capture final cross-package type-safety evidence before closeout if public DTOs changed.
-- [x] Code review gate: use the repository Review Profile after each meaningful implementation slice.
-- [x] Use the repository Review Profile after each meaningful implementation slice without redefining command details here.
-- [x] Keep slice closeout evidence in commit or task notes without prescribing shell commands in this todo.
-
-## 5. Recommended Execution Order
-
-### Loop 1: Contract and Source-of-Truth Alignment
-
-- [x] Update `docs/source-of-truth/run-trace-usage-contract.md` with trace span projection semantics.
-- [x] Define raw event log vs timeline projection vs span projection.
-- [x] Define `TraceSpanV1`, `TraceSpanProjectionV1`, source refs, status mapping, diagnostics, and unknown event behavior.
-- [x] Record Phase 1 non-goals: no DB table, no durable span writes, no feedback/eval/exporter, no trace context/tags, no prompt hub.
-- [x] Define trace response v1 as `run + projection`; raw run events/tool invocations remain on timeline reads.
-- [x] Capture documentation acceptance evidence.
-- [x] Code review gate: use the repository Review Profile if documentation changes are substantial.
-- [x] Use the repository Review Profile if documentation changes are substantial.
-- [x] Close the slice only after acceptance evidence and review are clean.
-
-### Loop 2: App Trace Projection
-
-- [x] Add trace projection types to `packages/app/src/types.ts`.
-- [x] Add pure projection builder module in `packages/app/src`.
-- [x] Add `runs.getTrace`.
-- [x] Load thread for `appId`.
-- [x] Generate deterministic root, assistant-message, tool, runtime-error, and unknown-event spans.
-- [x] Add structured diagnostics for unknown, orphaned, unpaired, and negative-duration cases.
-- [x] Add focused app tests for completed, failed, cancelled, assistant, tool, runtime-error, unknown, and orphan cases.
-- [x] Capture targeted app verification and type-safety evidence.
-- [x] Code review gate: use the repository Review Profile.
-- [x] Use the repository Review Profile.
-- [x] Close the slice only after verification evidence and review are clean.
-
-### Loop 3: Contracts, Server, Client
-
-- [x] Add trace DTOs to `packages/contracts`.
-- [x] Add durable-chat-server response builders for trace responses.
-- [x] Add durable-chat-client trace response normalizers.
-- [x] Add contract/server/client tests.
-- [x] Capture downstream declaration freshness and type-safety evidence for affected packages.
-- [x] Capture targeted contract/server/client verification evidence.
-- [x] Code review gate: use the repository Review Profile.
-- [x] Use the repository Review Profile.
-- [x] Close the slice only after verification evidence and review are clean.
-
-### Loop 4: Host Route Validation
-
-- [x] Add `GET /api/runs/:runId/trace` to relevant host route layer only after shared helpers are stable.
-- [x] Reuse existing accessible-run lookup and host ownership checks.
-- [x] Add route tests if the host package already has adjacent route coverage for run timeline behavior.
-- [x] Do not add UI unless needed for validation.
-- [x] Capture targeted host verification and type-safety evidence if the route is added.
-- [x] Code review gate: use the repository Review Profile.
-- [x] Use the repository Review Profile.
-- [x] Close the slice only after verification evidence and review are clean.
-
-### Loop 5: Closeout and Follow-up Recording
-
-- [x] Re-read source-of-truth and implementation to ensure no parallel definitions remain.
-- [x] Confirm no DB migration was introduced.
-- [x] Confirm no durable `message_update` persistence was introduced.
-- [x] Confirm no shared user/auth/org/tenant/account model was introduced.
-- [x] Confirm no LangSmith SDK or exporter was introduced as internal truth.
-- [x] Record follow-up candidates for trace context/metadata/tags, feedback, dataset/eval, prompt attribution, and exporters.
-- [x] Capture final targeted verification and cross-package type-safety evidence if not already covered by earlier slices.
-- [x] Code review gate: use the repository Review Profile for final closeout.
-- [x] Use the repository Review Profile for final closeout.
-- [x] Retain this completed todo as execution audit because the user requested all checkboxes to end as `[x]`.
-
-## 6. Deferred Follow-ups Recorded For Future Todos
-
-- [x] Trace Context / Run Metadata v1:
-  - add run-level trace metadata/tags/prompt attribution after span shape is validated.
-- [x] Feedback v1:
-  - add feedback subjects based on run/span/message/tool after stable span ids exist.
-- [x] Dataset / Eval Example v1:
-  - export curated examples from run/span/message data after feedback and trace subjects are stable.
-- [x] Offline Eval / Experiment v1:
-  - run candidate runtime/prompt/model configs over datasets after examples are stable.
-- [x] Prompt attribution / Prompt registry:
-  - start with prompt refs/hashes in trace metadata before building a full prompt hub.
-- [x] LangSmith / OpenTelemetry exporter:
-  - export internal span projections to external systems as sinks, not source of truth.
-- [x] Durable `trace_spans`:
-  - reconsider only after query/search/export workloads prove projection-only reads are insufficient.
-
-## 7. Feedback To WebGPT For Next Review
-
-### 7.1 Accepted recommendations
-
-- [x] We accept the recommendation to do `Trace Span Projection v1` next.
-- [x] We accept projection-only as the first implementation strategy.
-- [x] We accept that `trace_spans` should not be persisted yet.
-- [x] We accept that route helpers must not implement projection semantics.
-- [x] We accept that trace context/tags, feedback, dataset/eval, and exporters should be follow-ups.
-- [x] We accept that LangSmith or OpenTelemetry should be treated as external sinks, not internal truth.
-
-### 7.2 Adjustments to WebGPT's proposal
-
-- [x] Use `assistant_message` instead of `llm_message` in Phase 1 because current durable facts represent assistant message lifecycle, not stable provider LLM-call lifecycle.
-- [x] Make `appId` non-null because `Thread.appId` is required and can be resolved at the app boundary.
-- [x] Defer stable `tags` until trace context/tags are actually introduced.
-- [x] Defer `message` source refs unless stable message ids can be obtained without inference.
-- [x] Keep full tool input/output out of stable span top-level fields; existing durable tool records remain the source.
-- [x] Accept WebGPT second-review feedback that implementation todo should avoid prescribing concrete shell/test/build commands while still requiring verification evidence and the repository Review Profile.
-- [x] Accept WebGPT second-review feedback that tool spans should be root children in Phase 1.
-- [x] Accept WebGPT second-review feedback that trace endpoint v1 should return `run + projection`, not raw arrays.
-- [x] Accept WebGPT second-review feedback that deterministic span ids need source-type-specific rules.
-- [x] Accept WebGPT second-review feedback that diagnostics should use stable codes.
-
-### 7.3 Questions for WebGPT audit
-
-- [x] WebGPT confirmed `assistant_message` is the safer Phase 1 kind name than `llm_message`.
-- [x] WebGPT recommended `GET /api/runs/:runId/trace` return `run + projection` only.
-- [x] WebGPT recommended source-type-specific deterministic ids: root from run id, durable tool from tool invocation id, event-only spans from event id.
-- [x] WebGPT recommended Phase 1 tool spans should always be root children.
-- [x] WebGPT recommended unknown/orphan/missing relationships use structured diagnostics instead of failing projection, except for missing base run/thread/app attribution.
+# Observability Console MVP Todo
+
+## Context And Boundary
+
+- [x] `/observability` is the selected route for the next observability surface.
+- [x] The page is an independent management/debugging surface, not part of the business chat workflow.
+- [x] The target information architecture is `thread | run | content`.
+- [x] The first implementation should stay lightweight and useful before it becomes a full observability product.
+- [x] Existing runtime data should be used first:
+  - `GET /api/threads`
+  - `GET /api/threads/:threadId/runs`
+  - `GET /api/runs/:runId/timeline`
+  - `GET /api/runs/:runId/trace`
+- [x] Existing trace semantics already live below the UI layer; the UI must project them, not redefine them.
+- [x] Package-layer contracts remain the product boundary. `apps/playground-next-web` is the first product host and validation surface.
+
+## Goal
+
+Build a durable observability console MVP that lets an authenticated operator select a thread, select one of its runs, and inspect that run through timeline and trace views.
+
+The practical result should be:
+
+- [ ] A user can open `/observability`.
+- [ ] A user can see accessible threads.
+- [ ] A user can select a thread and see its recent runs.
+- [ ] A user can select a run and inspect its timeline.
+- [ ] A user can inspect the same run as a typed trace/span view.
+- [ ] The page can be refreshed or shared with `threadId` and `runId` query state.
+- [ ] Empty, loading, inaccessible, and error states are explicit.
+- [ ] The implementation does not couple this management page to `/chat`.
+
+## Non-Goals
+
+- [x] Do not redesign `/chat`.
+- [x] Do not add a right-side trace panel to the existing chat UI as the main product path.
+- [x] Do not build a standalone run-id-only dashboard as the primary IA.
+- [x] Do not add global run search in this slice.
+- [x] Do not add feedback, dataset, eval, prompt registry, or offline experiment features in this slice.
+- [x] Do not add LangSmith or OpenTelemetry SDK integration in this slice.
+- [x] Do not add billing, user/org/tenant cost attribution, or usage accounting in this slice.
+- [x] Do not add a new durable `trace_spans` table unless implementation uncovers a hard blocker.
+- [x] Do not move trace semantics into page-local code.
+
+## Definitions First
+
+### Source Of Truth
+
+- [x] Re-read the existing source-of-truth docs for run timeline, trace projection, usage, and host auth before implementation.
+- [x] Confirm that `/observability` introduces only a UI/product surface, not a new runtime concept.
+- [x] Update source-of-truth docs only if a stable cross-package fact is introduced.
+- [x] Keep page-level UX decisions out of source-of-truth docs unless they become part of reusable platform behavior.
+
+### Route And URL State
+
+- [ ] Add `/observability` as the management console route.
+- [ ] Use `threadId` and `runId` query params for durable selection state.
+- [ ] If `threadId` is missing, pick a safe default from accessible threads when available.
+- [ ] If `runId` is missing, pick a safe default from the selected thread's recent runs when available.
+- [ ] If a query value is stale, inaccessible, or missing from loaded data, show a recoverable state and allow reselection.
+- [ ] Avoid making `/observability/:threadId/:runId` route segments for the MVP unless query state creates concrete problems.
+
+### Information Architecture
+
+- [ ] Column 1: thread list.
+- [ ] Column 2: run list for the selected thread.
+- [ ] Column 3: selected run content.
+- [ ] Selected run content includes a compact run header.
+- [ ] Selected run content includes `Timeline` and `Trace` tabs.
+- [ ] Keep the UI desktop-first for the MVP, with a functional narrow-screen fallback.
+- [ ] Avoid decorative dashboard chrome that does not expose runtime information.
+
+### Data And Types
+
+- [ ] Use existing DTOs from `@agent-infra/contracts`.
+- [ ] Use existing API clients from `@agent-infra/durable-chat-client` where possible.
+- [ ] Add only presentation/view-model types needed to render trace data ergonomically.
+- [ ] Keep trace span semantics derived from `RunTraceResponseDto`.
+- [ ] Do not parse raw run events in the page when an existing typed projection exists.
+- [ ] Do not introduce new DB schema in this slice.
+
+## Backend And Platform
+
+- [ ] Confirm that existing APIs provide enough data for the MVP.
+- [ ] Avoid backend route changes unless there is a concrete data gap.
+- [ ] If an API gap is found, add the narrowest package-level contract/server/client change.
+- [ ] Keep route handlers thin composition roots.
+- [ ] Do not add Next-only business logic that should belong in `packages/*`.
+- [ ] Preserve Fastify/Vite portability expectations when touching shared packages.
+
+## Frontend And Package Boundary
+
+### Durable Chat Client
+
+- [ ] Re-export `fetchRunTraceResponse` from the Next app's local chat API adapter if the observability feature needs it.
+- [ ] Add a small trace presentation helper in `packages/durable-chat-client` only if the same projection is likely reusable outside Next.
+- [ ] Keep helper output presentational, for example flattened tree rows, depth, duration labels, and selected-span lookup.
+- [ ] Add tests for any new client helper.
+- [ ] Avoid expanding the existing chat log inspector state unless `/chat` actually consumes the new behavior.
+
+### Next Observability Feature
+
+- [ ] Add an explicit `features/observability` area under `apps/playground-next-web`.
+- [ ] Put non-trivial page logic in feature files, not directly inside `app/observability/page.tsx`.
+- [ ] Reuse the existing auth shell/gate so the page follows host access rules.
+- [ ] Reuse existing app styling primitives where practical.
+- [ ] Keep the route page as a thin composition root.
+- [ ] Build data loading around existing thread, run, timeline, and trace fetchers.
+- [ ] Handle independent loading/error states for threads, runs, timeline, and trace.
+- [ ] Keep selected thread/run state synchronized with URL query params.
+
+### UI Behavior
+
+- [ ] Thread column shows accessible threads with enough metadata to distinguish them.
+- [ ] Run column shows recent runs for the selected thread.
+- [ ] Run rows show status, creation/update time, and useful summary fields already available in the DTO.
+- [ ] Content column shows selected run metadata before tabs.
+- [ ] Timeline tab shows the typed timeline in chronological order.
+- [ ] Trace tab shows a span tree or indented flat tree.
+- [ ] Trace tab includes selected span details.
+- [ ] Trace tab surfaces diagnostics or projection warnings when present.
+- [ ] Empty states distinguish "no threads", "no runs", "no timeline", and "no trace spans".
+- [ ] Errors show enough detail to debug local development without exposing secrets.
+- [ ] The UI remains readable without requiring a polished dashboard redesign.
+
+## Recommended Execution Order
+
+## Review Gates
+
+- [x] Loop 1 code review completed after package-level trace presentation work.
+- [ ] Loop 2 code review completed after observability data-layer work.
+- [ ] Loop 3 code review completed after `/observability` shell work.
+- [ ] Loop 4 code review completed after timeline/trace content work.
+- [ ] Loop 5 final review completed if any unreviewed code remains.
+
+### Loop 1: Package-Level Trace Presentation
+
+- [x] Inspect current trace DTO shape and existing client inspector helpers.
+- [x] Decide whether a reusable trace view-model helper is warranted.
+- [x] Add the helper only if it removes real UI complexity or avoids duplicated trace tree logic.
+- [x] Export the helper through the durable chat client package entry point if added.
+- [x] Add focused tests for tree flattening, missing timestamps, parent/child ordering, and selected-span lookup if applicable.
+- [x] Run targeted package tests.
+- [x] Run `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`.
+- [x] Address review findings or document why no code change is needed.
+- [x] Commit the slice if code changed and verification is clean.
+
+### Loop 2: Observability Feature Data Layer
+
+- [ ] Create the `apps/playground-next-web/features/observability` feature boundary.
+- [ ] Add typed loader/service utilities for threads, runs, timeline, and trace.
+- [ ] Add query-state helpers for `threadId` and `runId`.
+- [ ] Add selection fallback logic for missing or stale query params.
+- [ ] Add focused tests for selection fallback and URL-state behavior if the logic is extracted.
+- [ ] Run targeted Next/app or package tests.
+- [ ] Run `pnpm --filter playground-next-web typecheck`.
+- [ ] Run `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`.
+- [ ] Address review findings.
+- [ ] Commit the slice if verification is clean.
+
+### Loop 3: `/observability` Route And Three-Column Shell
+
+- [ ] Add `apps/playground-next-web/app/observability/page.tsx`.
+- [ ] Compose the page through the observability feature entry component.
+- [ ] Reuse the existing auth gate.
+- [ ] Render the three-column structure: thread, run, content.
+- [ ] Implement thread selection and run selection.
+- [ ] Implement loading, empty, and error states for the first two columns.
+- [ ] Keep the page independent from chat-shell routing.
+- [ ] Run `pnpm --filter playground-next-web typecheck`.
+- [ ] Start or reuse the local Next dev server.
+- [ ] Verify `/observability` in the in-app browser.
+- [ ] Run `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`.
+- [ ] Address review findings.
+- [ ] Commit the slice if verification is clean.
+
+### Loop 4: Timeline And Trace Content
+
+- [ ] Add the selected run header.
+- [ ] Add `Timeline` and `Trace` tabs.
+- [ ] Render timeline content from the typed timeline response.
+- [ ] Render trace content from the typed trace response.
+- [ ] Add span selection and span detail rendering.
+- [ ] Surface trace diagnostics/projection warnings.
+- [ ] Add content-level loading, empty, and error states.
+- [ ] Verify the page with real local run data.
+- [ ] Run `pnpm --filter playground-next-web typecheck`.
+- [ ] Run targeted tests for any new helpers/components that have stable logic.
+- [ ] Verify `/observability` in the in-app browser, including refresh with query params.
+- [ ] Run `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`.
+- [ ] Address review findings.
+- [ ] Commit the slice if verification is clean.
+
+### Loop 5: Closeout And Product Direction
+
+- [ ] Re-check whether source-of-truth docs need a small `/observability` note.
+- [ ] Update README/docs only where the new route needs to be discoverable.
+- [ ] Confirm no business/runtime complexity was added only to the playground page.
+- [ ] Confirm no trace semantics were duplicated in UI code.
+- [ ] Confirm Fastify/Vite consumers were not accidentally broken by shared package changes.
+- [ ] Run final targeted verification.
+- [ ] Run final `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"` if any unreviewed code remains.
+- [ ] Address final review findings.
+- [ ] Mark all completed todo items as `[x]`.
+
+## Product Direction Notes
+
+- [x] The next step is not "build prettier logs"; it is to make run inspection navigable across thread and run boundaries.
+- [x] `/observability` is a better long-term product shape than attaching trace details to `/chat`, because management/debug workflows have different density, navigation, and context needs.
+- [x] The first version should prove the operator workflow with existing runtime projections before adding storage, exporters, feedback, evals, or global search.
+- [x] WebGPT's "Trace Inspector MVP" direction is broadly right, but the UI placement should be corrected: the inspector belongs in a standalone observability console, not primarily inside the chat surface.
+- [x] The long-term path after this MVP is likely: better trace metadata and tags, prompt/message attribution, feedback capture, dataset/eval workflows, exporter integration, and only then durable normalized trace-span storage if query needs justify it.
