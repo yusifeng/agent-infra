@@ -1,5 +1,6 @@
 export {
   createThreadResponse,
+  fetchRunTraceResponse,
   fetchRunTimelineResponse,
   fetchRuntimeMetaResponse,
   fetchThreadMessagesResponse,

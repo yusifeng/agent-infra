@@ -127,7 +127,7 @@ The practical result should be:
 ## Review Gates
 
 - [x] Loop 1 code review completed after package-level trace presentation work.
-- [ ] Loop 2 code review completed after observability data-layer work.
+- [x] Loop 2 code review completed after observability data-layer work.
 - [ ] Loop 3 code review completed after `/observability` shell work.
 - [ ] Loop 4 code review completed after timeline/trace content work.
 - [ ] Loop 5 final review completed if any unreviewed code remains.
@@ -146,16 +146,16 @@ The practical result should be:
 
 ### Loop 2: Observability Feature Data Layer
 
-- [ ] Create the `apps/playground-next-web/features/observability` feature boundary.
-- [ ] Add typed loader/service utilities for threads, runs, timeline, and trace.
-- [ ] Add query-state helpers for `threadId` and `runId`.
-- [ ] Add selection fallback logic for missing or stale query params.
-- [ ] Add focused tests for selection fallback and URL-state behavior if the logic is extracted.
-- [ ] Run targeted Next/app or package tests.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`.
-- [ ] Address review findings.
-- [ ] Commit the slice if verification is clean.
+- [x] Create the `apps/playground-next-web/features/observability` feature boundary.
+- [x] Add typed loader/service utilities for threads, runs, timeline, and trace.
+- [x] Add query-state helpers for `threadId` and `runId`.
+- [x] Add selection fallback logic for missing or stale query params.
+- [x] Add focused tests for selection fallback and URL-state behavior if the logic is extracted.
+- [x] Run targeted Next/app or package tests.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`.
+- [x] Address review findings.
+- [x] Commit the slice if verification is clean.
 
 ### Loop 3: `/observability` Route And Three-Column Shell
 
