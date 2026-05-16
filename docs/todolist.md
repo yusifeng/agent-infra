@@ -43,11 +43,11 @@
 - [ ] Lock streaming completion behavior: a live assistant draft remains visible through completion until the durable transcript has visible assistant content.
 - [ ] Lock thread-switching-during-stream behavior: switching from thread A to B and back to A continues showing the active stream and shows the final reply when the run completes.
 - [ ] Lock completed-turn reconcile behavior: an empty durable assistant shell must not clear a visible live draft.
-- [ ] Lock auto-scroll behavior: near-bottom users follow streaming, detached users are not pulled to bottom, text selection blocks auto-follow, and prepending history preserves visual anchor.
+- [x] Lock auto-scroll behavior: near-bottom users follow streaming, detached users are not pulled to bottom, text selection blocks auto-follow, and prepending history preserves visual anchor.
 - [ ] Lock thread switch behavior: switching threads does not show a visible `loading messages` interstitial in the center chat area.
 - [ ] Lock title behavior: thread header should not flash a thread id fallback before the resolved title is displayed.
-- [ ] Lock pending-title stale behavior: a pending navigation title for thread A must never render in thread B.
-- [ ] Lock generated-title typing behavior: title typing/animation cancels when the active thread changes.
+- [x] Lock pending-title stale behavior: a pending navigation title for thread A must never render in thread B.
+- [x] Lock generated-title typing behavior: title typing/animation cancels when the active thread changes.
 - [ ] Lock markdown streaming behavior: code blocks keep stable wrapper/theme treatment while Shiki or markdown enhancement completes.
 - [ ] Lock send behavior: sending a new user message intentionally returns the active thread to bottom-follow mode.
 - [ ] Lock historical pagination behavior: loading older messages keeps the reader's current visual position stable.
@@ -112,16 +112,16 @@
 - [x] Add or strengthen tests for markdown code block fallback stability during streaming.
 - [x] Add or strengthen tests for live-run persisted transcript filtering so the current live assistant does not duplicate with durable blocks.
 - [x] Add or strengthen tests for stale attach event/finally guards so old attach requests cannot mutate the active thread state.
-- [ ] Add or strengthen tests for pending title and title typing stale guards.
+- [x] Add or strengthen tests for pending title and title typing stale guards.
 - [ ] Add or strengthen tests for inspector/search/debug prefetch staying out of the center chat loading path.
 
 ### 4.2 Viewport / DOM Tests
-- [ ] Add or strengthen tests for near-bottom streaming auto-follow using `behavior: 'auto'`.
-- [ ] Add or strengthen tests for detached reader state where streaming chunks do not force bottom scroll.
-- [ ] Add or strengthen tests for text selection intersecting the messages viewport blocking auto-follow.
-- [ ] Add or strengthen tests for selection clearing restoring state from current scroll position.
-- [ ] Add or strengthen tests for prepending older messages preserving visual anchor.
-- [ ] Add or strengthen tests for user clicking jump-to-bottom using smooth scroll except under reduced motion.
+- [x] Add or strengthen tests for near-bottom streaming auto-follow using `behavior: 'auto'`.
+- [x] Add or strengthen tests for detached reader state where streaming chunks do not force bottom scroll.
+- [x] Add or strengthen tests for text selection intersecting the messages viewport blocking auto-follow.
+- [x] Add or strengthen tests for selection clearing restoring state from current scroll position.
+- [x] Add or strengthen tests for prepending older messages preserving visual anchor.
+- [x] Add or strengthen tests for user clicking jump-to-bottom using smooth scroll except under reduced motion.
 
 ### 4.3 UI Extraction Tests
 - [ ] Add focused tests for message presentation helpers that feed user, assistant, live assistant, thinking, research, and answer-container rendering.
@@ -161,13 +161,12 @@
 - [x] Run `codex review` for this loop after targeted verification passes.
 - [x] Commit the pure behavior-lock test slice if review is clean.
 
-### Loop 1B: Hook / DOM Behavior-Lock Tests
-- [ ] Add focused hook/DOM tests for viewport selection lock, detached reader behavior, near-bottom follow, prepend anchor restoration, pending title stale guards, and generated-title typing cancellation.
-- [ ] Keep browser-only perception checks in the manual checklist instead of forcing brittle full-page snapshots.
-- [ ] Run `pnpm --filter playground-next-web test`.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit the hook/DOM behavior-lock test slice if review is clean.
+- [x] Add focused hook/DOM tests for viewport selection lock, detached reader behavior, near-bottom follow, prepend anchor restoration, pending title stale guards, and generated-title typing cancellation.
+- [x] Keep browser-only perception checks in the manual checklist instead of forcing brittle full-page snapshots.
+- [x] Run `pnpm --filter playground-next-web test`.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit the hook/DOM behavior-lock test slice if review is clean.
 
 ### Loop 2: Message Render Decision Seam
 - [ ] Extract a small pure message-list presentation helper for render decisions such as silent loading placeholder, empty state, transcript rows, live assistant row, and action availability.
