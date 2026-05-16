@@ -29,15 +29,15 @@
 ### 1.1 Source of Truth
 - [x] Reconfirm that moving auth checks out of `AuthShellGate` remains consistent with `docs/source-of-truth/playground-host-auth-model.md`, especially request-scoped current user and protected route expectations.
 - [x] Decide whether the auth source-of-truth doc needs a small update to document the chosen protected-route enforcement point: middleware, server redirect, or another host-local server gate.
-- [ ] Reconfirm that runtime hook extraction stays inside the existing `repo` / `service` / `runtime` boundary described in `docs/playground-next-web-chat-runtime-architecture.md`.
+- [x] Reconfirm that runtime hook extraction stays inside the existing `repo` / `service` / `runtime` boundary described in `docs/playground-next-web-chat-runtime-architecture.md`.
 
 ### 1.2 Data model
 - [x] Keep `AuthUserDto` unchanged unless the chosen server-side auth gate proves that extra current-user fields are actually required.
-- [ ] Keep durable thread, run, and message DTOs unchanged unless runtime extraction exposes an actual contract gap.
+- [x] Keep durable thread, run, and message DTOs unchanged unless runtime extraction exposes an actual contract gap.
 
 ### 1.3 Types / Interfaces
 - [x] Define the protected-route input/output boundary before implementation: what server-side code decides auth, and what user/current-user data gets passed into console entry components.
-- [ ] Define the first hook extraction seams inside `runtime`: thread catalog/session bootstrap, live send/attach lifecycle, and shell dialog actions.
+- [x] Define the first hook extraction seams inside `runtime`: thread catalog/session bootstrap, live send/attach lifecycle, and shell dialog actions.
 - [x] Define route boundary expectations for `loading.tsx` and `error.tsx` so they stay thin host-shell behavior rather than new business logic.
 
 ## 2. Backend / Platform
@@ -55,8 +55,8 @@
 
 ### 3.1 Runtime
 - [ ] Split `use-durable-chat-runtime.ts` along existing architecture boundaries rather than by arbitrary file size.
-- [ ] Extract one bounded slice first, prove that tests and behavior remain stable, then continue with the next slice.
-- [ ] Preserve current durable chat semantics for thread switching, message pagination, send/reconcile, attach stream recovery, and share dialog state.
+- [x] Extract one bounded slice first, prove that tests and behavior remain stable, then continue with the next slice.
+- [x] Preserve current durable chat semantics for thread switching, message pagination, send/reconcile, attach stream recovery, and share dialog state.
 
 ### 3.2 UI shell
 - [x] Remove or reduce `AuthShellGate` responsibility once protected routes are enforced before client bootstrap.
@@ -71,8 +71,8 @@
 - [x] Verify `/api/auth/me` remains valid as an API contract even if page-level auth no longer depends on client fetch gating.
 
 ### 4.2 Runtime
-- [ ] Add or preserve focused tests around any extracted runtime/service/controller logic where behavior can be verified without DOM-heavy integration.
-- [ ] Run the narrowest `playground-next-web` verification for chat shell behavior after each extraction slice.
+- [x] Add or preserve focused tests around any extracted runtime/service/controller logic where behavior can be verified without DOM-heavy integration.
+- [x] Run the narrowest `playground-next-web` verification for chat shell behavior after each extraction slice.
 
 ### 4.3 Manual verification
 - [ ] Verify unauthenticated navigation to `/new`, `/chat/:threadId`, `/replay/:threadId`, and `/observability` redirects correctly.
@@ -96,10 +96,10 @@
 - [x] Run `codex review` for this loop after targeted verification passes.
 
 ### Loop 3
-- [ ] Extract the first bounded slice from `use-durable-chat-runtime.ts`.
-- [ ] Run targeted verification for that slice.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit the slice before continuing if clean.
+- [x] Extract the first bounded slice from `use-durable-chat-runtime.ts`.
+- [x] Run targeted verification for that slice.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit the slice before continuing if clean.
 
 ### Loop 4
 - [ ] Continue runtime extraction in bounded slices until the remaining root hook is a composition layer rather than the main state machine.

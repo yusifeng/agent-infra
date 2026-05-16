@@ -62,6 +62,7 @@ import { buildDeepseekModePresentation } from '@/features/durable-chat/service/d
 import { collectCompletedLiveSearchToolCallIds } from '@/features/durable-chat/service/research-activity';
 import { buildTranscriptPresentation } from '@/features/durable-chat/service/transcript-presentation';
 import { useSearchPanelState } from '@/features/durable-chat/runtime/use-search-panel-state';
+import { useChatViewportController } from '@/features/durable-chat/runtime/use-chat-viewport-controller';
 import { useThreadTitleRefreshController } from '@/features/durable-chat/runtime/use-thread-title-refresh-controller';
 import type { DurableChatRuntimeOptions } from '@/features/durable-chat/types/runtime';
 import { isDefaultThreadTitle } from '@/features/thread-title/default-thread-title';
@@ -165,10 +166,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const sendAbortControllerRef = useRef<AbortController | null>(null);
   const reconcileRequestIdRef = useRef(0);
   const previousDocumentTitleRef = useRef<string | null>(null);
-  const messagesViewportRef = useRef<HTMLDivElement>(null);
-  const pendingPrependAnchorRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
-  const shouldAutoScrollRef = useRef(true);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [threadActionBusy, setThreadActionBusy] = useState(false);
   const [renameDialogThreadId, setRenameDialogThreadId] = useState<string | null>(null);
   const [renameDraftTitle, setRenameDraftTitle] = useState('');
@@ -264,6 +261,21 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     onCloseSearchPanel,
     onOpenSearchResult
   } = useSearchPanelState(activeThreadId);
+  const {
+    messagesViewportRef,
+    pendingPrependAnchorRef,
+    scrollToMessagesBottom,
+    shouldAutoScrollRef,
+    textareaRef
+  } = useChatViewportController({
+    activeThreadId,
+    draft,
+    historyLoading,
+    liveAssistantDraft,
+    loadingMessages,
+    messages,
+    setShowScrollToBottom
+  });
 
   useEffect(() => {
     installChatRenderDiagnostics();
@@ -337,16 +349,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }, [activeThreadId, selectedRunId]);
 
   useEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) {
-      return;
-    }
-
-    textarea.style.height = '0px';
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 220)}px`;
-  }, [draft]);
-
-  useEffect(() => {
     if (typeof window === 'undefined') {
       return;
     }
@@ -355,67 +357,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       setSidebarOpen(false);
     }
   }, []);
-
-  useEffect(() => {
-    const viewport = messagesViewportRef.current;
-    if (!viewport) {
-      return;
-    }
-
-    const handleScroll = () => {
-      const distance = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
-      const nearBottom = distance < 140;
-      shouldAutoScrollRef.current = nearBottom;
-      setShowScrollToBottom(!nearBottom);
-    };
-
-    handleScroll();
-    viewport.addEventListener('scroll', handleScroll);
-    return () => {
-      viewport.removeEventListener('scroll', handleScroll);
-    };
-  }, []);
-
-  useEffect(() => {
-    const viewport = messagesViewportRef.current;
-    if (!viewport) {
-      return;
-    }
-
-    const pendingAnchor = pendingPrependAnchorRef.current;
-    if (pendingAnchor) {
-      pendingPrependAnchorRef.current = null;
-      window.requestAnimationFrame(() => {
-        const heightDelta = viewport.scrollHeight - pendingAnchor.scrollHeight;
-        viewport.scrollTop = pendingAnchor.scrollTop + heightDelta;
-      });
-      return;
-    }
-
-    if (!shouldAutoScrollRef.current) {
-      return;
-    }
-
-    window.requestAnimationFrame(() => {
-      viewport.scrollTo({
-        top: viewport.scrollHeight,
-        behavior: messages.length > 0 ? 'smooth' : 'auto'
-      });
-    });
-  }, [messages, liveAssistantDraft?.partialText, liveAssistantDraft?.partialReasoning, activeThreadId, loadingMessages, historyLoading]);
-
-  function scrollToMessagesBottom() {
-    const viewport = messagesViewportRef.current;
-    if (!viewport) {
-      return;
-    }
-
-    shouldAutoScrollRef.current = true;
-    viewport.scrollTo({
-      top: viewport.scrollHeight,
-      behavior: 'smooth'
-    });
-  }
 
   function resetDraftThreadState() {
     runResetDraftThreadState({
