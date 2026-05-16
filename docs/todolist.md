@@ -16,10 +16,10 @@
 - [x] Make test results stable enough that future refactors do not require manual interpretation of timeout noise.
 - [x] Keep `pnpm --filter playground-next-web test` and `pnpm --filter playground-next-web typecheck` as reliable frontend gates.
 - [x] Define a reliable workspace-level verification profile for slow integration suites.
-- [ ] Continue reducing `use-durable-chat-runtime.ts` by extracting stable derived view-model and send/reconcile wiring seams.
-- [ ] Continue reducing `message-list-components.tsx` by splitting proven leaf UI components without changing markup semantics.
-- [ ] Create a focused markdown/code-block streaming stability slice if flicker remains observable.
-- [ ] Add minimal automated browser smoke coverage for the chat behaviors that are currently manual.
+- [x] Continue reducing `use-durable-chat-runtime.ts` by extracting stable derived view-model and send/reconcile wiring seams.
+- [x] Continue reducing `message-list-components.tsx` by splitting proven leaf UI components without changing markup semantics.
+- [x] Create a focused markdown/code-block streaming stability slice if flicker remains observable.
+- [x] Add minimal automated browser smoke coverage for the chat behaviors that are currently manual.
 
 ### 0.3 Non-goals
 - [x] Do not redesign the chat UI.
@@ -58,16 +58,16 @@
 - [x] Preserve selectors, accessible labels, class behavior, and copy while moving leaf UI files.
 
 ### 1.5 Browser Smoke Scope
-- [ ] Define the smallest reliable smoke harness for local chat behavior.
-- [ ] Prefer mocked/local deterministic runtime data over depending on a live provider for browser smoke.
-- [ ] Cover only high-regression chat behaviors first: thread switch no loading interstitial, no thread-id title flash, stream reconnect final content, viewport selection lock, markdown wrapper stability.
+- [x] Define the smallest reliable smoke harness for local chat behavior. Use `pnpm --filter playground-next-web smoke:chat`, a Vitest/jsdom smoke runner for deterministic chat shell regressions.
+- [x] Prefer mocked/local deterministic runtime data over depending on a live provider for browser smoke.
+- [x] Cover only high-regression chat behaviors first: thread switch no loading interstitial, no thread-id title flash, stream reconnect final content, viewport selection lock, markdown wrapper stability.
 
 ## 2. Backend / Platform
 
 ### 2.1 Package Boundary
 - [x] Confirm no package-level code changes are needed for test stabilization.
-- [ ] If test stabilization requires shared package behavior changes, add package-level tests before changing any consumer.
-- [ ] Keep shared platform package tests independent from playground UI refactor state.
+- [x] If test stabilization requires shared package behavior changes, add package-level tests before changing any consumer. No shared package behavior change was required.
+- [x] Keep shared platform package tests independent from playground UI refactor state.
 
 ### 2.2 Fastify Test Stability
 - [x] Reproduce `apps/playground-fastify-server` auth/server timeout behavior with targeted commands.
@@ -87,7 +87,7 @@
 - [x] Extract a pure view-model builder or hook from `use-durable-chat-runtime.ts`.
 - [x] Add focused tests for the view-model seam before replacing inline logic.
 - [x] Extract send/reconcile wiring only after the view-model seam is stable.
-- [ ] Keep route/thread/stream/inspector controllers as the current runtime controller boundary; do not introduce a generic controller abstraction.
+- [x] Keep route/thread/stream/inspector controllers as the current runtime controller boundary; do not introduce a generic controller abstraction.
 
 ### 3.2 UI Layer
 - [x] Split `message-list-components.tsx` in small batches.
@@ -102,9 +102,9 @@
 - [x] Avoid remounting entire code blocks for enhancement if a smaller token-span update is enough.
 
 ### 3.4 Browser Smoke
-- [ ] Add or choose a browser smoke runner that can execute locally without relying on manual Codex browser actions.
-- [ ] Keep smoke tests narrow and deterministic.
-- [ ] Run smoke tests only where they provide coverage that unit/hook tests cannot.
+- [x] Add or choose a browser smoke runner that can execute locally without relying on manual Codex browser actions.
+- [x] Keep smoke tests narrow and deterministic.
+- [x] Run smoke tests only where they provide coverage that unit/hook tests cannot.
 
 ## 4. Tests
 
@@ -118,7 +118,7 @@
 ### 4.2 Runtime Tests
 - [x] Add focused tests for the runtime view-model seam.
 - [x] Add focused tests for send/reconcile wiring if that seam is extracted.
-- [ ] Keep existing stream/thread/inspector controller tests passing.
+- [x] Keep existing stream/thread/inspector controller tests passing.
 
 ### 4.3 UI Tests
 - [x] Keep message presentation service tests passing through UI file moves.
@@ -126,11 +126,11 @@
 - [x] Avoid full-page snapshots.
 
 ### 4.4 Browser / Integration Smoke
-- [ ] Add smoke for thread switch without center-chat loading interstitial.
-- [ ] Add smoke for header title not showing a thread id fallback during known-thread navigation.
-- [ ] Add smoke for streaming reconnect final assistant content if a deterministic runtime fixture is available.
-- [ ] Add smoke for selection/scroll lock only if the browser runner can reliably simulate selection.
-- [ ] Add smoke for markdown code-block wrapper stability if the flicker remains reproducible.
+- [x] Add smoke for thread switch without center-chat loading interstitial.
+- [x] Add smoke for header title not showing a thread id fallback during known-thread navigation.
+- [x] Add smoke for streaming reconnect final assistant content if a deterministic runtime fixture is available.
+- [x] Add smoke for selection/scroll lock only if the browser runner can reliably simulate selection. Kept in focused viewport hook tests; not duplicated in smoke because jsdom cannot reliably model native drag-selection UX.
+- [x] Add smoke for markdown code-block wrapper stability if the flicker remains reproducible.
 
 ## 5. Recommended Execution Order
 
@@ -195,15 +195,15 @@
 - [x] Commit the markdown stability slice if review is clean.
 
 ### Loop 7: Minimal Chat Browser Smoke
-- [ ] Choose the local smoke runner and fixtures.
-- [ ] Add the smallest deterministic smoke for thread switching and title/loading behavior.
-- [ ] Add streaming reconnect or markdown smoke only if deterministic fixtures make it reliable.
-- [ ] Document how to run the smoke.
-- [ ] Run `pnpm --filter playground-next-web test`.
-- [ ] Run the new browser smoke command.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit the browser smoke slice if review is clean.
+- [x] Choose the local smoke runner and fixtures.
+- [x] Add the smallest deterministic smoke for thread switching and title/loading behavior.
+- [x] Add streaming reconnect or markdown smoke only if deterministic fixtures make it reliable.
+- [x] Document how to run the smoke. Run `pnpm --filter playground-next-web smoke:chat`.
+- [x] Run `pnpm --filter playground-next-web test`.
+- [x] Run the new browser smoke command.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit the browser smoke slice if review is clean.
 
 ### Loop 8: Final Hardening
 - [ ] Run `pnpm typecheck`.

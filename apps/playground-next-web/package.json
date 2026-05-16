@@ -19,6 +19,7 @@
     "start": "node ./scripts/run-next-with-playground-env.mjs start",
     "start:prepared": "NODE_ENV=production pnpm bootstrap:db && NODE_ENV=production pnpm start",
     "test": "vitest run",
+    "smoke:chat": "vitest run features/durable-chat/smoke/chat-regression-smoke.test.tsx",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
