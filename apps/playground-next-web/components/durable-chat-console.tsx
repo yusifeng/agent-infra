@@ -41,6 +41,13 @@ export function DurableChatConsole({ currentUser = null, initialThreadId = null,
   const handleArchiveThread = useStableCallback(runtime.onArchiveThreadById);
   const handleLoadOlderMessages = useStableCallback(runtime.onLoadOlderMessages);
   const handleOpenSearchResult = useStableCallback(runtime.onOpenSearchResult);
+  const handleSelectedModelKeyChange = useStableCallback(runtime.onSelectedModelKeyChange);
+  const handleDraftChange = useStableCallback(runtime.onDraftChange);
+  const handleSelectedWebSearchEnabledChange = useStableCallback(runtime.onSelectedWebSearchEnabledChange);
+  const handleSelectedThinkingEnabledChange = useStableCallback(runtime.onSelectedThinkingEnabledChange);
+  const handleSend = useStableCallback(runtime.onSend);
+  const handleStop = useStableCallback(runtime.onStop);
+  const handleScrollToBottom = useStableCallback(runtime.onScrollToBottom);
   const getLiveSearchPanelData = useStableCallback(runtime.getLiveSearchPanelData);
   const centeredEmptyState =
     !runtime.activeThreadId &&
@@ -63,18 +70,18 @@ export function DurableChatConsole({ currentUser = null, initialThreadId = null,
       selectedThinkingEnabled={runtime.selectedThinkingEnabled}
       selectedModelOption={runtime.selectedModelOption}
       deepseekModePresentation={runtime.deepseekModePresentation}
-      onSelectedModelKeyChange={runtime.onSelectedModelKeyChange}
+      onSelectedModelKeyChange={handleSelectedModelKeyChange}
       meta={runtime.meta}
       showScrollToBottom={runtime.showScrollToBottom}
       centered={centered}
       textareaRef={runtime.textareaRef}
       sendAbortControllerRef={runtime.sendAbortControllerRef}
-      onDraftChange={runtime.onDraftChange}
-      onSelectedWebSearchEnabledChange={runtime.onSelectedWebSearchEnabledChange}
-      onSelectedThinkingEnabledChange={runtime.onSelectedThinkingEnabledChange}
-      onSend={runtime.onSend}
-      onStop={runtime.onStop}
-      onScrollToBottom={runtime.onScrollToBottom}
+      onDraftChange={handleDraftChange}
+      onSelectedWebSearchEnabledChange={handleSelectedWebSearchEnabledChange}
+      onSelectedThinkingEnabledChange={handleSelectedThinkingEnabledChange}
+      onSend={handleSend}
+      onStop={handleStop}
+      onScrollToBottom={handleScrollToBottom}
     />
   );
 

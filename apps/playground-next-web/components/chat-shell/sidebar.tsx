@@ -44,7 +44,7 @@ type ChatSidebarProps = {
   onClose: () => void;
   onLogout?: () => void | Promise<void>;
   onNewChat: () => void;
-  onOpenThread: (threadId: string) => void;
+  onOpenThread: (threadId: string, title?: string | null) => void;
   onOpenThreadMenu?: (threadId: string) => void;
   onCloseThreadMenu?: () => void;
   onRenameThread?: (threadId: string) => void;
@@ -303,7 +303,7 @@ function ThreadRow({
   active: boolean;
   pinned: boolean;
   menuOpen: boolean;
-  onOpenThread: (threadId: string) => void;
+  onOpenThread: (threadId: string, title?: string | null) => void;
   onOpenThreadMenu: (threadId: string) => void;
   onCloseThreadMenu: () => void;
   onRenameThread: (threadId: string) => void;
@@ -320,7 +320,7 @@ function ThreadRow({
           : 'text-[color:var(--chat-sidebar-text)] hover:bg-[color:var(--chat-sidebar-item-hover-bg)]'
       )}
     >
-      <button type="button" onClick={() => onOpenThread(thread.id)} data-thread-id={thread.id} className="flex h-full min-w-0 flex-1 items-center text-left">
+      <button type="button" onClick={() => onOpenThread(thread.id, thread.title)} data-thread-id={thread.id} className="flex h-full min-w-0 flex-1 items-center text-left">
         <ThreadTitle thread={thread} />
       </button>
       <DropdownMenu

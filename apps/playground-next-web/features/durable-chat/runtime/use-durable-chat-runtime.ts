@@ -8,7 +8,7 @@ import type {
   ThreadDto
 } from '@agent-infra/contracts';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { assistantMessageHasVisibleContent } from '@/components/chat-shell/helpers';
 import {
@@ -115,6 +115,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     setSidebarOpen,
     setShowScrollToBottom
   } = useChatSessionController();
+  const [pendingNavigationTitle, setPendingNavigationTitle] = useState<{ threadId: string; title: string } | null>(null);
   const {
     state: {
       logOpen,
@@ -177,7 +178,9 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const selectedRun = timeline?.run ?? null;
   const runEvents = timeline?.runEvents ?? [];
   const toolInvocations = timeline?.toolInvocations ?? [];
-  const currentThreadTitle = activeThread?.title?.trim() || activeThreadId || null;
+  const currentThreadTitle =
+    activeThread?.title?.trim() ||
+    (pendingNavigationTitle?.threadId === activeThreadId ? pendingNavigationTitle.title : null);
   const currentThreadPinned = activeThread?.pinned === true;
   const responseStatus = deriveMainChatResponseStatus({
     activeResponseRun,
@@ -913,9 +916,11 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     navigateToNewChat();
   }
 
-  function openThread(threadId: string) {
+  function openThread(threadId: string, title?: string | null) {
     stopViewingLiveResponse();
     stopTypingTitleAnimation();
+    const nextTitle = title?.trim() ?? '';
+    setPendingNavigationTitle(nextTitle ? { threadId, title: nextTitle } : null);
     setDurableRecoveryState({
       phase: 'idle',
       message: null

@@ -1,7 +1,7 @@
 import type { RuntimePiMetaDto } from '@agent-infra/contracts';
 import clsx from 'clsx';
 import { ArrowUp, Atom, ChevronDown, Globe } from 'lucide-react';
-import type { MutableRefObject, RefObject } from 'react';
+import { memo, type MutableRefObject, type RefObject } from 'react';
 
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -36,7 +36,7 @@ type ComposerDockProps = {
   onScrollToBottom: () => void;
 };
 
-export function ComposerDock({
+export const ComposerDock = memo(function ComposerDock({
   draft,
   isResponding,
   sendDisabled,
@@ -276,4 +276,4 @@ export function ComposerDock({
       </div>
     </div>
   );
-}
+});
