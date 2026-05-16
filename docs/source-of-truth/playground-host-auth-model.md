@@ -15,7 +15,8 @@ playground host auth 当前已经落地，范围固定为：
 - HttpOnly cookie session
 - request-scoped current user
 - thread catalog ownership 绑定到宿主 auth user
-- playground consumer `/login` / `/register` / `/forgot-password` / auth gate
+- playground consumer `/login` / `/register` / `/forgot-password`
+- protected playground pages resolve the current user before client console bootstrap
 
 ## 核心边界
 
@@ -238,6 +239,26 @@ host request 在进入受保护路由前，会按下面顺序解析当前用户�
 4. 验证未过期、未撤销
 5. 查询 `auth_users` 与 `auth_identities`
 6. 写入 request-scoped `currentUser` 或等价的 host-local 当前用户上下文
+
+### 5. Next playground protected pages
+
+`apps/playground-next-web` 的受保护页面不依赖客户端首屏 auth fetch 来决定是否允许进入。
+
+受保护页面包括：
+
+- `/`
+- `/new`
+- `/chat/:threadId`
+- `/replay/:threadId`
+- `/observability`
+
+这些页面在 server component composition root 中解析 HttpOnly session cookie：
+
+1. 使用 host-local auth service 读取当前用户
+2. 未登录时重定向到 `/login?next=<path>`，需要保留页面语义依赖的 query 参数
+3. 已登录时把 `currentUser` 作为 props 传给 client console
+
+client shell 仍然可以调用 `/api/auth/logout` 退出登录，但不再负责首屏身份判定。
 
 ## 路由边界
 

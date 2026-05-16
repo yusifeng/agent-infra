@@ -3,7 +3,7 @@
 import { BarChart3, LogOut, RefreshCw } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { AuthShellGate } from '@/components/chat-shell/auth-shell-gate';
+import { usePlaygroundLogout } from '@/components/chat-shell/use-playground-logout';
 import type { AuthUserDto } from '@/features/auth/dto/project-auth-user-dto';
 import { useObservabilityConsole } from '@/features/observability/runtime/use-observability-console';
 
@@ -11,16 +11,9 @@ import { RunColumn } from './run-column';
 import { RunContentPanel } from './run-content-panel';
 import { ThreadColumn } from './thread-column';
 
-export function ObservabilityConsole() {
-  return (
-    <AuthShellGate>
-      {({ currentUser, onLogout }) => <AuthenticatedObservabilityConsole currentUser={currentUser} onLogout={onLogout} />}
-    </AuthShellGate>
-  );
-}
-
-function AuthenticatedObservabilityConsole({ currentUser, onLogout }: { currentUser: AuthUserDto; onLogout: () => void }) {
+export function ObservabilityConsole({ currentUser }: { currentUser: AuthUserDto }) {
   const state = useObservabilityConsole();
+  const logout = usePlaygroundLogout();
 
   return (
     <main className="flex h-dvh min-h-0 flex-col overflow-hidden bg-[var(--chat-bg)] text-[var(--chat-text)]">
@@ -47,7 +40,7 @@ function AuthenticatedObservabilityConsole({ currentUser, onLogout }: { currentU
             size="icon-sm"
             aria-label="Log out"
             onClick={() => {
-              void onLogout();
+              void logout();
             }}
           >
             <LogOut className="size-4" />
