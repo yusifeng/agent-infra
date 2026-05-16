@@ -42,7 +42,7 @@ export function parseMarkdown(text: string) {
 }
 
 export function wrapCodeBlock(codeHtml: string) {
-  return `<div data-component="markdown-code">${codeHtml}<button type="button" data-copy-code aria-label="Copy code" title="Copy code">Copy</button></div>`;
+  return `<div data-component="markdown-code" data-code-theme="stable-dark">${codeHtml}<button type="button" data-copy-code aria-label="Copy code" title="Copy code">Copy</button></div>`;
 }
 
 export function wrapFallbackCodeBlocks(html: string) {
@@ -83,7 +83,7 @@ export async function highlightCodeBlocks(
 
     try {
       await runtime.ensureLanguageLoaded(language);
-      highlighted = runtime.highlighter.codeToHtml(code, { lang: language, theme: SHIKI_THEME });
+      highlighted = stabilizeHighlightedCodeBlock(runtime.highlighter.codeToHtml(code, { lang: language, theme: SHIKI_THEME }));
     } catch {
       highlighted = `<pre><code>${escapedCode}</code></pre>`;
     }
@@ -94,4 +94,13 @@ export async function highlightCodeBlocks(
 
   result += html.slice(cursor);
   return result;
+}
+
+export function stabilizeHighlightedCodeBlock(codeHtml: string) {
+  return codeHtml.replace(/<pre([^>]*)>/i, (_match, rawAttributes: string) => {
+    const attributes = rawAttributes
+      .replace(/\sstyle=(?:"[^"]*"|'[^']*')/i, '')
+      .replace(/\sdata-code-theme=(?:"[^"]*"|'[^']*')/i, '');
+    return `<pre${attributes} data-code-theme="stable-dark">`;
+  });
 }

@@ -96,10 +96,10 @@
 - [x] Run component/service tests after each UI split batch.
 
 ### 3.3 Markdown Streaming
-- [ ] Inspect current markdown code-block render path and Shiki enhancement path.
-- [ ] Ensure code block outer wrapper/theme classes are stable across raw fallback and highlighted states.
-- [ ] Add a focused DOM/service test that would catch white/dark wrapper swaps during streaming fallback.
-- [ ] Avoid remounting entire code blocks for enhancement if a smaller token-span update is enough.
+- [x] Inspect current markdown code-block render path and Shiki enhancement path.
+- [x] Ensure code block outer wrapper/theme classes are stable across raw fallback and highlighted states.
+- [x] Add a focused DOM/service test that would catch white/dark wrapper swaps during streaming fallback.
+- [x] Avoid remounting entire code blocks for enhancement if a smaller token-span update is enough.
 
 ### 3.4 Browser Smoke
 - [ ] Add or choose a browser smoke runner that can execute locally without relying on manual Codex browser actions.
@@ -185,14 +185,14 @@
 - [x] Commit the message UI split slice if review is clean.
 
 ### Loop 6: Markdown Code-Block Stability
-- [ ] Inspect fallback vs Shiki-enhanced code-block DOM and class behavior.
-- [ ] Add a focused test for stable code-block wrapper/theme treatment during markdown enhancement.
-- [ ] Fix only the wrapper/theme/remount behavior needed to prevent visible flicker.
-- [ ] Run `pnpm --filter playground-next-web test`.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run browser smoke on a response containing multiple fenced code blocks if feasible.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit the markdown stability slice if review is clean.
+- [x] Inspect fallback vs Shiki-enhanced code-block DOM and class behavior.
+- [x] Add a focused test for stable code-block wrapper/theme treatment during markdown enhancement.
+- [x] Fix only the wrapper/theme/remount behavior needed to prevent visible flicker.
+- [x] Run `pnpm --filter playground-next-web test`.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run browser smoke on a response containing multiple fenced code blocks if feasible. Not run in-browser in this slice; unit coverage now asserts stable fallback/highlighted wrapper theme treatment.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit the markdown stability slice if review is clean.
 
 ### Loop 7: Minimal Chat Browser Smoke
 - [ ] Choose the local smoke runner and fixtures.

@@ -463,9 +463,16 @@ body {
 .chat-shell-theme .markdown-body .shiki {
   overflow-x: auto;
   border-radius: 1rem;
+  background: var(--chat-code-bg) !important;
+  color: var(--chat-code-text);
   padding: 0.9rem 1rem;
   box-shadow: inset 0 0 0 1px var(--chat-code-outline);
   margin: 0;
+}
+
+.chat-shell-theme .markdown-body [data-component='markdown-code'] > pre {
+  background: var(--chat-code-bg);
+  color: var(--chat-code-text);
 }
 
 .chat-shell-theme .markdown-body .shiki code {
