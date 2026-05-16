@@ -27,10 +27,7 @@ import {
   runStopViewingLiveResponse
 } from '@/features/durable-chat/runtime/chat-session-flow';
 import {
-  applyHydratedTranscriptState,
-  runActivateThread,
   runLoadOlderMessages,
-  runLoadThreadMessages
 } from '@/features/durable-chat/runtime/load-thread-flow';
 import {
   runLoadLogInspectorFlow,
@@ -40,6 +37,10 @@ import {
 import { runSendMessageFlow } from '@/features/durable-chat/runtime/send-message-flow';
 import { runReconcileCompletedTurn } from '@/features/durable-chat/runtime/reconcile-completed-turn';
 import { runAttachRunLifecycle } from '@/features/durable-chat/runtime/stream-lifecycle-controller';
+import {
+  runActivateThreadController,
+  runLoadThreadMessagesController
+} from '@/features/durable-chat/runtime/thread-load-controller';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
 import {
@@ -466,11 +467,12 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       isCurrentRequest?: () => boolean;
     }
   ) {
-    return runActivateThread({
+    return runActivateThreadController({
       threadId,
       options,
       refs: {
         activeThreadIdRef,
+        logOpenRef,
         shouldAutoScrollRef
       },
       actions: {
@@ -478,12 +480,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         setDurableRecoveryState
       },
       operations: {
-        loadThreadMessages: (nextThreadId, nextOptions) =>
-          loadThreadMessages(nextThreadId, {
-            ...nextOptions,
-            preserveExistingTimeline: nextOptions?.preserveExistingTimeline ?? logOpenRef.current,
-            skipTimelineReload: nextOptions?.skipTimelineReload ?? logOpenRef.current
-          })
+        loadThreadMessages
       }
     });
   }
@@ -609,7 +606,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       preserveExistingTimeline?: boolean;
     }
   ): Promise<LoadThreadMessagesResult> {
-    const result = await runLoadThreadMessages({
+    return runLoadThreadMessagesController({
       threadId,
       options,
       refs: {
@@ -620,43 +617,25 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       },
       actions: {
         setActiveResponseRun,
+        setChatPhase,
         setError,
         setHistoryLoading,
         setLiveAssistantDraft,
         setLoadingMessages,
         setMessagePageInfo,
+        setMessages,
         setOptimisticUserMessage,
+        setRecentRuns,
         setRecentRunsError,
-        setRecentRunsLoading
+        setRecentRunsLoading,
+        setSelectedRunId
       },
       operations: {
-        applyHydratedTranscript: ({ messages, pageInfo, activeResponseRun, selectedRunId, runs }) =>
-          applyHydratedTranscriptState({
-            messages,
-            pageInfo,
-            activeResponseRun,
-            selectedRunId,
-            runs,
-            actions: {
-              setActiveResponseRun,
-              setChatPhase,
-              setError,
-              setLiveAssistantDraft,
-              setMessages,
-              setMessagePageInfo,
-              setOptimisticUserMessage,
-              setRecentRuns,
-              setRecentRunsError,
-              setSelectedRunId
-            }
-          }),
         hydrateTranscript,
         loadLogInspector,
         resetLogInspectorState
       }
     });
-
-    return result ?? { ok: false, restoredRunId: null };
   }
 
   async function loadOlderMessages() {

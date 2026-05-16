@@ -44,8 +44,8 @@
 - [x] Lock thread-switching-during-stream behavior: switching from thread A to B and back to A continues showing the active stream and shows the final reply when the run completes.
 - [x] Lock completed-turn reconcile behavior: an empty durable assistant shell must not clear a visible live draft.
 - [x] Lock auto-scroll behavior: near-bottom users follow streaming, detached users are not pulled to bottom, text selection blocks auto-follow, and prepending history preserves visual anchor.
-- [ ] Lock thread switch behavior: switching threads does not show a visible `loading messages` interstitial in the center chat area.
-- [ ] Lock title behavior: thread header should not flash a thread id fallback before the resolved title is displayed.
+- [x] Lock thread switch behavior: switching threads does not show a visible `loading messages` interstitial in the center chat area.
+- [x] Lock title behavior: thread header should not flash a thread id fallback before the resolved title is displayed.
 - [x] Lock pending-title stale behavior: a pending navigation title for thread A must never render in thread B.
 - [x] Lock generated-title typing behavior: title typing/animation cancels when the active thread changes.
 - [ ] Lock markdown streaming behavior: code blocks keep stable wrapper/theme treatment while Shiki or markdown enhancement completes.
@@ -108,7 +108,7 @@
 - [x] Add or strengthen tests for live draft retention through completed-turn reconcile.
 - [x] Add or strengthen tests for thread switch attach/recovery while a run is streaming.
 - [x] Add or strengthen tests that an empty durable assistant shell does not clear visible assistant content.
-- [ ] Add or strengthen tests for title selection so thread id is not used as the normal header fallback during known-thread navigation.
+- [x] Add or strengthen tests for title selection so thread id is not used as the normal header fallback during known-thread navigation.
 - [x] Add or strengthen tests for markdown code block fallback stability during streaming.
 - [x] Add or strengthen tests for live-run persisted transcript filtering so the current live assistant does not duplicate with durable blocks.
 - [x] Add or strengthen tests for stale attach event/finally guards so old attach requests cannot mutate the active thread state.
@@ -137,8 +137,8 @@
 ### 4.5 Manual / Browser Verification
 - [x] Verify streaming in the active thread still renders progressively.
 - [x] Verify switching away from a streaming thread and back continues showing the stream and final reply.
-- [ ] Verify switching threads has no visible center-chat loading interstitial.
-- [ ] Verify thread title does not flash a thread id fallback.
+- [x] Verify switching threads has no visible center-chat loading interstitial.
+- [x] Verify thread title does not flash a thread id fallback.
 - [ ] Verify selecting text while streaming does not pull the viewport to bottom.
 - [ ] Verify markdown code blocks do not flicker between white and dark treatments while streaming.
 - [ ] Verify loading older messages preserves reader position.
@@ -215,14 +215,14 @@
 - [x] Commit the stream lifecycle split slice if review is clean.
 
 ### Loop 7: Thread Load / Navigation Runtime Split
-- [ ] Extract thread navigation and message loading coordination into a bounded runtime controller.
-- [ ] Preserve silent center-chat loading semantics during thread switch.
-- [ ] Preserve pending navigation title behavior without thread id fallback flashes.
-- [ ] Run `pnpm --filter playground-next-web test`.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run manual browser verification for normal thread switching and no visible loading interstitial.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit the thread load/navigation split slice if review is clean.
+- [x] Extract thread navigation and message loading coordination into a bounded runtime controller.
+- [x] Preserve silent center-chat loading semantics during thread switch.
+- [x] Preserve pending navigation title behavior without thread id fallback flashes.
+- [x] Run `pnpm --filter playground-next-web test`.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run manual browser verification for normal thread switching and no visible loading interstitial.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit the thread load/navigation split slice if review is clean.
 
 ### Loop 8: Inspector Runtime Split
 - [ ] Extract inspector hydration and selected-run coordination into a bounded runtime controller.
