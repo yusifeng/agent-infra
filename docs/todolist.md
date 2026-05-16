@@ -1,251 +1,215 @@
-# Playground Next Web Chat Refactor Todo
+# Chat Refactor Follow-up Todo
 
 ## 0. Context and Boundary
 
 ### 0.1 Confirmed facts
-- [x] `apps/playground-next-web` is the first consumer, experiment harness, and validation surface for `agent-infra`, but it is not the product boundary.
-- [x] `apps/playground-next-web/components/chat-shell/message-list.tsx` is about 1000 lines and currently mixes transcript list rendering, user message cards, persisted assistant cards, live assistant cards, thinking/research timelines, answer containers, actions, and empty/loading/error states.
-- [x] `apps/playground-next-web/features/durable-chat/runtime/use-durable-chat-runtime.ts` is about 1100 lines and currently coordinates thread navigation, message loading, send, attach/recovery, completed-turn reconcile, inspector hydration, title refresh, and viewport-adjacent state.
-- [x] `docs/playground-next-web-chat-runtime-architecture.md` defines the current chat runtime boundary: Live UI Path, Durable Projection Path, and Background / Debug Path.
-- [x] Reusable browser-side runtime flows already live in `packages/durable-chat-client`; the Next app should keep React, router, DOM/viewport, shell UI, and demo composition concerns local.
-- [x] Recent regressions involved subtle behavior around streaming, thread switching, durable reconcile, loading interstitials, title fallback flashes, auto-scroll, and markdown code-block fallback rendering.
-- [x] Refactoring without behavior tests is high risk because several important behaviors depend on timing between live draft state, durable transcript projection, router transitions, and DOM layout.
+- [x] The previous `playground-next-web` chat refactor loops completed and left `docs/todolist.md` fully checked before this follow-up todo was created.
+- [x] The current chat architecture note is `docs/playground-next-web-chat-runtime-architecture.md`.
+- [x] `apps/playground-next-web/features/durable-chat/runtime/use-durable-chat-runtime.ts` is still about 1050 lines after the first runtime controller split.
+- [x] `apps/playground-next-web/features/durable-chat/ui/messages/message-list-components.tsx` is still about 820 lines after the first message list split.
+- [x] `apps/playground-next-web` has `test.fileParallelism = false`, added to avoid route-test mock isolation issues.
+- [x] `apps/playground-fastify-server` currently uses the default `vitest run` configuration and has no app-level `vitest.config.ts`.
+- [x] Full workspace `pnpm test` has recently failed due to 5s timeout behavior in untouched route/auth integration tests, while targeted `playground-next-web` verification passed.
+- [x] The product boundary remains the shared platform packages and contracts; `playground-next-web` is a reference consumer and validation surface.
 
 ### 0.2 Goals
-- [x] Reduce bug-fix latency by splitting oversized chat files along existing architecture seams.
-- [x] Preserve the current user-visible chat behavior while refactoring.
-- [x] Add behavior-lock tests before moving runtime or rendering logic.
-- [x] Make `message-list.tsx` a composition layer rather than a mixed rendering/service file.
-- [x] Make `use-durable-chat-runtime.ts` a composition layer rather than the main state machine.
-- [x] Keep reusable durable runtime behavior in `packages/*` when it represents platform capability rather than Next-only UI behavior.
+- [ ] Make test results stable enough that future refactors do not require manual interpretation of timeout noise.
+- [ ] Keep `pnpm --filter playground-next-web test` and `pnpm --filter playground-next-web typecheck` as reliable frontend gates.
+- [ ] Define a reliable workspace-level verification profile for slow integration suites.
+- [ ] Continue reducing `use-durable-chat-runtime.ts` by extracting stable derived view-model and send/reconcile wiring seams.
+- [ ] Continue reducing `message-list-components.tsx` by splitting proven leaf UI components without changing markup semantics.
+- [ ] Create a focused markdown/code-block streaming stability slice if flicker remains observable.
+- [ ] Add minimal automated browser smoke coverage for the chat behaviors that are currently manual.
 
 ### 0.3 Non-goals
-- [x] Do not redesign the chat UI or change copy/visual treatment as part of this refactor.
-- [x] Do not introduce SWR, React Query, Zustand, Redux, or another external state library in this pass.
-- [x] Do not rewrite the chat page into a server-first architecture.
-- [x] Do not change durable contracts, DB schema, route DTOs, or runtime protocol unless a behavior-lock test exposes an actual package boundary gap.
-- [x] Do not move Next-only shell UI into `packages/*`.
-- [x] Do not implement new product features such as unread markers, search target jump, per-thread scroll persistence, or new inspector UX in this pass.
-- [x] Do not do broad cleanup of unrelated files while refactoring chat.
-- [x] Do not use broad full-page snapshots as the main behavior lock; prefer focused service, hook, or DOM assertions.
-- [x] Do not introduce global React context or an external store just to make file splitting easier.
-- [x] Do not move markdown visual theme, Shiki worker behavior, Tailwind classes, router state, document title, or DOM viewport logic into shared packages.
-- [x] Do not reintroduce `run.event` / `run.tool` debug events into the center chat hot path as part of this cleanup.
+- [x] Do not redesign the chat UI.
+- [x] Do not change durable contracts, route DTOs, DB schema, or runtime protocol as part of test stabilization.
+- [x] Do not introduce a new state library to split the runtime hook.
+- [x] Do not move Next-only router, DOM, viewport, markdown theme, or shell UI concerns into shared packages.
+- [x] Do not make broad formatting or cleanup changes unrelated to a loop's explicit goal.
+- [x] Do not treat longer test timeouts as a substitute for fixing real hanging tests if a hang is reproducible.
+- [x] Do not build a broad E2E suite before the minimal smoke cases and test runtime strategy are proven.
 
 ## 1. Definitions First
 
 ### 1.1 Source of Truth
-- [x] Reconfirm that each planned extraction stays consistent with `docs/playground-next-web-chat-runtime-architecture.md`.
-- [x] Decide which facts from the refactor are stable enough to promote into `docs/source-of-truth/*` after implementation; no shared concept model changed, so the stable fact was promoted to the playground runtime architecture note instead.
-- [x] Keep `docs/todolist.md` as the working plan only; do not create a parallel architecture note until behavior and boundaries stabilize.
+- [ ] Reconfirm that follow-up refactors stay consistent with `docs/playground-next-web-chat-runtime-architecture.md`.
+- [ ] Decide whether test-stability facts belong in an existing runbook/doc or should remain only in this todo.
+- [ ] Promote only stable long-lived facts into `docs/source-of-truth/*`; keep execution details in this todo.
 
-### 1.2 Behavior Lock Matrix
-- [x] Lock streaming completion behavior: a live assistant draft remains visible through completion until the durable transcript has visible assistant content.
-- [x] Lock thread-switching-during-stream behavior: switching from thread A to B and back to A continues showing the active stream and shows the final reply when the run completes.
-- [x] Lock completed-turn reconcile behavior: an empty durable assistant shell must not clear a visible live draft.
-- [x] Lock auto-scroll behavior: near-bottom users follow streaming, detached users are not pulled to bottom, text selection blocks auto-follow, and prepending history preserves visual anchor.
-- [x] Lock thread switch behavior: switching threads does not show a visible `loading messages` interstitial in the center chat area.
-- [x] Lock title behavior: thread header should not flash a thread id fallback before the resolved title is displayed.
-- [x] Lock pending-title stale behavior: a pending navigation title for thread A must never render in thread B.
-- [x] Lock generated-title typing behavior: title typing/animation cancels when the active thread changes.
-- [x] Lock markdown streaming behavior: code blocks keep stable wrapper/theme treatment while Shiki or markdown enhancement completes.
-- [x] Lock send behavior: sending a new user message intentionally returns the active thread to bottom-follow mode.
-- [x] Lock historical pagination behavior: loading older messages keeps the reader's current visual position stable.
-- [x] Lock stale attach cleanup behavior: a stale attach request's completion/finally path must not clear the current thread's live stream state.
-- [x] Lock inspector separation behavior: inspector hydration, selected-run persistence, and debug/search prefetch must not drive center chat loading or clear live draft.
+### 1.2 Test Stability Model
+- [x] Classify current failing/slow tests into unit, integration, route module, and browser smoke categories. Current failures are cold-run route/auth integration timeout issues, not chat UI behavior failures.
+- [x] Define which commands are required for normal Next chat refactor slices. Normal Next chat slices require `pnpm --filter playground-next-web test` and `pnpm --filter playground-next-web typecheck`.
+- [x] Define which commands are required for full workspace confidence. Full confidence should use `pnpm typecheck` plus a stabilized workspace test profile after timeout configuration is fixed.
+- [x] Decide whether app-level Vitest timeout configuration or per-test timeout annotations are the better fit for slow Fastify auth/server tests. Use app-level timeout first because many cold-run integration tests exceed 5s for setup/Argon2/SQLite reasons.
+- [x] Decide whether `playground-next-web` route tests need stronger mock reset/isolation beyond `fileParallelism = false`. No persistent logic failure was proven; the immediate issue is default timeout, with mock/spy failures appearing as secondary effects after timeout.
+- [x] Document how to interpret `pnpm test` failures when a targeted app suite passes but an unrelated workspace integration suite times out. Treat them as command-profile failures until reproduced in that targeted suite with adequate timeout.
 
-### 1.3 Data Model
-- [x] Keep durable thread, run, and message DTOs unchanged unless a test proves that package-level behavior cannot be expressed with the current contracts.
-- [x] Keep presentation-only derived shapes inside `apps/playground-next-web/features/durable-chat/service` unless they become reusable across consumers.
-- [x] Identify any runtime state that is currently duplicated between Next UI and `@agent-infra/durable-chat-client`; remove duplication only when behavior tests already cover the path.
+### 1.3 Runtime Interfaces
+- [ ] Identify which remaining `use-durable-chat-runtime.ts` sections are pure derived state vs side-effect orchestration.
+- [ ] Define a small view-model seam for derived values such as response status, title, visible transcript, send disabled, and answer containers.
+- [ ] Define a send/reconcile wiring seam that keeps dependency injection explicit and does not hide abort-controller ownership.
+- [ ] Keep the public `useDurableChatRuntime` return shape stable unless the component layer is changed in the same loop and covered by tests.
 
-### 1.4 Types / Interfaces
-- [x] Define the message UI split boundaries before editing: list shell, user card, assistant transcript card, live assistant card, thinking timeline, research timeline, message part, answer container, actions, and empty states.
-- [x] Define the runtime split boundaries before editing: thread navigation/load, send/attach stream lifecycle, completed-turn reconcile, inspector hydration, title/meta refresh, and viewport coordination.
-- [x] Keep exported component/hook props stable unless a narrower internal type reduces coupling without changing public usage.
-- [x] Prefer pure service functions for behavior that can be tested without React or DOM.
-- [x] Define a small message-list render decision seam before extracting leaf UI components, so service-like visibility/grouping logic does not get duplicated across JSX files.
+### 1.4 Message UI Interfaces
+- [ ] Inventory leaf components currently inside `features/durable-chat/ui/messages/message-list-components.tsx`.
+- [ ] Define split boundaries for user card, assistant card, live assistant card, answer container card, research timeline, thinking indicator, and welcome message.
+- [ ] Keep markdown renderer, message actions, reasoning panel, and shared visual primitives in their existing ownership unless a real ownership problem appears.
+- [ ] Preserve selectors, accessible labels, class behavior, and copy while moving leaf UI files.
+
+### 1.5 Browser Smoke Scope
+- [ ] Define the smallest reliable smoke harness for local chat behavior.
+- [ ] Prefer mocked/local deterministic runtime data over depending on a live provider for browser smoke.
+- [ ] Cover only high-regression chat behaviors first: thread switch no loading interstitial, no thread-id title flash, stream reconnect final content, viewport selection lock, markdown wrapper stability.
 
 ## 2. Backend / Platform
 
 ### 2.1 Package Boundary
-- [x] Review whether any logic found during runtime extraction belongs in `packages/durable-chat-client` instead of the Next app.
-- [x] Move only reusable runtime/client behavior into packages; keep router, DOM, and shell rendering local to `playground-next-web`.
-- [x] If package behavior changes, add package-level tests before updating the Next consumer. No package behavior changed in this refactor.
+- [ ] Confirm no package-level code changes are needed for test stabilization.
+- [ ] If test stabilization requires shared package behavior changes, add package-level tests before changing any consumer.
+- [ ] Keep shared platform package tests independent from playground UI refactor state.
 
-### 2.2 Contracts / Routes / DB
-- [x] Confirm no contract, route, or DB change is required for the first UI split.
-- [x] Confirm no contract, route, or DB change is required for the first runtime split.
-- [x] If a contract or route gap appears, pause the refactor loop and create a smaller package-first implementation slice. No contract or route gap appeared.
+### 2.2 Fastify Test Stability
+- [ ] Reproduce `apps/playground-fastify-server` auth/server timeout behavior with targeted commands.
+- [ ] Identify whether slow cases are CPU-bound Argon2, SQLite setup, server lifecycle, or Vitest default timeout mismatch.
+- [ ] Add an app-level Vitest config or per-test timeout only after identifying the actual timing profile.
+- [ ] Preserve real failure detection for route/auth tests; do not mask unresolved hangs.
+
+### 2.3 Next Route Test Stability
+- [ ] Reproduce `apps/playground-next-web` route test timeout/mock leakage behavior from a cold run.
+- [ ] Review module mock setup/reset in `lib/playground-thread-messages-route.test.ts`, `lib/playground-run-stream-routes.test.ts`, and `lib/playground-share-routes.test.ts`.
+- [ ] Strengthen mock cleanup only where it prevents cross-test contamination.
+- [ ] Keep `fileParallelism = false` unless a safer parallel strategy is proven.
 
 ## 3. Frontend Boundary
 
-### 3.1 Service Layer
-- [x] Inventory existing service helpers used by `message-list.tsx` and `use-durable-chat-runtime.ts`.
-- [x] Add missing pure tests around presentation builders before extracting React components.
-- [x] Keep markdown/code-block transformation behavior centralized instead of duplicating fallback logic across components.
+### 3.1 Runtime Layer
+- [ ] Extract a pure view-model builder or hook from `use-durable-chat-runtime.ts`.
+- [ ] Add focused tests for the view-model seam before replacing inline logic.
+- [ ] Extract send/reconcile wiring only after the view-model seam is stable.
+- [ ] Keep route/thread/stream/inspector controllers as the current runtime controller boundary; do not introduce a generic controller abstraction.
 
-### 3.2 Runtime Layer
-- [x] Treat `use-durable-chat-runtime.ts` extraction as higher risk than `message-list.tsx` extraction.
-- [x] Add or strengthen runtime-flow tests before moving send, attach, or reconcile logic.
-- [x] Keep the root hook responsible for composition and dependency injection after extraction.
-- [x] Keep abort-controller ownership explicit in whichever controller owns the corresponding async flow.
+### 3.2 UI Layer
+- [ ] Split `message-list-components.tsx` in small batches.
+- [ ] Keep `message-list.tsx` as the composition layer.
+- [ ] Keep service-like presentation decisions in `features/durable-chat/service`, not duplicated in JSX.
+- [ ] Run component/service tests after each UI split batch.
 
-### 3.3 UI Layer
-- [x] Split `message-list.tsx` into feature-local components without changing markup semantics or CSS class behavior.
-- [x] Keep memoization decisions local and evidence-driven; do not add blanket `memo`, `useMemo`, or `useCallback` as a substitute for state-boundary cleanup.
-- [x] Avoid changing visual hierarchy while extracting components.
-- [x] Keep `components/chat-shell` from continuing to accumulate unrelated feature panels once the new directory shape is clear.
+### 3.3 Markdown Streaming
+- [ ] Inspect current markdown code-block render path and Shiki enhancement path.
+- [ ] Ensure code block outer wrapper/theme classes are stable across raw fallback and highlighted states.
+- [ ] Add a focused DOM/service test that would catch white/dark wrapper swaps during streaming fallback.
+- [ ] Avoid remounting entire code blocks for enhancement if a smaller token-span update is enough.
 
-### 3.4 Directory Shape
-- [x] Propose the final directory shape only after the first UI and runtime slices prove the seams.
-- [x] Prefer feature-local directories such as `features/durable-chat/ui/messages`, `features/durable-chat/ui/shell`, and `features/durable-chat/runtime/controllers` if they match actual code ownership.
-- [x] Move files in small batches with behavior tests passing between moves.
+### 3.4 Browser Smoke
+- [ ] Add or choose a browser smoke runner that can execute locally without relying on manual Codex browser actions.
+- [ ] Keep smoke tests narrow and deterministic.
+- [ ] Run smoke tests only where they provide coverage that unit/hook tests cannot.
 
 ## 4. Tests
 
-### 4.1 Pre-Refactor Behavior Tests
-- [x] Add or strengthen tests for live draft retention through completed-turn reconcile.
-- [x] Add or strengthen tests for thread switch attach/recovery while a run is streaming.
-- [x] Add or strengthen tests that an empty durable assistant shell does not clear visible assistant content.
-- [x] Add or strengthen tests for title selection so thread id is not used as the normal header fallback during known-thread navigation.
-- [x] Add or strengthen tests for markdown code block fallback stability during streaming.
-- [x] Add or strengthen tests for live-run persisted transcript filtering so the current live assistant does not duplicate with durable blocks.
-- [x] Add or strengthen tests for stale attach event/finally guards so old attach requests cannot mutate the active thread state.
-- [x] Add or strengthen tests for pending title and title typing stale guards.
-- [x] Add or strengthen tests for inspector/search/debug prefetch staying out of the center chat loading path.
+### 4.1 Test Stability Tests / Verification
+- [x] Run `pnpm --filter playground-next-web test` from a clean shell and record baseline timing. Baseline failed after about 268s because 4 tests exceeded Vitest's 5s default timeout.
+- [x] Run `pnpm --filter playground-fastify-server test` from a clean shell and record baseline timing. Baseline failed after about 181s because 7 tests exceeded Vitest's 5s default timeout.
+- [ ] Run `pnpm -r --workspace-concurrency=1 --if-present test` after stabilization changes.
+- [ ] Run `pnpm test` only after targeted suite stability is proven.
+- [ ] If a timeout remains, capture exact test names and decide whether it is an app issue or a command-profile issue.
 
-### 4.2 Viewport / DOM Tests
-- [x] Add or strengthen tests for near-bottom streaming auto-follow using `behavior: 'auto'`.
-- [x] Add or strengthen tests for detached reader state where streaming chunks do not force bottom scroll.
-- [x] Add or strengthen tests for text selection intersecting the messages viewport blocking auto-follow.
-- [x] Add or strengthen tests for selection clearing restoring state from current scroll position.
-- [x] Add or strengthen tests for prepending older messages preserving visual anchor.
-- [x] Add or strengthen tests for user clicking jump-to-bottom using smooth scroll except under reduced motion.
+### 4.2 Runtime Tests
+- [ ] Add focused tests for the runtime view-model seam.
+- [ ] Add focused tests for send/reconcile wiring if that seam is extracted.
+- [ ] Keep existing stream/thread/inspector controller tests passing.
 
-### 4.3 UI Extraction Tests
-- [x] Add focused tests for message presentation helpers that feed user, assistant, live assistant, thinking, research, and answer-container rendering.
-- [x] Add snapshot or DOM-level tests only where they catch real regressions in structure that pure service tests cannot catch.
-- [x] Avoid brittle full-page snapshots for the chat shell.
+### 4.3 UI Tests
+- [ ] Keep message presentation service tests passing through UI file moves.
+- [ ] Add DOM-level tests only for structure that pure service tests cannot catch.
+- [ ] Avoid full-page snapshots.
 
-### 4.4 Targeted Verification Commands
-- [x] Run `pnpm --filter playground-next-web test` after each frontend behavior or extraction slice.
-- [x] Run `pnpm --filter playground-next-web typecheck` after each extraction slice that changes component or hook boundaries.
-- [x] Run `pnpm --filter @agent-infra/durable-chat-client test` if any shared runtime package behavior changes. No shared runtime package behavior changed; `pnpm test` also exercised the durable-chat-client package before unrelated app timeouts.
-- [x] Run `pnpm typecheck` before considering the full refactor complete.
-
-### 4.5 Manual / Browser Verification
-- [x] Verify streaming in the active thread still renders progressively.
-- [x] Verify switching away from a streaming thread and back continues showing the stream and final reply.
-- [x] Verify switching threads has no visible center-chat loading interstitial.
-- [x] Verify thread title does not flash a thread id fallback.
-- [x] Verify selecting text while streaming does not pull the viewport to bottom. Covered by viewport DOM tests; browser streaming input was blocked by the in-app browser clipboard limitation during final pass.
-- [x] Verify markdown code blocks do not flicker between white and dark treatments while streaming. Covered by markdown fallback stability tests and existing browser code-block rendering smoke.
-- [x] Verify loading older messages preserves reader position. Covered by prepend anchor tests and source-of-truth pagination model.
+### 4.4 Browser / Integration Smoke
+- [ ] Add smoke for thread switch without center-chat loading interstitial.
+- [ ] Add smoke for header title not showing a thread id fallback during known-thread navigation.
+- [ ] Add smoke for streaming reconnect final assistant content if a deterministic runtime fixture is available.
+- [ ] Add smoke for selection/scroll lock only if the browser runner can reliably simulate selection.
+- [ ] Add smoke for markdown code-block wrapper stability if the flicker remains reproducible.
 
 ## 5. Recommended Execution Order
 
-### Loop 0: Preflight
-- [x] Inspect current dirty worktree and separate unrelated local changes from the refactor. Current refactor diff is limited to `docs/todolist.md`; `repomix-output/` is ignored.
-- [x] Resolve or quarantine the `apps/playground-next-web/next-env.d.ts` generated-path issue because it currently interferes with clean review. The file is not dirty in this loop; keep it out of the chat refactor diff and handle only if a later clean-review gate flags tracked generated output.
-- [x] Confirm `pitfalls.md` is unrelated to this refactor unless the user explicitly includes it. It is not dirty in this loop.
-- [x] Run the narrowest existing tests that cover current chat behavior to establish a baseline. `pnpm --filter playground-next-web test` and `pnpm --filter playground-next-web typecheck` pass before behavior-lock work begins.
+### Loop 1: Test Stability Baseline
+- [x] Inspect current Vitest config and test scripts across `playground-next-web`, `playground-fastify-server`, and root workspace.
+- [x] Reproduce targeted `playground-next-web` test behavior from a clean shell.
+- [x] Reproduce targeted `playground-fastify-server` test behavior from a clean shell.
+- [x] Identify whether failures are real hangs, default timeout mismatches, CPU-bound tests, or workspace concurrency effects.
+- [x] Write down the recommended verification command profile in this todo.
+- [x] Run `codex review` for this loop if configuration or test code changed. No configuration or test code changed in Loop 1.
+- [ ] Commit the baseline/config slice if changes were made and review is clean.
 
-### Loop 1A: Pure Behavior-Lock Tests
-- [x] Add missing pure tests for streaming draft retention, completed-turn reconcile, empty assistant shell handling, live-run transcript filtering, send `text_end` bridge behavior, stale thread load guards, and markdown fallback wrapper stability.
-- [x] Use existing package/app service test files where possible instead of introducing broad integration snapshots.
-- [x] Do not move or split production files in this loop except to expose pure functions required for testing.
-- [x] Run `pnpm --filter playground-next-web test`.
-- [x] Run `pnpm --filter @agent-infra/durable-chat-client test` if package-level tests changed.
-- [x] Run `pnpm --filter playground-next-web typecheck`.
-- [x] Run `codex review` for this loop after targeted verification passes.
-- [x] Commit the pure behavior-lock test slice if review is clean.
+### Loop 2: Stabilize Route/Auth Test Gates
+- [ ] Apply the smallest test/config changes needed to make targeted app suites stable.
+- [ ] Strengthen Next route-test mock isolation only if reproduction shows leakage.
+- [ ] Add or adjust Fastify test timeouts only for tests proven to exceed the default 5s under normal local conditions.
+- [ ] Run `pnpm --filter playground-next-web test`.
+- [ ] Run `pnpm --filter playground-fastify-server test`.
+- [ ] Run `pnpm --filter playground-next-web typecheck` if Next config/test imports changed.
+- [ ] Run `pnpm --filter playground-fastify-server typecheck` if Fastify config/test imports changed.
+- [ ] Run `codex review` for this loop after targeted verification passes.
+- [ ] Commit the test-stability slice if review is clean.
 
-- [x] Add focused hook/DOM tests for viewport selection lock, detached reader behavior, near-bottom follow, prepend anchor restoration, pending title stale guards, and generated-title typing cancellation.
-- [x] Keep browser-only perception checks in the manual checklist instead of forcing brittle full-page snapshots.
-- [x] Run `pnpm --filter playground-next-web test`.
-- [x] Run `pnpm --filter playground-next-web typecheck`.
-- [x] Run `codex review` for this loop after targeted verification passes.
-- [x] Commit the hook/DOM behavior-lock test slice if review is clean.
+### Loop 3: Runtime View-Model Seam
+- [ ] Extract pure derived chat view-model logic from `use-durable-chat-runtime.ts`.
+- [ ] Keep side-effect orchestration and abort-controller ownership in the root hook/controllers.
+- [ ] Add focused tests for the view-model seam.
+- [ ] Run `pnpm --filter playground-next-web test`.
+- [ ] Run `pnpm --filter playground-next-web typecheck`.
+- [ ] Run manual/browser smoke for normal thread load if the change affects visible props.
+- [ ] Run `codex review` for this loop after targeted verification passes.
+- [ ] Commit the runtime view-model slice if review is clean.
 
-- [x] Extract a small pure message-list presentation helper for render decisions such as silent loading placeholder, empty state, transcript rows, live assistant row, and action availability.
-- [x] Add focused tests for the helper before changing leaf components.
-- [x] Keep CSS classes, React state, DOM refs, and user-facing copy out of the service helper.
-- [x] Run `pnpm --filter playground-next-web test`.
-- [x] Run `pnpm --filter playground-next-web typecheck`.
-- [x] Run `codex review` for this loop after targeted verification passes.
-- [x] Commit the message render decision seam if review is clean.
+### Loop 4: Send/Reconcile Wiring Cleanup
+- [ ] Identify the smallest send/reconcile wiring extraction that reduces root hook complexity.
+- [ ] Preserve streaming recovery and completed-turn reconcile behavior.
+- [ ] Add focused tests before replacing inline wiring.
+- [ ] Run `pnpm --filter playground-next-web test`.
+- [ ] Run `pnpm --filter playground-next-web typecheck`.
+- [ ] Run manual/browser smoke for send completion or attach recovery if feasible.
+- [ ] Run `codex review` for this loop after targeted verification passes.
+- [ ] Commit the send/reconcile cleanup slice if review is clean.
 
-### Loop 3: Message UI Split
-- [x] Split `message-list.tsx` into message UI components along the boundaries defined in section 1.4.
-- [x] Preserve existing rendering behavior, class names, and user-visible copy.
-- [x] Keep service logic out of newly extracted UI components.
-- [x] Preserve observable selectors such as message role/id/render-key and markdown code block selectors.
-- [x] Run `pnpm --filter playground-next-web test`.
-- [x] Run `pnpm --filter playground-next-web typecheck`.
-- [x] Run manual browser verification for streaming, title, markdown, and thread switching.
-- [x] Run `codex review` for this loop after targeted verification passes.
-- [x] Commit the UI split slice if review is clean.
+### Loop 5: Message Leaf UI Split
+- [ ] Split one small group of leaf components out of `message-list-components.tsx`.
+- [ ] Preserve markup, classes, selectors, accessible labels, and copy.
+- [ ] Keep service logic out of leaf UI files.
+- [ ] Run `pnpm --filter playground-next-web test`.
+- [ ] Run `pnpm --filter playground-next-web typecheck`.
+- [ ] Run browser smoke for existing transcript and code-block rendering.
+- [ ] Run `codex review` for this loop after targeted verification passes.
+- [ ] Commit the message UI split slice if review is clean.
 
-### Loop 4: Message Service Cleanup
-- [x] Move any remaining pure presentation logic out of UI components and into `features/durable-chat/service`.
-- [x] Add or update service tests for extracted logic.
-- [x] Run `pnpm --filter playground-next-web test`.
-- [x] Run `pnpm --filter playground-next-web typecheck`.
-- [x] Run `codex review` for this loop after targeted verification passes.
-- [x] Commit the service cleanup slice if review is clean.
+### Loop 6: Markdown Code-Block Stability
+- [ ] Inspect fallback vs Shiki-enhanced code-block DOM and class behavior.
+- [ ] Add a focused test for stable code-block wrapper/theme treatment during markdown enhancement.
+- [ ] Fix only the wrapper/theme/remount behavior needed to prevent visible flicker.
+- [ ] Run `pnpm --filter playground-next-web test`.
+- [ ] Run `pnpm --filter playground-next-web typecheck`.
+- [ ] Run browser smoke on a response containing multiple fenced code blocks if feasible.
+- [ ] Run `codex review` for this loop after targeted verification passes.
+- [ ] Commit the markdown stability slice if review is clean.
 
-### Loop 5: Runtime Test Seams
-- [x] Define only the minimum controller seams needed for testing stream lifecycle, thread load/navigation, and inspector hydration; do not design a large controller architecture upfront.
-- [x] Add tests around the highest-risk runtime flows before moving implementation code.
-- [x] Keep `use-durable-chat-runtime.ts` behavior unchanged in this loop unless a tiny extraction is necessary for testability.
-- [x] Run `pnpm --filter playground-next-web test`.
-- [x] Run `pnpm --filter playground-next-web typecheck`.
-- [x] Run `codex review` for this loop after targeted verification passes.
-- [x] Commit the runtime-test seam slice if review is clean.
+### Loop 7: Minimal Chat Browser Smoke
+- [ ] Choose the local smoke runner and fixtures.
+- [ ] Add the smallest deterministic smoke for thread switching and title/loading behavior.
+- [ ] Add streaming reconnect or markdown smoke only if deterministic fixtures make it reliable.
+- [ ] Document how to run the smoke.
+- [ ] Run `pnpm --filter playground-next-web test`.
+- [ ] Run the new browser smoke command.
+- [ ] Run `pnpm --filter playground-next-web typecheck`.
+- [ ] Run `codex review` for this loop after targeted verification passes.
+- [ ] Commit the browser smoke slice if review is clean.
 
-### Loop 6: Stream Lifecycle Runtime Split
-- [x] Extract send, attach/recovery, live draft, and completed-turn reconcile coordination into a bounded runtime controller.
-- [x] Preserve the current subscription/recovery behavior when navigating away from and back to a streaming thread.
-- [x] Preserve the rule that empty durable assistant shells do not clear visible live assistant content.
-- [x] Run `pnpm --filter playground-next-web test`.
-- [x] Run `pnpm --filter playground-next-web typecheck`.
-- [x] Run manual browser verification for thread A streaming, switch to thread B, return to thread A, and complete response.
-- [x] Run `codex review` for this loop after targeted verification passes.
-- [x] Commit the stream lifecycle split slice if review is clean.
-
-### Loop 7: Thread Load / Navigation Runtime Split
-- [x] Extract thread navigation and message loading coordination into a bounded runtime controller.
-- [x] Preserve silent center-chat loading semantics during thread switch.
-- [x] Preserve pending navigation title behavior without thread id fallback flashes.
-- [x] Run `pnpm --filter playground-next-web test`.
-- [x] Run `pnpm --filter playground-next-web typecheck`.
-- [x] Run manual browser verification for normal thread switching and no visible loading interstitial.
-- [x] Run `codex review` for this loop after targeted verification passes.
-- [x] Commit the thread load/navigation split slice if review is clean.
-
-### Loop 8: Inspector Runtime Split
-- [x] Extract inspector hydration and selected-run coordination into a bounded runtime controller.
-- [x] Keep the center chat path independent from optional inspector/debug hydration.
-- [x] Preserve the rule that inspector hydration and selected-run persistence cannot clear live draft or drive main loading.
-- [x] Run `pnpm --filter playground-next-web test`.
-- [x] Run `pnpm --filter playground-next-web typecheck`.
-- [x] Run manual browser verification for current chat route stability; in-chat inspector open/close/replay is not applicable because the current chat shell does not render an inspector entry point.
-- [x] Run `codex review` for this loop after targeted verification passes.
-- [x] Commit the inspector split slice if review is clean.
-
-### Loop 9: Directory Reorganization
-- [x] Move extracted files into the final feature-local directory shape only after imports and ownership are clear.
-- [x] Update imports without changing behavior.
-- [x] Run `pnpm --filter playground-next-web test`.
-- [x] Run `pnpm --filter playground-next-web typecheck`.
-- [x] Run `codex review` for this loop after targeted verification passes.
-- [x] Commit the directory organization slice if review is clean.
-
-### Loop 10: Final Hardening
-- [x] Run `pnpm typecheck`.
-- [x] Run `pnpm test` if the accumulated changes touched shared packages or behavior outside `playground-next-web`. No shared/outside behavior changed; full workspace test was attempted and failed only on unrelated 5s timeout in untouched apps, while targeted `playground-next-web` tests and global typecheck passed.
-- [x] Repeat the manual browser verification checklist in section 4.5 with available browser controls; active streaming input was blocked by the in-app browser clipboard limitation, so streaming-specific checks remain covered by focused tests and earlier browser passes.
-- [x] Promote stable long-lived architecture facts into `docs/source-of-truth/*` or update `docs/playground-next-web-chat-runtime-architecture.md` if needed.
-- [x] Keep `docs/todolist.md` as the checked execution record instead of deleting it, because the user explicitly requested that execution only stop when every item is `[x]`.
-- [x] Run `codex review` for the final hardening loop.
+### Loop 8: Final Hardening
+- [ ] Run `pnpm typecheck`.
+- [ ] Run the recommended stable workspace test profile from Loop 1/2.
+- [ ] Run `pnpm test` if the profile says full workspace parallel test is expected to be stable.
+- [ ] Update `docs/playground-next-web-chat-runtime-architecture.md` only if runtime/UI ownership changed.
+- [ ] Promote stable long-lived facts into `docs/source-of-truth/*` only if this follow-up creates a reusable concept model.
+- [ ] Delete `docs/todolist.md` when this follow-up is complete and any stable facts have been promoted.
+- [ ] Run `codex review` for the final hardening loop.
