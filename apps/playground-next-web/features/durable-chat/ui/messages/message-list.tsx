@@ -16,10 +16,10 @@ import type { TranscriptBlock } from '@/features/durable-chat/types/transcript-b
 import {
   AnswerContainerCard,
   LiveAssistantCard,
-  ThinkingIndicator,
-  TranscriptBlockCard,
-  WelcomeMessage
+  TranscriptBlockCard
 } from './message-list-components';
+import { ThinkingIndicator } from './thinking-indicator';
+import { WelcomeMessage } from './welcome-message';
 import { useRenderDiagnostic } from '@/components/chat-shell/render-diagnostics';
 import { maxWithTW, messageListMinHeight, ui } from '@/components/chat-shell/ui';
 

@@ -28,7 +28,6 @@ import { MarkdownRenderer } from '@/components/chat-shell/markdown-renderer';
 import { MessageActions } from '@/components/chat-shell/message-actions';
 import { ReasoningPanel } from '@/components/chat-shell/reasoning-panel';
 import { useRenderDiagnostic } from '@/components/chat-shell/render-diagnostics';
-import { AnimatedEmoji } from '@/components/chat-shell/shared';
 import { SiteIconBadge } from '@/components/chat-shell/site-icon-badge';
 import { ui } from '@/components/chat-shell/ui';
 
@@ -62,26 +61,6 @@ const TimelineItem = memo(function TimelineItem({
 });
 
 const reasoningDotMarker = <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--chat-text-secondary)]" />;
-
-export const WelcomeMessage = memo(function WelcomeMessage({ activeThreadId }: { activeThreadId: string | null }) {
-  if (!activeThreadId) {
-    return null;
-  }
-
-  return (
-    <div className="flex w-full items-center justify-center px-4 py-2">
-      <div className="flex w-full max-w-[800px] flex-col items-center gap-3 text-center">
-        <AnimatedEmoji emoji="👋" size={40} />
-        <h1 className={clsx('my-1 text-[32px]', ui.welcomeTitle)}>
-          继续这个 durable chat
-        </h1>
-        <div className={clsx('max-w-[720px] text-sm leading-7', ui.welcomeDesc)}>
-          这里保留真实的 durable thread 与 run 行为，只验证 Vite consumer 在非 Next.js 环境下的主聊天链路。
-        </div>
-      </div>
-    </div>
-  );
-});
 
 const ResearchSummaryLabel = memo(function ResearchSummaryLabel({
   items,
@@ -802,16 +781,5 @@ export const LiveAssistantCard = memo(function LiveAssistantCard({
       onOpenSearchResult={onOpenSearchResult}
       type="live"
     />
-  );
-});
-
-export const ThinkingIndicator = memo(function ThinkingIndicator() {
-  return (
-    <div className="w-[90%] max-w-screen px-4">
-      <div className="flex items-center gap-2.5 py-1.5">
-        <span className="h-2 w-2 rounded-full bg-[color:var(--chat-text-tertiary)]" aria-hidden="true" />
-        <span className="chat-shimmer-text text-sm font-medium tracking-[0.01em]">Thinking...</span>
-      </div>
-    </div>
   );
 });

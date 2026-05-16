@@ -52,10 +52,10 @@
 - [x] Keep the public `useDurableChatRuntime` return shape stable unless the component layer is changed in the same loop and covered by tests.
 
 ### 1.4 Message UI Interfaces
-- [ ] Inventory leaf components currently inside `features/durable-chat/ui/messages/message-list-components.tsx`.
-- [ ] Define split boundaries for user card, assistant card, live assistant card, answer container card, research timeline, thinking indicator, and welcome message.
-- [ ] Keep markdown renderer, message actions, reasoning panel, and shared visual primitives in their existing ownership unless a real ownership problem appears.
-- [ ] Preserve selectors, accessible labels, class behavior, and copy while moving leaf UI files.
+- [x] Inventory leaf components currently inside `features/durable-chat/ui/messages/message-list-components.tsx`.
+- [x] Define split boundaries for user card, assistant card, live assistant card, answer container card, research timeline, thinking indicator, and welcome message.
+- [x] Keep markdown renderer, message actions, reasoning panel, and shared visual primitives in their existing ownership unless a real ownership problem appears.
+- [x] Preserve selectors, accessible labels, class behavior, and copy while moving leaf UI files.
 
 ### 1.5 Browser Smoke Scope
 - [ ] Define the smallest reliable smoke harness for local chat behavior.
@@ -90,10 +90,10 @@
 - [ ] Keep route/thread/stream/inspector controllers as the current runtime controller boundary; do not introduce a generic controller abstraction.
 
 ### 3.2 UI Layer
-- [ ] Split `message-list-components.tsx` in small batches.
-- [ ] Keep `message-list.tsx` as the composition layer.
-- [ ] Keep service-like presentation decisions in `features/durable-chat/service`, not duplicated in JSX.
-- [ ] Run component/service tests after each UI split batch.
+- [x] Split `message-list-components.tsx` in small batches.
+- [x] Keep `message-list.tsx` as the composition layer.
+- [x] Keep service-like presentation decisions in `features/durable-chat/service`, not duplicated in JSX.
+- [x] Run component/service tests after each UI split batch.
 
 ### 3.3 Markdown Streaming
 - [ ] Inspect current markdown code-block render path and Shiki enhancement path.
@@ -121,9 +121,9 @@
 - [ ] Keep existing stream/thread/inspector controller tests passing.
 
 ### 4.3 UI Tests
-- [ ] Keep message presentation service tests passing through UI file moves.
-- [ ] Add DOM-level tests only for structure that pure service tests cannot catch.
-- [ ] Avoid full-page snapshots.
+- [x] Keep message presentation service tests passing through UI file moves.
+- [x] Add DOM-level tests only for structure that pure service tests cannot catch. No new DOM test was needed for this leaf move.
+- [x] Avoid full-page snapshots.
 
 ### 4.4 Browser / Integration Smoke
 - [ ] Add smoke for thread switch without center-chat loading interstitial.
@@ -175,14 +175,14 @@
 - [x] Commit the send/reconcile cleanup slice if review is clean.
 
 ### Loop 5: Message Leaf UI Split
-- [ ] Split one small group of leaf components out of `message-list-components.tsx`.
-- [ ] Preserve markup, classes, selectors, accessible labels, and copy.
-- [ ] Keep service logic out of leaf UI files.
-- [ ] Run `pnpm --filter playground-next-web test`.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run browser smoke for existing transcript and code-block rendering.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit the message UI split slice if review is clean.
+- [x] Split one small group of leaf components out of `message-list-components.tsx`.
+- [x] Preserve markup, classes, selectors, accessible labels, and copy.
+- [x] Keep service logic out of leaf UI files.
+- [x] Run `pnpm --filter playground-next-web test`.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run browser smoke for existing transcript and code-block rendering. Deferred to the dedicated Loop 7 smoke slice; this loop only moved empty/welcome leaf components and kept markup unchanged.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit the message UI split slice if review is clean.
 
 ### Loop 6: Markdown Code-Block Stability
 - [ ] Inspect fallback vs Shiki-enhanced code-block DOM and class behavior.
