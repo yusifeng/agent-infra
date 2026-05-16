@@ -1,5 +1,9 @@
 import { and, asc, desc, eq, gt, inArray, lt, max } from 'drizzle-orm';
 import type {
+  AnswerCandidate,
+  AnswerCandidateRepository,
+  AnswerSelection,
+  AnswerSelectionRepository,
   Artifact,
   ArtifactRepository,
   ChatShare,
@@ -12,13 +16,28 @@ import type {
   Run,
   RunEvent,
   RunEventRepository,
+  RunFeedback,
+  RunFeedbackRepository,
   RunRepository,
   Thread,
   ThreadRepository,
   ToolInvocation,
   ToolInvocationRepository
 } from '@agent-infra/core';
-import { artifacts, chatShareSnapshots, chatShares, messageParts, messages, runEvents, runs, threads, toolInvocations } from './schema.js';
+import {
+  answerCandidates,
+  answerSelections,
+  artifacts,
+  chatShareSnapshots,
+  chatShares,
+  messageParts,
+  messages,
+  runEvents,
+  runFeedback,
+  runs,
+  threads,
+  toolInvocations
+} from './schema.js';
 
 export class DrizzleThreadRepository implements ThreadRepository {
   constructor(private readonly db: any) {}
@@ -93,6 +112,15 @@ export class DrizzleRunRepository implements RunRepository {
     return { ...row, usage: row.usageJson };
   }
 
+  async listActiveByThread(threadId: string): Promise<Run[]> {
+    const rows = await this.db
+      .select()
+      .from(runs)
+      .where(and(eq(runs.threadId, threadId), inArray(runs.status, ['queued', 'running'])))
+      .orderBy(desc(runs.createdAt));
+    return rows.map((row: any) => ({ ...row, usage: row.usageJson }));
+  }
+
   async listByThread(threadId: string, options?: { limit?: number }): Promise<Run[]> {
     let query = this.db.select().from(runs).where(eq(runs.threadId, threadId)).orderBy(desc(runs.createdAt));
     if (options?.limit && options.limit > 0) {
@@ -115,6 +143,195 @@ export class DrizzleRunRepository implements RunRepository {
     const row = await this.findById(id);
     if (!row) throw new Error(`run ${id} not found`);
     return row;
+  }
+}
+
+export class DrizzleAnswerCandidateRepository implements AnswerCandidateRepository {
+  constructor(private readonly db: any) {}
+
+  private async validateCandidateRun(input: Pick<AnswerCandidate, 'threadId' | 'triggerMessageId' | 'runId'>) {
+    const [run] = await this.db.select().from(runs).where(eq(runs.id, input.runId)).limit(1);
+    if (!run || run.threadId !== input.threadId || run.triggerMessageId !== input.triggerMessageId) {
+      throw new Error(`run ${input.runId} is not a candidate for trigger message ${input.triggerMessageId}`);
+    }
+
+    const [message] = await this.db.select().from(messages).where(eq(messages.id, input.triggerMessageId)).limit(1);
+    if (!message || message.threadId !== input.threadId) {
+      throw new Error(`trigger message ${input.triggerMessageId} is not in thread ${input.threadId}`);
+    }
+  }
+
+  async create(input: Omit<AnswerCandidate, 'createdAt'>): Promise<AnswerCandidate> {
+    await this.validateCandidateRun(input);
+    const createdAt = new Date();
+    await this.db.insert(answerCandidates).values({ ...input, createdAt });
+    return { ...input, createdAt };
+  }
+
+  async findByRunId(runId: string): Promise<AnswerCandidate | null> {
+    const [row] = await this.db.select().from(answerCandidates).where(eq(answerCandidates.runId, runId)).limit(1);
+    return row ?? null;
+  }
+
+  async listByRunIds(runIds: string[]): Promise<AnswerCandidate[]> {
+    if (runIds.length === 0) return [];
+    return this.db
+      .select()
+      .from(answerCandidates)
+      .where(inArray(answerCandidates.runId, runIds))
+      .orderBy(asc(answerCandidates.createdAt), asc(answerCandidates.ordinal));
+  }
+
+  async listByThread(threadId: string): Promise<AnswerCandidate[]> {
+    return this.db
+      .select()
+      .from(answerCandidates)
+      .where(eq(answerCandidates.threadId, threadId))
+      .orderBy(asc(answerCandidates.createdAt), asc(answerCandidates.ordinal));
+  }
+
+  async listByTriggerMessage(threadId: string, triggerMessageId: string): Promise<AnswerCandidate[]> {
+    return this.db
+      .select()
+      .from(answerCandidates)
+      .where(and(eq(answerCandidates.threadId, threadId), eq(answerCandidates.triggerMessageId, triggerMessageId)))
+      .orderBy(asc(answerCandidates.ordinal));
+  }
+}
+
+export class DrizzleAnswerSelectionRepository implements AnswerSelectionRepository {
+  constructor(private readonly db: any) {}
+
+  private async validateSelectedCandidate(input: Omit<AnswerSelection, 'createdAt' | 'updatedAt'>) {
+    const [candidate] = await this.db
+      .select()
+      .from(answerCandidates)
+      .where(
+        and(
+          eq(answerCandidates.threadId, input.threadId),
+          eq(answerCandidates.triggerMessageId, input.triggerMessageId),
+          eq(answerCandidates.runId, input.selectedRunId)
+        )
+      )
+      .limit(1);
+    if (!candidate) {
+      throw new Error(`run ${input.selectedRunId} is not a candidate for trigger message ${input.triggerMessageId}`);
+    }
+  }
+
+  async getByThreadAndTrigger(threadId: string, triggerMessageId: string): Promise<AnswerSelection | null> {
+    const [row] = await this.db
+      .select()
+      .from(answerSelections)
+      .where(and(eq(answerSelections.threadId, threadId), eq(answerSelections.triggerMessageId, triggerMessageId)))
+      .limit(1);
+    return row ?? null;
+  }
+
+  async listByThread(threadId: string): Promise<AnswerSelection[]> {
+    return this.db.select().from(answerSelections).where(eq(answerSelections.threadId, threadId)).orderBy(asc(answerSelections.createdAt));
+  }
+
+  async upsert(input: Omit<AnswerSelection, 'createdAt' | 'updatedAt'>): Promise<AnswerSelection> {
+    await this.validateSelectedCandidate(input);
+    const existing = await this.getByThreadAndTrigger(input.threadId, input.triggerMessageId);
+    const now = new Date();
+    if (existing) {
+      await this.db
+        .update(answerSelections)
+        .set({
+          selectedRunId: input.selectedRunId,
+          source: input.source,
+          selectedByUserId: input.selectedByUserId ?? null,
+          updatedAt: now
+        })
+        .where(and(eq(answerSelections.threadId, input.threadId), eq(answerSelections.triggerMessageId, input.triggerMessageId)));
+      return {
+        ...existing,
+        selectedRunId: input.selectedRunId,
+        source: input.source,
+        selectedByUserId: input.selectedByUserId ?? null,
+        updatedAt: now
+      };
+    }
+
+    const created = { ...input, selectedByUserId: input.selectedByUserId ?? null, createdAt: now, updatedAt: now };
+    await this.db.insert(answerSelections).values(created);
+    return created;
+  }
+}
+
+export class DrizzleRunFeedbackRepository implements RunFeedbackRepository {
+  constructor(private readonly db: any) {}
+
+  private async validateFeedbackTarget(input: Pick<RunFeedback, 'threadId' | 'triggerMessageId' | 'runId'>) {
+    const [candidate] = await this.db
+      .select()
+      .from(answerCandidates)
+      .where(
+        and(
+          eq(answerCandidates.threadId, input.threadId),
+          eq(answerCandidates.triggerMessageId, input.triggerMessageId),
+          eq(answerCandidates.runId, input.runId)
+        )
+      )
+      .limit(1);
+    if (!candidate) {
+      throw new Error(`run ${input.runId} is not a candidate for trigger message ${input.triggerMessageId}`);
+    }
+  }
+
+  async clear(input: { runId: string; feedbackActorId: string }): Promise<void> {
+    await this.db
+      .delete(runFeedback)
+      .where(and(eq(runFeedback.runId, input.runId), eq(runFeedback.feedbackActorId, input.feedbackActorId)));
+  }
+
+  async listByRunIds(runIds: string[], feedbackActorId?: string): Promise<RunFeedback[]> {
+    if (runIds.length === 0) return [];
+    const predicates = [inArray(runFeedback.runId, runIds)];
+    if (feedbackActorId) {
+      predicates.push(eq(runFeedback.feedbackActorId, feedbackActorId));
+    }
+    return this.db
+      .select()
+      .from(runFeedback)
+      .where(predicates.length === 1 ? predicates[0] : and(...predicates))
+      .orderBy(asc(runFeedback.runId), asc(runFeedback.createdAt));
+  }
+
+  async set(input: Omit<RunFeedback, 'createdAt' | 'updatedAt'>): Promise<RunFeedback> {
+    await this.validateFeedbackTarget(input);
+    const [existing] = await this.db
+      .select()
+      .from(runFeedback)
+      .where(and(eq(runFeedback.runId, input.runId), eq(runFeedback.feedbackActorId, input.feedbackActorId)))
+      .limit(1);
+    const now = new Date();
+    if (existing) {
+      await this.db
+        .update(runFeedback)
+        .set({
+          threadId: input.threadId,
+          triggerMessageId: input.triggerMessageId,
+          value: input.value,
+          updatedAt: now
+        })
+        .where(and(eq(runFeedback.runId, input.runId), eq(runFeedback.feedbackActorId, input.feedbackActorId)));
+      return {
+        ...existing,
+        threadId: input.threadId,
+        triggerMessageId: input.triggerMessageId,
+        runId: input.runId,
+        feedbackActorId: input.feedbackActorId,
+        value: input.value,
+        updatedAt: now
+      };
+    }
+
+    const created = { ...input, createdAt: now, updatedAt: now };
+    await this.db.insert(runFeedback).values(created);
+    return created;
   }
 }
 

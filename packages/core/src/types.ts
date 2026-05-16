@@ -12,6 +12,12 @@ export type ChatShareStatus = 'active' | 'revoked';
 
 export type ChatShareSnapshotPayloadFormat = 'messages_v1';
 
+export type AnswerCandidateKind = 'primary' | 'alternative';
+
+export type AnswerSelectionSource = 'default' | 'user' | 'system_fallback';
+
+export type RunFeedbackValue = 'thumbs_up' | 'thumbs_down';
+
 export type RunUsageNormalizationStatus = 'complete' | 'partial' | 'missing' | 'malformed';
 
 export interface RunUsageTokensV1 {
@@ -66,6 +72,37 @@ export interface Run {
   startedAt?: Date | null;
   finishedAt?: Date | null;
   createdAt: Date;
+}
+
+export interface AnswerCandidate {
+  id: string;
+  threadId: string;
+  triggerMessageId: string;
+  runId: string;
+  ordinal: number;
+  kind: AnswerCandidateKind;
+  createdAt: Date;
+}
+
+export interface AnswerSelection {
+  threadId: string;
+  triggerMessageId: string;
+  selectedRunId: string;
+  source: AnswerSelectionSource;
+  selectedByUserId?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface RunFeedback {
+  id: string;
+  threadId: string;
+  triggerMessageId: string;
+  runId: string;
+  feedbackActorId: string;
+  value: RunFeedbackValue;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface RunEvent {

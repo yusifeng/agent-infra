@@ -125,4 +125,49 @@ describe('SqliteRunRepository', () => {
     await runRepo.updateStatus(first.id, 'failed');
     expect(await runRepo.findLatestActiveByThread('thread-1')).toBeNull();
   });
+
+  it('lists all active runs for a thread in descending createdAt order', async () => {
+    const first = await runRepo.create({
+      id: 'run-1',
+      threadId: 'thread-1',
+      triggerMessageId: null,
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+      status: 'queued',
+      usage: null,
+      error: null,
+      startedAt: null,
+      finishedAt: null
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    const second = await runRepo.create({
+      id: 'run-2',
+      threadId: 'thread-1',
+      triggerMessageId: null,
+      provider: 'deepseek',
+      model: 'deepseek-v4-flash',
+      status: 'running',
+      usage: null,
+      error: null,
+      startedAt: null,
+      finishedAt: null
+    });
+
+    await runRepo.create({
+      id: 'run-3',
+      threadId: 'thread-1',
+      triggerMessageId: null,
+      provider: 'deepseek',
+      model: 'deepseek-v4-flash',
+      status: 'completed',
+      usage: null,
+      error: null,
+      startedAt: null,
+      finishedAt: null
+    });
+
+    expect((await runRepo.listActiveByThread('thread-1')).map((run) => run.id)).toEqual([second.id, first.id]);
+  });
 });

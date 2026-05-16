@@ -1,9 +1,12 @@
 import type {
+  AnswerCandidate,
+  AnswerSelection,
   Artifact,
   ChatShare,
   ChatShareSnapshot,
   Message,
   MessagePart,
+  RunFeedback,
   Run,
   RunEvent,
   Thread,
@@ -35,8 +38,29 @@ export interface RunRepository {
   create(input: Omit<Run, 'createdAt'>): Promise<Run>;
   findById(id: string): Promise<Run | null>;
   findLatestActiveByThread(threadId: string): Promise<Run | null>;
+  listActiveByThread(threadId: string): Promise<Run[]>;
   listByThread(threadId: string, options?: { limit?: number }): Promise<Run[]>;
   updateStatus(id: string, status: Run['status'], patch?: Partial<Run>): Promise<Run>;
+}
+
+export interface AnswerCandidateRepository {
+  create(input: Omit<AnswerCandidate, 'createdAt'>): Promise<AnswerCandidate>;
+  findByRunId(runId: string): Promise<AnswerCandidate | null>;
+  listByRunIds(runIds: string[]): Promise<AnswerCandidate[]>;
+  listByThread(threadId: string): Promise<AnswerCandidate[]>;
+  listByTriggerMessage(threadId: string, triggerMessageId: string): Promise<AnswerCandidate[]>;
+}
+
+export interface AnswerSelectionRepository {
+  getByThreadAndTrigger(threadId: string, triggerMessageId: string): Promise<AnswerSelection | null>;
+  listByThread(threadId: string): Promise<AnswerSelection[]>;
+  upsert(input: Omit<AnswerSelection, 'createdAt' | 'updatedAt'>): Promise<AnswerSelection>;
+}
+
+export interface RunFeedbackRepository {
+  clear(input: { runId: string; feedbackActorId: string }): Promise<void>;
+  listByRunIds(runIds: string[], feedbackActorId?: string): Promise<RunFeedback[]>;
+  set(input: Omit<RunFeedback, 'createdAt' | 'updatedAt'>): Promise<RunFeedback>;
 }
 
 export interface RunEventRepository {

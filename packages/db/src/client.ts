@@ -6,9 +6,12 @@ import { drizzle as drizzleLibsql } from 'drizzle-orm/libsql/http';
 import { drizzle as drizzlePostgres } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import type {
+  AnswerCandidateRepository,
+  AnswerSelectionRepository,
   ChatShareRepository,
   ChatShareSnapshotRepository,
   MessageRepository,
+  RunFeedbackRepository,
   RunEventRepository,
   RunRepository,
   ThreadRepository,
@@ -16,18 +19,24 @@ import type {
 } from '@agent-infra/core';
 
 import {
+  DrizzleAnswerCandidateRepository,
+  DrizzleAnswerSelectionRepository,
   DrizzleChatShareRepository,
   DrizzleChatShareSnapshotRepository,
   DrizzleMessageRepository,
+  DrizzleRunFeedbackRepository,
   DrizzleRunEventRepository,
   DrizzleRunRepository,
   DrizzleThreadRepository,
   DrizzleToolInvocationRepository
 } from './repositories.js';
 import {
+  SqliteAnswerCandidateRepository,
+  SqliteAnswerSelectionRepository,
   SqliteChatShareRepository,
   SqliteChatShareSnapshotRepository,
   SqliteMessageRepository,
+  SqliteRunFeedbackRepository,
   SqliteRunEventRepository,
   SqliteRunRepository,
   SqliteThreadRepository,
@@ -53,6 +62,9 @@ export interface AgentInfraRepositoryBundle {
   runEventRepo: RunEventRepository;
   chatShareRepo: ChatShareRepository;
   chatShareSnapshotRepo: ChatShareSnapshotRepository;
+  answerCandidateRepo: AnswerCandidateRepository;
+  answerSelectionRepo: AnswerSelectionRepository;
+  runFeedbackRepo: RunFeedbackRepository;
 }
 
 const sqliteTransactionQueues = new Map<string, Promise<void>>();
@@ -118,7 +130,10 @@ export function createAgentInfraRepositories(mode: DbMode, db: any): AgentInfraR
       toolRepo: new SqliteToolInvocationRepository(db),
       runEventRepo: new SqliteRunEventRepository(db),
       chatShareRepo: new SqliteChatShareRepository(db),
-      chatShareSnapshotRepo: new SqliteChatShareSnapshotRepository(db)
+      chatShareSnapshotRepo: new SqliteChatShareSnapshotRepository(db),
+      answerCandidateRepo: new SqliteAnswerCandidateRepository(db),
+      answerSelectionRepo: new SqliteAnswerSelectionRepository(db),
+      runFeedbackRepo: new SqliteRunFeedbackRepository(db)
     };
   }
 
@@ -129,7 +144,10 @@ export function createAgentInfraRepositories(mode: DbMode, db: any): AgentInfraR
     toolRepo: new DrizzleToolInvocationRepository(db),
     runEventRepo: new DrizzleRunEventRepository(db),
     chatShareRepo: new DrizzleChatShareRepository(db),
-    chatShareSnapshotRepo: new DrizzleChatShareSnapshotRepository(db)
+    chatShareSnapshotRepo: new DrizzleChatShareSnapshotRepository(db),
+    answerCandidateRepo: new DrizzleAnswerCandidateRepository(db),
+    answerSelectionRepo: new DrizzleAnswerSelectionRepository(db),
+    runFeedbackRepo: new DrizzleRunFeedbackRepository(db)
   };
 }
 

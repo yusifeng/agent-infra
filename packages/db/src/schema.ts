@@ -1,4 +1,4 @@
-import { index, integer, jsonb, pgTable, text, timestamp, unique } from 'drizzle-orm/pg-core';
+import { index, integer, jsonb, pgTable, primaryKey, text, timestamp, unique } from 'drizzle-orm/pg-core';
 
 export const threads = pgTable('threads', {
   id: text('id').primaryKey(),
@@ -30,7 +30,8 @@ export const runs = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull()
   },
   (table) => ({
-    threadIdIdx: index('runs_thread_id_idx').on(table.threadId)
+    threadIdIdx: index('runs_thread_id_idx').on(table.threadId),
+    threadTriggerMessageIdx: index('runs_thread_id_trigger_message_id_idx').on(table.threadId, table.triggerMessageId)
   })
 );
 
@@ -70,6 +71,81 @@ export const messageParts = pgTable(
   (table) => ({
     messageIdIdx: index('message_parts_message_id_idx').on(table.messageId),
     messagePartIndexUnique: unique('message_parts_message_id_part_index_unique').on(table.messageId, table.partIndex)
+  })
+);
+
+export const answerCandidates = pgTable(
+  'answer_candidates',
+  {
+    id: text('id').primaryKey(),
+    threadId: text('thread_id')
+      .notNull()
+      .references(() => threads.id),
+    triggerMessageId: text('trigger_message_id')
+      .notNull()
+      .references(() => messages.id),
+    runId: text('run_id')
+      .notNull()
+      .references(() => runs.id),
+    ordinal: integer('ordinal').notNull(),
+    kind: text('kind').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull()
+  },
+  (table) => ({
+    runIdUnique: unique('answer_candidates_run_id_unique').on(table.runId),
+    threadTriggerOrdinalUnique: unique('answer_candidates_thread_trigger_ordinal_unique').on(
+      table.threadId,
+      table.triggerMessageId,
+      table.ordinal
+    ),
+    threadTriggerIdx: index('answer_candidates_thread_trigger_idx').on(table.threadId, table.triggerMessageId)
+  })
+);
+
+export const answerSelections = pgTable(
+  'answer_selections',
+  {
+    threadId: text('thread_id')
+      .notNull()
+      .references(() => threads.id),
+    triggerMessageId: text('trigger_message_id')
+      .notNull()
+      .references(() => messages.id),
+    selectedRunId: text('selected_run_id')
+      .notNull()
+      .references(() => runs.id),
+    source: text('source').notNull(),
+    selectedByUserId: text('selected_by_user_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull()
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.threadId, table.triggerMessageId] }),
+    selectedRunIdx: index('answer_selections_selected_run_id_idx').on(table.selectedRunId)
+  })
+);
+
+export const runFeedback = pgTable(
+  'run_feedback',
+  {
+    id: text('id').primaryKey(),
+    threadId: text('thread_id')
+      .notNull()
+      .references(() => threads.id),
+    triggerMessageId: text('trigger_message_id')
+      .notNull()
+      .references(() => messages.id),
+    runId: text('run_id')
+      .notNull()
+      .references(() => runs.id),
+    feedbackActorId: text('feedback_actor_id').notNull(),
+    value: text('value').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull()
+  },
+  (table) => ({
+    runActorUnique: unique('run_feedback_run_actor_unique').on(table.runId, table.feedbackActorId),
+    threadTriggerIdx: index('run_feedback_thread_trigger_idx').on(table.threadId, table.triggerMessageId)
   })
 );
 

@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 export const threads = sqliteTable('threads', {
   id: text('id').primaryKey(),
@@ -30,7 +30,8 @@ export const runs = sqliteTable(
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull()
   },
   (table) => ({
-    threadIdIdx: index('runs_thread_id_idx').on(table.threadId)
+    threadIdIdx: index('runs_thread_id_idx').on(table.threadId),
+    threadTriggerMessageIdx: index('runs_thread_id_trigger_message_id_idx').on(table.threadId, table.triggerMessageId)
   })
 );
 
@@ -70,6 +71,81 @@ export const messageParts = sqliteTable(
   (table) => ({
     messageIdIdx: index('message_parts_message_id_idx').on(table.messageId),
     messagePartIndexUnique: uniqueIndex('message_parts_message_id_part_index_unique').on(table.messageId, table.partIndex)
+  })
+);
+
+export const answerCandidates = sqliteTable(
+  'answer_candidates',
+  {
+    id: text('id').primaryKey(),
+    threadId: text('thread_id')
+      .notNull()
+      .references(() => threads.id),
+    triggerMessageId: text('trigger_message_id')
+      .notNull()
+      .references(() => messages.id),
+    runId: text('run_id')
+      .notNull()
+      .references(() => runs.id),
+    ordinal: integer('ordinal').notNull(),
+    kind: text('kind').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull()
+  },
+  (table) => ({
+    runIdUnique: uniqueIndex('answer_candidates_run_id_unique').on(table.runId),
+    threadTriggerOrdinalUnique: uniqueIndex('answer_candidates_thread_trigger_ordinal_unique').on(
+      table.threadId,
+      table.triggerMessageId,
+      table.ordinal
+    ),
+    threadTriggerIdx: index('answer_candidates_thread_trigger_idx').on(table.threadId, table.triggerMessageId)
+  })
+);
+
+export const answerSelections = sqliteTable(
+  'answer_selections',
+  {
+    threadId: text('thread_id')
+      .notNull()
+      .references(() => threads.id),
+    triggerMessageId: text('trigger_message_id')
+      .notNull()
+      .references(() => messages.id),
+    selectedRunId: text('selected_run_id')
+      .notNull()
+      .references(() => runs.id),
+    source: text('source').notNull(),
+    selectedByUserId: text('selected_by_user_id'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.threadId, table.triggerMessageId] }),
+    selectedRunIdx: index('answer_selections_selected_run_id_idx').on(table.selectedRunId)
+  })
+);
+
+export const runFeedback = sqliteTable(
+  'run_feedback',
+  {
+    id: text('id').primaryKey(),
+    threadId: text('thread_id')
+      .notNull()
+      .references(() => threads.id),
+    triggerMessageId: text('trigger_message_id')
+      .notNull()
+      .references(() => messages.id),
+    runId: text('run_id')
+      .notNull()
+      .references(() => runs.id),
+    feedbackActorId: text('feedback_actor_id').notNull(),
+    value: text('value').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
+  },
+  (table) => ({
+    runActorUnique: uniqueIndex('run_feedback_run_actor_unique').on(table.runId, table.feedbackActorId),
+    threadTriggerIdx: index('run_feedback_thread_trigger_idx').on(table.threadId, table.triggerMessageId)
   })
 );
 
@@ -204,6 +280,7 @@ export const SQLITE_SCHEMA_STATEMENTS = [
     created_at INTEGER NOT NULL
   )`,
   'CREATE INDEX IF NOT EXISTS runs_thread_id_idx ON runs(thread_id)',
+  'CREATE INDEX IF NOT EXISTS runs_thread_id_trigger_message_id_idx ON runs(thread_id, trigger_message_id)',
   `CREATE TABLE IF NOT EXISTS messages (
     id TEXT PRIMARY KEY,
     thread_id TEXT NOT NULL REFERENCES threads(id),
@@ -216,6 +293,41 @@ export const SQLITE_SCHEMA_STATEMENTS = [
   )`,
   'CREATE INDEX IF NOT EXISTS messages_thread_id_idx ON messages(thread_id)',
   'CREATE UNIQUE INDEX IF NOT EXISTS messages_thread_id_seq_unique ON messages(thread_id, seq)',
+  `CREATE TABLE IF NOT EXISTS answer_candidates (
+    id TEXT PRIMARY KEY,
+    thread_id TEXT NOT NULL REFERENCES threads(id),
+    trigger_message_id TEXT NOT NULL REFERENCES messages(id),
+    run_id TEXT NOT NULL REFERENCES runs(id),
+    ordinal INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  )`,
+  'CREATE UNIQUE INDEX IF NOT EXISTS answer_candidates_run_id_unique ON answer_candidates(run_id)',
+  'CREATE UNIQUE INDEX IF NOT EXISTS answer_candidates_thread_trigger_ordinal_unique ON answer_candidates(thread_id, trigger_message_id, ordinal)',
+  'CREATE INDEX IF NOT EXISTS answer_candidates_thread_trigger_idx ON answer_candidates(thread_id, trigger_message_id)',
+  `CREATE TABLE IF NOT EXISTS answer_selections (
+    thread_id TEXT NOT NULL REFERENCES threads(id),
+    trigger_message_id TEXT NOT NULL REFERENCES messages(id),
+    selected_run_id TEXT NOT NULL REFERENCES runs(id),
+    source TEXT NOT NULL,
+    selected_by_user_id TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (thread_id, trigger_message_id)
+  )`,
+  'CREATE INDEX IF NOT EXISTS answer_selections_selected_run_id_idx ON answer_selections(selected_run_id)',
+  `CREATE TABLE IF NOT EXISTS run_feedback (
+    id TEXT PRIMARY KEY,
+    thread_id TEXT NOT NULL REFERENCES threads(id),
+    trigger_message_id TEXT NOT NULL REFERENCES messages(id),
+    run_id TEXT NOT NULL REFERENCES runs(id),
+    feedback_actor_id TEXT NOT NULL,
+    value TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  'CREATE UNIQUE INDEX IF NOT EXISTS run_feedback_run_actor_unique ON run_feedback(run_id, feedback_actor_id)',
+  'CREATE INDEX IF NOT EXISTS run_feedback_thread_trigger_idx ON run_feedback(thread_id, trigger_message_id)',
   `CREATE TABLE IF NOT EXISTS message_parts (
     id TEXT PRIMARY KEY,
     message_id TEXT NOT NULL REFERENCES messages(id),
