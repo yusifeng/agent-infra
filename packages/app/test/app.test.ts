@@ -802,6 +802,38 @@ describe('createAgentInfraApp', () => {
     expect(projection.messages.map((message) => message.parts[0]?.textValue)).toEqual(['Which answer is better?', 'Alternative answer']);
   });
 
+  it('projects paged messages canonically while preserving durable page info', async () => {
+    const { app, repositories } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Paged selected alternative' });
+    const started = await app.turns.startTextCandidates({
+      threadId: thread.id,
+      text: 'Which paged answer is better?',
+      candidateCount: 2
+    });
+    const primary = started.candidates[0]!;
+    const alternative = started.candidates[1]!;
+
+    await persistAssistantAnswer(repositories, { threadId: thread.id, runId: primary.run.id, text: 'Primary paged answer' });
+    await persistAssistantAnswer(repositories, { threadId: thread.id, runId: alternative.run.id, text: 'Alternative paged answer' });
+    await app.turns.selectAnswerCandidate({
+      threadId: thread.id,
+      triggerMessageId: started.triggerMessageId,
+      runId: alternative.run.id,
+      selectedByUserId: 'user-1'
+    });
+
+    const page = await app.threads.getCanonicalMessagesPage({ threadId: thread.id, limit: 3 });
+
+    expect(page.canonicalRunIds).toEqual([alternative.run.id]);
+    expect(page.messages.map((message) => message.parts[0]?.textValue)).toEqual(['Which paged answer is better?', 'Alternative paged answer']);
+    expect(page.pageInfo).toEqual({
+      hasOlder: false,
+      hasNewer: false,
+      startSeq: 1,
+      endSeq: 3
+    });
+  });
+
   it('rejects candidate selection across different trigger messages', async () => {
     const { app } = createDependencies(createHappyRuntime());
     const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Invalid selection' });
@@ -1765,6 +1797,36 @@ describe('createAgentInfraApp', () => {
       toolCallId: 'shared-tool-call-1',
       input: { query: 'Claude news 2026' }
     });
+  });
+
+  it('creates canonical snapshot shares for dual-answer threads without unselected candidates', async () => {
+    const { app, repositories } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Dual share path' });
+    const started = await app.turns.startTextCandidates({
+      threadId: thread.id,
+      text: 'Share the selected answer',
+      candidateCount: 2
+    });
+    const primary = started.candidates[0]!;
+    const alternative = started.candidates[1]!;
+
+    await persistAssistantAnswer(repositories, { threadId: thread.id, runId: primary.run.id, text: 'Primary shared answer' });
+    await persistAssistantAnswer(repositories, { threadId: thread.id, runId: alternative.run.id, text: 'Alternative shared answer' });
+    await app.turns.selectAnswerCandidate({
+      threadId: thread.id,
+      triggerMessageId: started.triggerMessageId,
+      runId: alternative.run.id
+    });
+
+    const result = await app.shares.createThreadSnapshot({ threadId: thread.id });
+    const payload = result.snapshot.payloadJson as {
+      messages: Array<{ parts: Array<{ textValue?: string | null }> }>;
+    };
+
+    expect(payload.messages.map((message) => message.parts[0]?.textValue)).toEqual([
+      'Share the selected answer',
+      'Alternative shared answer'
+    ]);
   });
 
   it('rejects snapshot share creation when the thread has an active run', async () => {

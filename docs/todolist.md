@@ -212,13 +212,13 @@
 - [x] Preserve existing single-run runtime behavior.
 
 ### 2.6 Share / Replay Canonical Hardening
-- [ ] Route share snapshot creation through canonical projection before dual stream exposure.
-- [ ] Route replay input through canonical projection in v1 before dual stream exposure.
-- [ ] Update active-run guard for share creation to reject if any active run exists, not only latest active run.
-- [ ] Add app-level share snapshot test where raw thread has A and B candidate messages but payload includes only selected/default.
-- [ ] Add test that public share DTO remains unchanged for legacy threads.
-- [ ] Add replay test where replay block ids remain linear and do not expose candidate group state in v1.
-- [ ] Do not implement full replay of both candidates in v1.
+- [x] Route share snapshot creation through canonical projection before dual stream exposure.
+- [x] Route replay input through canonical projection in v1 before dual stream exposure.
+- [x] Update active-run guard for share creation to reject if any active run exists, not only latest active run.
+- [x] Add app-level share snapshot test where raw thread has A and B candidate messages but payload includes only selected/default.
+- [x] Add test that public share DTO remains unchanged for legacy threads.
+- [x] Add replay test where replay block ids remain linear and do not expose candidate group state in v1.
+- [x] Do not implement full replay of both candidates in v1.
 
 ### 2.7 Durable Chat Server / Route Helpers
 - [ ] Add DTO builders for answer candidates, selections, and feedback.
@@ -441,17 +441,17 @@
 - [x] Add runtime-pi tests for legacy behavior.
 - [x] Run `pnpm --filter @agent-infra/runtime-pi test`.
 - [x] Run `codex review` for this loop.
-- [ ] Commit this loop after review and verification pass.
+- [x] Commit this loop after review and verification pass.
 
 ### Loop 3.5: Share / Replay Canonical Hardening
-- [ ] Route share snapshot creation through canonical projection.
-- [ ] Route replay input through canonical projection.
-- [ ] Update active-run guards to use plural active runs.
-- [ ] Add share/replay tests for dual-answer threads.
-- [ ] Confirm unselected candidate messages are excluded from canonical-only outputs.
-- [ ] Run `pnpm --filter playground-next-web test`.
-- [ ] Run any relevant package tests touched by projection reuse.
-- [ ] Run `codex review` for this loop.
+- [x] Route share snapshot creation through canonical projection.
+- [x] Route replay input through canonical projection.
+- [x] Update active-run guards to use plural active runs.
+- [x] Add share/replay tests for dual-answer threads.
+- [x] Confirm unselected candidate messages are excluded from canonical-only outputs.
+- [x] Run `pnpm --filter playground-next-web test`.
+- [x] Run any relevant package tests touched by projection reuse.
+- [x] Run `codex review` for this loop.
 - [ ] Commit this loop after review and verification pass.
 
 ### Loop 4A: Contracts, Hydration Routes, Selection, And Feedback

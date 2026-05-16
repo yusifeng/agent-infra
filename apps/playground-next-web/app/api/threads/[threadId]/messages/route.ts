@@ -46,8 +46,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ threadId
 
     if (!hasPaginationParams) {
       const activeRunPromise = app.runs.getActiveByThread({ threadId });
-      const [messages, activeRun] = await Promise.all([app.threads.getMessages({ threadId }), activeRunPromise]);
-      return Response.json(buildThreadMessagesResponse({ messages: sanitizeMessagesForUi(messages), activeRun }));
+      const [canonicalMessages, activeRun] = await Promise.all([app.threads.getCanonicalMessages({ threadId }), activeRunPromise]);
+      return Response.json(buildThreadMessagesResponse({ messages: sanitizeMessagesForUi(canonicalMessages.messages), activeRun }));
     }
 
     const beforeSeq = query.before ? decodeThreadMessageCursor(query.before, threadId) : undefined;
@@ -55,7 +55,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ threadId
     const activeRunPromise = app.runs.getActiveByThread({ threadId });
 
     const [page, activeRun] = await Promise.all([
-      app.threads.getMessagesPage({
+      app.threads.getCanonicalMessagesPage({
         threadId,
         limit: query.limit,
         beforeSeq,

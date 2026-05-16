@@ -113,6 +113,36 @@ async function buildCanonicalThreadMessages(repositories: AgentInfraAppRepositor
   });
 }
 
+async function buildCanonicalThreadMessagesPage(
+  repositories: AgentInfraAppRepositories,
+  input: { threadId: string; limit?: number; beforeSeq?: number; afterSeq?: number }
+) {
+  const [page, runs, answerCandidates, answerSelections] = await Promise.all([
+    repositories.messageRepo.listPageByThread(input.threadId, {
+      limit: input.limit,
+      beforeSeq: input.beforeSeq,
+      afterSeq: input.afterSeq
+    }),
+    repositories.runRepo.listByThread(input.threadId),
+    repositories.answerCandidateRepo.listByThread(input.threadId),
+    repositories.answerSelectionRepo.listByThread(input.threadId)
+  ]);
+
+  const projection = projectCanonicalTranscript({
+    messages: page.messages,
+    runs,
+    answerCandidates,
+    answerSelections
+  });
+
+  return {
+    messages: projection.messages,
+    pageInfo: page.pageInfo,
+    canonicalRunIds: projection.canonicalRunIds,
+    diagnostics: projection.diagnostics
+  };
+}
+
 async function loadCandidateForSelectionOrThrow(
   repositories: AgentInfraAppRepositories,
   input: { threadId: string; triggerMessageId: string; runId: string }
@@ -690,9 +720,9 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
           return thread;
         }
 
-        const activeRun = await dependencies.repositories.runRepo.findLatestActiveByThread(thread.id);
-        if (activeRun) {
-          throw new ThreadHasActiveRunError(thread.id, activeRun.id);
+        const activeRuns = await dependencies.repositories.runRepo.listActiveByThread(thread.id);
+        if (activeRuns.length > 0) {
+          throw new ThreadHasActiveRunError(thread.id, activeRuns[0]!.id);
         }
 
         return dependencies.repositories.threadRepo.archive(thread.id, now());
@@ -712,6 +742,10 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
       async getCanonicalMessages(input) {
         await loadThreadOrThrow(dependencies.repositories, input.threadId);
         return buildCanonicalThreadMessages(dependencies.repositories, input.threadId, input.cutoffMessageId);
+      },
+      async getCanonicalMessagesPage(input) {
+        await loadThreadOrThrow(dependencies.repositories, input.threadId);
+        return buildCanonicalThreadMessagesPage(dependencies.repositories, input);
       },
       async getMessagesWithAnswerCandidates(input) {
         await loadThreadOrThrow(dependencies.repositories, input.threadId);
@@ -878,9 +912,9 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
             const thread = await loadThreadOrThrow(repositories, input.threadId);
             await repositories.threadRepo.touch(thread.id, now());
 
-            const activeRun = await repositories.runRepo.findLatestActiveByThread(thread.id);
-            if (activeRun) {
-              throw new ThreadHasActiveRunError(thread.id, activeRun.id);
+            const activeRuns = await repositories.runRepo.listActiveByThread(thread.id);
+            if (activeRuns.length > 0) {
+              throw new ThreadHasActiveRunError(thread.id, activeRuns[0]!.id);
             }
 
             const existingActiveShare = await repositories.chatShareRepo.findActiveByThread(thread.id);
@@ -888,7 +922,7 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
               throw new ActiveChatShareExistsError(thread.id, existingActiveShare.publicId);
             }
 
-            const messages = await repositories.messageRepo.listByThread(thread.id);
+            const { messages } = await buildCanonicalThreadMessages(repositories, thread.id);
             const runIds = [
               ...new Set(messages.map((message) => message.runId).filter((runId): runId is string => typeof runId === 'string' && runId.length > 0))
             ];

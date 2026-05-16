@@ -167,6 +167,11 @@ export interface CanonicalThreadMessagesResult {
   diagnostics: CanonicalTranscriptDiagnostic[];
 }
 
+export interface CanonicalThreadMessagesPageResult extends MessagePageResult {
+  canonicalRunIds: string[];
+  diagnostics: CanonicalTranscriptDiagnostic[];
+}
+
 export interface ThreadMessagesWithAnswerCandidatesResult {
   messages: Array<Message & { parts: MessagePart[] }>;
   activeRuns: Run[];
@@ -435,6 +440,7 @@ export interface AgentInfraApp {
     getMessages(input: GetThreadMessagesInput): Promise<Array<Message & { parts: MessagePart[] }>>;
     getMessagesPage(input: GetThreadMessagesInput): Promise<MessagePageResult>;
     getCanonicalMessages(input: GetCanonicalThreadMessagesInput): Promise<CanonicalThreadMessagesResult>;
+    getCanonicalMessagesPage(input: GetThreadMessagesInput): Promise<CanonicalThreadMessagesPageResult>;
     getMessagesWithAnswerCandidates(input: GetThreadMessagesInput): Promise<ThreadMessagesWithAnswerCandidatesResult>;
   };
   turns: {

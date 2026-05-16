@@ -134,10 +134,17 @@ function mockThreadAccess() {
 
 function mockAppServices(overrides: {
   getMessages?: ReturnType<typeof vi.fn>;
+  getCanonicalMessages?: ReturnType<typeof vi.fn>;
+  getCanonicalMessagesPage?: ReturnType<typeof vi.fn>;
   getMessagesPage?: ReturnType<typeof vi.fn>;
   getActiveByThread?: ReturnType<typeof vi.fn>;
 } = {}) {
   const getMessages = overrides.getMessages ?? vi.fn().mockResolvedValue(createMessagesWithPolicyOnlyToolTrace());
+  const getCanonicalMessages = overrides.getCanonicalMessages ?? vi.fn().mockResolvedValue({
+    messages: createMessagesWithPolicyOnlyToolTrace(),
+    canonicalRunIds: [],
+    diagnostics: []
+  });
   const getMessagesPage = overrides.getMessagesPage ?? vi.fn().mockResolvedValue({
     messages: createMessagesWithPolicyOnlyToolTrace(),
     pageInfo: {
@@ -147,6 +154,17 @@ function mockAppServices(overrides: {
       endSeq: 3
     }
   });
+  const getCanonicalMessagesPage = overrides.getCanonicalMessagesPage ?? vi.fn().mockResolvedValue({
+    messages: createMessagesWithPolicyOnlyToolTrace(),
+    pageInfo: {
+      hasOlder: false,
+      hasNewer: true,
+      startSeq: 1,
+      endSeq: 3
+    },
+    canonicalRunIds: [],
+    diagnostics: []
+  });
   const getActiveByThread = overrides.getActiveByThread ?? vi.fn().mockResolvedValue(createRun());
   const services = {
     app: {
@@ -155,6 +173,8 @@ function mockAppServices(overrides: {
       },
       threads: {
         getMessages,
+        getCanonicalMessages,
+        getCanonicalMessagesPage,
         getMessagesPage
       }
     }
@@ -167,6 +187,8 @@ function mockAppServices(overrides: {
 
   return {
     getActiveByThread,
+    getCanonicalMessages,
+    getCanonicalMessagesPage,
     getMessages,
     getMessagesPage,
     getPlaygroundAppServices
@@ -186,7 +208,7 @@ describe('playground thread messages route', () => {
 
   it('filters policy-only tool traces from full thread messages', async () => {
     mockThreadAccess();
-    mockAppServices();
+    const { getCanonicalMessages } = mockAppServices();
     const { GET } = await importMessagesRoute();
 
     const response = await GET(new Request('http://localhost/api/threads/thread-1/messages'), {
@@ -214,11 +236,57 @@ describe('playground thread messages route', () => {
         id: 'run-1'
       }
     });
+    expect(getCanonicalMessages).toHaveBeenCalledWith({ threadId: 'thread-1' });
+  });
+
+  it('serves replay-compatible canonical messages without unselected candidates', async () => {
+    mockThreadAccess();
+    mockAppServices({
+      getCanonicalMessages: vi.fn().mockResolvedValue({
+        messages: [
+          createMessage({
+            id: 'user-message',
+            role: 'user',
+            seq: 1,
+            parts: [createPart('user-message', 0, 'text', null, 'question')]
+          }),
+          createMessage({
+            id: 'selected-answer',
+            runId: 'selected-run',
+            role: 'assistant',
+            seq: 3,
+            parts: [createPart('selected-answer', 0, 'text', null, 'selected answer')]
+          })
+        ],
+        canonicalRunIds: ['selected-run'],
+        diagnostics: []
+      })
+    });
+    const { GET } = await importMessagesRoute();
+
+    const response = await GET(new Request('http://localhost/api/threads/thread-1/messages'), {
+      params: Promise.resolve({ threadId: 'thread-1' })
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      messages: [
+        {
+          id: 'user-message',
+          parts: [{ textValue: 'question' }]
+        },
+        {
+          id: 'selected-answer',
+          runId: 'selected-run',
+          parts: [{ textValue: 'selected answer' }]
+        }
+      ]
+    });
   });
 
   it('filters policy-only tool traces from paginated thread messages', async () => {
     mockThreadAccess();
-    const { getMessages, getMessagesPage } = mockAppServices();
+    const { getCanonicalMessages, getCanonicalMessagesPage, getMessages, getMessagesPage } = mockAppServices();
     const { GET } = await importMessagesRoute();
 
     const response = await GET(new Request('http://localhost/api/threads/thread-1/messages?limit=3'), {
@@ -248,7 +316,9 @@ describe('playground thread messages route', () => {
       }
     });
     expect(getMessages).not.toHaveBeenCalled();
-    expect(getMessagesPage).toHaveBeenCalledWith({
+    expect(getMessagesPage).not.toHaveBeenCalled();
+    expect(getCanonicalMessages).not.toHaveBeenCalled();
+    expect(getCanonicalMessagesPage).toHaveBeenCalledWith({
       threadId: 'thread-1',
       limit: 3,
       beforeSeq: undefined,
@@ -259,19 +329,37 @@ describe('playground thread messages route', () => {
   it('keeps pagination cursors when every returned message is filtered out', async () => {
     mockThreadAccess();
     mockAppServices({
-      getMessagesPage: vi.fn().mockResolvedValue({
-        messages: [createMessagesWithPolicyOnlyToolTrace()[1]],
+      getCanonicalMessagesPage: vi.fn().mockResolvedValue({
+        messages: [
+          createMessage({
+            id: 'tool-1',
+            role: 'tool',
+            seq: 2,
+            parts: [
+              createPart('tool-1', 0, 'tool-result', {
+                toolCallId: 'call-policy',
+                toolName: 'searchWeb',
+                details: {
+                  status: 'blocked_by_policy'
+                }
+              })
+            ]
+          })
+        ],
         pageInfo: {
           hasOlder: true,
           hasNewer: true,
           startSeq: 2,
           endSeq: 2
-        }
+        },
+        canonicalRunIds: [],
+        diagnostics: []
       })
     });
     const { GET } = await importMessagesRoute();
+    const beforeCursor = Buffer.from(JSON.stringify({ threadId: 'thread-1', seq: 3 }), 'utf8').toString('base64url');
 
-    const response = await GET(new Request('http://localhost/api/threads/thread-1/messages?limit=1'), {
+    const response = await GET(new Request(`http://localhost/api/threads/thread-1/messages?limit=1&before=${beforeCursor}`), {
       params: Promise.resolve({ threadId: 'thread-1' })
     });
 
