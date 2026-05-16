@@ -33,7 +33,7 @@
 ## 1. Definitions First
 
 ### 1.1 Source of Truth
-- [ ] Reconfirm that follow-up refactors stay consistent with `docs/playground-next-web-chat-runtime-architecture.md`.
+- [x] Reconfirm that follow-up refactors stay consistent with `docs/playground-next-web-chat-runtime-architecture.md`.
 - [x] Decide whether test-stability facts belong in an existing runbook/doc or should remain only in this todo. Keep this as execution context in this todo; no durable concept model changed.
 - [x] Promote only stable long-lived facts into `docs/source-of-truth/*`; keep execution details in this todo. No source-of-truth promotion is needed for app-local Vitest timeout settings.
 
@@ -46,8 +46,8 @@
 - [x] Document how to interpret `pnpm test` failures when a targeted app suite passes but an unrelated workspace integration suite times out. Treat them as command-profile failures until reproduced in that targeted suite with adequate timeout.
 
 ### 1.3 Runtime Interfaces
-- [ ] Identify which remaining `use-durable-chat-runtime.ts` sections are pure derived state vs side-effect orchestration.
-- [ ] Define a small view-model seam for derived values such as response status, title, visible transcript, send disabled, and answer containers.
+- [x] Identify which remaining `use-durable-chat-runtime.ts` sections are pure derived state vs side-effect orchestration.
+- [x] Define a small view-model seam for derived values such as response status, title, visible transcript, send disabled, and answer containers.
 - [ ] Define a send/reconcile wiring seam that keeps dependency injection explicit and does not hide abort-controller ownership.
 - [ ] Keep the public `useDurableChatRuntime` return shape stable unless the component layer is changed in the same loop and covered by tests.
 
@@ -84,8 +84,8 @@
 ## 3. Frontend Boundary
 
 ### 3.1 Runtime Layer
-- [ ] Extract a pure view-model builder or hook from `use-durable-chat-runtime.ts`.
-- [ ] Add focused tests for the view-model seam before replacing inline logic.
+- [x] Extract a pure view-model builder or hook from `use-durable-chat-runtime.ts`.
+- [x] Add focused tests for the view-model seam before replacing inline logic.
 - [ ] Extract send/reconcile wiring only after the view-model seam is stable.
 - [ ] Keep route/thread/stream/inspector controllers as the current runtime controller boundary; do not introduce a generic controller abstraction.
 
@@ -116,7 +116,7 @@
 - [x] If a timeout remains, capture exact test names and decide whether it is an app issue or a command-profile issue. No timeout remained after stabilization.
 
 ### 4.2 Runtime Tests
-- [ ] Add focused tests for the runtime view-model seam.
+- [x] Add focused tests for the runtime view-model seam.
 - [ ] Add focused tests for send/reconcile wiring if that seam is extracted.
 - [ ] Keep existing stream/thread/inspector controller tests passing.
 
@@ -155,14 +155,14 @@
 - [x] Commit the test-stability slice if review is clean.
 
 ### Loop 3: Runtime View-Model Seam
-- [ ] Extract pure derived chat view-model logic from `use-durable-chat-runtime.ts`.
-- [ ] Keep side-effect orchestration and abort-controller ownership in the root hook/controllers.
-- [ ] Add focused tests for the view-model seam.
-- [ ] Run `pnpm --filter playground-next-web test`.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run manual/browser smoke for normal thread load if the change affects visible props.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit the runtime view-model slice if review is clean.
+- [x] Extract pure derived chat view-model logic from `use-durable-chat-runtime.ts`.
+- [x] Keep side-effect orchestration and abort-controller ownership in the root hook/controllers.
+- [x] Add focused tests for the view-model seam.
+- [x] Run `pnpm --filter playground-next-web test`.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run manual/browser smoke for normal thread load if the change affects visible props. Not run as a browser pass for this pure seam; the new view-model tests cover the visible prop derivation directly.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit the runtime view-model slice if review is clean.
 
 ### Loop 4: Send/Reconcile Wiring Cleanup
 - [ ] Identify the smallest send/reconcile wiring extraction that reduces root hook complexity.

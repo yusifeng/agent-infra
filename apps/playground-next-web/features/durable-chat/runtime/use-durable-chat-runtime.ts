@@ -14,8 +14,7 @@ import {
   fetchPlaygroundThreads,
   fetchPlaygroundThread,
   fetchThreadMessagesResponse,
-  openThreadRunAttachStream,
-  type PlaygroundThreadDto
+  openThreadRunAttachStream
 } from '@/features/durable-chat/repo/chat-api';
 import { persistSelectedRunId, readPersistedRunId } from '@/features/durable-chat/repo/run-selection-storage';
 import { normalizePlaygroundStreamEvent, parsePlaygroundSseChunk } from '@/features/durable-chat/schema/playground-stream';
@@ -45,19 +44,15 @@ import {
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
 import {
-  deriveMainChatResponseStatus,
   INITIAL_MESSAGE_PAGE_LIMIT,
-  parseRunAttachSseChunk,
-  shouldShowMainChatLoading
+  parseRunAttachSseChunk
 } from '@/features/durable-chat/service/chat-runtime';
 import {
   resolveActiveRunAttachDecision,
   resolveInspectorLoadDecision,
   resolveThreadRouteDecision
 } from '@/features/durable-chat/runtime/controllers/runtime-controller-seams';
-import { buildAnswerContainers } from '@/features/durable-chat/service/build-answer-containers';
-import { buildDeepseekModePresentation } from '@/features/durable-chat/service/deepseek-mode-presentation';
-import { buildTranscriptPresentation } from '@/features/durable-chat/service/transcript-presentation';
+import { buildChatRuntimeViewModel } from '@/features/durable-chat/runtime/chat-runtime-view-model';
 import { useChatShellEffects } from '@/features/durable-chat/runtime/use-chat-shell-effects';
 import { useSearchPanelState } from '@/features/durable-chat/runtime/use-search-panel-state';
 import { useChatViewportController } from '@/features/durable-chat/runtime/use-chat-viewport-controller';
@@ -165,56 +160,59 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const sendAbortControllerRef = useRef<AbortController | null>(null);
   const reconcileRequestIdRef = useRef(0);
 
-  const activeThread = useMemo(
-    () => (threads.find((thread) => thread.id === activeThreadId) as PlaygroundThreadDto | undefined) ?? null,
-    [threads, activeThreadId]
-  );
-  const selectedModelOption = useMemo(
-    () => meta?.modelOptions.find((option) => option.key === selectedModelKey) ?? meta?.modelOptions[0] ?? null,
-    [meta, selectedModelKey]
-  );
-  const deepseekModePresentation = useMemo(
+  const {
+    currentThreadPinned,
+    currentThreadTitle,
+    deepseekModePresentation,
+    displayedAnswerContainers,
+    displayedMessages,
+    displayedTranscriptBlocks,
+    hasOlderMessages,
+    inputLocked,
+    isChatResponding,
+    liveAssistantActionsAvailable,
+    responseStatus,
+    selectedModelOption,
+    sendDisabled,
+    showResponseLoading
+  } = useMemo(
     () =>
-      buildDeepseekModePresentation({
-        modelOptions: meta?.modelOptions ?? [],
-        selectedModelKey
-      }),
-    [meta?.modelOptions, selectedModelKey]
-  );
-  const selectedRun = timeline?.run ?? null;
-  const runEvents = timeline?.runEvents ?? [];
-  const toolInvocations = timeline?.toolInvocations ?? [];
-  const currentThreadTitle =
-    activeThread?.title?.trim() ||
-    (pendingNavigationTitle?.threadId === activeThreadId ? pendingNavigationTitle.title : null);
-  const currentThreadPinned = activeThread?.pinned === true;
-  const responseStatus = deriveMainChatResponseStatus({
-    activeResponseRun,
-    activeThreadId,
-    loadingThreadId,
-    chatPhase,
-    persistingTurn,
-    pendingNewThreadLoadingId: PENDING_NEW_THREAD_LOADING_ID
-  });
-  const isChatResponding = shouldShowMainChatLoading(responseStatus);
-  const showResponseLoading = shouldShowMainChatLoading(responseStatus);
-  const liveAssistantActionsAvailable = liveAssistantDraft !== null && persistingTurn && !isChatResponding;
-  const sendDisabled = !draft.trim() || isChatResponding || !meta?.runtimeConfigured || !selectedModelOption;
-  const inputLocked = isChatResponding;
-  const { displayedMessages, displayedTranscriptBlocks } = useMemo(
-    () =>
-      buildTranscriptPresentation({
+      buildChatRuntimeViewModel({
+        activeResponseRun,
+        activeThreadId,
+        chatPhase,
+        draft,
+        liveAssistantDraft,
+        loadingThreadId,
+        messagePageInfo,
         messages,
+        meta,
         optimisticUserMessage,
-        liveAssistantDraft
+        pendingNavigationTitle,
+        pendingNewThreadLoadingId: PENDING_NEW_THREAD_LOADING_ID,
+        persistingTurn,
+        selectedModelKey,
+        threads,
+        timeline
       }),
-    [liveAssistantDraft, messages, optimisticUserMessage]
+    [
+      activeResponseRun,
+      activeThreadId,
+      chatPhase,
+      draft,
+      liveAssistantDraft,
+      loadingThreadId,
+      messagePageInfo,
+      messages,
+      meta,
+      optimisticUserMessage,
+      pendingNavigationTitle,
+      persistingTurn,
+      selectedModelKey,
+      threads,
+      timeline
+    ]
   );
-  const displayedAnswerContainers = useMemo(
-    () => buildAnswerContainers(displayedTranscriptBlocks),
-    [displayedTranscriptBlocks]
-  );
-  const hasOlderMessages = messagePageInfo?.hasOlder === true;
   const {
     applyThreadTitleUpdate,
     currentVisibleThreadTitle,
