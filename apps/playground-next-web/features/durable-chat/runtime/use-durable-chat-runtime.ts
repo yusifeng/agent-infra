@@ -30,10 +30,11 @@ import {
   runLoadOlderMessages,
 } from '@/features/durable-chat/runtime/load-thread-flow';
 import {
-  runLoadLogInspectorFlow,
-  runLoadRunTimeline,
-  runResetLogInspectorState
-} from '@/features/durable-chat/runtime/load-log-inspector-flow';
+  loadInspectorController,
+  loadRunTimelineController,
+  persistSelectedRunSelection,
+  resetInspectorControllerState
+} from '@/features/durable-chat/runtime/inspector-controller';
 import { runSendMessageFlow } from '@/features/durable-chat/runtime/send-message-flow';
 import { runReconcileCompletedTurn } from '@/features/durable-chat/runtime/reconcile-completed-turn';
 import { runAttachRunLifecycle } from '@/features/durable-chat/runtime/stream-lifecycle-controller';
@@ -339,15 +340,17 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }, [selectedRunId]);
 
   useEffect(() => {
-    if (!runSelectionPersistenceReadyRef.current) {
-      return;
-    }
-
-    if (!logOpenRef.current && selectedRunId === null) {
-      return;
-    }
-
-    persistSelectedRunId(activeThreadId, selectedRunId);
+    persistSelectedRunSelection({
+      activeThreadId,
+      selectedRunId,
+      refs: {
+        logOpenRef,
+        runSelectionPersistenceReadyRef
+      },
+      operations: {
+        persistSelectedRunId
+      }
+    });
   }, [activeThreadId, selectedRunId]);
 
   function resetDraftThreadState() {
@@ -389,7 +392,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }
 
   function resetLogInspectorState(options?: { clearSelectedRun?: boolean }) {
-    runResetLogInspectorState({
+    resetInspectorControllerState({
       options,
       refs: {
         logInspectorAbortControllerRef,
@@ -529,7 +532,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     messagesSnapshot: MessageDto[],
     options?: { preferredRunId?: string | null; preserveExistingTimeline?: boolean }
   ) {
-    return runLoadLogInspectorFlow({
+    return loadInspectorController({
       threadId,
       messagesSnapshot,
       options,
@@ -554,7 +557,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }
 
   async function loadRunTimeline(runId: string | null, options?: { preserveExisting?: boolean }) {
-    return runLoadRunTimeline({
+    return loadRunTimelineController({
       runId,
       options,
       refs: {

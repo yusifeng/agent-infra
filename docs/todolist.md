@@ -12,10 +12,10 @@
 - [x] Refactoring without behavior tests is high risk because several important behaviors depend on timing between live draft state, durable transcript projection, router transitions, and DOM layout.
 
 ### 0.2 Goals
-- [ ] Reduce bug-fix latency by splitting oversized chat files along existing architecture seams.
-- [ ] Preserve the current user-visible chat behavior while refactoring.
-- [ ] Add behavior-lock tests before moving runtime or rendering logic.
-- [ ] Make `message-list.tsx` a composition layer rather than a mixed rendering/service file.
+- [x] Reduce bug-fix latency by splitting oversized chat files along existing architecture seams.
+- [x] Preserve the current user-visible chat behavior while refactoring.
+- [x] Add behavior-lock tests before moving runtime or rendering logic.
+- [x] Make `message-list.tsx` a composition layer rather than a mixed rendering/service file.
 - [ ] Make `use-durable-chat-runtime.ts` a composition layer rather than the main state machine.
 - [ ] Keep reusable durable runtime behavior in `packages/*` when it represents platform capability rather than Next-only UI behavior.
 
@@ -52,7 +52,7 @@
 - [x] Lock send behavior: sending a new user message intentionally returns the active thread to bottom-follow mode.
 - [ ] Lock historical pagination behavior: loading older messages keeps the reader's current visual position stable.
 - [x] Lock stale attach cleanup behavior: a stale attach request's completion/finally path must not clear the current thread's live stream state.
-- [ ] Lock inspector separation behavior: inspector hydration, selected-run persistence, and debug/search prefetch must not drive center chat loading or clear live draft.
+- [x] Lock inspector separation behavior: inspector hydration, selected-run persistence, and debug/search prefetch must not drive center chat loading or clear live draft.
 
 ### 1.3 Data Model
 - [ ] Keep durable thread, run, and message DTOs unchanged unless a test proves that package-level behavior cannot be expressed with the current contracts.
@@ -113,7 +113,7 @@
 - [x] Add or strengthen tests for live-run persisted transcript filtering so the current live assistant does not duplicate with durable blocks.
 - [x] Add or strengthen tests for stale attach event/finally guards so old attach requests cannot mutate the active thread state.
 - [x] Add or strengthen tests for pending title and title typing stale guards.
-- [ ] Add or strengthen tests for inspector/search/debug prefetch staying out of the center chat loading path.
+- [x] Add or strengthen tests for inspector/search/debug prefetch staying out of the center chat loading path.
 
 ### 4.2 Viewport / DOM Tests
 - [x] Add or strengthen tests for near-bottom streaming auto-follow using `behavior: 'auto'`.
@@ -225,13 +225,13 @@
 - [x] Commit the thread load/navigation split slice if review is clean.
 
 ### Loop 8: Inspector Runtime Split
-- [ ] Extract inspector hydration and selected-run coordination into a bounded runtime controller.
-- [ ] Keep the center chat path independent from optional inspector/debug hydration.
-- [ ] Preserve the rule that inspector hydration and selected-run persistence cannot clear live draft or drive main loading.
-- [ ] Run `pnpm --filter playground-next-web test`.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run manual browser verification for inspector open/close, replay, and selected-run changes.
-- [ ] Run `codex review` for this loop after targeted verification passes.
+- [x] Extract inspector hydration and selected-run coordination into a bounded runtime controller.
+- [x] Keep the center chat path independent from optional inspector/debug hydration.
+- [x] Preserve the rule that inspector hydration and selected-run persistence cannot clear live draft or drive main loading.
+- [x] Run `pnpm --filter playground-next-web test`.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run manual browser verification for current chat route stability; in-chat inspector open/close/replay is not applicable because the current chat shell does not render an inspector entry point.
+- [x] Run `codex review` for this loop after targeted verification passes.
 - [ ] Commit the inspector split slice if review is clean.
 
 ### Loop 9: Directory Reorganization
