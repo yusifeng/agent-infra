@@ -8,6 +8,7 @@ import { memo, useMemo, useState, type CSSProperties, type ReactNode } from 'rea
 
 import type { AnswerContainer } from '@/features/durable-chat/types/answer-containers';
 import { buildAnswerContainerActionContexts } from '@/features/durable-chat/service/build-answer-container-actions';
+import { buildMessageListRenderPlan } from '@/features/durable-chat/service/message-list-presentation';
 import { copyMessageToClipboard, copyTextToClipboard } from './helpers';
 import { MessageActions } from './message-actions';
 import { MarkdownRenderer } from './markdown-renderer';
@@ -878,18 +879,30 @@ export const ChatMessageList = memo(function ChatMessageList({
 }: ChatMessageListProps) {
   const assistantTurnActionContexts = useMemo(() => buildAssistantTurnActionContexts(transcriptBlocks), [transcriptBlocks]);
   const answerContainerActionContexts = useMemo(() => buildAnswerContainerActionContexts(answerContainers), [answerContainers]);
-  const answerContainerStartByBlockId = useMemo(
+  const renderPlan = useMemo(
     () =>
-      new Map(
-        answerContainers
-          .map((container) => [container.transcriptBlockIds[0], container] as const)
-          .filter((entry): entry is readonly [string, AnswerContainer] => typeof entry[0] === 'string')
-      ),
-    [answerContainers]
-  );
-  const answerContainerBlockIds = useMemo(
-    () => new Set(answerContainers.flatMap((container) => container.transcriptBlockIds)),
-    [answerContainers]
+      buildMessageListRenderPlan({
+        activeThreadId,
+        answerContainers,
+        durableRecoveryState,
+        liveAssistantDraft,
+        loadingMessages,
+        messages,
+        meta,
+        showLoadingText,
+        transcriptBlocks
+      }),
+    [
+      activeThreadId,
+      answerContainers,
+      durableRecoveryState,
+      liveAssistantDraft,
+      loadingMessages,
+      messages,
+      meta,
+      showLoadingText,
+      transcriptBlocks
+    ]
   );
 
   useRenderDiagnostic('ChatMessageList', activeThreadId ?? 'new-thread', {
@@ -903,27 +916,19 @@ export const ChatMessageList = memo(function ChatMessageList({
     transcriptBlockKeys: transcriptBlocks.map((block) => block.id).join('|')
   });
 
-  const hasRuntimeWarning = !meta?.runtimeConfigured && Boolean(meta?.runtimeConfigError);
-  const hasRecoveryNotice = durableRecoveryState.phase !== 'idle' && Boolean(durableRecoveryState.message);
-  const hasVisibleActiveThreadMessages = Boolean(
-    activeThreadId &&
-    messages.some((message) => message.threadId === activeThreadId)
-  );
-  const showSilentThreadLoadingPlaceholder = loadingMessages && !hasVisibleActiveThreadMessages;
-
   return (
     <div className={clsx('flex-1 p-6', centeredEmptyState && 'flex-none pb-3')}>
-      {hasRuntimeWarning ? (
+      {renderPlan.hasRuntimeWarning ? (
         <div className={clsx(`${maxWithTW} mx-auto mb-4 w-full rounded-xl px-4 py-3 text-sm`, ui.warningBanner)}>
-          {meta?.runtimeConfigError}
+          {renderPlan.runtimeWarningMessage}
         </div>
       ) : null}
 
-      {hasRecoveryNotice ? (
+      {renderPlan.hasRecoveryNotice ? (
         <div className={clsx(`${maxWithTW} mx-auto mb-4 w-full rounded-xl px-4 py-3 text-sm`, ui.infoBanner)}>
           <div className="flex items-center gap-2">
             {durableRecoveryState.phase === 'recovering' ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            <span>{durableRecoveryState.message}</span>
+            <span>{renderPlan.recoveryNoticeMessage}</span>
           </div>
         </div>
       ) : null}
@@ -934,13 +939,13 @@ export const ChatMessageList = memo(function ChatMessageList({
         </div>
       ) : null}
 
-      {showSilentThreadLoadingPlaceholder ? (
+      {renderPlan.showSilentThreadLoadingPlaceholder ? (
         <div className={`${maxWithTW} mx-auto w-full`} style={messageListMinHeight} aria-busy="true" />
-      ) : messages.length === 0 && transcriptBlocks.length === 0 && liveAssistantDraft === null ? (
+      ) : renderPlan.showEmptyState ? (
         <div className={`${maxWithTW} mx-auto w-full`} style={centeredEmptyState ? undefined : messageListMinHeight}>
           <div className={clsx('flex flex-col items-center gap-3', centeredEmptyState ? 'justify-end' : 'min-h-full justify-center')}>
             {showWelcomeWhenEmpty ? <WelcomeMessage activeThreadId={activeThreadId} /> : null}
-            {showLoadingText ? <ThinkingIndicator /> : null}
+            {renderPlan.showEmptyThinkingIndicator ? <ThinkingIndicator /> : null}
           </div>
         </div>
       ) : (
@@ -964,33 +969,31 @@ export const ChatMessageList = memo(function ChatMessageList({
                 </button>
               </div>
             ) : null}
-            {transcriptBlocks.map((block) => (
-              block.type === 'assistant-turn' && answerContainerBlockIds.has(block.id) ? (
-                answerContainerStartByBlockId.has(block.id) ? (
+            {renderPlan.transcriptRenderItems.map((item) => (
+              item.type === 'answer-container' ? (
                   <AnswerContainerCard
-                    key={block.id}
+                    key={item.key}
                     actionContext={
-                      answerContainerActionContexts.get(answerContainerStartByBlockId.get(block.id)!.actionHostId) ?? {
+                      answerContainerActionContexts.get(item.container.actionHostId) ?? {
                         copyText: '',
                         hasVisibleOperation: false
                       }
                     }
-                    container={answerContainerStartByBlockId.get(block.id)!}
+                    container={item.container}
                     onOpenSearchResult={onOpenSearchResult}
                     showPersistedResearchStatus={showPersistedResearchStatus}
                   />
-                ) : null
               ) : (
                   <TranscriptBlockCard
-                    key={block.id}
-                    actionContext={assistantTurnActionContexts.get(block.id)}
-                    block={block}
+                    key={item.key}
+                    actionContext={assistantTurnActionContexts.get(item.block.id)}
+                    block={item.block}
                     onOpenSearchResult={onOpenSearchResult}
                     showPersistedResearchStatus={showPersistedResearchStatus}
                   />
               )
             ))}
-            {liveAssistantDraft ? (
+            {renderPlan.showLiveAssistant && liveAssistantDraft ? (
               <LiveAssistantCard
                 actionsAvailable={liveAssistantActionsAvailable}
                 getLiveSearchPanelData={getLiveSearchPanelData}
@@ -998,7 +1001,7 @@ export const ChatMessageList = memo(function ChatMessageList({
                 onOpenSearchResult={onOpenSearchResult}
               />
             ) : null}
-            {showLoadingText ? <ThinkingIndicator /> : null}
+            {renderPlan.showTrailingThinkingIndicator ? <ThinkingIndicator /> : null}
           </div>
         </div>
       )}

@@ -64,7 +64,7 @@
 - [ ] Define the runtime split boundaries before editing: thread navigation/load, send/attach stream lifecycle, completed-turn reconcile, inspector hydration, title/meta refresh, and viewport coordination.
 - [ ] Keep exported component/hook props stable unless a narrower internal type reduces coupling without changing public usage.
 - [ ] Prefer pure service functions for behavior that can be tested without React or DOM.
-- [ ] Define a small message-list render decision seam before extracting leaf UI components, so service-like visibility/grouping logic does not get duplicated across JSX files.
+- [x] Define a small message-list render decision seam before extracting leaf UI components, so service-like visibility/grouping logic does not get duplicated across JSX files.
 
 ## 2. Backend / Platform
 
@@ -124,7 +124,7 @@
 - [x] Add or strengthen tests for user clicking jump-to-bottom using smooth scroll except under reduced motion.
 
 ### 4.3 UI Extraction Tests
-- [ ] Add focused tests for message presentation helpers that feed user, assistant, live assistant, thinking, research, and answer-container rendering.
+- [x] Add focused tests for message presentation helpers that feed user, assistant, live assistant, thinking, research, and answer-container rendering.
 - [ ] Add snapshot or DOM-level tests only where they catch real regressions in structure that pure service tests cannot catch.
 - [ ] Avoid brittle full-page snapshots for the chat shell.
 
@@ -168,14 +168,13 @@
 - [x] Run `codex review` for this loop after targeted verification passes.
 - [x] Commit the hook/DOM behavior-lock test slice if review is clean.
 
-### Loop 2: Message Render Decision Seam
-- [ ] Extract a small pure message-list presentation helper for render decisions such as silent loading placeholder, empty state, transcript rows, live assistant row, and action availability.
-- [ ] Add focused tests for the helper before changing leaf components.
-- [ ] Keep CSS classes, React state, DOM refs, and user-facing copy out of the service helper.
-- [ ] Run `pnpm --filter playground-next-web test`.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit the message render decision seam if review is clean.
+- [x] Extract a small pure message-list presentation helper for render decisions such as silent loading placeholder, empty state, transcript rows, live assistant row, and action availability.
+- [x] Add focused tests for the helper before changing leaf components.
+- [x] Keep CSS classes, React state, DOM refs, and user-facing copy out of the service helper.
+- [x] Run `pnpm --filter playground-next-web test`.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit the message render decision seam if review is clean.
 
 ### Loop 3: Message UI Split
 - [ ] Split `message-list.tsx` into message UI components along the boundaries defined in section 1.4.
