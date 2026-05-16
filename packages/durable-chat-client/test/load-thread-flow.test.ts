@@ -19,6 +19,17 @@ function createSetterSpy<T>() {
   return vi.fn<(next: Updater<T>) => void>();
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+
+  return { promise, resolve, reject };
+}
+
 function resolveUpdater<T>(update: Updater<T>, current: T) {
   return typeof update === 'function' ? (update as (value: T) => T)(current) : update;
 }
@@ -254,6 +265,60 @@ describe('runLoadThreadMessages', () => {
     });
     expect(setActiveResponseRun).not.toHaveBeenCalledWith(null);
   });
+
+  it('does not apply stale thread-load responses after a newer load starts', async () => {
+    const transcriptDeferred = createDeferred<{
+      messages: MessageDto[];
+      pageInfo: ThreadMessagesPageInfoDto | null;
+      activeResponseRun: RunDto | null;
+    }>();
+    const messagesRequestIdRef = { current: 0 };
+    const applyHydratedTranscript = vi.fn();
+    const setLoadingMessages = createSetterSpy<boolean>();
+
+    const loadPromise = runLoadThreadMessages({
+      threadId: 'thread-1',
+      refs: {
+        activeThreadIdRef: { current: 'thread-1' },
+        logOpenRef: { current: false },
+        messagesAbortControllerRef: { current: null },
+        messagesRequestIdRef
+      },
+      actions: {
+        setActiveResponseRun: createSetterSpy<RunDto | null>(),
+        setError: createSetterSpy<string | null>(),
+        setHistoryLoading: createSetterSpy<boolean>(),
+        setLiveAssistantDraft: createSetterSpy<any>(),
+        setLoadingMessages,
+        setMessagePageInfo: createSetterSpy<ThreadMessagesPageInfoDto | null>(),
+        setOptimisticUserMessage: createSetterSpy<MessageDto | null>(),
+        setRecentRunsError: createSetterSpy<string | null>(),
+        setRecentRunsLoading: createSetterSpy<boolean>()
+      },
+      operations: {
+        applyHydratedTranscript,
+        hydrateTranscript: vi.fn().mockReturnValue(transcriptDeferred.promise),
+        loadLogInspector: vi.fn(),
+        resetLogInspectorState: vi.fn()
+      }
+    });
+
+    await Promise.resolve();
+    messagesRequestIdRef.current += 1;
+    transcriptDeferred.resolve({
+      messages: [createMessage('message-stale', 1)],
+      pageInfo: null,
+      activeResponseRun: null
+    });
+
+    await expect(loadPromise).resolves.toEqual({
+      ok: false,
+      restoredRunId: null
+    });
+    expect(applyHydratedTranscript).not.toHaveBeenCalled();
+    expect(setLoadingMessages).toHaveBeenCalledWith(true);
+    expect(setLoadingMessages).not.toHaveBeenCalledWith(false);
+  });
 });
 
 describe('applyHydratedTranscriptState', () => {
@@ -425,6 +490,86 @@ describe('applyHydratedTranscriptState', () => {
     );
 
     expect(nextDraft).toBeNull();
+  });
+
+  it('keeps a restored live draft when hydrate only has an empty durable assistant shell for the active run', () => {
+    const setLiveAssistantDraft = createSetterSpy<any>();
+    const actions = {
+      setActiveResponseRun: createSetterSpy<RunDto | null>(),
+      setChatPhase: createSetterSpy<'idle' | 'thinking' | 'streaming' | 'transcript-final' | 'failed'>(),
+      setError: createSetterSpy<string | null>(),
+      setLiveAssistantDraft,
+      setMessages: createSetterSpy<MessageDto[]>(),
+      setMessagePageInfo: createSetterSpy<ThreadMessagesPageInfoDto | null>(),
+      setOptimisticUserMessage: createSetterSpy<MessageDto | null>(),
+      setRecentRuns: createSetterSpy<RunDto[]>(),
+      setRecentRunsError: createSetterSpy<string | null>(),
+      setSelectedRunId: createSetterSpy<string | null>()
+    };
+
+    applyHydratedTranscriptState({
+      messages: [
+        {
+          ...createMessage('assistant-shell-1', 1),
+          role: 'assistant',
+          runId: 'run-active',
+          parts: [
+            {
+              id: 'part-1',
+              messageId: 'assistant-shell-1',
+              partIndex: 0,
+              type: 'text',
+              textValue: '   ',
+              jsonValue: null
+            }
+          ]
+        }
+      ],
+      pageInfo: null,
+      activeResponseRun: {
+        id: 'run-active',
+        threadId: 'thread-1',
+        triggerMessageId: null,
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+        status: 'running',
+        usage: null,
+        error: null,
+        startedAt: '2026-01-01T00:00:00.000Z',
+        finishedAt: null,
+        createdAt: '2026-01-01T00:00:00.000Z'
+      },
+      selectedRunId: null,
+      runs: [],
+      actions
+    });
+
+    const currentDraft = {
+      runId: 'run-active',
+      messageId: 'assistant-live',
+      source: 'restored',
+      committedText: '',
+      partialText: '正在生成最终回复',
+      segmentText: '正在生成最终回复',
+      segmentTextMessageId: 'assistant-live',
+      partialReasoning: null,
+      segmentReasoningMessageId: null,
+      activeTools: [],
+      eventType: 'streaming',
+      segments: [
+        {
+          id: 'assistant-live:0',
+          messageId: 'assistant-live',
+          text: '正在生成最终回复',
+          reasoning: null,
+          tools: [],
+          eventType: 'streaming'
+        }
+      ]
+    };
+    const nextDraft = resolveUpdater(setLiveAssistantDraft.mock.calls[0]?.[0], currentDraft);
+
+    expect(nextDraft).toBe(currentDraft);
   });
 });
 

@@ -105,13 +105,13 @@
 ## 4. Tests
 
 ### 4.1 Pre-Refactor Behavior Tests
-- [ ] Add or strengthen tests for live draft retention through completed-turn reconcile.
+- [x] Add or strengthen tests for live draft retention through completed-turn reconcile.
 - [ ] Add or strengthen tests for thread switch attach/recovery while a run is streaming.
-- [ ] Add or strengthen tests that an empty durable assistant shell does not clear visible assistant content.
+- [x] Add or strengthen tests that an empty durable assistant shell does not clear visible assistant content.
 - [ ] Add or strengthen tests for title selection so thread id is not used as the normal header fallback during known-thread navigation.
-- [ ] Add or strengthen tests for markdown code block fallback stability during streaming.
-- [ ] Add or strengthen tests for live-run persisted transcript filtering so the current live assistant does not duplicate with durable blocks.
-- [ ] Add or strengthen tests for stale attach event/finally guards so old attach requests cannot mutate the active thread state.
+- [x] Add or strengthen tests for markdown code block fallback stability during streaming.
+- [x] Add or strengthen tests for live-run persisted transcript filtering so the current live assistant does not duplicate with durable blocks.
+- [x] Add or strengthen tests for stale attach event/finally guards so old attach requests cannot mutate the active thread state.
 - [ ] Add or strengthen tests for pending title and title typing stale guards.
 - [ ] Add or strengthen tests for inspector/search/debug prefetch staying out of the center chat loading path.
 
@@ -152,14 +152,14 @@
 - [x] Run the narrowest existing tests that cover current chat behavior to establish a baseline. `pnpm --filter playground-next-web test` and `pnpm --filter playground-next-web typecheck` pass before behavior-lock work begins.
 
 ### Loop 1A: Pure Behavior-Lock Tests
-- [ ] Add missing pure tests for streaming draft retention, completed-turn reconcile, empty assistant shell handling, live-run transcript filtering, send `text_end` bridge behavior, stale thread load guards, and markdown fallback wrapper stability.
-- [ ] Use existing package/app service test files where possible instead of introducing broad integration snapshots.
-- [ ] Do not move or split production files in this loop except to expose pure functions required for testing.
-- [ ] Run `pnpm --filter playground-next-web test`.
-- [ ] Run `pnpm --filter @agent-infra/durable-chat-client test` if package-level tests changed.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit the pure behavior-lock test slice if review is clean.
+- [x] Add missing pure tests for streaming draft retention, completed-turn reconcile, empty assistant shell handling, live-run transcript filtering, send `text_end` bridge behavior, stale thread load guards, and markdown fallback wrapper stability.
+- [x] Use existing package/app service test files where possible instead of introducing broad integration snapshots.
+- [x] Do not move or split production files in this loop except to expose pure functions required for testing.
+- [x] Run `pnpm --filter playground-next-web test`.
+- [x] Run `pnpm --filter @agent-infra/durable-chat-client test` if package-level tests changed.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit the pure behavior-lock test slice if review is clean.
 
 ### Loop 1B: Hook / DOM Behavior-Lock Tests
 - [ ] Add focused hook/DOM tests for viewport selection lock, detached reader behavior, near-bottom follow, prepend anchor restoration, pending title stale guards, and generated-title typing cancellation.

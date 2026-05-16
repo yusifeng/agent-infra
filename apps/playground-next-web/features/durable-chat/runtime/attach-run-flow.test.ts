@@ -201,4 +201,54 @@ describe('applyAttachRunEvent', () => {
     expect(harness.state.persistingTurn).toBe(true);
     expect(harness.operations.reconcileCompletedTurn).toHaveBeenCalledWith('thread-1', 'run-1', 7);
   });
+
+  it('ignores completed events from stale attach requests without clearing current live state', () => {
+    const harness = createHarness();
+    harness.refs.attachRequestIdRef.current = 8;
+    harness.state.liveStreamRunId = 'run-current';
+    harness.state.loadingThreadId = 'thread-current';
+    harness.state.persistingTurn = false;
+    harness.state.chatPhase = 'streaming';
+    harness.state.liveAssistantDraft = {
+      runId: 'run-current',
+      messageId: 'assistant-current',
+      source: 'restored',
+      committedText: '',
+      partialText: 'still streaming',
+      segmentText: 'still streaming',
+      segmentTextMessageId: 'assistant-current',
+      partialReasoning: null,
+      segmentReasoningMessageId: null,
+      activeTools: [],
+      eventType: 'streaming',
+      segments: [
+        {
+          id: 'assistant-current:0',
+          messageId: 'assistant-current',
+          text: 'still streaming',
+          reasoning: null,
+          tools: [],
+          eventType: 'streaming'
+        }
+      ]
+    };
+
+    const { terminal } = apply(
+      {
+        type: 'run.completed',
+        runId: 'run-1',
+        run: createRun({ status: 'completed', finishedAt: '2026-01-01T00:00:01.000Z' }),
+        version: 3
+      },
+      harness
+    );
+
+    expect(terminal).toBe(false);
+    expect(harness.state.liveStreamRunId).toBe('run-current');
+    expect(harness.state.loadingThreadId).toBe('thread-current');
+    expect(harness.state.persistingTurn).toBe(false);
+    expect(harness.state.chatPhase).toBe('streaming');
+    expect(harness.state.liveAssistantDraft?.runId).toBe('run-current');
+    expect(harness.operations.reconcileCompletedTurn).not.toHaveBeenCalled();
+  });
 });

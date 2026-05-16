@@ -471,4 +471,112 @@ describe('runReconcileCompletedTurn', () => {
     expect(actions.setOptimisticUserMessage).toHaveBeenCalledWith(null);
     expect(nextDraft).toBe(currentDraft);
   });
+
+  it('keeps a current live draft when durable reconcile only loads an empty assistant shell for the same run', async () => {
+    const emptyAssistantShell: MessageDto = {
+      ...createMessage('assistant-shell-1', 2),
+      role: 'assistant',
+      runId: 'run-1',
+      parts: [
+        {
+          id: 'assistant-shell-1:text',
+          messageId: 'assistant-shell-1',
+          partIndex: 0,
+          type: 'text',
+          textValue: '   ',
+          jsonValue: null,
+          createdAt: '2026-01-01T00:00:00.000Z'
+        }
+      ]
+    };
+    fetchThreadMessagesResponseMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        messages: [emptyAssistantShell],
+        pageInfo: {
+          hasOlder: true,
+          hasNewer: false,
+          startCursor: 'cursor-2',
+          endCursor: 'cursor-2'
+        },
+        activeRun: null
+      }
+    });
+
+    const actions = {
+      setActiveResponseRun: createSetterSpy<RunDto | null>(),
+      setChatPhase: createSetterSpy<'idle' | 'thinking' | 'streaming' | 'transcript-final' | 'failed'>(),
+      setError: createSetterSpy<string | null>(),
+      setLiveAssistantDraft: createSetterSpy<any>(),
+      setLoadingThreadId: createSetterSpy<string | null>(),
+      setMessages: createSetterSpy<MessageDto[]>(),
+      setMessagePageInfo: createSetterSpy<{
+        hasOlder: boolean;
+        hasNewer: boolean;
+        startCursor: string | null;
+        endCursor: string | null;
+      } | null>(),
+      setOptimisticUserMessage: createSetterSpy<MessageDto | null>(),
+      setPersistingTurn: createSetterSpy<boolean>(),
+      setRecentRuns: createSetterSpy<never[]>(),
+      setRecentRunsError: createSetterSpy<string | null>(),
+      setRecentRunsLoading: createSetterSpy<boolean>(),
+      setSelectedRunId: createSetterSpy<string | null>(),
+      setTimeline: createSetterSpy<null>(),
+      setTimelineError: createSetterSpy<string | null>(),
+      setTimelineLoading: createSetterSpy<boolean>()
+    };
+
+    await runReconcileCompletedTurn({
+      threadId: 'thread-1',
+      preferredRunId: 'run-1',
+      requestId: 4,
+      state: {
+        messages: [createMessage('message-1', 1)],
+        pageInfo: {
+          hasOlder: false,
+          hasNewer: false,
+          startCursor: 'cursor-1',
+          endCursor: 'cursor-1'
+        }
+      },
+      refs: {
+        activeThreadIdRef: { current: 'thread-1' },
+        logOpenRef: { current: false },
+        reconcileRequestIdRef: { current: 0 },
+        selectedRunIdRef: { current: null },
+        sendRequestIdRef: { current: 4 }
+      },
+      actions
+    });
+
+    const currentDraft = {
+      runId: 'run-1',
+      messageId: 'assistant-live',
+      source: 'restored',
+      committedText: 'visible live content',
+      partialText: 'visible live content',
+      segmentText: 'visible live content',
+      segmentTextMessageId: 'assistant-live',
+      partialReasoning: null,
+      segmentReasoningMessageId: null,
+      activeTools: [],
+      eventType: 'text_end',
+      segments: [
+        {
+          id: 'assistant-live:0',
+          messageId: 'assistant-live',
+          text: 'visible live content',
+          reasoning: null,
+          tools: [],
+          eventType: 'text_end'
+        }
+      ]
+    };
+    const nextDraft = resolveUpdater(actions.setLiveAssistantDraft.mock.calls[0]?.[0], currentDraft);
+
+    expect(actions.setMessages).toHaveBeenCalledWith([createMessage('message-1', 1), emptyAssistantShell]);
+    expect(nextDraft).toBe(currentDraft);
+  });
 });
