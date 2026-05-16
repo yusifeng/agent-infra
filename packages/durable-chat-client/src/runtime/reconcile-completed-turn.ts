@@ -13,6 +13,7 @@ import {
 } from '../service/chat-runtime.js';
 import { emitApiDiagnostic } from '../service/api-diagnostics.js';
 import { emitChatRenderDiagnostic } from '../service/render-diagnostics.js';
+import { assistantMessageHasVisibleContent } from '../service/message-visibility.js';
 import type { ChatPhase } from '../types/runtime.js';
 import type { LiveAssistantDraft } from '../types/live-assistant-draft.js';
 
@@ -139,6 +140,18 @@ export async function runReconcileCompletedTurn({
       if (isCurrentSend()) {
         actions.setOptimisticUserMessage(null);
         actions.setLiveAssistantDraft(null);
+      } else {
+        actions.setLiveAssistantDraft((current) => {
+          if (!current?.runId) {
+            return current;
+          }
+
+          const hasPersistedAssistantForLiveRun = reconciledMessages.some(
+            (message) => message.runId === current.runId && assistantMessageHasVisibleContent(message)
+          );
+
+          return hasPersistedAssistantForLiveRun ? null : current;
+        });
       }
     }
 

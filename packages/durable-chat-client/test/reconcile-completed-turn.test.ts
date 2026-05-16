@@ -21,6 +21,10 @@ function createSetterSpy<T>() {
   return vi.fn<(next: Updater<T>) => void>();
 }
 
+function resolveUpdater<T>(value: Updater<T>, current: T) {
+  return typeof value === 'function' ? (value as (current: T) => T)(current) : value;
+}
+
 function createMessage(id: string, seq: number): MessageDto {
   return {
     id,
@@ -32,6 +36,25 @@ function createMessage(id: string, seq: number): MessageDto {
     metadata: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     parts: []
+  };
+}
+
+function createVisibleAssistantMessage(id: string, seq: number, runId = 'run-1'): MessageDto {
+  return {
+    ...createMessage(id, seq),
+    runId,
+    role: 'assistant',
+    parts: [
+      {
+        id: `${id}-part-1`,
+        messageId: id,
+        partIndex: 0,
+        type: 'text',
+        textValue: 'durable assistant response',
+        jsonValue: null,
+        createdAt: '2026-01-01T00:00:00.000Z'
+      }
+    ]
   };
 }
 
@@ -269,5 +292,89 @@ describe('runReconcileCompletedTurn', () => {
 
     expect(actions.setLiveAssistantDraft).toHaveBeenCalledWith(null);
     expect(actions.setError).toHaveBeenCalledWith('messages exploded');
+  });
+
+  it('clears a restored live draft after a non-send reconcile loads durable assistant content for the same run', async () => {
+    const durableAssistantMessage = createVisibleAssistantMessage('assistant-message-1', 2, 'run-1');
+    fetchThreadMessagesResponseMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        messages: [durableAssistantMessage],
+        pageInfo: {
+          hasOlder: true,
+          hasNewer: false,
+          startCursor: 'cursor-2',
+          endCursor: 'cursor-2'
+        },
+        activeRun: null
+      }
+    });
+
+    const actions = {
+      setActiveResponseRun: createSetterSpy<RunDto | null>(),
+      setChatPhase: createSetterSpy<'idle' | 'thinking' | 'streaming' | 'transcript-final' | 'failed'>(),
+      setError: createSetterSpy<string | null>(),
+      setLiveAssistantDraft: createSetterSpy<any>(),
+      setLoadingThreadId: createSetterSpy<string | null>(),
+      setMessages: createSetterSpy<MessageDto[]>(),
+      setMessagePageInfo: createSetterSpy<{
+        hasOlder: boolean;
+        hasNewer: boolean;
+        startCursor: string | null;
+        endCursor: string | null;
+      } | null>(),
+      setOptimisticUserMessage: createSetterSpy<MessageDto | null>(),
+      setPersistingTurn: createSetterSpy<boolean>(),
+      setRecentRuns: createSetterSpy<never[]>(),
+      setRecentRunsError: createSetterSpy<string | null>(),
+      setRecentRunsLoading: createSetterSpy<boolean>(),
+      setSelectedRunId: createSetterSpy<string | null>(),
+      setTimeline: createSetterSpy<null>(),
+      setTimelineError: createSetterSpy<string | null>(),
+      setTimelineLoading: createSetterSpy<boolean>()
+    };
+
+    await runReconcileCompletedTurn({
+      threadId: 'thread-1',
+      preferredRunId: 'run-1',
+      requestId: 7,
+      state: {
+        messages: [createMessage('message-1', 1)],
+        pageInfo: {
+          hasOlder: false,
+          hasNewer: false,
+          startCursor: 'cursor-1',
+          endCursor: 'cursor-1'
+        }
+      },
+      refs: {
+        activeThreadIdRef: { current: 'thread-1' },
+        logOpenRef: { current: false },
+        reconcileRequestIdRef: { current: 0 },
+        selectedRunIdRef: { current: null },
+        sendRequestIdRef: { current: 4 }
+      },
+      actions
+    });
+
+    const nextDraft = resolveUpdater(actions.setLiveAssistantDraft.mock.calls[0]?.[0], {
+      runId: 'run-1',
+      messageId: 'assistant-live',
+      source: 'restored',
+      committedText: '',
+      partialText: '',
+      segmentText: '',
+      segmentTextMessageId: 'assistant-live',
+      partialReasoning: null,
+      segmentReasoningMessageId: null,
+      activeTools: [],
+      eventType: 'text_end',
+      segments: []
+    });
+
+    expect(actions.setMessages).toHaveBeenCalledWith([createMessage('message-1', 1), durableAssistantMessage]);
+    expect(nextDraft).toBeNull();
+    expect(actions.setOptimisticUserMessage).not.toHaveBeenCalled();
   });
 });
