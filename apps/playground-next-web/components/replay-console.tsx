@@ -23,7 +23,7 @@ export function ReplayConsole({
   onLogout
 }: {
   initialThreadId: string | null;
-  currentUser: AuthUserDto;
+  currentUser: AuthUserDto | null;
   onLogout: () => void | Promise<void>;
 }) {
   const runtime = useReplayConsoleRuntime({ initialThreadId });
