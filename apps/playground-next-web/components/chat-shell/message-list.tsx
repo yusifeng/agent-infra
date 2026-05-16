@@ -905,6 +905,11 @@ export const ChatMessageList = memo(function ChatMessageList({
 
   const hasRuntimeWarning = !meta?.runtimeConfigured && Boolean(meta?.runtimeConfigError);
   const hasRecoveryNotice = durableRecoveryState.phase !== 'idle' && Boolean(durableRecoveryState.message);
+  const hasVisibleActiveThreadMessages = Boolean(
+    activeThreadId &&
+    messages.some((message) => message.threadId === activeThreadId)
+  );
+  const showSilentThreadLoadingPlaceholder = loadingMessages && !hasVisibleActiveThreadMessages;
 
   return (
     <div className={clsx('flex-1 p-6', centeredEmptyState && 'flex-none pb-3')}>
@@ -929,15 +934,8 @@ export const ChatMessageList = memo(function ChatMessageList({
         </div>
       ) : null}
 
-      {loadingMessages ? (
-        <div className={`${maxWithTW} mx-auto w-full`} style={messageListMinHeight}>
-          <div className="flex min-h-full items-center">
-            <div className="flex items-center gap-3 px-4 py-3 text-sm text-[color:var(--chat-text-secondary)]">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Loading thread messages...</span>
-            </div>
-          </div>
-        </div>
+      {showSilentThreadLoadingPlaceholder ? (
+        <div className={`${maxWithTW} mx-auto w-full`} style={messageListMinHeight} aria-busy="true" />
       ) : messages.length === 0 && transcriptBlocks.length === 0 && liveAssistantDraft === null ? (
         <div className={`${maxWithTW} mx-auto w-full`} style={centeredEmptyState ? undefined : messageListMinHeight}>
           <div className={clsx('flex flex-col items-center gap-3', centeredEmptyState ? 'justify-end' : 'min-h-full justify-center')}>
