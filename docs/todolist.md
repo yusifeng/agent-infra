@@ -60,7 +60,7 @@
 - [ ] Identify any runtime state that is currently duplicated between Next UI and `@agent-infra/durable-chat-client`; remove duplication only when behavior tests already cover the path.
 
 ### 1.4 Types / Interfaces
-- [ ] Define the message UI split boundaries before editing: list shell, user card, assistant transcript card, live assistant card, thinking timeline, research timeline, message part, answer container, actions, and empty states.
+- [x] Define the message UI split boundaries before editing: list shell, user card, assistant transcript card, live assistant card, thinking timeline, research timeline, message part, answer container, actions, and empty states.
 - [ ] Define the runtime split boundaries before editing: thread navigation/load, send/attach stream lifecycle, completed-turn reconcile, inspector hydration, title/meta refresh, and viewport coordination.
 - [ ] Keep exported component/hook props stable unless a narrower internal type reduces coupling without changing public usage.
 - [ ] Prefer pure service functions for behavior that can be tested without React or DOM.
@@ -74,7 +74,7 @@
 - [ ] If package behavior changes, add package-level tests before updating the Next consumer.
 
 ### 2.2 Contracts / Routes / DB
-- [ ] Confirm no contract, route, or DB change is required for the first UI split.
+- [x] Confirm no contract, route, or DB change is required for the first UI split.
 - [ ] Confirm no contract, route, or DB change is required for the first runtime split.
 - [ ] If a contract or route gap appears, pause the refactor loop and create a smaller package-first implementation slice.
 
@@ -92,9 +92,9 @@
 - [ ] Keep abort-controller ownership explicit in whichever controller owns the corresponding async flow.
 
 ### 3.3 UI Layer
-- [ ] Split `message-list.tsx` into feature-local components without changing markup semantics or CSS class behavior.
-- [ ] Keep memoization decisions local and evidence-driven; do not add blanket `memo`, `useMemo`, or `useCallback` as a substitute for state-boundary cleanup.
-- [ ] Avoid changing visual hierarchy while extracting components.
+- [x] Split `message-list.tsx` into feature-local components without changing markup semantics or CSS class behavior.
+- [x] Keep memoization decisions local and evidence-driven; do not add blanket `memo`, `useMemo`, or `useCallback` as a substitute for state-boundary cleanup.
+- [x] Avoid changing visual hierarchy while extracting components.
 - [ ] Keep `components/chat-shell` from continuing to accumulate unrelated feature panels once the new directory shape is clear.
 
 ### 3.4 Directory Shape
@@ -125,8 +125,8 @@
 
 ### 4.3 UI Extraction Tests
 - [x] Add focused tests for message presentation helpers that feed user, assistant, live assistant, thinking, research, and answer-container rendering.
-- [ ] Add snapshot or DOM-level tests only where they catch real regressions in structure that pure service tests cannot catch.
-- [ ] Avoid brittle full-page snapshots for the chat shell.
+- [x] Add snapshot or DOM-level tests only where they catch real regressions in structure that pure service tests cannot catch.
+- [x] Avoid brittle full-page snapshots for the chat shell.
 
 ### 4.4 Targeted Verification Commands
 - [ ] Run `pnpm --filter playground-next-web test` after each frontend behavior or extraction slice.
@@ -177,15 +177,15 @@
 - [x] Commit the message render decision seam if review is clean.
 
 ### Loop 3: Message UI Split
-- [ ] Split `message-list.tsx` into message UI components along the boundaries defined in section 1.4.
-- [ ] Preserve existing rendering behavior, class names, and user-visible copy.
-- [ ] Keep service logic out of newly extracted UI components.
-- [ ] Preserve observable selectors such as message role/id/render-key and markdown code block selectors.
-- [ ] Run `pnpm --filter playground-next-web test`.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run manual browser verification for streaming, title, markdown, and thread switching.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit the UI split slice if review is clean.
+- [x] Split `message-list.tsx` into message UI components along the boundaries defined in section 1.4.
+- [x] Preserve existing rendering behavior, class names, and user-visible copy.
+- [x] Keep service logic out of newly extracted UI components.
+- [x] Preserve observable selectors such as message role/id/render-key and markdown code block selectors.
+- [x] Run `pnpm --filter playground-next-web test`.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run manual browser verification for streaming, title, markdown, and thread switching.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit the UI split slice if review is clean.
 
 ### Loop 4: Message Service Cleanup
 - [ ] Move any remaining pure presentation logic out of UI components and into `features/durable-chat/service`.
