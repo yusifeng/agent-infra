@@ -46,6 +46,8 @@ This skill is **not** for coding and **not** for long-form design writing.
 
 5. The todo must be **loop-ready**
    - break work into mainline slices that can be implemented, verified, reviewed, and committed independently
+   - every meaningful implementation loop should include an explicit unchecked `codex review` item
+   - use the repository's existing review profile instead of redefining model, reasoning, or timeout in the todo
 
 6. If the task is too small to justify a todo
    - say so explicitly
@@ -109,9 +111,11 @@ Use this shape unless a task has a strong reason to be simpler:
 
 ### Loop 1
 - [ ] ...
+- [ ] run `codex review` for this loop after targeted verification passes
 
 ### Loop 2
 - [ ] ...
+- [ ] run `codex review` for this loop after targeted verification passes
 ```
 
 ## Adaptation rules
@@ -127,10 +131,21 @@ A good todo should:
 
 - make the next implementation loop obvious
 - make verification obvious
+- make loop-level review explicit
 - show where tests belong
 - prevent UI-first drift
 - make it easy to know when the todo is done
 - reflect aligned decisions rather than unresolved debate
+
+## Review rule
+
+When writing `## 5. Recommended Execution Order`:
+
+- include a `codex review` checkbox in every meaningful implementation loop
+- place the review item after the loop's targeted verification step
+- keep the item unchecked unless that loop has actually been completed
+- prefer wording like `- [ ] run \`codex review\` for this loop`
+- do not restate model, reasoning, or timeout settings if the repository already defines a single-source-of-truth review profile
 
 ## Completion rule
 

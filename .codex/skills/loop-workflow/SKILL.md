@@ -93,3 +93,38 @@ See `references/command-matrix.md` for command mapping by change type.
 - Docs are synchronized with behavior changes.
 - Diff is focused and reviewable.
 - If review was required and came back clean, the loop item is committed before starting the next item unless the user explicitly asks otherwise.
+
+## Full todo execution mode
+
+When the user explicitly asks to execute the whole todo, for example:
+
+- "按照 loop-workflow skill 开始执行吧，一直运行到所有的 [] 都变成 [x]"
+- "run the todo until everything is checked off"
+- "complete all loops in docs/todolist.md"
+
+then the workflow changes from "one loop item and stop" to "continue loop-by-loop until the todo is complete".
+
+Rules:
+
+1. Use `docs/todolist.md` as the execution source.
+   - Work from top to bottom.
+   - Keep checkbox state current as each item is completed.
+   - Do not mark an item `[x]` until it is actually done and verified.
+
+2. Execute one meaningful loop at a time.
+   - Finish that loop's implementation, targeted verification, `codex review`, and commit handling before moving to the next loop.
+   - After a clean review and commit, immediately continue to the next unchecked loop item instead of stopping.
+
+3. Continue until completion.
+   - Stop only when every applicable `[ ]` item in `docs/todolist.md` is `[x]`, or when a real blocker prevents safe progress.
+   - If an item becomes intentionally not applicable, update the todo text to record that decision instead of silently skipping it.
+
+4. Preserve normal review and commit discipline.
+   - Keep one concern per commit unless the user explicitly requests batching.
+   - Run the repository's review profile for each meaningful code-change loop.
+   - Do not accumulate multiple implementation loops into one unreviewed diff.
+
+5. Final response for full todo execution.
+   - Summarize completed loops.
+   - State verification and review outcomes.
+   - Mention any items left unchecked and why; if none remain, say the todo is fully checked off.
