@@ -197,19 +197,19 @@
 - [x] Add app tests for failed primary fallback behavior after product rule is decided.
 
 ### 2.5 Runtime Pi
-- [ ] Add `RuntimePiInput.historyMessages` or equivalent canonical history override; runtime-pi must prefer this over `messageRepo.listByThread`.
-- [ ] Stop constructing model history from raw `messageRepo.listByThread` when canonical data is available.
+- [x] Add `RuntimePiInput.historyMessages` or equivalent canonical history override; runtime-pi must prefer this over `messageRepo.listByThread`.
+- [x] Stop constructing model history from raw `messageRepo.listByThread` when canonical data is available.
 - [ ] For dual starts, app/route captures one immutable canonical history snapshot after user message U is persisted and before either candidate run starts.
-- [ ] Candidate A and B receive deep-copied snapshots so mutations or later persistence cannot alter sibling prompts.
-- [ ] Ensure two candidate runs for the same user message use the same canonical history snapshot before either candidate writes output.
-- [ ] Ensure Run A output cannot enter Run B's prompt.
-- [ ] Ensure Run B output cannot enter Run A's prompt.
-- [ ] Ensure future turns see only selected/default candidate messages.
-- [ ] Add tests where raw stored messages contain both candidate answers but model input contains only canonical messages.
-- [ ] Add regression test where candidate A persists before candidate B starts provider invocation; B still does not see A.
-- [ ] Add regression test where raw history ends with assistant from sibling candidate; runtime still accepts canonical history ending with user U.
-- [ ] Add tests for selection change before the next turn.
-- [ ] Preserve existing single-run runtime behavior.
+- [x] Candidate A and B receive deep-copied snapshots so mutations or later persistence cannot alter sibling prompts.
+- [x] Ensure two candidate runs for the same user message use the same canonical history snapshot before either candidate writes output.
+- [x] Ensure Run A output cannot enter Run B's prompt.
+- [x] Ensure Run B output cannot enter Run A's prompt.
+- [x] Ensure future turns see only selected/default candidate messages.
+- [x] Add tests where raw stored messages contain both candidate answers but model input contains only canonical messages.
+- [x] Add regression test where candidate A persists before candidate B starts provider invocation; B still does not see A.
+- [x] Add regression test where raw history ends with assistant from sibling candidate; runtime still accepts canonical history ending with user U.
+- [x] Add tests for selection change before the next turn.
+- [x] Preserve existing single-run runtime behavior.
 
 ### 2.6 Share / Replay Canonical Hardening
 - [ ] Route share snapshot creation through canonical projection before dual stream exposure.
@@ -430,17 +430,17 @@
 - [x] Run `pnpm --filter @agent-infra/app test`.
 - [x] Run `pnpm --filter @agent-infra/db test` if repository contracts changed.
 - [x] Run `codex review` for this loop.
-- [ ] Commit this loop after review and verification pass.
+- [x] Commit this loop after review and verification pass.
 
 ### Loop 3: Runtime Context Safety
-- [ ] Change runtime-pi to use canonical/projected history for model context.
-- [ ] Ensure candidate A and B use the same immutable pre-answer history snapshot.
-- [ ] Prevent one candidate's output from entering the other's prompt.
-- [ ] Add runtime-pi tests for dual candidate raw storage and canonical model input.
-- [ ] Add runtime-pi tests for sibling candidate persistence ordering.
-- [ ] Add runtime-pi tests for legacy behavior.
-- [ ] Run `pnpm --filter @agent-infra/runtime-pi test`.
-- [ ] Run `codex review` for this loop.
+- [x] Change runtime-pi to use canonical/projected history for model context.
+- [x] Ensure candidate A and B use the same immutable pre-answer history snapshot.
+- [x] Prevent one candidate's output from entering the other's prompt.
+- [x] Add runtime-pi tests for dual candidate raw storage and canonical model input.
+- [x] Add runtime-pi tests for sibling candidate persistence ordering.
+- [x] Add runtime-pi tests for legacy behavior.
+- [x] Run `pnpm --filter @agent-infra/runtime-pi test`.
+- [x] Run `codex review` for this loop.
 - [ ] Commit this loop after review and verification pass.
 
 ### Loop 3.5: Share / Replay Canonical Hardening

@@ -1309,7 +1309,7 @@ export async function runAssistantTurnWithPiInternal(
   const config = options.resolvedConfig ?? (options.model ? null : resolveRuntimePiConfigFromEnv({ provider: input.provider, model: input.model }));
 
   const model = options.model ?? await resolveConfiguredModel(config as RuntimePiConfig);
-  const history = await ctx.messageRepo.listByThread(input.threadId);
+  const history = input.historyMessages ? structuredClone(input.historyMessages) : await ctx.messageRepo.listByThread(input.threadId);
   const { systemPrompt, messages } = buildInitialAgentState(history, model, options.systemPrompt ?? DEFAULT_SYSTEM_PROMPT);
   const lastMessage = messages.at(-1);
 

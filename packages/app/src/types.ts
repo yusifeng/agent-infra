@@ -46,6 +46,7 @@ export interface RuntimeSelection {
 export interface RunTextRuntimeInput {
   threadId: string;
   runId: string;
+  historyMessages?: Array<Message & { parts: MessagePart[] }>;
   provider: string;
   model: string;
   thinkingEnabled?: boolean;

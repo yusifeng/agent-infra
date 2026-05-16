@@ -220,6 +220,31 @@ async function createSeedThread(messageRepo: InMemoryMessageRepository, threadId
   });
 }
 
+async function createPersistedTextMessage(
+  messageRepo: InMemoryMessageRepository,
+  input: { threadId: string; role: Message['role']; text: string; runId?: string | null }
+) {
+  const message = await messageRepo.createWithNextSeq({
+    id: crypto.randomUUID(),
+    threadId: input.threadId,
+    runId: input.runId ?? null,
+    role: input.role,
+    status: 'completed',
+    metadata: null
+  });
+
+  await messageRepo.createPart({
+    id: crypto.randomUUID(),
+    messageId: message.id,
+    partIndex: 0,
+    type: 'text',
+    textValue: input.text,
+    jsonValue: null
+  });
+
+  return messageRepo.listByThread(input.threadId).then((messages) => messages.find((item) => item.id === message.id)!);
+}
+
 async function createContext() {
   const thread: Thread = {
     id: 'thread-1',
@@ -1449,6 +1474,130 @@ describe('runAssistantTurnWithPiInternal', () => {
         model: 'faux-preferred-model'
       }
     ]);
+  });
+
+  it('uses canonical historyMessages instead of raw stored candidate messages for model context', async () => {
+    const { ctx, thread, run } = await createContext();
+    await createPersistedTextMessage(ctx.messageRepo, { threadId: thread.id, role: 'user', text: 'Compare both answers' });
+    await createPersistedTextMessage(ctx.messageRepo, {
+      threadId: thread.id,
+      role: 'assistant',
+      runId: 'unselected-run',
+      text: 'Unselected candidate answer'
+    });
+    const selectedAssistant = await createPersistedTextMessage(ctx.messageRepo, {
+      threadId: thread.id,
+      role: 'assistant',
+      runId: 'selected-run',
+      text: 'Selected candidate answer'
+    });
+    await createPersistedTextMessage(ctx.messageRepo, { threadId: thread.id, role: 'user', text: 'Continue from the selected answer' });
+    const rawHistory = await ctx.messageRepo.listByThread(thread.id);
+    const canonicalHistory = rawHistory.filter((message) => message.role === 'user' || message.id === selectedAssistant.id);
+
+    let capturedContext: Context | null = null;
+    const provider = registerScriptedToolUseProvider([
+      (context) => {
+        capturedContext = context;
+        return createFinalTextStep('Continuing from the selected answer.')(context);
+      }
+    ]);
+    unregisterCallbacks.push(provider.unregister);
+
+    await runAssistantTurnWithPiInternal(
+      ctx,
+      { threadId: thread.id, runId: run.id, historyMessages: canonicalHistory },
+      {
+        model: provider.model,
+        getApiKey: async () => 'scripted-key',
+        tools: []
+      }
+    );
+
+    expect(capturedContext?.messages.map((message) => (typeof message.content === 'string' ? message.content : null)).filter(Boolean)).toEqual([
+      'Compare both answers',
+      'Continue from the selected answer'
+    ]);
+    expect(
+      capturedContext?.messages.some(
+        (message) =>
+          message.role === 'assistant' &&
+          Array.isArray(message.content) &&
+          message.content.some((block) => block.type === 'text' && block.text === 'Unselected candidate answer')
+      )
+    ).toBe(false);
+    expect(
+      capturedContext?.messages.some(
+        (message) =>
+          message.role === 'assistant' &&
+          Array.isArray(message.content) &&
+          message.content.some((block) => block.type === 'text' && block.text === 'Selected candidate answer')
+      )
+    ).toBe(true);
+  });
+
+  it('keeps sibling candidate runs on the same immutable pre-answer history snapshot', async () => {
+    const { ctx, thread, run } = await createContext();
+    const secondRun = await ctx.runRepo.create({
+      id: 'run-2',
+      threadId: thread.id,
+      triggerMessageId: null,
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+      status: 'queued',
+      usage: null,
+      error: null,
+      startedAt: null,
+      finishedAt: null
+    });
+    await createPersistedTextMessage(ctx.messageRepo, { threadId: thread.id, role: 'user', text: 'Answer this once' });
+    const sharedHistorySnapshot = await ctx.messageRepo.listByThread(thread.id);
+    const capturedContexts: Context[] = [];
+    const provider = registerScriptedToolUseProvider([
+      (context) => {
+        capturedContexts.push(context);
+        return createFinalTextStep('Candidate A answer.')(context);
+      },
+      (context) => {
+        capturedContexts.push(context);
+        return createFinalTextStep('Candidate B answer.')(context);
+      }
+    ]);
+    unregisterCallbacks.push(provider.unregister);
+
+    await runAssistantTurnWithPiInternal(
+      ctx,
+      { threadId: thread.id, runId: run.id, historyMessages: sharedHistorySnapshot },
+      {
+        model: provider.model,
+        getApiKey: async () => 'scripted-key',
+        tools: []
+      }
+    );
+    await runAssistantTurnWithPiInternal(
+      ctx,
+      { threadId: thread.id, runId: secondRun.id, historyMessages: sharedHistorySnapshot },
+      {
+        model: provider.model,
+        getApiKey: async () => 'scripted-key',
+        tools: []
+      }
+    );
+
+    expect(capturedContexts).toHaveLength(2);
+    expect(capturedContexts[0]?.messages).toEqual([
+      expect.objectContaining({
+        role: 'user',
+        content: 'Answer this once'
+      })
+    ]);
+    expect(capturedContexts[1]?.messages).toEqual([
+      expect.objectContaining({
+        role: 'user',
+        content: 'Answer this once'
+      })
+    ]);
+    expect((await ctx.messageRepo.listByThread(thread.id)).map((message) => message.role)).toEqual(['user', 'assistant', 'assistant']);
   });
 
   it('projects unavailable persisted tool history before sending context to the model', async () => {

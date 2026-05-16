@@ -1,4 +1,4 @@
-import type { MessageRepository, Run, RunEvent, RunEventRepository, RunRepository, ToolInvocation, ToolInvocationRepository } from '@agent-infra/core';
+import type { Message, MessagePart, MessageRepository, Run, RunEvent, RunEventRepository, RunRepository, ToolInvocation, ToolInvocationRepository } from '@agent-infra/core';
 import type { AgentTool } from '@mariozechner/pi-agent-core';
 import type { Model } from '@mariozechner/pi-ai';
 
@@ -14,6 +14,7 @@ export interface RuntimePiContext {
 export interface RuntimePiInput {
   threadId: string;
   runId: string;
+  historyMessages?: Array<Message & { parts: MessagePart[] }>;
   provider?: string;
   model?: string;
   thinkingEnabled?: boolean;
