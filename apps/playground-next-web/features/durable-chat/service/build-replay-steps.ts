@@ -44,6 +44,7 @@ function createTextStep(params: {
   role: ReplayTextRole;
   variant: 'text' | 'reasoning';
   content: string;
+  occurredAt: string | null;
 }): ReplayTextStep {
   const step: ReplayTextStep = {
     id: `${params.blockId}:${params.messageId}:${params.variant}:${params.content.length}`,
@@ -56,7 +57,8 @@ function createTextStep(params: {
     variant: params.variant,
     content: params.content,
     sourceMessageIds: [params.messageId],
-    delayMs: 0
+    delayMs: 0,
+    occurredAt: params.occurredAt
   };
 
   step.delayMs = getReplayTextDelayMs(step);
@@ -72,6 +74,7 @@ function createSearchLoadingStep(params: {
   query: string | null;
   sourceNames: string[];
   resultCount?: number;
+  occurredAt: string | null;
 }): ReplaySearchLoadingStep {
   return {
     id: `${params.blockId}:${params.toolCallId}:loading`,
@@ -83,7 +86,8 @@ function createSearchLoadingStep(params: {
     toolCallIds: [params.toolCallId],
     query: params.query,
     sourceNames: params.sourceNames,
-    delayMs: getReplayNodeDelayMs('search-loading', { resultCount: params.resultCount })
+    delayMs: getReplayNodeDelayMs('search-loading', { resultCount: params.resultCount }),
+    occurredAt: params.occurredAt
   };
 }
 
@@ -93,6 +97,7 @@ function createSearchSummaryStep(params: {
   runId: string | null;
   messageId: string;
   entry: SearchSummaryEntry;
+  occurredAt: string | null;
 }): ReplaySearchSummaryStep {
   return {
     id: `${params.blockId}:${params.entry.toolCallId}:summary`,
@@ -106,7 +111,8 @@ function createSearchSummaryStep(params: {
     resultCount: params.entry.resultCount,
     sourceNames: params.entry.sourceNames,
     sources: params.entry.sources,
-    delayMs: getReplayNodeDelayMs('search-summary')
+    delayMs: getReplayNodeDelayMs('search-summary'),
+    occurredAt: params.occurredAt
   };
 }
 
@@ -116,6 +122,7 @@ function createToolPartStep(params: {
   runId: string | null;
   messageId: string;
   part: MessagePartDto;
+  occurredAt: string | null;
 }): ReplayToolPartStep {
   return {
     id: `${params.blockId}:${params.part.id}:tool-part`,
@@ -125,7 +132,8 @@ function createToolPartStep(params: {
     messageId: params.messageId,
     blockId: params.blockId,
     part: params.part,
-    delayMs: getReplayNodeDelayMs('tool-part')
+    delayMs: getReplayNodeDelayMs('tool-part'),
+    occurredAt: params.occurredAt
   };
 }
 
@@ -158,7 +166,8 @@ export function buildReplayStepsFromContentNodes(contentNodes: ContentNode[], fa
           messageId,
           role: 'user',
           variant: node.kind === 'user-reasoning' ? 'reasoning' : 'text',
-          content: node.text
+          content: node.text,
+          occurredAt: node.sourceCreatedAt
         })
       );
       continue;
@@ -173,7 +182,8 @@ export function buildReplayStepsFromContentNodes(contentNodes: ContentNode[], fa
           messageId,
           role: 'assistant',
           variant: node.kind === 'assistant-reasoning' ? 'reasoning' : 'text',
-          content: node.text
+          content: node.text,
+          occurredAt: node.sourceCreatedAt
         })
       );
       continue;
@@ -188,7 +198,8 @@ export function buildReplayStepsFromContentNodes(contentNodes: ContentNode[], fa
           messageId,
           toolCallId: node.toolCallId,
           query: node.query || null,
-          sourceNames: []
+          sourceNames: [],
+          occurredAt: node.sourceCreatedAt
         })
       );
       continue;
@@ -201,7 +212,8 @@ export function buildReplayStepsFromContentNodes(contentNodes: ContentNode[], fa
           blockId,
           runId: node.runId,
           messageId,
-          part: node.part
+          part: node.part,
+          occurredAt: node.sourceCreatedAt
         })
       );
       continue;
@@ -232,7 +244,8 @@ export function buildReplayStepsFromContentNodes(contentNodes: ContentNode[], fa
           toolCallId: node.entry.toolCallId,
           query: node.entry.query,
           sourceNames: node.entry.sourceNames,
-          resultCount: node.entry.resultCount
+          resultCount: node.entry.resultCount,
+          occurredAt: node.sourceCreatedAt
         })
       );
     }
@@ -243,7 +256,8 @@ export function buildReplayStepsFromContentNodes(contentNodes: ContentNode[], fa
         blockId,
         runId: node.runId,
         messageId,
-        entry: node.entry
+        entry: node.entry,
+        occurredAt: node.sourceCreatedAt
       })
     );
   }
@@ -255,7 +269,8 @@ export function buildReplayStepsFromContentNodes(contentNodes: ContentNode[], fa
     runId: null,
     messageId: null,
     blockId: null,
-    delayMs: getReplayNodeDelayMs('done')
+    delayMs: getReplayNodeDelayMs('done'),
+    occurredAt: null
   });
 
   return steps;

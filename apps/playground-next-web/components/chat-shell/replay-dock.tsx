@@ -12,7 +12,7 @@ type ReplayDockProps = {
   onTogglePlayback: () => void;
   onPreviousStep: () => void;
   onNextStep: () => void;
-  onSeekToStep: (stepIndex: number) => void;
+  onInspectStep: (stepIndex: number) => void;
   onRestart: () => void;
 };
 
@@ -40,7 +40,7 @@ function ReplayDockButton({
         disabled
           ? 'cursor-not-allowed border-[color:var(--chat-border)] text-[color:var(--chat-text-tertiary)] opacity-60'
           : variant === 'primary'
-            ? 'border-[color:var(--chat-text)] bg-[var(--chat-text)] text-[color:var(--chat-surface)] hover:opacity-90'
+            ? 'border-transparent bg-[var(--chat-reasoning-accent)] text-white hover:bg-[var(--chat-reasoning-accent)] hover:opacity-95'
           : 'border-[color:var(--chat-border)] bg-[var(--chat-surface)] text-[color:var(--chat-text-secondary)] hover:border-[color:var(--chat-border-strong)] hover:text-[color:var(--chat-text)]'
       )}
       aria-label={variant === 'icon' ? label : undefined}
@@ -72,26 +72,74 @@ function getPrimaryPlaybackControl(viewState: ReplayViewState) {
   };
 }
 
+function getSegmentToneClass(tone: ReplayViewState['progressSegments'][number]['tone'], complete: boolean) {
+  if (tone === 'user') {
+    return complete
+      ? 'bg-[color:color-mix(in_srgb,var(--chat-text-secondary)_62%,white)]'
+      : 'bg-[color:color-mix(in_srgb,var(--chat-text-secondary)_18%,white)] hover:bg-[color:color-mix(in_srgb,var(--chat-text-secondary)_28%,white)]';
+  }
+
+  if (tone === 'thinking') {
+    return complete
+      ? 'bg-[color:color-mix(in_srgb,var(--chat-reasoning-accent)_46%,white)]'
+      : 'bg-[color:color-mix(in_srgb,var(--chat-reasoning-accent)_14%,white)] hover:bg-[color:color-mix(in_srgb,var(--chat-reasoning-accent)_22%,white)]';
+  }
+
+  return complete
+    ? 'bg-[color:var(--chat-reasoning-accent)]'
+    : 'bg-[color:color-mix(in_srgb,var(--chat-reasoning-accent)_20%,white)] hover:bg-[color:color-mix(in_srgb,var(--chat-reasoning-accent)_30%,white)]';
+}
+
 export function ReplayDock({
   controlState,
   viewState,
   onTogglePlayback,
   onPreviousStep,
   onNextStep,
-  onSeekToStep,
+  onInspectStep,
   onRestart
 }: ReplayDockProps) {
   const primaryControl = getPrimaryPlaybackControl(viewState);
 
   return (
-    <div className={clsx('sticky bottom-0 z-10 px-4 pb-4', ui.composerDock)}>
+    <div className={clsx('sticky bottom-0 z-10 px-4 pb-0', ui.composerDock)}>
       <div className={`${composerMaxWithTW} relative mx-auto`}>
-        <div className={clsx(ui.composerCard, 'flex flex-col gap-4 px-5 py-4')}>
+        <div className={clsx(ui.composerCard, 'flex flex-col justify-between px-5 py-4')}>
+          <div className="flex h-4 translate-y-1 items-center gap-1.5" aria-label="重放进度">
+            {viewState.progressSegments.length > 0 ? (
+              viewState.progressSegments.map((segment) => (
+                <button
+                  key={segment.rawStepIndex}
+                  type="button"
+                  disabled={!controlState.canInspect}
+                  onClick={() => onInspectStep(segment.stepIndex)}
+                  style={{ flexGrow: segment.weight }}
+                  className={clsx(
+                    'h-1.5 min-w-4 rounded-full transition',
+                    getSegmentToneClass(segment.tone, segment.complete),
+                    segment.playbackActive &&
+                      'ring-2 ring-[color:var(--chat-reasoning-accent)] ring-offset-2 ring-offset-[color:var(--chat-surface)]',
+                    segment.inspected && 'outline outline-2 outline-offset-2 outline-[color:var(--chat-text-secondary)]',
+                    !controlState.canInspect && 'cursor-not-allowed opacity-60'
+                  )}
+                  aria-label={`跳到第 ${segment.stepIndex + 1} 段：${segment.label}`}
+                  aria-current={segment.playbackActive ? 'step' : undefined}
+                  data-replay-segment-tone={segment.tone}
+                  data-replay-segment-playback-active={segment.playbackActive ? 'true' : undefined}
+                  data-replay-segment-inspected={segment.inspected ? 'true' : undefined}
+                  title={`第 ${segment.stepIndex + 1} 段 · ${segment.label} · ${segment.durationLabel}`}
+                />
+              ))
+            ) : (
+              <div className="h-1.5 flex-1 rounded-full bg-[color:var(--chat-border)]" />
+            )}
+          </div>
+
           <div className="flex items-center justify-between gap-5">
             <div className="min-w-0">
               <div className="text-base font-semibold text-[color:var(--chat-text)]">对话重放</div>
               <div className="mt-1 truncate text-sm text-[color:var(--chat-text-secondary)]">
-                {viewState.progressLabel} · {viewState.currentStepLabel} · {viewState.status}
+                {viewState.progressLabel} · {viewState.currentStepLabel} · 总时长 {viewState.totalDurationLabel}
               </div>
             </div>
 
@@ -125,32 +173,10 @@ export function ReplayDock({
               />
             </div>
           </div>
-
-          <div className="flex h-5 items-center gap-1.5" aria-label="重放进度">
-            {viewState.progressSegments.length > 0 ? (
-              viewState.progressSegments.map((segment) => (
-                <button
-                  key={segment.rawStepIndex}
-                  type="button"
-                  disabled={!controlState.canSeek}
-                  onClick={() => onSeekToStep(segment.stepIndex)}
-                  className={clsx(
-                    'h-2 min-w-6 flex-1 rounded-full transition',
-                    segment.complete
-                      ? 'bg-[color:var(--chat-text)]'
-                      : 'bg-[color:var(--chat-border)] hover:bg-[color:var(--chat-border-strong)]',
-                    segment.active && 'ring-2 ring-[color:var(--chat-text)] ring-offset-2 ring-offset-[color:var(--chat-surface)]',
-                    !controlState.canSeek && 'cursor-not-allowed opacity-60'
-                  )}
-                  aria-label={`跳到第 ${segment.stepIndex + 1} 段：${segment.label}`}
-                  aria-current={segment.active ? 'step' : undefined}
-                />
-              ))
-            ) : (
-              <div className="h-2 flex-1 rounded-full bg-[color:var(--chat-border)]" />
-            )}
-          </div>
         </div>
+      </div>
+      <div className="flex h-7 items-center justify-center text-[11px] leading-none text-[color:var(--chat-text-tertiary)]">
+        内容由 AI 生成，请仔细甄别
       </div>
     </div>
   );

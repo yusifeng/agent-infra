@@ -17,6 +17,8 @@ export type ReplayTextRole = 'user' | 'assistant';
 
 export type ReplayTextVariant = 'text' | 'reasoning';
 
+export type ReplaySegmentTone = 'user' | 'thinking' | 'answer';
+
 type ReplayBaseStep = {
   id: string;
   kind: ReplayStepKind;
@@ -25,6 +27,7 @@ type ReplayBaseStep = {
   messageId: string | null;
   blockId: string | null;
   delayMs: number;
+  occurredAt: string | null;
 };
 
 export type ReplayTextStep = ReplayBaseStep & {
@@ -94,7 +97,7 @@ export type ReplayControlState = {
   canTogglePlayback: boolean;
   canPrevious: boolean;
   canNext: boolean;
-  canSeek: boolean;
+  canInspect: boolean;
 };
 
 export type ReplayViewState = {
@@ -102,16 +105,25 @@ export type ReplayViewState = {
   currentStepIndex: number;
   totalSteps: number;
   progressLabel: string;
-  activeStepIndex: number;
+  playbackStepIndex: number;
+  playbackReplayBlockId: string | null;
+  inspectedStepIndex: number | null;
+  inspectedReplayBlockId: string | null;
   currentStepLabel: string;
   currentStepKind: ReplayStepKind | null;
+  totalDurationLabel: string;
   progressSegments: Array<{
     stepIndex: number;
     rawStepIndex: number;
     label: string;
     kind: ReplayStepKind;
+    tone: ReplaySegmentTone;
+    weight: number;
+    durationMs: number;
+    durationLabel: string;
     complete: boolean;
-    active: boolean;
+    playbackActive: boolean;
+    inspected: boolean;
   }>;
 };
 

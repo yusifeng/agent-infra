@@ -65,6 +65,7 @@ export function buildContentNodes(messages: MessageDto[]): ContentNode[] {
             messageId: message.id,
             sourcePartId: part.id,
             blockHintId,
+            sourceCreatedAt: part.createdAt,
             text: part.textValue.trim()
           });
           continue;
@@ -79,6 +80,7 @@ export function buildContentNodes(messages: MessageDto[]): ContentNode[] {
             messageId: message.id,
             sourcePartId: part.id,
             blockHintId,
+            sourceCreatedAt: part.createdAt,
             text: part.textValue.trim()
           });
         }
@@ -105,6 +107,7 @@ export function buildContentNodes(messages: MessageDto[]): ContentNode[] {
             messageId: groupedMessage.id,
             sourcePartId: part.id,
             blockHintId,
+            sourceCreatedAt: part.createdAt,
             text: part.textValue.trim(),
             cacheKey: `${groupedMessage.id}:${part.id}`
           });
@@ -120,6 +123,7 @@ export function buildContentNodes(messages: MessageDto[]): ContentNode[] {
             messageId: groupedMessage.id,
             sourcePartId: part.id,
             blockHintId,
+            sourceCreatedAt: part.createdAt,
             text: part.textValue.trim()
           });
           continue;
@@ -135,6 +139,7 @@ export function buildContentNodes(messages: MessageDto[]): ContentNode[] {
             messageId: groupedMessage.id,
             sourcePartId: part.id,
             blockHintId,
+            sourceCreatedAt: part.createdAt,
             toolCallId: searchLoadingEntry.toolCallId,
             query: searchLoadingEntry.query
           });
@@ -151,6 +156,7 @@ export function buildContentNodes(messages: MessageDto[]): ContentNode[] {
             messageId: groupedMessage.id,
             sourcePartId: part.id,
             blockHintId,
+            sourceCreatedAt: part.createdAt,
             entry: searchSummaryEntry
           });
           continue;
@@ -165,6 +171,7 @@ export function buildContentNodes(messages: MessageDto[]): ContentNode[] {
             messageId: groupedMessage.id,
             sourcePartId: part.id,
             blockHintId,
+            sourceCreatedAt: part.createdAt,
             part
           });
         }

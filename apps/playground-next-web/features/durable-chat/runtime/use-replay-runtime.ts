@@ -23,6 +23,7 @@ function createInitialCursor(): ReplayCursor {
 
 export function useReplayRuntime({ session }: { session: ReplaySession | null }) {
   const [cursor, setCursor] = useState<ReplayCursor>(() => createInitialCursor());
+  const [inspectedStepIndex, setInspectedStepIndex] = useState<number | null>(null);
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -39,7 +40,8 @@ export function useReplayRuntime({ session }: { session: ReplaySession | null })
       timerRef.current = null;
     }
     setCursor(createInitialCursor());
-  }, [session?.id]);
+    setInspectedStepIndex(null);
+  }, [session]);
 
   useEffect(() => {
     if (!session || cursor.status !== 'playing') {
@@ -94,7 +96,10 @@ export function useReplayRuntime({ session }: { session: ReplaySession | null })
     };
   }, [cursor.status, cursor.stepIndex, session]);
 
-  const presentation = useMemo(() => buildReplayPresentation(session, cursor), [cursor, session]);
+  const presentation = useMemo(
+    () => buildReplayPresentation(session, cursor, inspectedStepIndex),
+    [cursor, inspectedStepIndex, session]
+  );
 
   function play() {
     if (!session || !session.steps.some((step) => step.kind !== 'done')) {
@@ -157,12 +162,17 @@ export function useReplayRuntime({ session }: { session: ReplaySession | null })
     setCursor((current) => seekReplayToStep(session, current, stepIndex, Date.now()));
   }
 
+  function inspectStep(stepIndex: number) {
+    setInspectedStepIndex(stepIndex);
+  }
+
   function restart() {
     if (timerRef.current !== null) {
       window.clearTimeout(timerRef.current);
       timerRef.current = null;
     }
     setCursor(createInitialCursor());
+    setInspectedStepIndex(null);
   }
 
   return {
@@ -178,6 +188,7 @@ export function useReplayRuntime({ session }: { session: ReplaySession | null })
     previousStep,
     nextStep,
     seekToStep,
+    inspectStep,
     restart
   };
 }

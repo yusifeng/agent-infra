@@ -17,6 +17,7 @@ function createTextStep(id: string): ReplayStep {
     messageId: id,
     blockId: id,
     delayMs: 100,
+    occurredAt: null,
     role: 'assistant',
     variant: 'text',
     content: id,
@@ -32,7 +33,8 @@ function createDoneStep(): ReplayStep {
     runId: null,
     messageId: null,
     blockId: null,
-    delayMs: 0
+    delayMs: 0,
+    occurredAt: null
   };
 }
 

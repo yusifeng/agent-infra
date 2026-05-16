@@ -40,6 +40,7 @@ type ChatMessageListProps = {
   centeredEmptyState: boolean;
   showPersistedResearchStatus?: boolean;
   showWelcomeWhenEmpty?: boolean;
+  activeReplayBlockId?: string | null;
   onLoadOlderMessages: () => void;
   onOpenSearchResult: (runId: string, toolCallIds: string[]) => void;
   getLiveSearchPanelData?: (runId: string, toolCallIds: string[]) => ActiveSearchPanelData | null;
@@ -62,6 +63,7 @@ export const ChatMessageList = memo(function ChatMessageList({
   centeredEmptyState,
   showPersistedResearchStatus = false,
   showWelcomeWhenEmpty = true,
+  activeReplayBlockId = null,
   onLoadOlderMessages,
   onOpenSearchResult,
   getLiveSearchPanelData
@@ -162,6 +164,7 @@ export const ChatMessageList = memo(function ChatMessageList({
               item.type === 'answer-container' ? (
                   <AnswerContainerCard
                     key={item.key}
+                    activeReplayBlockId={activeReplayBlockId}
                     actionContext={
                       answerContainerActionContexts.get(item.container.actionHostId) ?? {
                         copyText: '',
@@ -175,6 +178,7 @@ export const ChatMessageList = memo(function ChatMessageList({
               ) : (
                   <TranscriptBlockCard
                     key={item.key}
+                    activeReplayBlockId={activeReplayBlockId}
                     actionContext={assistantTurnActionContexts.get(item.block.id)}
                     block={item.block}
                     onOpenSearchResult={onOpenSearchResult}

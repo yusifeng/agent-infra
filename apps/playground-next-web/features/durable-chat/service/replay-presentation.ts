@@ -1,5 +1,6 @@
 import { buildAnswerContainers } from '@/features/durable-chat/service/build-answer-containers';
 import { getActiveReplayableStepIndex, getReplayableStepIndices } from '@/features/durable-chat/service/replay-player';
+import { getReplaySegmentTone, getReplaySegmentWeight } from '@/features/durable-chat/service/replay-segments';
 import type { MessageDto, MessagePartDto } from '@agent-infra/contracts';
 
 import type {
@@ -20,6 +21,89 @@ const replayStepKindLabels: Record<ReplayStep['kind'], string> = {
   'tool-part': '工具调用',
   done: '完成'
 };
+
+function getReplayStepLabel(step: ReplayStep) {
+  if (step.kind === 'text') {
+    if (step.role === 'user') {
+      return step.variant === 'reasoning' ? '用户思考' : '用户提问';
+    }
+
+    return step.variant === 'reasoning' ? 'AI 思考' : 'AI 回答';
+  }
+
+  if (step.kind === 'search-loading') {
+    return '搜索请求';
+  }
+
+  if (step.kind === 'search-summary') {
+    return '搜索结果';
+  }
+
+  if (step.kind === 'tool-part') {
+    return step.part.type === 'tool-call' ? '工具调用' : '工具结果';
+  }
+
+  return replayStepKindLabels[step.kind];
+}
+
+function getReplayStepBlockId(step: ReplayStep) {
+  if (step.kind === 'done') {
+    return null;
+  }
+
+  if (step.kind === 'text' && step.role === 'user') {
+    return `replay-user:${step.id}`;
+  }
+
+  return `replay-assistant:${step.id}`;
+}
+
+function readTimeMs(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : null;
+}
+
+function getReplayStepDurationMs(step: ReplayStep, nextStep: ReplayStep | null) {
+  const start = readTimeMs(step.occurredAt);
+  const end = readTimeMs(nextStep?.occurredAt ?? null);
+
+  if (start !== null && end !== null && end > start) {
+    return end - start;
+  }
+
+  return Math.max(step.delayMs, 0);
+}
+
+function formatReplayDuration(durationMs: number) {
+  if (durationMs < 1000) {
+    return `${durationMs}ms`;
+  }
+
+  const seconds = durationMs / 1000;
+  if (seconds < 60) {
+    return `${seconds.toFixed(seconds < 10 ? 1 : 0)}s`;
+  }
+
+  const roundedSeconds = Math.round(seconds);
+  const minutes = Math.floor(roundedSeconds / 60);
+  const remainingSeconds = roundedSeconds % 60;
+  return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
+}
+
+function getReplayTotalDurationMs(steps: ReplayStep[]) {
+  const firstTime = readTimeMs(steps[0]?.occurredAt ?? null);
+  const lastTime = readTimeMs(steps.at(-1)?.occurredAt ?? null);
+
+  if (firstTime !== null && lastTime !== null && lastTime > firstTime) {
+    return lastTime - firstTime;
+  }
+
+  return null;
+}
 
 function createReplayPart(step: ReplayTextStep): MessagePartDto {
   return {
@@ -237,51 +321,81 @@ export function buildReplayControlState(session: ReplaySession | null, cursor: R
     canTogglePlayback: hasReplayableSteps,
     canPrevious: hasReplayableSteps && activeStepIndex > 0,
     canNext: hasReplayableSteps && activeStepIndex >= 0 && activeStepIndex < replayableStepIndices.length - 1,
-    canSeek: hasReplayableSteps
+    canInspect: hasReplayableSteps
   };
 }
 
-export function buildReplayViewState(session: ReplaySession | null, cursor: ReplayCursor): ReplayViewState {
+export function buildReplayViewState(
+  session: ReplaySession | null,
+  cursor: ReplayCursor,
+  inspectedStepIndex: number | null = null
+): ReplayViewState {
   const replayableStepIndices = getReplayableStepIndices(session);
   const totalSteps = replayableStepIndices.length;
   const consumedSteps =
     cursor.stepIndex >= 0 ? replayableStepIndices.filter((stepIndex) => stepIndex <= cursor.stepIndex).length : 0;
-  const activeStepIndex =
+  const playbackStepIndex =
     cursor.status === 'completed' && totalSteps > 0 ? totalSteps - 1 : getActiveReplayableStepIndex(session, cursor);
-  const activeStepRawIndex = replayableStepIndices[activeStepIndex] ?? null;
-  const activeStep = activeStepRawIndex === null ? null : session?.steps[activeStepRawIndex] ?? null;
+  const playbackStepRawIndex = replayableStepIndices[playbackStepIndex] ?? null;
+  const playbackStep = playbackStepRawIndex === null ? null : session?.steps[playbackStepRawIndex] ?? null;
+  const validInspectedStepIndex =
+    inspectedStepIndex !== null && inspectedStepIndex >= 0 && inspectedStepIndex < totalSteps ? inspectedStepIndex : null;
+  const inspectedStepRawIndex = validInspectedStepIndex === null ? null : replayableStepIndices[validInspectedStepIndex] ?? null;
+  const inspectedStep = inspectedStepRawIndex === null ? null : session?.steps[inspectedStepRawIndex] ?? null;
+  const segments = replayableStepIndices.map((rawStepIndex, stepIndex) => {
+    const step = session?.steps[rawStepIndex];
+    const nextRawStepIndex = replayableStepIndices[stepIndex + 1] ?? null;
+    const nextStep = nextRawStepIndex === null ? null : session?.steps[nextRawStepIndex] ?? null;
+    const kind = step?.kind ?? 'done';
+    const durationMs = step ? getReplayStepDurationMs(step, nextStep) : 0;
+
+    return {
+      stepIndex,
+      rawStepIndex,
+      label: step ? getReplayStepLabel(step) : replayStepKindLabels[kind],
+      kind,
+      tone: step ? getReplaySegmentTone(step) : 'thinking',
+      weight: step ? getReplaySegmentWeight(step) : 0,
+      durationMs,
+      durationLabel: formatReplayDuration(durationMs),
+      complete: stepIndex < consumedSteps,
+      playbackActive: stepIndex === playbackStepIndex,
+      inspected: stepIndex === validInspectedStepIndex
+    };
+  });
+  const replayableSteps = replayableStepIndices
+    .map((rawStepIndex) => session?.steps[rawStepIndex])
+    .filter((step): step is ReplayStep => Boolean(step));
+  const totalDurationMs =
+    getReplayTotalDurationMs(replayableSteps) ?? segments.reduce((total, segment) => total + segment.durationMs, 0);
 
   return {
     status: cursor.status,
     currentStepIndex: consumedSteps,
     totalSteps,
     progressLabel: totalSteps > 0 ? `${consumedSteps} / ${totalSteps}` : '0 / 0',
-    activeStepIndex,
-    currentStepLabel: activeStep ? replayStepKindLabels[activeStep.kind] : '等待开始',
-    currentStepKind: activeStep?.kind ?? null,
-    progressSegments: replayableStepIndices.map((rawStepIndex, stepIndex) => {
-      const step = session?.steps[rawStepIndex];
-      const kind = step?.kind ?? 'done';
-
-      return {
-        stepIndex,
-        rawStepIndex,
-        label: replayStepKindLabels[kind],
-        kind,
-        complete: stepIndex < consumedSteps,
-        active: stepIndex === activeStepIndex
-      };
-    })
+    playbackStepIndex,
+    playbackReplayBlockId: playbackStep ? getReplayStepBlockId(playbackStep) : null,
+    inspectedStepIndex: validInspectedStepIndex,
+    inspectedReplayBlockId: inspectedStep ? getReplayStepBlockId(inspectedStep) : null,
+    currentStepLabel: playbackStep ? getReplayStepLabel(playbackStep) : '等待开始',
+    currentStepKind: playbackStep?.kind ?? null,
+    totalDurationLabel: formatReplayDuration(totalDurationMs),
+    progressSegments: segments
   };
 }
 
-export function buildReplayPresentation(session: ReplaySession | null, cursor: ReplayCursor): ReplayPresentation {
+export function buildReplayPresentation(
+  session: ReplaySession | null,
+  cursor: ReplayCursor,
+  inspectedStepIndex: number | null = null
+): ReplayPresentation {
   const transcriptBlocks = session ? buildReplayTranscriptBlocks(session, cursor) : [];
 
   return {
     transcriptBlocks,
     answerContainers: buildAnswerContainers(transcriptBlocks),
     controlState: buildReplayControlState(session, cursor),
-    viewState: buildReplayViewState(session, cursor)
+    viewState: buildReplayViewState(session, cursor, inspectedStepIndex)
   };
 }

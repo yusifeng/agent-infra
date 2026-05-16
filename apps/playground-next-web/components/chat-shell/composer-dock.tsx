@@ -84,7 +84,7 @@ export const ComposerDock = memo(function ComposerDock({
     <div
       className={clsx(
         'z-10 px-4',
-        centered ? 'pb-6 pt-3' : 'sticky bottom-0 pb-4',
+        centered ? 'pb-6 pt-3' : 'sticky bottom-0 pb-0',
         ui.composerDock
       )}
     >
@@ -274,6 +274,11 @@ export const ComposerDock = memo(function ComposerDock({
           </div>
         </form>
       </div>
+      {!centered ? (
+        <div className="flex h-7 items-center justify-center text-[11px] leading-none text-[color:var(--chat-text-tertiary)]">
+          内容由 AI 生成，请仔细甄别
+        </div>
+      ) : null}
     </div>
   );
 });

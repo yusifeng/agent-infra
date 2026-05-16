@@ -14,6 +14,14 @@ import type { ReplaySession } from '@/features/durable-chat/types/replay';
 
 const MOBILE_SIDEBAR_BREAKPOINT = 1024;
 
+type ReplaySpotlightRect = {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+  nonce: number;
+};
+
 export function useReplayConsoleRuntime({ initialThreadId }: { initialThreadId: string | null }) {
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -23,7 +31,9 @@ export function useReplayConsoleRuntime({ initialThreadId }: { initialThreadId: 
   const [error, setError] = useState<string | null>(null);
   const [session, setSession] = useState<ReplaySession | null>(null);
   const [sourceMessages, setSourceMessages] = useState<MessageDto[]>([]);
+  const [replaySpotlightRect, setReplaySpotlightRect] = useState<ReplaySpotlightRect | null>(null);
   const requestIdRef = useRef(0);
+  const replaySpotlightNonceRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesViewportRef = useRef<HTMLDivElement>(null);
   const searchPanelState = useSearchPanelState(activeThreadId);
@@ -41,7 +51,7 @@ export function useReplayConsoleRuntime({ initialThreadId }: { initialThreadId: 
 
   useEffect(() => {
     const viewport = messagesViewportRef.current;
-    if (!viewport) {
+    if (!viewport || replayRuntime.viewState.inspectedReplayBlockId) {
       return;
     }
 
@@ -51,7 +61,42 @@ export function useReplayConsoleRuntime({ initialThreadId }: { initialThreadId: 
         behavior: 'smooth'
       });
     });
-  }, [replayRuntime.transcriptBlocks.length]);
+  }, [replayRuntime.transcriptBlocks.length, replayRuntime.viewState.inspectedReplayBlockId]);
+
+  useEffect(() => {
+    const viewport = messagesViewportRef.current;
+    const inspectedReplayBlockId = replayRuntime.viewState.inspectedReplayBlockId;
+    if (!viewport || !inspectedReplayBlockId) {
+      setReplaySpotlightRect(null);
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      const target = [...viewport.querySelectorAll<HTMLElement>('[data-replay-block-id]')]
+        .find((element) => element.dataset.replayBlockId === inspectedReplayBlockId);
+      if (!target) {
+        setReplaySpotlightRect(null);
+        return;
+      }
+
+      const viewportRect = viewport.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const top = viewport.scrollTop + targetRect.top - viewportRect.top;
+      const left = viewport.scrollLeft + targetRect.left - viewportRect.left;
+      replaySpotlightNonceRef.current += 1;
+      setReplaySpotlightRect({
+        top,
+        left,
+        width: targetRect.width,
+        height: targetRect.height,
+        nonce: replaySpotlightNonceRef.current
+      });
+      viewport.scrollTo({
+        top: Math.max(0, top - viewport.clientHeight * 0.3),
+        behavior: 'smooth'
+      });
+    });
+  }, [replayRuntime.transcriptBlocks.length, replayRuntime.viewState.inspectedReplayBlockId]);
 
   useEffect(() => {
     const threadId = activeThreadId;
@@ -130,11 +175,13 @@ export function useReplayConsoleRuntime({ initialThreadId }: { initialThreadId: 
     loading,
     error,
     messagesViewportRef,
+    replaySpotlightRect,
     answerContainers: replayRuntime.answerContainers,
     transcriptBlocks: replayRuntime.transcriptBlocks,
     sourceMessages,
     controlState: replayRuntime.controlState,
     viewState: replayRuntime.viewState,
+    activeReplayBlockId: replayRuntime.viewState.inspectedReplayBlockId,
     activeSearchResult: searchPanelState.activeSearchResult,
     searchPanelError: searchPanelState.searchPanelError,
     searchPanelLoading: searchPanelState.searchPanelLoading,
@@ -152,7 +199,7 @@ export function useReplayConsoleRuntime({ initialThreadId }: { initialThreadId: 
     onTogglePlayback: replayRuntime.togglePlayback,
     onPreviousStep: replayRuntime.previousStep,
     onNextStep: replayRuntime.nextStep,
-    onSeekToStep: replayRuntime.seekToStep,
+    onInspectStep: replayRuntime.inspectStep,
     onRestart: replayRuntime.restart
   };
 }

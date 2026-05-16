@@ -491,6 +491,7 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
         copyText: string;
         showActions: boolean;
       };
+      activeReplayBlockId?: string | null;
       onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
       }
     | {
@@ -534,6 +535,11 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
   if (!hasVisibleContent) {
     return null;
   }
+  const replayBlockId = props.type === 'persisted-turn' ? props.block.id : null;
+  const replayActive =
+    props.type === 'persisted-turn' &&
+    replayBlockId !== null &&
+    props.activeReplayBlockId === replayBlockId;
 
   const handleCopy = () => {
     void copyTextToClipboard(copyText);
@@ -560,6 +566,8 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
       className={clsx('group relative w-[90%] max-w-screen px-4', showActions ? 'pb-8' : 'pb-2')}
       data-message-role="assistant"
       data-message-id={props.type === 'persisted-turn' ? props.block.id : props.liveAssistantDraft.messageId}
+      data-replay-active={replayActive ? 'true' : undefined}
+      data-replay-block-id={replayBlockId ?? undefined}
       data-render-key={assistantDiagnosticKey}
       style={transcriptRowPerformanceStyle}
     >
@@ -581,6 +589,7 @@ export const AnswerContainerCard = memo(function AnswerContainerCard({
   container,
   actionContext,
   showPersistedResearchStatus = false,
+  activeReplayBlockId = null,
   onOpenSearchResult
 }: {
   container: AnswerContainer;
@@ -589,6 +598,7 @@ export const AnswerContainerCard = memo(function AnswerContainerCard({
     hasVisibleOperation: boolean;
   };
   showPersistedResearchStatus?: boolean;
+  activeReplayBlockId?: string | null;
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
 }) {
   const sections = useMemo(
@@ -598,12 +608,15 @@ export const AnswerContainerCard = memo(function AnswerContainerCard({
   if (sections.length === 0) {
     return null;
   }
+  const replayActive = activeReplayBlockId !== null && container.transcriptBlockIds.includes(activeReplayBlockId);
 
   return (
     <div
       className={clsx('group relative w-[90%] max-w-screen px-4', actionContext.hasVisibleOperation ? 'pb-8' : 'pb-2')}
       data-answer-container-id={container.id}
       data-message-role="assistant"
+      data-replay-active={replayActive ? 'true' : undefined}
+      data-replay-block-id={activeReplayBlockId && replayActive ? activeReplayBlockId : container.transcriptBlockIds[0]}
       style={transcriptRowPerformanceStyle}
     >
       <div className={clsx('relative flex flex-col gap-3 pt-1.5', ui.assistantBubble)}>
@@ -675,12 +688,17 @@ export const AnswerContainerCard = memo(function AnswerContainerCard({
 });
 
 const UserMessageBlockCard = memo(function UserMessageBlockCard({
-  message
+  message,
+  blockId,
+  activeReplayBlockId = null
 }: {
   message: MessageDto;
+  blockId?: string;
+  activeReplayBlockId?: string | null;
 }) {
   const isOptimistic = message.metadata?.optimistic === true;
   const renderKey = getMessageRenderKey(message);
+  const replayActive = activeReplayBlockId !== null && blockId === activeReplayBlockId;
   useRenderDiagnostic('UserMessageBlock', renderKey, {
     messageId: message.id,
     optimistic: isOptimistic,
@@ -695,6 +713,8 @@ const UserMessageBlockCard = memo(function UserMessageBlockCard({
       className="group relative flex w-full max-w-screen justify-end px-4"
       data-message-role="user"
       data-message-id={message.id}
+      data-replay-active={replayActive ? 'true' : undefined}
+      data-replay-block-id={blockId}
       data-render-key={renderKey}
       style={transcriptRowPerformanceStyle}
     >
@@ -736,11 +756,13 @@ const UserMessageBlockCard = memo(function UserMessageBlockCard({
 export const TranscriptBlockCard = memo(function TranscriptBlockCard({
   block,
   showPersistedResearchStatus = false,
+  activeReplayBlockId = null,
   actionContext,
   onOpenSearchResult
 }: {
   block: TranscriptBlock;
   showPersistedResearchStatus?: boolean;
+  activeReplayBlockId?: string | null;
   actionContext?: {
     copyText: string;
     showActions: boolean;
@@ -748,12 +770,13 @@ export const TranscriptBlockCard = memo(function TranscriptBlockCard({
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
 }) {
   if (block.type === 'user-message') {
-    return <UserMessageBlockCard message={block.message} />;
+    return <UserMessageBlockCard activeReplayBlockId={activeReplayBlockId} blockId={block.id} message={block.message} />;
   }
 
   return (
     <AssistantTranscriptCard
       actionContext={actionContext ?? { copyText: '', showActions: false }}
+      activeReplayBlockId={activeReplayBlockId}
       block={block}
       onOpenSearchResult={onOpenSearchResult}
       showPersistedResearchStatus={showPersistedResearchStatus}

@@ -19,6 +19,7 @@ export type BaseContentNode = {
   messageId: string | null;
   sourcePartId: string | null;
   blockHintId: string | null;
+  sourceCreatedAt: string | null;
 };
 
 export type UserTextContentNode = BaseContentNode & {

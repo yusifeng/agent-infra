@@ -11,7 +11,8 @@ function createStep(overrides: Partial<ReplayStep> & Pick<ReplayStep, 'id' | 'ki
     runId: 'run-1',
     messageId: 'message-1',
     blockId: 'block-1',
-    delayMs: 100
+    delayMs: 100,
+    occurredAt: null
   };
 
   if (overrides.kind === 'text') {
@@ -234,13 +235,17 @@ describe('buildReplayPresentation', () => {
       canTogglePlayback: true,
       canPrevious: false,
       canNext: false,
-      canSeek: true
+      canInspect: true
     });
     expect(idlePresentation.viewState.progressLabel).toBe('0 / 2');
     expect(idlePresentation.viewState).toMatchObject({
-      activeStepIndex: -1,
+      playbackStepIndex: -1,
+      playbackReplayBlockId: null,
+      inspectedStepIndex: null,
+      inspectedReplayBlockId: null,
       currentStepLabel: '等待开始',
-      currentStepKind: null
+      currentStepKind: null,
+      totalDurationLabel: '200ms'
     });
 
     const pausedPresentation = buildReplayPresentation(session, createCursor({ stepIndex: 0, status: 'paused' }));
@@ -252,31 +257,68 @@ describe('buildReplayPresentation', () => {
       canTogglePlayback: true,
       canPrevious: false,
       canNext: true,
-      canSeek: true
+      canInspect: true
     });
     expect(pausedPresentation.viewState.progressLabel).toBe('1 / 2');
     expect(pausedPresentation.viewState).toMatchObject({
-      activeStepIndex: 0,
-      currentStepLabel: '消息',
+      playbackStepIndex: 0,
+      playbackReplayBlockId: 'replay-user:user-1',
+      inspectedStepIndex: null,
+      inspectedReplayBlockId: null,
+      currentStepLabel: '用户提问',
       currentStepKind: 'text'
     });
     expect(pausedPresentation.viewState.progressSegments).toEqual([
       {
         stepIndex: 0,
         rawStepIndex: 0,
-        label: '消息',
+        label: '用户提问',
         kind: 'text',
+        tone: 'user',
+        weight: 1.2 + 2 / 240,
+        durationMs: 100,
+        durationLabel: '100ms',
         complete: true,
-        active: true
+        playbackActive: true,
+        inspected: false
       },
       {
         stepIndex: 1,
         rawStepIndex: 1,
-        label: '消息',
+        label: 'AI 回答',
         kind: 'text',
+        tone: 'answer',
+        weight: 1.8 + 2 / 160,
+        durationMs: 100,
+        durationLabel: '100ms',
         complete: false,
-        active: false
+        playbackActive: false,
+        inspected: false
       }
+    ]);
+  });
+
+  it('tracks inspected segment separately from playback progress', () => {
+    const session = createSession([
+      createStep({ id: 'user-1', kind: 'text', role: 'user', content: '问题', sourceMessageIds: ['user-1'] }),
+      createStep({ id: 'assistant-1', kind: 'text', content: '回答' }),
+      createStep({ id: 'done-1', kind: 'done', runId: null, messageId: null, blockId: null, delayMs: 0 })
+    ]);
+
+    const presentation = buildReplayPresentation(session, createCursor({ stepIndex: 0, status: 'playing' }), 1);
+
+    expect(presentation.viewState).toMatchObject({
+      playbackStepIndex: 0,
+      playbackReplayBlockId: 'replay-user:user-1',
+      inspectedStepIndex: 1,
+      inspectedReplayBlockId: 'replay-assistant:assistant-1'
+    });
+    expect(presentation.viewState.progressSegments.map((segment) => ({
+      playbackActive: segment.playbackActive,
+      inspected: segment.inspected
+    }))).toEqual([
+      { playbackActive: true, inspected: false },
+      { playbackActive: false, inspected: true }
     ]);
   });
 
@@ -295,7 +337,7 @@ describe('buildReplayPresentation', () => {
       canTogglePlayback: false,
       canPrevious: false,
       canNext: false,
-      canSeek: false
+      canInspect: false
     });
     expect(presentation.viewState.progressLabel).toBe('0 / 0');
   });
@@ -312,5 +354,30 @@ describe('buildReplayPresentation', () => {
 
     expect(completedPresentation.viewState.currentStepIndex).toBe(3);
     expect(completedPresentation.viewState.progressLabel).toBe('3 / 3');
+  });
+
+  it('uses source timestamps for total and segment duration labels when available', () => {
+    const session = createSession([
+      createStep({
+        id: 'user-1',
+        kind: 'text',
+        role: 'user',
+        content: '问题',
+        sourceMessageIds: ['user-1'],
+        occurredAt: '2026-05-08T00:00:00.000Z'
+      }),
+      createStep({
+        id: 'assistant-1',
+        kind: 'text',
+        content: '回答',
+        occurredAt: '2026-05-08T00:00:02.500Z'
+      }),
+      createStep({ id: 'done-1', kind: 'done', runId: null, messageId: null, blockId: null, delayMs: 0 })
+    ]);
+
+    const presentation = buildReplayPresentation(session, createCursor({ stepIndex: 0, status: 'paused' }));
+
+    expect(presentation.viewState.totalDurationLabel).toBe('2.5s');
+    expect(presentation.viewState.progressSegments.map((segment) => segment.durationLabel)).toEqual(['2.5s', '100ms']);
   });
 });
