@@ -13,7 +13,7 @@
 
 ### 0.2 Goals
 - [x] Remove client-only auth gating from the chat shell and observability entry path so protected routes can reject or redirect before the main console bootstraps.
-- [ ] Add explicit route loading/error boundaries for the authenticated shell and share/auth pages where async work currently falls through to blank or generic behavior.
+- [x] Add explicit route loading/error boundaries for the authenticated shell and share/auth pages where async work currently falls through to blank or generic behavior.
 - [ ] Reduce `use-durable-chat-runtime.ts` complexity by extracting bounded controllers/hooks without changing durable chat semantics.
 - [ ] Keep the optimization pass focused on validated bottlenecks and avoid speculative framework churn.
 
@@ -38,7 +38,7 @@
 ### 1.3 Types / Interfaces
 - [x] Define the protected-route input/output boundary before implementation: what server-side code decides auth, and what user/current-user data gets passed into console entry components.
 - [ ] Define the first hook extraction seams inside `runtime`: thread catalog/session bootstrap, live send/attach lifecycle, and shell dialog actions.
-- [ ] Define route boundary expectations for `loading.tsx` and `error.tsx` so they stay thin host-shell behavior rather than new business logic.
+- [x] Define route boundary expectations for `loading.tsx` and `error.tsx` so they stay thin host-shell behavior rather than new business logic.
 
 ## 2. Backend / Platform
 
@@ -60,8 +60,8 @@
 
 ### 3.2 UI shell
 - [x] Remove or reduce `AuthShellGate` responsibility once protected routes are enforced before client bootstrap.
-- [ ] Add authenticated-shell `loading.tsx` and `error.tsx` boundaries with minimal but explicit UX.
-- [ ] Add auth page Suspense fallback UI instead of `fallback={null}`.
+- [x] Add authenticated-shell `loading.tsx` and `error.tsx` boundaries with minimal but explicit UX.
+- [x] Add auth page Suspense fallback UI instead of `fallback={null}`.
 - [ ] Evaluate whether any additional component memoization is justified after runtime extraction and profiler evidence, not before.
 
 ## 4. Tests
@@ -90,10 +90,10 @@
 - [x] Run `codex review` for this loop after targeted verification passes.
 
 ### Loop 2
-- [ ] Add `loading.tsx` / `error.tsx` boundaries for the authenticated shell and auth/share routes with minimal UI.
-- [ ] Replace auth-page `Suspense fallback={null}` with an explicit fallback.
-- [ ] Verify route-level loading and failure behavior.
-- [ ] Run `codex review` for this loop after targeted verification passes.
+- [x] Add `loading.tsx` / `error.tsx` boundaries for the authenticated shell and auth/share routes with minimal UI.
+- [x] Replace auth-page `Suspense fallback={null}` with an explicit fallback.
+- [x] Verify route-level loading and failure behavior.
+- [x] Run `codex review` for this loop after targeted verification passes.
 
 ### Loop 3
 - [ ] Extract the first bounded slice from `use-durable-chat-runtime.ts`.
