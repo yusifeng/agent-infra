@@ -98,6 +98,26 @@ export class InvalidTurnTextError extends AgentInfraAppError {
   }
 }
 
+export class InvalidAnswerCandidateSelectionError extends AgentInfraAppError {
+  constructor(message: string, context: Record<string, unknown>) {
+    super(message, {
+      statusCode: 409,
+      code: 'invalid_answer_candidate_selection',
+      context
+    });
+  }
+}
+
+export class InvalidRunFeedbackError extends AgentInfraAppError {
+  constructor(message: string, context: Record<string, unknown>) {
+    super(message, {
+      statusCode: 409,
+      code: 'invalid_run_feedback',
+      context
+    });
+  }
+}
+
 export class InvalidThreadTitleError extends AgentInfraAppError {
   constructor() {
     super('thread title is required', {

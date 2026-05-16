@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 
-import type { Message, MessagePart, Run, RunEvent, ToolInvocation } from '@agent-infra/core';
+import { projectCanonicalTranscript, type Message, type MessagePart, type Run, type RunEvent, type ToolInvocation } from '@agent-infra/core';
 
 import {
   ActiveChatShareExistsError,
@@ -8,6 +8,8 @@ import {
   ChatShareNotFoundError,
   ChatShareRevokedError,
   InvalidThreadTitleError,
+  InvalidAnswerCandidateSelectionError,
+  InvalidRunFeedbackError,
   InvalidTurnTextError,
   RunNotFoundError,
   RuntimeUnavailableError,
@@ -31,6 +33,7 @@ import type {
   RunTimelineItemV1,
   RunTimelineProjectionV1,
   RuntimeSelection,
+  StartTextCandidatesInput,
   SharedMessagePartSnapshot,
   SharedMessageSnapshot,
   SharedSearchBundle,
@@ -91,6 +94,52 @@ async function loadRunOrThrow(repositories: AgentInfraAppRepositories, runId: st
   }
 
   return run;
+}
+
+async function buildCanonicalThreadMessages(repositories: AgentInfraAppRepositories, threadId: string, cutoffMessageId?: string | null) {
+  const [messages, runs, answerCandidates, answerSelections] = await Promise.all([
+    repositories.messageRepo.listByThread(threadId),
+    repositories.runRepo.listByThread(threadId),
+    repositories.answerCandidateRepo.listByThread(threadId),
+    repositories.answerSelectionRepo.listByThread(threadId)
+  ]);
+
+  return projectCanonicalTranscript({
+    messages,
+    runs,
+    answerCandidates,
+    answerSelections,
+    cutoffMessageId
+  });
+}
+
+async function loadCandidateForSelectionOrThrow(
+  repositories: AgentInfraAppRepositories,
+  input: { threadId: string; triggerMessageId: string; runId: string }
+) {
+  const candidates = await repositories.answerCandidateRepo.listByTriggerMessage(input.threadId, input.triggerMessageId);
+  const candidate = candidates.find((item) => item.runId === input.runId) ?? null;
+  if (!candidate) {
+    throw new InvalidAnswerCandidateSelectionError('selected run is not a candidate for this turn', input);
+  }
+
+  return candidate;
+}
+
+async function ensureSelectionIsMutable(repositories: AgentInfraAppRepositories, input: { threadId: string; triggerMessageId: string }) {
+  const messages = await repositories.messageRepo.listByThread(input.threadId);
+  const triggerMessage = messages.find((message) => message.id === input.triggerMessageId);
+  if (!triggerMessage) {
+    throw new InvalidAnswerCandidateSelectionError('trigger message was not found', input);
+  }
+
+  const laterUserMessage = messages.find((message) => message.role === 'user' && message.seq > triggerMessage.seq);
+  if (laterUserMessage) {
+    throw new InvalidAnswerCandidateSelectionError('answer selection is immutable after a later user message exists', {
+      ...input,
+      laterUserMessageId: laterUserMessage.id
+    });
+  }
 }
 
 async function loadShareByPublicIdOrThrow(repositories: AgentInfraAppRepositories, publicId: string) {
@@ -448,12 +497,11 @@ async function queueTextTurn(
       const runId = generateId();
       queuedRunId = runId;
 
-      const userMessage = await repositories.messageRepo.create({
+      const userMessage = await repositories.messageRepo.createWithNextSeq({
         id: messageId,
         threadId: thread.id,
         runId: null,
         role: 'user',
-        seq: await repositories.messageRepo.nextSeq(thread.id),
         status: 'completed',
         metadata: null
       });
@@ -499,6 +547,114 @@ async function queueTextTurn(
     text,
     run: queuedRun,
     userMessage: queuedMessage,
+    runtimeSelection
+  };
+}
+
+async function queueTextCandidatesTurn(
+  dependencies: AgentInfraAppDependencies,
+  input: StartTextCandidatesInput,
+  generateId: () => string,
+  getNow: () => Date
+) {
+  if (input.candidateCount !== 2) {
+    throw new InvalidAnswerCandidateSelectionError('candidateCount must be 2 for candidate turns', {
+      threadId: input.threadId,
+      candidateCount: input.candidateCount
+    });
+  }
+
+  const text = trimTurnText(input.text);
+  const thread = await loadThreadOrThrow(dependencies.repositories, input.threadId);
+  if (thread.status !== 'active') {
+    throw new ThreadNotActiveError(thread.id, thread.status);
+  }
+
+  const runtimeSelection = await resolveRuntimeSelection(dependencies, input);
+  let triggerMessageId = '';
+  let queuedMessage: (Message & { parts: MessagePart[] }) | null = null;
+  let queuedCandidates: Array<{ candidate: Awaited<ReturnType<AgentInfraAppRepositories['answerCandidateRepo']['create']>>; run: Run }> = [];
+  let queuedSelection: Awaited<ReturnType<AgentInfraAppRepositories['answerSelectionRepo']['upsert']>> | null = null;
+
+  try {
+    await dependencies.transaction(async (repositories) => {
+      await repositories.threadRepo.touch(thread.id, getNow());
+      const messageId = generateId();
+      triggerMessageId = messageId;
+
+      const userMessage = await repositories.messageRepo.createWithNextSeq({
+        id: messageId,
+        threadId: thread.id,
+        runId: null,
+        role: 'user',
+        status: 'completed',
+        metadata: null
+      });
+
+      const firstPart = await repositories.messageRepo.createPart({
+        id: generateId(),
+        messageId: userMessage.id,
+        partIndex: 0,
+        type: 'text',
+        textValue: text,
+        jsonValue: null
+      });
+
+      const candidates: Array<{ candidate: Awaited<ReturnType<AgentInfraAppRepositories['answerCandidateRepo']['create']>>; run: Run }> = [];
+      for (const ordinal of [0, 1]) {
+        const runId = generateId();
+        const run = await repositories.runRepo.create({
+          id: runId,
+          threadId: thread.id,
+          triggerMessageId: userMessage.id,
+          provider: runtimeSelection.provider,
+          model: runtimeSelection.model,
+          status: 'queued',
+          usage: null,
+          error: null,
+          startedAt: null,
+          finishedAt: null
+        });
+
+        const candidate = await repositories.answerCandidateRepo.create({
+          id: generateId(),
+          threadId: thread.id,
+          triggerMessageId: userMessage.id,
+          runId,
+          ordinal,
+          kind: ordinal === 0 ? 'primary' : 'alternative'
+        });
+
+        candidates.push({ candidate, run });
+      }
+
+      queuedSelection = await repositories.answerSelectionRepo.upsert({
+        threadId: thread.id,
+        triggerMessageId: userMessage.id,
+        selectedRunId: candidates[0]!.run.id,
+        source: 'default',
+        selectedByUserId: null
+      });
+
+      queuedMessage = {
+        ...userMessage,
+        parts: [firstPart]
+      };
+      queuedCandidates = candidates;
+    });
+  } catch (error) {
+    throw new TurnPersistenceError('failed to persist queued candidate turn state', { threadId: thread.id, triggerMessageId }, error);
+  }
+
+  if (!queuedMessage || queuedCandidates.length !== 2 || !queuedSelection) {
+    throw new TurnPersistenceError('queued candidate turn state was not committed', { threadId: thread.id, triggerMessageId });
+  }
+
+  return {
+    triggerMessageId,
+    userMessage: queuedMessage,
+    candidates: queuedCandidates,
+    answerSelection: queuedSelection,
     runtimeSelection
   };
 }
@@ -552,6 +708,41 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
           beforeSeq: input.beforeSeq,
           afterSeq: input.afterSeq
         });
+      },
+      async getCanonicalMessages(input) {
+        await loadThreadOrThrow(dependencies.repositories, input.threadId);
+        return buildCanonicalThreadMessages(dependencies.repositories, input.threadId, input.cutoffMessageId);
+      },
+      async getMessagesWithAnswerCandidates(input) {
+        await loadThreadOrThrow(dependencies.repositories, input.threadId);
+        const messagesPromise =
+          typeof input.beforeSeq === 'number' || typeof input.afterSeq === 'number' || typeof input.limit === 'number'
+            ? dependencies.repositories.messageRepo
+                .listPageByThread(input.threadId, {
+                  limit: input.limit,
+                  beforeSeq: input.beforeSeq,
+                  afterSeq: input.afterSeq
+                })
+                .then((page) => page.messages)
+            : dependencies.repositories.messageRepo.listByThread(input.threadId);
+
+        const [messages, activeRuns, answerCandidates, answerSelections] = await Promise.all([
+          messagesPromise,
+          dependencies.repositories.runRepo.listActiveByThread(input.threadId),
+          dependencies.repositories.answerCandidateRepo.listByThread(input.threadId),
+          dependencies.repositories.answerSelectionRepo.listByThread(input.threadId)
+        ]);
+        const runIds = [...new Set(answerCandidates.map((candidate) => candidate.runId))];
+        const runFeedback = await dependencies.repositories.runFeedbackRepo.listByRunIds(runIds);
+
+        return {
+          messages,
+          activeRuns,
+          activeRun: activeRuns[0] ?? null,
+          answerCandidates,
+          answerSelections,
+          runFeedback
+        };
       }
     },
     turns: {
@@ -562,6 +753,42 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
           userMessage: queued.userMessage,
           runtimeSelection: queued.runtimeSelection
         };
+      },
+      async startTextCandidates(input) {
+        return queueTextCandidatesTurn(dependencies, input, generateId, now);
+      },
+      async selectAnswerCandidate(input) {
+        await loadThreadOrThrow(dependencies.repositories, input.threadId);
+        return dependencies.transaction(async (repositories) => {
+          await loadCandidateForSelectionOrThrow(repositories, input);
+          await ensureSelectionIsMutable(repositories, input);
+          return repositories.answerSelectionRepo.upsert({
+            threadId: input.threadId,
+            triggerMessageId: input.triggerMessageId,
+            selectedRunId: input.runId,
+            source: 'user',
+            selectedByUserId: input.selectedByUserId ?? null
+          });
+        });
+      },
+      async setRunFeedback(input) {
+        await loadThreadOrThrow(dependencies.repositories, input.threadId);
+        const candidate = await dependencies.repositories.answerCandidateRepo.findByRunId(input.runId);
+        if (!candidate || candidate.threadId !== input.threadId || candidate.triggerMessageId !== input.triggerMessageId) {
+          throw new InvalidRunFeedbackError('feedback run is not a candidate for this turn', { ...input });
+        }
+
+        return dependencies.repositories.runFeedbackRepo.set({
+          id: generateId(),
+          threadId: input.threadId,
+          triggerMessageId: input.triggerMessageId,
+          runId: input.runId,
+          feedbackActorId: input.feedbackActorId,
+          value: input.value
+        });
+      },
+      async clearRunFeedback(input) {
+        await dependencies.repositories.runFeedbackRepo.clear(input);
       },
       async runText(input) {
         const queued = await queueTextTurn(dependencies, input, generateId, now);
@@ -631,6 +858,10 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
       async getActiveByThread(input) {
         await loadThreadOrThrow(dependencies.repositories, input.threadId);
         return dependencies.repositories.runRepo.findLatestActiveByThread(input.threadId);
+      },
+      async listActiveByThread(input) {
+        await loadThreadOrThrow(dependencies.repositories, input.threadId);
+        return dependencies.repositories.runRepo.listActiveByThread(input.threadId);
       }
     },
     shares: {

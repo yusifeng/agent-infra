@@ -1,9 +1,12 @@
 import type {
+  AnswerCandidate,
+  AnswerSelection,
   ChatShare,
   ChatShareSnapshot,
   Message,
   MessagePart,
   Run,
+  RunFeedback,
   RunEvent,
   Thread,
   ToolInvocation
@@ -14,6 +17,8 @@ import { createAgentInfraApp } from '../src/app';
 import {
   ActiveChatShareExistsError,
   ChatShareRevokedError,
+  InvalidAnswerCandidateSelectionError,
+  InvalidRunFeedbackError,
   InvalidThreadTitleError,
   InvalidTurnTextError,
   RunNotFoundError,
@@ -32,6 +37,9 @@ type InMemoryState = {
   runEvents: Map<string, RunEvent>;
   chatShares: Map<string, ChatShare>;
   chatShareSnapshots: Map<string, ChatShareSnapshot>;
+  answerCandidates: Map<string, AnswerCandidate>;
+  answerSelections: Map<string, AnswerSelection>;
+  runFeedback: Map<string, RunFeedback>;
 };
 
 function cloneState(state: InMemoryState): InMemoryState {
@@ -50,7 +58,10 @@ function cloneState(state: InMemoryState): InMemoryState {
     tools: new Map([...state.tools.entries()].map(([id, tool]) => [id, { ...tool }])),
     runEvents: new Map([...state.runEvents.entries()].map(([id, event]) => [id, { ...event }])),
     chatShares: new Map([...state.chatShares.entries()].map(([id, share]) => [id, { ...share }])),
-    chatShareSnapshots: new Map([...state.chatShareSnapshots.entries()].map(([id, snapshot]) => [id, structuredClone(snapshot)]))
+    chatShareSnapshots: new Map([...state.chatShareSnapshots.entries()].map(([id, snapshot]) => [id, structuredClone(snapshot)])),
+    answerCandidates: new Map([...state.answerCandidates.entries()].map(([id, candidate]) => [id, { ...candidate }])),
+    answerSelections: new Map([...state.answerSelections.entries()].map(([id, selection]) => [id, { ...selection }])),
+    runFeedback: new Map([...state.runFeedback.entries()].map(([id, feedback]) => [id, { ...feedback }]))
   };
 }
 
@@ -118,6 +129,11 @@ function createRepositories(stateRef: { current: InMemoryState }, snapshot?: InM
           .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
 
         return activeRuns[0] ?? null;
+      },
+      async listActiveByThread(threadId) {
+        return [...getState().runs.values()]
+          .filter((run) => run.threadId === threadId && (run.status === 'queued' || run.status === 'running'))
+          .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
       },
       async listByThread(threadId, options) {
         const runs = [...getState().runs.values()]
@@ -308,6 +324,73 @@ function createRepositories(stateRef: { current: InMemoryState }, snapshot?: InM
       async findById(id) {
         return getState().chatShareSnapshots.get(id) ?? null;
       }
+    },
+    answerCandidateRepo: {
+      async create(input) {
+        const createdAt = new Date();
+        const candidate = { ...input, createdAt };
+        getState().answerCandidates.set(candidate.id, candidate);
+        return candidate;
+      },
+      async findByRunId(runId) {
+        return [...getState().answerCandidates.values()].find((candidate) => candidate.runId === runId) ?? null;
+      },
+      async listByRunIds(runIds) {
+        const runIdSet = new Set(runIds);
+        return [...getState().answerCandidates.values()].filter((candidate) => runIdSet.has(candidate.runId));
+      },
+      async listByThread(threadId) {
+        return [...getState().answerCandidates.values()]
+          .filter((candidate) => candidate.threadId === threadId)
+          .sort((left, right) => left.ordinal - right.ordinal);
+      },
+      async listByTriggerMessage(threadId, triggerMessageId) {
+        return [...getState().answerCandidates.values()]
+          .filter((candidate) => candidate.threadId === threadId && candidate.triggerMessageId === triggerMessageId)
+          .sort((left, right) => left.ordinal - right.ordinal);
+      }
+    },
+    answerSelectionRepo: {
+      async getByThreadAndTrigger(threadId, triggerMessageId) {
+        return getState().answerSelections.get(`${threadId}:${triggerMessageId}`) ?? null;
+      },
+      async listByThread(threadId) {
+        return [...getState().answerSelections.values()].filter((selection) => selection.threadId === threadId);
+      },
+      async upsert(input) {
+        const existing = await this.getByThreadAndTrigger(input.threadId, input.triggerMessageId);
+        const now = new Date();
+        const selection = {
+          ...input,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now
+        };
+        getState().answerSelections.set(`${input.threadId}:${input.triggerMessageId}`, selection);
+        return selection;
+      }
+    },
+    runFeedbackRepo: {
+      async clear(input) {
+        getState().runFeedback.delete(`${input.runId}:${input.feedbackActorId}`);
+      },
+      async listByRunIds(runIds, feedbackActorId) {
+        const runIdSet = new Set(runIds);
+        return [...getState().runFeedback.values()].filter(
+          (feedback) => runIdSet.has(feedback.runId) && (!feedbackActorId || feedback.feedbackActorId === feedbackActorId)
+        );
+      },
+      async set(input) {
+        const existing = getState().runFeedback.get(`${input.runId}:${input.feedbackActorId}`);
+        const now = new Date();
+        const feedback = {
+          ...input,
+          id: existing?.id ?? input.id,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now
+        };
+        getState().runFeedback.set(`${input.runId}:${input.feedbackActorId}`, feedback);
+        return feedback;
+      }
     }
   };
 }
@@ -321,7 +404,10 @@ function createDependencies(runtime: AgentInfraRuntimePort) {
       tools: new Map<string, ToolInvocation>(),
       runEvents: new Map<string, RunEvent>(),
       chatShares: new Map<string, ChatShare>(),
-      chatShareSnapshots: new Map<string, ChatShareSnapshot>()
+      chatShareSnapshots: new Map<string, ChatShareSnapshot>(),
+      answerCandidates: new Map<string, AnswerCandidate>(),
+      answerSelections: new Map<string, AnswerSelection>(),
+      runFeedback: new Map<string, RunFeedback>()
     }
   };
 
@@ -365,12 +451,11 @@ function createHappyRuntime(): AgentInfraRuntimePort {
         startedAt: new Date('2026-04-10T01:00:00.000Z')
       });
 
-      const assistantMessage = await repositories.messageRepo.create({
+      const assistantMessage = await repositories.messageRepo.createWithNextSeq({
         id: `assistant-${input.runId}`,
         threadId: input.threadId,
         runId: input.runId,
         role: 'assistant',
-        seq: await repositories.messageRepo.nextSeq(input.threadId),
         status: 'created',
         metadata: null
       });
@@ -438,6 +523,32 @@ function createFailingRuntime(): AgentInfraRuntimePort {
       throw new Error('tool explosion');
     }
   };
+}
+
+async function persistAssistantAnswer(repositories: AgentInfraAppRepositories, input: { threadId: string; runId: string; text: string }) {
+  const message = await repositories.messageRepo.createWithNextSeq({
+    id: `assistant-${input.runId}`,
+    threadId: input.threadId,
+    runId: input.runId,
+    role: 'assistant',
+    status: 'completed',
+    metadata: null
+  });
+
+  await repositories.messageRepo.createPart({
+    id: `part-${input.runId}`,
+    messageId: message.id,
+    partIndex: 0,
+    type: 'text',
+    textValue: input.text,
+    jsonValue: null
+  });
+
+  await repositories.runRepo.updateStatus(input.runId, 'completed', {
+    finishedAt: new Date('2026-04-10T01:00:05.000Z')
+  });
+
+  return message;
 }
 
 describe('createAgentInfraApp', () => {
@@ -619,6 +730,191 @@ describe('createAgentInfraApp', () => {
     expect(started.userMessage.parts[0]?.textValue).toBe('Queue me');
     expect(await repositories.messageRepo.listByThread(thread.id)).toHaveLength(1);
     expect(await repositories.runRepo.findById(started.run.id)).not.toBeNull();
+  });
+
+  it('queues one user message with two answer candidate runs and default primary selection', async () => {
+    const { app, repositories } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Candidate path' });
+
+    const started = await app.turns.startTextCandidates({
+      threadId: thread.id,
+      text: 'Compare two answers',
+      candidateCount: 2,
+      provider: 'deepseek',
+      model: 'deepseek-v4-flash'
+    });
+
+    expect(started.userMessage.parts[0]?.textValue).toBe('Compare two answers');
+    expect(started.candidates.map((item) => item.candidate.ordinal)).toEqual([0, 1]);
+    expect(started.candidates.map((item) => item.candidate.kind)).toEqual(['primary', 'alternative']);
+    expect(new Set(started.candidates.map((item) => item.run.triggerMessageId))).toEqual(new Set([started.triggerMessageId]));
+    expect(started.answerSelection).toMatchObject({
+      threadId: thread.id,
+      triggerMessageId: started.triggerMessageId,
+      selectedRunId: started.candidates[0]?.run.id,
+      source: 'default'
+    });
+    expect(await repositories.messageRepo.listByThread(thread.id)).toHaveLength(1);
+    expect(await app.runs.listActiveByThread({ threadId: thread.id })).toHaveLength(2);
+  });
+
+  it('keeps legacy single-answer canonical projection unchanged', async () => {
+    const { app } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Legacy projection' });
+
+    await app.turns.runText({
+      threadId: thread.id,
+      text: 'Legacy question'
+    });
+
+    const projection = await app.threads.getCanonicalMessages({ threadId: thread.id });
+
+    expect(projection.messages.map((message) => message.role)).toEqual(['user', 'assistant']);
+    expect(projection.messages[0]?.parts[0]?.textValue).toBe('Legacy question');
+    expect(projection.messages[1]?.parts[0]?.textValue).toBe('Hello from runtime');
+    expect(projection.diagnostics).toEqual([]);
+  });
+
+  it('projects the selected alternative candidate as canonical', async () => {
+    const { app, repositories } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Selected alternative' });
+    const started = await app.turns.startTextCandidates({
+      threadId: thread.id,
+      text: 'Which answer is better?',
+      candidateCount: 2
+    });
+    const primary = started.candidates[0]!;
+    const alternative = started.candidates[1]!;
+
+    await persistAssistantAnswer(repositories, { threadId: thread.id, runId: primary.run.id, text: 'Primary answer' });
+    await persistAssistantAnswer(repositories, { threadId: thread.id, runId: alternative.run.id, text: 'Alternative answer' });
+    const selection = await app.turns.selectAnswerCandidate({
+      threadId: thread.id,
+      triggerMessageId: started.triggerMessageId,
+      runId: alternative.run.id,
+      selectedByUserId: 'user-1'
+    });
+
+    const projection = await app.threads.getCanonicalMessages({ threadId: thread.id });
+
+    expect(selection.source).toBe('user');
+    expect(projection.canonicalRunIds).toEqual([alternative.run.id]);
+    expect(projection.messages.map((message) => message.parts[0]?.textValue)).toEqual(['Which answer is better?', 'Alternative answer']);
+  });
+
+  it('rejects candidate selection across different trigger messages', async () => {
+    const { app } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Invalid selection' });
+    const first = await app.turns.startTextCandidates({
+      threadId: thread.id,
+      text: 'First',
+      candidateCount: 2
+    });
+    const second = await app.turns.startTextCandidates({
+      threadId: thread.id,
+      text: 'Second',
+      candidateCount: 2
+    });
+
+    await expect(
+      app.turns.selectAnswerCandidate({
+        threadId: thread.id,
+        triggerMessageId: second.triggerMessageId,
+        runId: first.candidates[0]!.run.id
+      })
+    ).rejects.toBeInstanceOf(InvalidAnswerCandidateSelectionError);
+  });
+
+  it('rejects old answer selection changes after a later user message exists', async () => {
+    const { app } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Immutable selection' });
+    const first = await app.turns.startTextCandidates({
+      threadId: thread.id,
+      text: 'First',
+      candidateCount: 2
+    });
+    await app.turns.startText({
+      threadId: thread.id,
+      text: 'Later user turn'
+    });
+
+    await expect(
+      app.turns.selectAnswerCandidate({
+        threadId: thread.id,
+        triggerMessageId: first.triggerMessageId,
+        runId: first.candidates[1]!.run.id
+      })
+    ).rejects.toBeInstanceOf(InvalidAnswerCandidateSelectionError);
+  });
+
+  it('falls back to a completed alternative when the default primary candidate failed', async () => {
+    const { app, repositories } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Fallback projection' });
+    const started = await app.turns.startTextCandidates({
+      threadId: thread.id,
+      text: 'Fallback question',
+      candidateCount: 2
+    });
+    const primary = started.candidates[0]!;
+    const alternative = started.candidates[1]!;
+
+    await repositories.runRepo.updateStatus(primary.run.id, 'failed', {
+      error: 'primary failed',
+      finishedAt: new Date('2026-04-10T01:00:05.000Z')
+    });
+    await persistAssistantAnswer(repositories, { threadId: thread.id, runId: alternative.run.id, text: 'Recovered answer' });
+
+    const projection = await app.threads.getCanonicalMessages({ threadId: thread.id });
+
+    expect(projection.canonicalRunIds).toEqual([alternative.run.id]);
+    expect(projection.messages.map((message) => message.parts[0]?.textValue)).toEqual(['Fallback question', 'Recovered answer']);
+    expect(projection.diagnostics.map((diagnostic) => diagnostic.code)).toContain('failed_selected_candidate_fallback');
+  });
+
+  it('sets, replaces, clears, and validates run feedback for answer candidates', async () => {
+    const { app } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Feedback path' });
+    const started = await app.turns.startTextCandidates({
+      threadId: thread.id,
+      text: 'Feedback target',
+      candidateCount: 2
+    });
+    const candidateRunId = started.candidates[0]!.run.id;
+
+    const positive = await app.turns.setRunFeedback({
+      threadId: thread.id,
+      triggerMessageId: started.triggerMessageId,
+      runId: candidateRunId,
+      feedbackActorId: 'actor-1',
+      value: 'thumbs_up'
+    });
+    const negative = await app.turns.setRunFeedback({
+      threadId: thread.id,
+      triggerMessageId: started.triggerMessageId,
+      runId: candidateRunId,
+      feedbackActorId: 'actor-1',
+      value: 'thumbs_down'
+    });
+    const hydrated = await app.threads.getMessagesWithAnswerCandidates({ threadId: thread.id });
+
+    expect(positive.id).toBe(negative.id);
+    expect(hydrated.runFeedback).toMatchObject([{ runId: candidateRunId, value: 'thumbs_down' }]);
+
+    await app.turns.clearRunFeedback({
+      runId: candidateRunId,
+      feedbackActorId: 'actor-1'
+    });
+    expect((await app.threads.getMessagesWithAnswerCandidates({ threadId: thread.id })).runFeedback).toEqual([]);
+
+    await expect(
+      app.turns.setRunFeedback({
+        threadId: thread.id,
+        triggerMessageId: started.triggerMessageId,
+        runId: 'missing-run',
+        feedbackActorId: 'actor-1',
+        value: 'thumbs_up'
+      })
+    ).rejects.toBeInstanceOf(InvalidRunFeedbackError);
   });
 
   it('returns projected failed state when runtime execution throws after persistence', async () => {

@@ -21,14 +21,14 @@
 - [x] Share/replay canonical hardening must happen before dual-answer data is publicly exposed.
 
 ### 0.2 Goals
-- [ ] Add durable answer candidate, answer selection, and run feedback state without breaking the existing single-answer flow.
-- [ ] Add canonical transcript projection so non-selected candidates do not pollute future model context.
-- [ ] Make message persistence safe when sibling runs write assistant/tool messages concurrently.
+- [x] Add durable answer candidate, answer selection, and run feedback state without breaking the existing single-answer flow.
+- [x] Add canonical transcript projection so non-selected candidates do not pollute future model context.
+- [x] Make message persistence safe when sibling runs write assistant/tool messages concurrently.
 - [ ] Support two simultaneous streaming runs for one user message.
 - [ ] Hydrate and recover multiple active candidate streams after thread/tab switches.
 - [ ] Render candidate answers side-by-side in `/chat`, with choose-best and thumbs feedback controls.
-- [ ] Keep reusable durable behavior in `packages/*`; keep `apps/playground-next-web` as the validation/UI host.
-- [ ] Preserve legacy thread behavior without destructive migration.
+- [x] Keep reusable durable behavior in `packages/*`; keep `apps/playground-next-web` as the validation/UI host.
+- [x] Preserve legacy thread behavior without destructive migration.
 
 ### 0.3 Non-goals
 - [x] Do not implement a full branching conversation tree.
@@ -45,7 +45,7 @@
 - [x] Do not add a turn-level attach-stream endpoint in v1 unless per-run attach becomes unmanageable.
 
 ### 0.4 V1 Product Rules Before Implementation
-- [ ] V1 rule: answer selection changes are rejected once a later user message exists, unless implemented as display-only and explicitly marked as such.
+- [x] V1 rule: answer selection changes are rejected once a later user message exists, unless implemented as display-only and explicitly marked as such.
 - [ ] V1 rule: if primary/default fails and an alternative completes, canonical selection falls back to the completed alternative with `source='system_fallback'`.
 - [ ] V1 rule: composer remains locked until both candidate runs are terminal.
 - [ ] V1 rule: stop behavior is detach-only; durable candidate runs continue and are recoverable by attach-stream.
@@ -68,12 +68,12 @@
 - [x] Add `AnswerSelectionSource = 'default' | 'user' | 'system_fallback'`.
 - [x] Add `RunFeedbackValue = 'thumbs_up' | 'thumbs_down'`.
 - [x] Add a `RunFeedback` domain type with `id`, `threadId`, `triggerMessageId`, `runId`, `feedbackActorId`, `value`, `createdAt`, and `updatedAt`.
-- [ ] Define whether `AnswerSelection` is mutable only for the latest unresolved turn, and reject or mark display-only changes for older turns.
-- [ ] Define canonical-eligible candidate statuses: completed by default; failed/empty candidates are ineligible unless no completed candidate exists.
-- [ ] Confirm legacy runs without candidate rows are treated as single-candidate turns.
-- [ ] Define legacy fallback when a run has `triggerMessageId` but no `AnswerCandidate` row.
-- [ ] Define canonical candidate resolution: explicit selection first, then candidate ordinal `0`, then legacy single run fallback.
-- [ ] Define whether feedback is one-per-user, one-per-anonymous-session, or append-only audit plus current value.
+- [x] Define whether `AnswerSelection` is mutable only for the latest unresolved turn, and reject or mark display-only changes for older turns.
+- [x] Define canonical-eligible candidate statuses: completed by default; failed/empty candidates are ineligible unless no completed candidate exists.
+- [x] Confirm legacy runs without candidate rows are treated as single-candidate turns.
+- [x] Define legacy fallback when a run has `triggerMessageId` but no `AnswerCandidate` row.
+- [x] Define canonical candidate resolution: explicit selection first, then candidate ordinal `0`, then legacy single run fallback.
+- [x] Define whether feedback is one-per-user, one-per-anonymous-session, or append-only audit plus current value.
 
 ### 1.3 Database Schema
 - [x] Add `answer_candidates` table for explicit candidate grouping.
@@ -108,7 +108,7 @@
 - [x] Add feedback set/clear/list methods.
 - [x] Add `RunRepository.listActiveByThread(threadId)`, and update archive/share active-run checks to use any active run, not latest active run.
 - [x] Replace runtime cached `nextMessageSeq` with `messageRepo.createWithNextSeq` or `allocateMessageSeq` inside the DB transaction for every persisted message.
-- [ ] Avoid route-local DB access for durable candidate/selection/feedback state.
+- [x] Avoid route-local DB access for durable candidate/selection/feedback state.
 
 ### 1.5 Contracts / DTOs
 - [ ] Add `AnswerCandidateDto`.
@@ -130,29 +130,29 @@
 - [ ] Define multiplex stream events or document reuse of existing run-scoped events with a turn wrapper.
 
 ### 1.6 Canonical Transcript Projection
-- [ ] Add a package-level pure projection function for canonical transcript construction.
-- [ ] Projection input should include messages, runs, answer candidates, and answer selections.
-- [ ] Projection should support a cutoff at or before `triggerMessageId` so sibling candidate runs use the same pre-answer history snapshot.
-- [ ] Projection should keep system/user messages.
-- [ ] Projection should keep assistant/tool messages only when their `runId` is canonical for that trigger message.
-- [ ] Projection should preserve original `seq` ordering after filtering non-canonical assistant/tool messages.
-- [ ] Projection should keep selected run's assistant and tool messages together.
-- [ ] Projection must not keep orphan tool messages from unselected runs.
-- [ ] Projection should preserve legacy assistant/tool messages when no candidate grouping exists.
-- [ ] Projection should handle missing or failed selected runs deterministically.
-- [ ] Projection should return diagnostics for missing selected run, selected run from wrong trigger, no candidate ordinal `0`, and failed selected candidate fallback.
+- [x] Add a package-level pure projection function for canonical transcript construction.
+- [x] Projection input should include messages, runs, answer candidates, and answer selections.
+- [x] Projection should support a cutoff at or before `triggerMessageId` so sibling candidate runs use the same pre-answer history snapshot.
+- [x] Projection should keep system/user messages.
+- [x] Projection should keep assistant/tool messages only when their `runId` is canonical for that trigger message.
+- [x] Projection should preserve original `seq` ordering after filtering non-canonical assistant/tool messages.
+- [x] Projection should keep selected run's assistant and tool messages together.
+- [x] Projection must not keep orphan tool messages from unselected runs.
+- [x] Projection should preserve legacy assistant/tool messages when no candidate grouping exists.
+- [x] Projection should handle missing or failed selected runs deterministically.
+- [x] Projection should return diagnostics for missing selected run, selected run from wrong trigger, no candidate ordinal `0`, and failed selected candidate fallback.
 - [ ] Projection should be shared by runtime context construction, share snapshots, and replay/canonical readers.
-- [ ] Projection should not live only in `apps/playground-next-web`.
+- [x] Projection should not live only in `apps/playground-next-web`.
 
 ## 2. Backend / Platform
 
 ### 2.1 Core Package
 - [x] Add answer candidate, selection, and feedback domain types.
 - [x] Add repository interfaces.
-- [ ] Add canonical projection input/result types.
+- [x] Add canonical projection input/result types.
 - [x] Export new types and repositories from package entry points.
-- [ ] Keep core free of HTTP parsing and UI presentation state.
-- [ ] Add focused tests for pure projection helpers if placed in `packages/core`.
+- [x] Keep core free of HTTP parsing and UI presentation state.
+- [x] Add focused tests for pure projection helpers if placed in `packages/core`.
 
 ### 2.2 DB Package
 - [x] Add PostgreSQL schema definitions.
@@ -174,27 +174,27 @@
 - [x] Treat this section as blocking before dual runtime execution starts.
 
 ### 2.4 App Package
-- [ ] Add `turns.startTextCandidates` or equivalent use case.
-- [ ] Ensure the use case creates exactly one user message for a dual-answer turn.
-- [ ] Ensure the use case creates two queued runs sharing the same `triggerMessageId`.
-- [ ] Ensure the use case inserts candidate rows with ordinal `0` and `1`.
-- [ ] Ensure the use case creates default selection for ordinal `0`.
-- [ ] Add `turns.selectAnswerCandidate`.
-- [ ] Add `selectAnswerCandidate` validation: selected run must be a candidate for the same `threadId + triggerMessageId`.
-- [ ] Add `selectAnswerCandidate` validation for old turns according to the v1 old-selection rule.
-- [ ] Add feedback use cases.
-- [ ] Add `runs.listActiveByThread` or equivalent app method.
-- [ ] Add `answerMode/candidateCount` handling so existing `startText` remains the default single-answer path.
-- [ ] Add `threads.getCanonicalMessages` or equivalent projection entry point.
+- [x] Add `turns.startTextCandidates` or equivalent use case.
+- [x] Ensure the use case creates exactly one user message for a dual-answer turn.
+- [x] Ensure the use case creates two queued runs sharing the same `triggerMessageId`.
+- [x] Ensure the use case inserts candidate rows with ordinal `0` and `1`.
+- [x] Ensure the use case creates default selection for ordinal `0`.
+- [x] Add `turns.selectAnswerCandidate`.
+- [x] Add `selectAnswerCandidate` validation: selected run must be a candidate for the same `threadId + triggerMessageId`.
+- [x] Add `selectAnswerCandidate` validation for old turns according to the v1 old-selection rule.
+- [x] Add feedback use cases.
+- [x] Add `runs.listActiveByThread` or equivalent app method.
+- [x] Add `answerMode/candidateCount` handling so existing `startText` remains the default single-answer path.
+- [x] Add `threads.getCanonicalMessages` or equivalent projection entry point.
 - [ ] Add canonical projection entry point used by share snapshot creation, not only runtime and UI hydration.
-- [ ] Add `threads.getMessagesWithAnswerCandidates` for UI hydration.
-- [ ] Ensure legacy `startText` path does not create candidate/selection rows unless explicitly configured.
-- [ ] Add app tests for one user message plus two candidate runs.
-- [ ] Add app tests for legacy canonical projection.
-- [ ] Add app tests for selected alternative canonical projection.
-- [ ] Add app tests for rejected invalid selection across different trigger messages.
-- [ ] Add app tests for rejected old selection changes after a later user message exists.
-- [ ] Add app tests for failed primary fallback behavior after product rule is decided.
+- [x] Add `threads.getMessagesWithAnswerCandidates` for UI hydration.
+- [x] Ensure legacy `startText` path does not create candidate/selection rows unless explicitly configured.
+- [x] Add app tests for one user message plus two candidate runs.
+- [x] Add app tests for legacy canonical projection.
+- [x] Add app tests for selected alternative canonical projection.
+- [x] Add app tests for rejected invalid selection across different trigger messages.
+- [x] Add app tests for rejected old selection changes after a later user message exists.
+- [x] Add app tests for failed primary fallback behavior after product rule is decided.
 
 ### 2.5 Runtime Pi
 - [ ] Add `RuntimePiInput.historyMessages` or equivalent canonical history override; runtime-pi must prefer this over `messageRepo.listByThread`.
@@ -415,21 +415,21 @@
 - [x] Run `pnpm --filter @agent-infra/db test`.
 - [x] Run affected runtime tests if message persistence signatures changed.
 - [x] Run `codex review` for this loop.
-- [ ] Commit this loop after review and verification pass.
+- [x] Commit this loop after review and verification pass.
 
 ### Loop 2: Canonical Projection And App Use Cases
-- [ ] Add shared canonical transcript projection with cutoff/snapshot support.
-- [ ] Add app use cases for starting answer candidates.
-- [ ] Add app use cases for selecting candidates with validation.
-- [ ] Add app use cases for setting and clearing feedback.
-- [ ] Add active-runs app method.
-- [ ] Ensure dual candidate creation is atomic.
-- [ ] Ensure legacy single-answer threads project unchanged.
-- [ ] Ensure legacy `startText` remains single-answer by default.
-- [ ] Add app/projection tests.
-- [ ] Run `pnpm --filter @agent-infra/app test`.
-- [ ] Run `pnpm --filter @agent-infra/db test` if repository contracts changed.
-- [ ] Run `codex review` for this loop.
+- [x] Add shared canonical transcript projection with cutoff/snapshot support.
+- [x] Add app use cases for starting answer candidates.
+- [x] Add app use cases for selecting candidates with validation.
+- [x] Add app use cases for setting and clearing feedback.
+- [x] Add active-runs app method.
+- [x] Ensure dual candidate creation is atomic.
+- [x] Ensure legacy single-answer threads project unchanged.
+- [x] Ensure legacy `startText` remains single-answer by default.
+- [x] Add app/projection tests.
+- [x] Run `pnpm --filter @agent-infra/app test`.
+- [x] Run `pnpm --filter @agent-infra/db test` if repository contracts changed.
+- [x] Run `codex review` for this loop.
 - [ ] Commit this loop after review and verification pass.
 
 ### Loop 3: Runtime Context Safety

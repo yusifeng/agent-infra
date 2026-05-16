@@ -1,4 +1,9 @@
 import type {
+  AnswerCandidate,
+  AnswerCandidateRepository,
+  AnswerSelection,
+  AnswerSelectionRepository,
+  CanonicalTranscriptDiagnostic,
   ChatShare,
   ChatShareSnapshot,
   Message,
@@ -6,6 +11,9 @@ import type {
   MessagePart,
   MessageRepository,
   Run,
+  RunFeedback,
+  RunFeedbackRepository,
+  RunFeedbackValue,
   RunEvent,
   RunEventRepository,
   RunRepository,
@@ -25,6 +33,9 @@ export interface AgentInfraAppRepositories {
   runEventRepo: RunEventRepository;
   chatShareRepo: ChatShareRepository;
   chatShareSnapshotRepo: ChatShareSnapshotRepository;
+  answerCandidateRepo: AnswerCandidateRepository;
+  answerSelectionRepo: AnswerSelectionRepository;
+  runFeedbackRepo: RunFeedbackRepository;
 }
 
 export interface RuntimeSelection {
@@ -61,6 +72,19 @@ export interface GenerateTextRuntimeResult {
 export interface StartTextTurnResult {
   run: Run;
   userMessage: Message & { parts: MessagePart[] };
+  runtimeSelection: RuntimeSelection;
+}
+
+export interface StartTextCandidateResult {
+  candidate: AnswerCandidate;
+  run: Run;
+}
+
+export interface StartTextCandidatesResult {
+  triggerMessageId: string;
+  userMessage: Message & { parts: MessagePart[] };
+  candidates: StartTextCandidateResult[];
+  answerSelection: AnswerSelection;
   runtimeSelection: RuntimeSelection;
 }
 
@@ -105,6 +129,50 @@ export interface RunTextTurnInput {
   thinkingEnabled?: boolean;
   reasoningEffort?: 'high' | 'max';
   webSearchEnabled?: boolean;
+}
+
+export interface StartTextCandidatesInput extends RunTextTurnInput {
+  candidateCount: 2;
+}
+
+export interface SelectAnswerCandidateInput {
+  threadId: string;
+  triggerMessageId: string;
+  runId: string;
+  selectedByUserId?: string | null;
+}
+
+export interface SetRunFeedbackInput {
+  threadId: string;
+  triggerMessageId: string;
+  runId: string;
+  feedbackActorId: string;
+  value: RunFeedbackValue;
+}
+
+export interface ClearRunFeedbackInput {
+  runId: string;
+  feedbackActorId: string;
+}
+
+export interface GetCanonicalThreadMessagesInput {
+  threadId: string;
+  cutoffMessageId?: string | null;
+}
+
+export interface CanonicalThreadMessagesResult {
+  messages: Array<Message & { parts: MessagePart[] }>;
+  canonicalRunIds: string[];
+  diagnostics: CanonicalTranscriptDiagnostic[];
+}
+
+export interface ThreadMessagesWithAnswerCandidatesResult {
+  messages: Array<Message & { parts: MessagePart[] }>;
+  activeRuns: Run[];
+  activeRun: Run | null;
+  answerCandidates: AnswerCandidate[];
+  answerSelections: AnswerSelection[];
+  runFeedback: RunFeedback[];
 }
 
 export interface RunTextTurnResult {
@@ -365,9 +433,15 @@ export interface AgentInfraApp {
     archive(input: ArchiveThreadInput): Promise<Thread>;
     getMessages(input: GetThreadMessagesInput): Promise<Array<Message & { parts: MessagePart[] }>>;
     getMessagesPage(input: GetThreadMessagesInput): Promise<MessagePageResult>;
+    getCanonicalMessages(input: GetCanonicalThreadMessagesInput): Promise<CanonicalThreadMessagesResult>;
+    getMessagesWithAnswerCandidates(input: GetThreadMessagesInput): Promise<ThreadMessagesWithAnswerCandidatesResult>;
   };
   turns: {
     startText(input: RunTextTurnInput): Promise<StartTextTurnResult>;
+    startTextCandidates(input: StartTextCandidatesInput): Promise<StartTextCandidatesResult>;
+    selectAnswerCandidate(input: SelectAnswerCandidateInput): Promise<AnswerSelection>;
+    setRunFeedback(input: SetRunFeedbackInput): Promise<RunFeedback>;
+    clearRunFeedback(input: ClearRunFeedbackInput): Promise<void>;
     runText(input: RunTextTurnInput): Promise<RunTextTurnResult>;
   };
   runs: {
@@ -375,6 +449,7 @@ export interface AgentInfraApp {
     getTrace(input: GetRunTraceInput): Promise<RunTraceResult>;
     listByThread(input: GetThreadRunsInput): Promise<Run[]>;
     getActiveByThread(input: GetActiveThreadRunInput): Promise<Run | null>;
+    listActiveByThread(input: GetActiveThreadRunInput): Promise<Run[]>;
   };
   shares: {
     createThreadSnapshot(input: CreateThreadSnapshotShareInput): Promise<CreateThreadSnapshotShareResult>;
