@@ -3,7 +3,6 @@
 import type { LoadThreadMessagesResult } from '@agent-infra/durable-chat-client';
 import type {
   MessageDto,
-  RunAttachStreamEventDto,
   RuntimePiMetaDto,
   ThreadDto
 } from '@agent-infra/contracts';
@@ -27,7 +26,6 @@ import {
   runResetDraftThreadState,
   runStopViewingLiveResponse
 } from '@/features/durable-chat/runtime/chat-session-flow';
-import { applyAttachRunEvent } from '@/features/durable-chat/runtime/attach-run-flow';
 import {
   applyHydratedTranscriptState,
   runActivateThread,
@@ -41,6 +39,7 @@ import {
 } from '@/features/durable-chat/runtime/load-log-inspector-flow';
 import { runSendMessageFlow } from '@/features/durable-chat/runtime/send-message-flow';
 import { runReconcileCompletedTurn } from '@/features/durable-chat/runtime/reconcile-completed-turn';
+import { runAttachRunLifecycle } from '@/features/durable-chat/runtime/stream-lifecycle-controller';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
 import {
@@ -427,25 +426,18 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     });
   }
 
-  function isCurrentAttachRequest(requestId: number, threadId: string, runId: string) {
-    return (
-      requestId === attachRequestIdRef.current &&
-      activeThreadIdRef.current === threadId &&
-      attachRunIdRef.current === runId
-    );
-  }
-
-  function applyAttachEvent(event: RunAttachStreamEventDto, threadId: string, requestId: number) {
-    return applyAttachRunEvent({
-      event,
-      requestId,
+  async function attachToActiveRun(threadId: string, runId: string) {
+    return runAttachRunLifecycle({
       threadId,
+      runId,
       refs: {
         activeThreadIdRef,
+        attachAbortControllerRef,
         attachRequestIdRef,
         attachRunIdRef,
         attachVersionRef,
-        logOpenRef
+        logOpenRef,
+        sendRequestIdRef
       },
       actions: {
         setActiveResponseRun,
@@ -459,94 +451,11 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       },
       operations: {
         loadThreadMessages,
+        openAttachStream: openThreadRunAttachStream,
+        parseAttachChunk: parseRunAttachSseChunk,
         reconcileCompletedTurn
       }
     });
-  }
-
-  async function attachToActiveRun(threadId: string, runId: string) {
-    const requestId = sendRequestIdRef.current + 1;
-    sendRequestIdRef.current = requestId;
-    attachRequestIdRef.current = requestId;
-    attachAbortControllerRef.current?.abort();
-    const controller = new AbortController();
-    attachAbortControllerRef.current = controller;
-    attachRunIdRef.current = runId;
-    attachVersionRef.current = 0;
-    setError(null);
-    setLiveStreamRunId(runId);
-    setLoadingThreadId(threadId);
-    setChatPhase('thinking');
-
-    try {
-      const streamResult = await openThreadRunAttachStream(threadId, runId, controller.signal);
-      if (!isCurrentAttachRequest(requestId, threadId, runId)) {
-        return;
-      }
-
-      if (!streamResult.ok) {
-        throw new Error(streamResult.error ?? `request failed (${streamResult.status})`);
-      }
-
-      if (!streamResult.body) {
-        throw new Error('attach stream response body is unavailable');
-      }
-
-      const reader = streamResult.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          break;
-        }
-
-        if (controller.signal.aborted || !isCurrentAttachRequest(requestId, threadId, runId)) {
-          return;
-        }
-
-        buffer += decoder.decode(value, { stream: true });
-        const parsed = parseRunAttachSseChunk(buffer);
-        buffer = parsed.remainder;
-
-        for (const event of parsed.events) {
-          const terminal = applyAttachEvent(event, threadId, requestId);
-          if (terminal) {
-            return;
-          }
-        }
-      }
-
-      const finalBuffer = `${buffer}${decoder.decode()}`;
-      if (finalBuffer.trim()) {
-        const parsed = parseRunAttachSseChunk(finalBuffer.endsWith('\n\n') ? finalBuffer : `${finalBuffer}\n\n`);
-        for (const event of parsed.events) {
-          const terminal = applyAttachEvent(event, threadId, requestId);
-          if (terminal) {
-            return;
-          }
-        }
-      }
-    } catch (attachError) {
-      if (controller.signal.aborted || !isCurrentAttachRequest(requestId, threadId, runId)) {
-        return;
-      }
-
-      setError(attachError instanceof Error ? attachError.message : 'Failed to attach to run stream');
-      void loadThreadMessages(threadId, {
-        background: true,
-        preferredRunId: runId,
-        preserveExistingTimeline: logOpenRef.current,
-        skipTimelineReload: logOpenRef.current
-      });
-    } finally {
-      if (isCurrentAttachRequest(requestId, threadId, runId)) {
-        attachAbortControllerRef.current = null;
-        attachRunIdRef.current = null;
-        setLiveStreamRunId(null);
-      }
-    }
   }
 
   async function activateThread(
