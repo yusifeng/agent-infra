@@ -82,4 +82,71 @@ describe('SqliteMessageRepository pagination', () => {
       endSeq: 3
     });
   });
+
+  it('allocates message seq during create and retries unique collisions', async () => {
+    class CollidingMessageRepository extends SqliteMessageRepository {
+      private collisionsRemaining = 2;
+
+      override async nextSeq(threadId: string): Promise<number> {
+        if (this.collisionsRemaining > 0) {
+          this.collisionsRemaining -= 1;
+          return 5;
+        }
+
+        return super.nextSeq(threadId);
+      }
+    }
+
+    const db = drizzle(sqlite!);
+    const collidingRepo = new CollidingMessageRepository(db);
+
+    const created = await collidingRepo.createWithNextSeq({
+      id: 'message-6',
+      threadId: 'thread-1',
+      runId: null,
+      role: 'assistant',
+      status: 'completed',
+      metadata: null
+    });
+
+    expect(created.seq).toBe(6);
+    expect((await messageRepo.listByThread('thread-1')).map((message) => message.seq)).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
+  it('allocates unique seq values for simultaneous assistant and tool message creation', async () => {
+    const [assistantMessage, toolMessage] = await Promise.all([
+      messageRepo.createWithNextSeq({
+        id: 'message-assistant',
+        threadId: 'thread-1',
+        runId: null,
+        role: 'assistant',
+        status: 'completed',
+        metadata: null
+      }),
+      messageRepo.createWithNextSeq({
+        id: 'message-tool',
+        threadId: 'thread-1',
+        runId: null,
+        role: 'tool',
+        status: 'completed',
+        metadata: null
+      })
+    ]);
+
+    expect(new Set([assistantMessage.seq, toolMessage.seq]).size).toBe(2);
+    expect((await messageRepo.listByThread('thread-1')).map((message) => message.seq)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it('does not retry unrelated unique constraint failures', async () => {
+    await expect(
+      messageRepo.createWithNextSeq({
+        id: 'message-1',
+        threadId: 'thread-1',
+        runId: null,
+        role: 'assistant',
+        status: 'completed',
+        metadata: null
+      })
+    ).rejects.toThrow(/UNIQUE constraint failed/);
+  });
 });

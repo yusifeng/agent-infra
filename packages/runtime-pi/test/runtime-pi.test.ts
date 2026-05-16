@@ -74,6 +74,13 @@ class InMemoryMessageRepository implements MessageRepository {
     return { ...message };
   }
 
+  async createWithNextSeq(input: Omit<Message, 'createdAt' | 'seq'>): Promise<Message> {
+    return this.create({
+      ...input,
+      seq: await this.nextSeq(input.threadId)
+    });
+  }
+
   async updateStatus(id: string, status: Message['status']): Promise<Message> {
     const current = this.messages.get(id);
     if (!current) {

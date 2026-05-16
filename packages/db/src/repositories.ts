@@ -39,6 +39,18 @@ import {
   toolInvocations
 } from './schema.js';
 
+function isMessageSeqUniqueConstraintError(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+  const code = 'code' in error ? String((error as { code?: unknown }).code) : '';
+  const constraint = 'constraint' in error ? String((error as { constraint?: unknown }).constraint) : '';
+  if (code === '23505' && constraint === 'messages_thread_id_seq_unique') return true;
+  const message = error instanceof Error ? error.message : '';
+  return (
+    message.includes('messages_thread_id_seq_unique') ||
+    message.includes('UNIQUE constraint failed: messages.thread_id, messages.seq')
+  );
+}
+
 export class DrizzleThreadRepository implements ThreadRepository {
   constructor(private readonly db: any) {}
 
@@ -394,6 +406,24 @@ export class DrizzleMessageRepository implements MessageRepository {
     const createdAt = new Date();
     await this.db.insert(messages).values({ ...input, createdAt });
     return { ...input, createdAt };
+  }
+
+  async createWithNextSeq(input: Omit<Message, 'createdAt' | 'seq'>): Promise<Message> {
+    let collisions = 0;
+    for (;;) {
+      const seq = await this.nextSeq(input.threadId);
+      try {
+        return await this.create({ ...input, seq });
+      } catch (error) {
+        if (!isMessageSeqUniqueConstraintError(error)) {
+          throw error;
+        }
+        collisions += 1;
+        if (collisions % 10 === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+      }
+    }
   }
 
   async updateStatus(id: string, status: Message['status']): Promise<Message> {

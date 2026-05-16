@@ -35,7 +35,6 @@ const DEEPSEEK_BASE_URL = 'https://api.deepseek.com/v1';
 const DEFAULT_SYSTEM_PROMPT = 'You are a helpful assistant.';
 
 type RuntimePiState = {
-  nextMessageSeq: number;
   nextRunEventSeq: number;
   currentAssistantMessageId: string | null;
   openAssistantMessageId: string | null;
@@ -886,12 +885,11 @@ async function createPersistedMessage(
   status: StoredMessage['status'],
   metadata: Record<string, unknown> | null = null
 ) {
-  const message = await ctx.messageRepo.create({
+  const message = await ctx.messageRepo.createWithNextSeq({
     id: crypto.randomUUID(),
     threadId: input.threadId,
     runId: input.runId,
     role,
-    seq: state.nextMessageSeq++,
     status,
     metadata
   });
@@ -1077,12 +1075,11 @@ async function handleAgentEvent(
 
   if (event.type === 'message_start' && event.message.role === 'assistant') {
     const messageId = state.openAssistantMessageId ?? crypto.randomUUID();
-    const message = await ctx.messageRepo.create({
+    const message = await ctx.messageRepo.createWithNextSeq({
       id: messageId,
       threadId: input.threadId,
       runId: input.runId,
       role: 'assistant',
-      seq: state.nextMessageSeq++,
       status: 'created',
       metadata: {
         api: model.api,
@@ -1094,8 +1091,6 @@ async function handleAgentEvent(
     state.nextPartIndexByMessageId.set(message.id, 0);
     state.currentAssistantMessageId = message.id;
     state.openAssistantMessageId = message.id;
-    state.liveAssistantTextSnapshot = '';
-    state.liveAssistantReasoningSnapshot = '';
     state.persistedAssistantTextSnapshot = '';
     state.persistedAssistantReasoningSnapshot = '';
     state.persistedAssistantTextFlushed = false;
@@ -1323,7 +1318,6 @@ export async function runAssistantTurnWithPiInternal(
   }
 
   const state: RuntimePiState = {
-    nextMessageSeq: await ctx.messageRepo.nextSeq(input.threadId),
     nextRunEventSeq: await ctx.runEventRepo.nextSeq(input.runId),
     currentAssistantMessageId: null,
     openAssistantMessageId: null,

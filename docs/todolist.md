@@ -107,7 +107,7 @@
 - [x] Add `RunFeedbackRepository.listByRunIds(runIds, actor?)` for thread hydration.
 - [x] Add feedback set/clear/list methods.
 - [x] Add `RunRepository.listActiveByThread(threadId)`, and update archive/share active-run checks to use any active run, not latest active run.
-- [ ] Replace runtime cached `nextMessageSeq` with `messageRepo.createWithNextSeq` or `allocateMessageSeq` inside the DB transaction for every persisted message.
+- [x] Replace runtime cached `nextMessageSeq` with `messageRepo.createWithNextSeq` or `allocateMessageSeq` inside the DB transaction for every persisted message.
 - [ ] Avoid route-local DB access for durable candidate/selection/feedback state.
 
 ### 1.5 Contracts / DTOs
@@ -167,11 +167,11 @@
 - [x] Add repository validation tests that reject candidate/selection rows crossing `threadId` or `triggerMessageId`.
 
 ### 2.3 Message Sequence Hardening
-- [ ] Update runtime-facing message creation APIs so each assistant/tool message gets `seq` from an atomic DB-safe allocation, not from a cached runtime counter.
-- [ ] Remove runtime-level cached `nextMessageSeq`, or make it safe under sibling concurrent runs.
-- [ ] Add a test that simulates two runs creating assistant messages concurrently for the same thread and proves no `messages(thread_id, seq)` collision occurs.
-- [ ] Add a test that simulates two runs creating assistant plus tool messages concurrently for the same thread.
-- [ ] Treat this section as blocking before dual runtime execution starts.
+- [x] Update runtime-facing message creation APIs so each assistant/tool message gets `seq` from an atomic DB-safe allocation, not from a cached runtime counter.
+- [x] Remove runtime-level cached `nextMessageSeq`, or make it safe under sibling concurrent runs.
+- [x] Add a test that simulates two runs creating assistant messages concurrently for the same thread and proves no `messages(thread_id, seq)` collision occurs.
+- [x] Add a test that simulates two runs creating assistant plus tool messages concurrently for the same thread.
+- [x] Treat this section as blocking before dual runtime execution starts.
 
 ### 2.4 App Package
 - [ ] Add `turns.startTextCandidates` or equivalent use case.
@@ -334,8 +334,8 @@
 - [ ] `packages/db`: anonymous feedback replacement deterministic across SQLite and PostgreSQL.
 - [x] `packages/db`: feedback set/clear/list.
 - [x] `packages/db`: active runs list returns more than one running run.
-- [ ] `packages/db`: concurrent message sequence allocation does not collide.
-- [ ] `packages/db`: two concurrent runs each persist assistant plus tool messages without seq collision.
+- [x] `packages/db`: concurrent message sequence allocation does not collide.
+- [x] `packages/db`: two concurrent runs each persist assistant plus tool messages without seq collision.
 
 ### 4.2 App / Projection Tests
 - [ ] `packages/app`: dual start creates one user message and two runs.
@@ -406,15 +406,15 @@
 - [x] Run `pnpm --filter @agent-infra/db test`.
 - [x] Run relevant package typecheck if available.
 - [x] Run `codex review` for this loop.
-- [ ] Commit this loop after review and verification pass.
+- [x] Commit this loop after review and verification pass.
 
 ### Loop 1B: Message Sequence Hardening
-- [ ] Replace cached per-run message sequence behavior with DB-safe per-message allocation.
-- [ ] Update runtime-facing message creation APIs.
-- [ ] Add concurrent assistant/tool message persistence tests.
-- [ ] Run `pnpm --filter @agent-infra/db test`.
-- [ ] Run affected runtime tests if message persistence signatures changed.
-- [ ] Run `codex review` for this loop.
+- [x] Replace cached per-run message sequence behavior with DB-safe per-message allocation.
+- [x] Update runtime-facing message creation APIs.
+- [x] Add concurrent assistant/tool message persistence tests.
+- [x] Run `pnpm --filter @agent-infra/db test`.
+- [x] Run affected runtime tests if message persistence signatures changed.
+- [x] Run `codex review` for this loop.
 - [ ] Commit this loop after review and verification pass.
 
 ### Loop 2: Canonical Projection And App Use Cases

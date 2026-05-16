@@ -148,6 +148,12 @@ function createRepositories(stateRef: { current: InMemoryState }, snapshot?: InM
         getState().messages.set(message.id, message);
         return { ...message };
       },
+      async createWithNextSeq(input) {
+        return this.create({
+          ...input,
+          seq: await this.nextSeq(input.threadId)
+        });
+      },
       async updateStatus(id, status) {
         const current = getState().messages.get(id);
         if (!current) {

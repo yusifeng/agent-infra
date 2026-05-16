@@ -71,6 +71,7 @@ export interface RunEventRepository {
 
 export interface MessageRepository {
   create(input: Omit<Message, 'createdAt'>): Promise<Message>;
+  createWithNextSeq(input: Omit<Message, 'createdAt' | 'seq'>): Promise<Message>;
   updateStatus(id: string, status: Message['status']): Promise<Message>;
   createPart(input: Omit<MessagePart, 'createdAt'>): Promise<MessagePart>;
   listByThread(threadId: string): Promise<Array<Message & { parts: MessagePart[] }>>;
