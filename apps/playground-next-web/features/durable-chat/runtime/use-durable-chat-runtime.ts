@@ -11,18 +11,15 @@ import type {
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { assistantMessageHasVisibleContent, copyTextToClipboard } from '@/components/chat-shell/helpers';
+import { assistantMessageHasVisibleContent } from '@/components/chat-shell/helpers';
 import {
   archiveThread,
-  createThreadSnapshotShare,
-  fetchCurrentThreadShare,
   fetchPlaygroundThreads,
   fetchPlaygroundThread,
   fetchThreadMessagesResponse,
   openThreadRunAttachStream,
   pinThread,
   renameThread,
-  revokeThreadSnapshotShare,
   unpinThread,
   type PlaygroundThreadDto
 } from '@/features/durable-chat/repo/chat-api';
@@ -63,6 +60,7 @@ import { collectCompletedLiveSearchToolCallIds } from '@/features/durable-chat/s
 import { buildTranscriptPresentation } from '@/features/durable-chat/service/transcript-presentation';
 import { useSearchPanelState } from '@/features/durable-chat/runtime/use-search-panel-state';
 import { useChatViewportController } from '@/features/durable-chat/runtime/use-chat-viewport-controller';
+import { useThreadShareController } from '@/features/durable-chat/runtime/use-thread-share-controller';
 import { useThreadTitleRefreshController } from '@/features/durable-chat/runtime/use-thread-title-refresh-controller';
 import type { DurableChatRuntimeOptions } from '@/features/durable-chat/types/runtime';
 import { isDefaultThreadTitle } from '@/features/thread-title/default-thread-title';
@@ -157,7 +155,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const logInspectorAbortControllerRef = useRef<AbortController | null>(null);
   const timelineRequestIdRef = useRef(0);
   const timelineAbortControllerRef = useRef<AbortController | null>(null);
-  const currentShareRequestIdRef = useRef(0);
   const attachRequestIdRef = useRef(0);
   const attachAbortControllerRef = useRef<AbortController | null>(null);
   const attachRunIdRef = useRef<string | null>(null);
@@ -173,15 +170,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const [threadActionError, setThreadActionError] = useState<string | null>(null);
   const [renamingThreadId, setRenamingThreadId] = useState<string | null>(null);
   const [archivingThreadId, setArchivingThreadId] = useState<string | null>(null);
-  const [shareDialogOpen, setShareDialogOpen] = useState(false);
-  const [loadingCurrentShare, setLoadingCurrentShare] = useState(false);
-  const [creatingShare, setCreatingShare] = useState(false);
-  const [revokingShare, setRevokingShare] = useState(false);
-  const [shareCopied, setShareCopied] = useState(false);
-  const [shareError, setShareError] = useState<string | null>(null);
-  const [shareUrl, setShareUrl] = useState<string | null>(null);
-  const [shareThreadId, setShareThreadId] = useState<string | null>(null);
-  const [sharePublicId, setSharePublicId] = useState<string | null>(null);
 
   const activeThread = useMemo(
     () => (threads.find((thread) => thread.id === activeThreadId) as PlaygroundThreadDto | undefined) ?? null,
@@ -275,6 +263,22 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     loadingMessages,
     messages,
     setShowScrollToBottom
+  });
+  const {
+    creatingShare,
+    loadingCurrentShare,
+    onCloseShareDialog,
+    onCreateOrCopyShare,
+    onOpenShareDialog,
+    onOpenShareDialogForThread,
+    onRevokeShare,
+    revokingShare,
+    shareCopied,
+    shareDialogOpen,
+    shareError,
+    shareUrl
+  } = useThreadShareController({
+    activeThreadIdRef
   });
 
   useEffect(() => {
@@ -622,14 +626,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     return result.data.threads;
   }
 
-  function buildShareUrl(publicId: string) {
-    if (typeof window === 'undefined') {
-      return `/share/${publicId}`;
-    }
-
-    return `${window.location.origin}/share/${publicId}`;
-  }
-
   function updateThreadInList(thread: ThreadDto) {
     setThreads((current) =>
       current.map((candidate) =>
@@ -787,119 +783,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     }
 
     openArchiveDialogForThread(threadId);
-  }
-
-  async function openShareDialogForThread(threadId: string) {
-    if (!threadId) {
-      return;
-    }
-
-    const requestId = currentShareRequestIdRef.current + 1;
-    currentShareRequestIdRef.current = requestId;
-    setShareDialogOpen(true);
-    setShareError(null);
-    setShareCopied(false);
-    setShareThreadId(threadId);
-    setSharePublicId(null);
-    setShareUrl(null);
-    setLoadingCurrentShare(true);
-    try {
-      const result = await fetchCurrentThreadShare(threadId);
-      if (requestId !== currentShareRequestIdRef.current) {
-        return;
-      }
-      if (!result.ok) {
-        throw new Error(result.error ?? 'failed to load current share');
-      }
-
-      const publicId = result.data.share?.publicId ?? null;
-      setSharePublicId(publicId);
-      setShareUrl(publicId ? buildShareUrl(publicId) : null);
-    } catch (error) {
-      if (requestId !== currentShareRequestIdRef.current) {
-        return;
-      }
-      setShareError(error instanceof Error ? error.message : 'failed to load current share');
-    } finally {
-      if (requestId === currentShareRequestIdRef.current) {
-        setLoadingCurrentShare(false);
-      }
-    }
-  }
-
-  async function openShareDialog() {
-    const threadId = activeThreadIdRef.current;
-    if (!threadId) {
-      return;
-    }
-
-    await openShareDialogForThread(threadId);
-  }
-
-  function closeShareDialog() {
-    currentShareRequestIdRef.current += 1;
-    setShareDialogOpen(false);
-    setShareError(null);
-    setShareCopied(false);
-    setShareThreadId(null);
-    setSharePublicId(null);
-    setShareUrl(null);
-  }
-
-  async function createOrCopyShare() {
-    const threadId = shareThreadId;
-    if (!threadId || loadingCurrentShare || creatingShare) {
-      return;
-    }
-
-    if (shareUrl) {
-      await copyTextToClipboard(shareUrl);
-      setShareCopied(true);
-      return;
-    }
-
-    setCreatingShare(true);
-    setShareError(null);
-    try {
-      const result = await createThreadSnapshotShare(threadId);
-      if (!result.ok || !result.data.share?.publicId) {
-        throw new Error(result.error ?? 'failed to create share');
-      }
-
-      const publicId = result.data.share.publicId;
-      const url = buildShareUrl(publicId);
-      setSharePublicId(publicId);
-      setShareUrl(url);
-      await copyTextToClipboard(url);
-      setShareCopied(true);
-    } catch (error) {
-      setShareError(error instanceof Error ? error.message : 'failed to create share');
-    } finally {
-      setCreatingShare(false);
-    }
-  }
-
-  async function revokeShare() {
-    if (!sharePublicId || !shareThreadId) {
-      return;
-    }
-
-    setRevokingShare(true);
-    setShareError(null);
-    try {
-      const result = await revokeThreadSnapshotShare(sharePublicId);
-      if (!result.ok) {
-        throw new Error(result.error ?? 'failed to revoke share');
-      }
-
-      setSharePublicId(null);
-      setShareUrl(null);
-      setShareCopied(false);
-    } catch (error) {
-      setShareError(error instanceof Error ? error.message : 'failed to revoke share');
-    } finally {
-      setRevokingShare(false);
-    }
   }
 
   async function loadLogInspector(
@@ -1364,20 +1247,20 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     },
     onCloseArchiveDialog: closeArchiveDialog,
     onCloseRenameDialog: closeRenameDialog,
-    onCloseShareDialog: closeShareDialog,
+    onCloseShareDialog,
     onCloseSidebar: () => setSidebarOpen(false),
     onCreateOrCopyShare: () => {
-      void createOrCopyShare();
+      void onCreateOrCopyShare();
     },
     onDraftChange: setDraft,
     onNewChat: startNewChat,
     onOpenSidebar: () => setSidebarOpen(true),
     onOpenShareDialog: () => {
-      void openShareDialog();
+      void onOpenShareDialog();
     },
     onOpenThread: openThread,
     onOpenThreadShareDialog: (threadId: string) => {
-      void openShareDialogForThread(threadId);
+      void onOpenShareDialogForThread(threadId);
     },
     onLoadOlderMessages: () => {
       void loadOlderMessages();
@@ -1397,7 +1280,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       void submitArchiveThread();
     },
     onRevokeShare: () => {
-      void revokeShare();
+      void onRevokeShare();
     },
     onSelectedModelKeyChange: setSelectedModelKey,
     onSelectedWebSearchEnabledChange: setSelectedWebSearchEnabled,
