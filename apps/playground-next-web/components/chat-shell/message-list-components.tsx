@@ -6,14 +6,15 @@ import clsx from 'clsx';
 import { Atom, ChevronDown, ChevronRight, Copy, FileText, Loader2, RotateCw, Search, Trash2 } from 'lucide-react';
 import { memo, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 
+import {
+  buildAnswerContainerContentSections,
+  buildLiveAssistantContentSections,
+  buildPersistedAssistantContentSections,
+  hasVisiblePersistedAssistantContent
+} from '@/features/durable-chat/service/assistant-message-presentation';
 import { collectLiveDraftCopyText, hasVisibleLiveAssistantContent } from '@/features/durable-chat/service/live-assistant-presentation';
 import { buildResearchActivityViewModel, buildResearchTimelineRowsFromActivity, type ResearchTimelineRow } from '@/features/durable-chat/service/research-activity';
 import {
-  buildLiveThinkingTokens,
-  buildPersistedThinkingTokens,
-  buildPersistedThinkingTokensFromBlocks,
-  buildThinkingFlowSections,
-  isThinkingFlowSectionVisible,
   type LiveSummaryToken,
   type PersistedResearchToken,
   type ReasoningToken
@@ -363,10 +364,7 @@ const AssistantTurnContent = memo(function AssistantTurnContent({
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
 }) {
   const sections = useMemo(
-    () =>
-      buildThinkingFlowSections(buildPersistedThinkingTokens(items, runId), false).filter((section) =>
-        isThinkingFlowSectionVisible(section, showPersistedResearchStatus)
-      ),
+    () => buildPersistedAssistantContentSections(items, runId, showPersistedResearchStatus),
     [items, runId, showPersistedResearchStatus]
   );
 
@@ -447,7 +445,7 @@ const LiveAssistantContent = memo(function LiveAssistantContent({
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
 }) {
   const sections = useMemo(
-    () => buildThinkingFlowSections(buildLiveThinkingTokens(liveAssistantDraft, getLiveSearchPanelData), true),
+    () => buildLiveAssistantContentSections(liveAssistantDraft, getLiveSearchPanelData),
     [getLiveSearchPanelData, liveAssistantDraft]
   );
 
@@ -551,9 +549,7 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
   const showActions = props.type === 'persisted-turn' ? props.actionContext.showActions : props.actionsAvailable === true && copyText.length > 0;
   const hasVisibleContent =
     props.type === 'persisted-turn'
-      ? buildThinkingFlowSections(buildPersistedThinkingTokens(props.block.items, props.block.runId), false).some((section) =>
-          isThinkingFlowSectionVisible(section, props.showPersistedResearchStatus ?? false)
-        )
+      ? hasVisiblePersistedAssistantContent(props.block.items, props.block.runId, props.showPersistedResearchStatus ?? false)
       : hasVisibleLiveAssistantContent(props.liveAssistantDraft);
 
   if (!hasVisibleContent) {
@@ -617,10 +613,7 @@ export const AnswerContainerCard = memo(function AnswerContainerCard({
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
 }) {
   const sections = useMemo(
-    () =>
-      buildThinkingFlowSections(buildPersistedThinkingTokensFromBlocks(container.blocks), false).filter((section) =>
-        isThinkingFlowSectionVisible(section, showPersistedResearchStatus)
-      ),
+    () => buildAnswerContainerContentSections(container.blocks, showPersistedResearchStatus),
     [container.blocks, showPersistedResearchStatus]
   );
   if (sections.length === 0) {

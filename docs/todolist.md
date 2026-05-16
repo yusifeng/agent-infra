@@ -56,14 +56,14 @@
 
 ### 1.3 Data Model
 - [ ] Keep durable thread, run, and message DTOs unchanged unless a test proves that package-level behavior cannot be expressed with the current contracts.
-- [ ] Keep presentation-only derived shapes inside `apps/playground-next-web/features/durable-chat/service` unless they become reusable across consumers.
+- [x] Keep presentation-only derived shapes inside `apps/playground-next-web/features/durable-chat/service` unless they become reusable across consumers.
 - [ ] Identify any runtime state that is currently duplicated between Next UI and `@agent-infra/durable-chat-client`; remove duplication only when behavior tests already cover the path.
 
 ### 1.4 Types / Interfaces
 - [x] Define the message UI split boundaries before editing: list shell, user card, assistant transcript card, live assistant card, thinking timeline, research timeline, message part, answer container, actions, and empty states.
 - [ ] Define the runtime split boundaries before editing: thread navigation/load, send/attach stream lifecycle, completed-turn reconcile, inspector hydration, title/meta refresh, and viewport coordination.
 - [ ] Keep exported component/hook props stable unless a narrower internal type reduces coupling without changing public usage.
-- [ ] Prefer pure service functions for behavior that can be tested without React or DOM.
+- [x] Prefer pure service functions for behavior that can be tested without React or DOM.
 - [x] Define a small message-list render decision seam before extracting leaf UI components, so service-like visibility/grouping logic does not get duplicated across JSX files.
 
 ## 2. Backend / Platform
@@ -81,9 +81,9 @@
 ## 3. Frontend Boundary
 
 ### 3.1 Service Layer
-- [ ] Inventory existing service helpers used by `message-list.tsx` and `use-durable-chat-runtime.ts`.
-- [ ] Add missing pure tests around presentation builders before extracting React components.
-- [ ] Keep markdown/code-block transformation behavior centralized instead of duplicating fallback logic across components.
+- [x] Inventory existing service helpers used by `message-list.tsx` and `use-durable-chat-runtime.ts`.
+- [x] Add missing pure tests around presentation builders before extracting React components.
+- [x] Keep markdown/code-block transformation behavior centralized instead of duplicating fallback logic across components.
 
 ### 3.2 Runtime Layer
 - [ ] Treat `use-durable-chat-runtime.ts` extraction as higher risk than `message-list.tsx` extraction.
@@ -188,12 +188,12 @@
 - [x] Commit the UI split slice if review is clean.
 
 ### Loop 4: Message Service Cleanup
-- [ ] Move any remaining pure presentation logic out of UI components and into `features/durable-chat/service`.
-- [ ] Add or update service tests for extracted logic.
-- [ ] Run `pnpm --filter playground-next-web test`.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit the service cleanup slice if review is clean.
+- [x] Move any remaining pure presentation logic out of UI components and into `features/durable-chat/service`.
+- [x] Add or update service tests for extracted logic.
+- [x] Run `pnpm --filter playground-next-web test`.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit the service cleanup slice if review is clean.
 
 ### Loop 5: Runtime Test Seams
 - [ ] Define only the minimum controller seams needed for testing stream lifecycle, thread load/navigation, and inspector hydration; do not design a large controller architecture upfront.
