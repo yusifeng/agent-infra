@@ -48,6 +48,14 @@ function asVersion(value: unknown) {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null;
 }
 
+function asOrdinal(value: unknown) {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null;
+}
+
+function isAnswerCandidateKind(value: string): value is NonNullable<RunStreamReadyEventDto['kind']> {
+  return value === 'primary' || value === 'alternative';
+}
+
 function isToolEventPhase(value: string): value is 'start' | 'completed' | 'failed' {
   return value === 'start' || value === 'completed' || value === 'failed';
 }
@@ -287,6 +295,23 @@ export function normalizeRunStreamEvent(value: unknown): RunStreamEventDto | nul
         run,
         userMessage
       };
+      const triggerMessageId = asString(record.triggerMessageId);
+      const candidateId = asString(record.candidateId);
+      const ordinal = asOrdinal(record.ordinal);
+      const kind = asString(record.kind);
+
+      if (triggerMessageId) {
+        event.triggerMessageId = triggerMessageId;
+      }
+      if (candidateId) {
+        event.candidateId = candidateId;
+      }
+      if (ordinal !== null) {
+        event.ordinal = ordinal;
+      }
+      if (kind && isAnswerCandidateKind(kind)) {
+        event.kind = kind;
+      }
       return event;
     }
     case 'run.state': {

@@ -492,6 +492,10 @@ export interface RunStreamReadyEventDto {
   runId: string;
   run: RunDto;
   userMessage: MessageDto;
+  triggerMessageId?: string;
+  candidateId?: string;
+  ordinal?: number;
+  kind?: AnswerCandidateKind;
 }
 
 export interface RunStreamStateEventDto {

@@ -562,6 +562,50 @@ describe('durable-chat-client schema', () => {
     ).toBeNull();
   });
 
+  it('normalizes candidate metadata on run ready events', () => {
+    expect(
+      normalizeRunStreamEvent({
+        type: 'run.ready',
+        runId: 'run-2',
+        triggerMessageId: 'message-1',
+        candidateId: 'candidate-2',
+        ordinal: 1,
+        kind: 'alternative',
+        run: {
+          id: 'run-2',
+          threadId: 'thread-1',
+          triggerMessageId: 'message-1',
+          provider: 'openai',
+          model: 'gpt-4o-mini',
+          status: 'running',
+          usage: null,
+          error: null,
+          startedAt: null,
+          finishedAt: null,
+          createdAt: '2026-01-01T00:00:00.000Z'
+        },
+        userMessage: {
+          id: 'message-1',
+          threadId: 'thread-1',
+          runId: null,
+          role: 'user',
+          seq: 1,
+          status: 'completed',
+          metadata: null,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          parts: []
+        }
+      })
+    ).toMatchObject({
+      type: 'run.ready',
+      runId: 'run-2',
+      triggerMessageId: 'message-1',
+      candidateId: 'candidate-2',
+      ordinal: 1,
+      kind: 'alternative'
+    });
+  });
+
   it('rejects malformed run stream events', () => {
     expect(
       normalizeRunStreamEvent({

@@ -2,8 +2,13 @@ import type {
   RunStreamSnapshotEventDto,
   RunStreamEventDto,
   RunStreamFailedEventDto,
+  RunStreamReadyEventDto,
   RunTextTurnRequestDto
 } from '@agent-infra/contracts';
+import type {
+  StartTextCandidatesResult,
+  StartTextTurnResult
+} from '@agent-infra/app';
 
 import {
   buildRunAssistantEvent,
@@ -39,6 +44,34 @@ type ThreadTitleUpdatedEventDto = {
 
 type StreamWritableEventDto = RunStreamEventDto | ThreadTitleUpdatedEventDto;
 
+type StartedStreamRun = {
+  candidate?: StartTextCandidatesResult['candidates'][number]['candidate'];
+  run: StartTextTurnResult['run'];
+  runtimeSelection: StartTextTurnResult['runtimeSelection'];
+  userMessage: StartTextTurnResult['userMessage'];
+};
+
+type StartedStreamTurn = {
+  runs: StartedStreamRun[];
+  runtimeSelection: StartTextTurnResult['runtimeSelection'];
+};
+
+type RunStreamState = {
+  finalRunCompleted: boolean;
+  finalRunSnapshot: RunStreamFailedEventDto['run'];
+  streamVersion: number;
+  terminalEventSent: boolean;
+};
+
+function isDualAnswerRequested(input: ReturnType<typeof parseRunTextTurnInput>) {
+  return input.answerMode === 'dual' || input.candidateCount === 2;
+}
+
+function isDualAnswerFeatureEnabled() {
+  const value = process.env.PLAYGROUND_DUAL_ANSWER_ENABLED?.trim().toLowerCase();
+  return value === '1' || value === 'true' || value === 'yes';
+}
+
 function buildThreadTitleUpdatedEvent(input: {
   threadId: string;
   title: string;
@@ -50,6 +83,23 @@ function buildThreadTitleUpdatedEvent(input: {
     title: input.title,
     updatedAt: input.updatedAt
   };
+}
+
+function buildStartedRunReadyEvent(started: StartedStreamRun): RunStreamReadyEventDto {
+  const event = buildRunReadyEvent({
+    run: started.run,
+    userMessage: started.userMessage,
+    runtimeSelection: started.runtimeSelection
+  });
+
+  if (started.candidate) {
+    event.triggerMessageId = started.candidate.triggerMessageId;
+    event.candidateId = started.candidate.id;
+    event.ordinal = started.candidate.ordinal;
+    event.kind = started.candidate.kind;
+  }
+
+  return event;
 }
 
 function encodeStreamSseEvent(payload: StreamWritableEventDto) {
@@ -85,7 +135,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
     return auth.response;
   }
 
-  let started;
+  const dualAnswerRequested = isDualAnswerRequested(turnInput);
+  if (dualAnswerRequested && !isDualAnswerFeatureEnabled()) {
+    return Response.json(
+      buildRunTextTurnErrorResponse(
+        new Error('Dual-answer streaming is disabled.'),
+        'failed to stream thread turn'
+      ),
+      { status: 403 }
+    );
+  }
+
+  let started: StartedStreamTurn;
   let services: Awaited<ReturnType<typeof getPlaygroundRuntimeServices>>;
   try {
     if (turnInput.webSearchEnabled && !isPlaygroundWebSearchConfigured()) {
@@ -102,7 +163,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
     started = await withThreadRunStartLock(threadId, async () => {
       const { catalogRow } = await loadAccessibleThread(services, threadId, auth.user.id);
       const runtimeBinding = await resolveThreadRuntimeBinding(services, threadId, catalogRow);
-      const queued = await services.app.turns.startText({
+      const turnStartInput = {
         threadId,
         text: turnInput.text,
         provider: runtimeBinding?.provider ?? turnInput.provider,
@@ -110,7 +171,36 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
         thinkingEnabled: turnInput.thinkingEnabled,
         reasoningEffort: turnInput.reasoningEffort,
         webSearchEnabled: turnInput.webSearchEnabled
-      });
+      };
+
+      if (dualAnswerRequested) {
+        const queued = await services.app.turns.startTextCandidates({
+          ...turnStartInput,
+          candidateCount: 2
+        });
+
+        try {
+          await bindRuntimeIfUnset(services, threadId, queued.runtimeSelection);
+        } catch (error) {
+          console.warn('failed to persist thread runtime binding after successful startTextCandidates', {
+            error,
+            threadId,
+            runIds: queued.candidates.map((item) => item.run.id)
+          });
+        }
+
+        return {
+          runtimeSelection: queued.runtimeSelection,
+          runs: queued.candidates.map((item) => ({
+            candidate: item.candidate,
+            run: item.run,
+            runtimeSelection: queued.runtimeSelection,
+            userMessage: queued.userMessage
+          }))
+        };
+      }
+
+      const queued = await services.app.turns.startText(turnStartInput);
 
       try {
         await bindRuntimeIfUnset(services, threadId, queued.runtimeSelection);
@@ -122,7 +212,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
         });
       }
 
-      return queued;
+      return {
+        runtimeSelection: queued.runtimeSelection,
+        runs: [
+          {
+            run: queued.run,
+            runtimeSelection: queued.runtimeSelection,
+            userMessage: queued.userMessage
+          }
+        ]
+      };
     });
   } catch (error) {
     return Response.json(buildRunTextTurnErrorResponse(error, 'failed to stream thread turn'), {
@@ -135,64 +234,87 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
   const encoder = new TextEncoder();
   const streamState = { closed: false };
   let writeChain = Promise.resolve<unknown>(undefined);
-  let finalRunSnapshot: RunStreamFailedEventDto['run'] = null;
-  let finalRunCompleted = false;
-  let terminalEventSent = false;
-  let streamVersion = 0;
   const runStreamHub = getPlaygroundRunStreamHub();
+  const runStates = new Map<string, RunStreamState>();
+
+  req.signal.addEventListener(
+    'abort',
+    () => {
+      streamState.closed = true;
+      void writer.abort().catch(() => undefined);
+    },
+    { once: true }
+  );
 
   const enqueueSseEvent = (payload: StreamWritableEventDto) => {
     writeChain = writeChain.then(() => writeSseEvent(writer, encoder, payload, streamState));
   };
 
-  const publishHubEvent = (payload: RunStreamEventDto) => {
-    streamVersion += 1;
+  const getRunState = (runId: string) => {
+    let state = runStates.get(runId);
+    if (!state) {
+      state = {
+        finalRunCompleted: false,
+        finalRunSnapshot: null,
+        streamVersion: 0,
+        terminalEventSent: false
+      };
+      runStates.set(runId, state);
+    }
+    return state;
+  };
+
+  const publishHubEvent = (runId: string, payload: RunStreamEventDto) => {
+    const state = getRunState(runId);
+    state.streamVersion += 1;
     if (payload.type === 'run.state') {
-      runStreamHub.publish(runId, { ...payload, version: streamVersion });
+      runStreamHub.publish(runId, { ...payload, version: state.streamVersion });
       return;
     }
 
     if (payload.type === 'run.assistant') {
-      runStreamHub.publish(runId, { ...payload, version: streamVersion });
+      runStreamHub.publish(runId, { ...payload, version: state.streamVersion });
       return;
     }
 
     if (payload.type === 'run.completed') {
-      runStreamHub.publish(runId, { ...payload, version: streamVersion });
+      runStreamHub.publish(runId, { ...payload, version: state.streamVersion });
       return;
     }
 
     if (payload.type === 'run.failed') {
-      runStreamHub.publish(runId, { ...payload, version: streamVersion });
+      runStreamHub.publish(runId, { ...payload, version: state.streamVersion });
     }
   };
 
-  const runId = started.run.id;
-  const readyEvent = buildRunReadyEvent(started);
-  const initialSnapshot: RunStreamSnapshotEventDto = {
-    type: 'run.snapshot',
-    runId,
-    run: readyEvent.run,
-    version: streamVersion,
-    assistant: null
-  };
   runStreamHub.cleanup();
-  runStreamHub.openSession(initialSnapshot);
+  const readyEvents = started.runs.map((startedRun) => {
+    const readyEvent = buildStartedRunReadyEvent(startedRun);
+    const initialSnapshot: RunStreamSnapshotEventDto = {
+      type: 'run.snapshot',
+      runId: startedRun.run.id,
+      run: readyEvent.run,
+      version: getRunState(startedRun.run.id).streamVersion,
+      assistant: null
+    };
+    runStreamHub.openSession(initialSnapshot);
+    return readyEvent;
+  });
 
-  const runtimeInput = {
-    threadId,
-    runId,
-    provider: started.runtimeSelection.provider,
-    model: started.runtimeSelection.model,
-    thinkingEnabled: turnInput.thinkingEnabled,
-    reasoningEffort: turnInput.reasoningEffort,
-    webSearchEnabled: turnInput.webSearchEnabled
-  };
+  const executeRun = async (startedRun: StartedStreamRun) => {
+    const runId = startedRun.run.id;
+    const state = getRunState(runId);
+    const runtimeInput = {
+      threadId,
+      runId,
+      provider: startedRun.runtimeSelection.provider,
+      model: startedRun.runtimeSelection.model,
+      thinkingEnabled: turnInput.thinkingEnabled,
+      reasoningEffort: turnInput.reasoningEffort,
+      webSearchEnabled: turnInput.webSearchEnabled
+    };
 
-  void (async () => {
     try {
-      enqueueSseEvent(readyEvent);
-
       await services.durableRuntime.runTurn(
         {
           runRepo: services.repos.runRepo,
@@ -205,25 +327,25 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
           onLiveAssistantUpdate: (assistantStream) => {
             const event = buildRunAssistantEvent(runId, assistantStream);
             enqueueSseEvent(event);
-            publishHubEvent(event);
+            publishHubEvent(runId, event);
           },
           onPersistedUpdate: (update) => {
             if (update.run) {
-              finalRunSnapshot = toRunDto(update.run);
-              finalRunCompleted = update.run.status === 'completed';
+              state.finalRunSnapshot = toRunDto(update.run);
+              state.finalRunCompleted = update.run.status === 'completed';
               const stateEvent = buildRunStateEvent(runId, update.run);
               enqueueSseEvent(stateEvent);
-              publishHubEvent(stateEvent);
+              publishHubEvent(runId, stateEvent);
 
-              if (!terminalEventSent && (update.run.status === 'completed' || update.run.status === 'failed')) {
-                terminalEventSent = true;
+              if (!state.terminalEventSent && (update.run.status === 'completed' || update.run.status === 'failed')) {
+                state.terminalEventSent = true;
                 const terminalEvent = buildRunTerminalEvent(runId, update.run);
                 if (terminalEvent) {
                   enqueueSseEvent(terminalEvent);
-                  streamVersion += 1;
+                  state.streamVersion += 1;
                   runStreamHub.closeSession(runId, {
                     ...terminalEvent,
-                    version: streamVersion
+                    version: state.streamVersion
                   });
                 }
               }
@@ -231,12 +353,39 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
           }
         }
       );
+    } catch (error) {
+      if (!state.terminalEventSent) {
+        const failedEvent: RunStreamFailedEventDto = {
+          type: 'run.failed',
+          runId,
+          run: state.finalRunSnapshot,
+          error: getRouteErrorMessage(error, 'thread stream failed')
+        };
+        state.terminalEventSent = true;
+        enqueueSseEvent(failedEvent);
+        state.streamVersion += 1;
+        runStreamHub.closeSession(runId, {
+          ...failedEvent,
+          version: state.streamVersion
+        });
+      }
+    }
+  };
 
-      if (finalRunCompleted) {
+  void (async () => {
+    try {
+      for (const event of readyEvents) {
+        enqueueSseEvent(event);
+      }
+
+      await Promise.all(started.runs.map((startedRun) => executeRun(startedRun)));
+
+      const completedRun = started.runs.find((startedRun) => getRunState(startedRun.run.id).finalRunCompleted);
+      if (completedRun) {
         const autoTitleResult = await maybeAutoTitleThread({
           services,
           threadId,
-          runId,
+          runId: completedRun.run.id,
           generator: createRuntimeThreadTitleGenerator(services.durableRuntime)
         });
 
@@ -247,22 +396,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
             updatedAt: autoTitleResult.updatedAt
           }));
         }
-      }
-    } catch (error) {
-      if (!terminalEventSent) {
-        const failedEvent: RunStreamFailedEventDto = {
-          type: 'run.failed',
-          runId,
-          run: finalRunSnapshot,
-          error: getRouteErrorMessage(error, 'thread stream failed')
-        };
-        terminalEventSent = true;
-        enqueueSseEvent(failedEvent);
-        streamVersion += 1;
-        runStreamHub.closeSession(runId, {
-          ...failedEvent,
-          version: streamVersion
-        });
       }
     } finally {
       try {

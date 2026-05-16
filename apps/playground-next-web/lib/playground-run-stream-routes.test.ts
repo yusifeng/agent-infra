@@ -122,6 +122,18 @@ function createAssistantMessage(): Message & { parts: MessagePart[] } {
   };
 }
 
+function createCandidate(runId: string, ordinal: 0 | 1) {
+  return {
+    id: `candidate-${ordinal + 1}`,
+    threadId: 'thread-1',
+    triggerMessageId: 'message-1',
+    runId,
+    ordinal,
+    kind: ordinal === 0 ? 'primary' : 'alternative',
+    createdAt: now()
+  };
+}
+
 function createSnapshot(runId = 'run-1', threadId = 'thread-1'): RunStreamSnapshotEventDto {
   return {
     type: 'run.snapshot',
@@ -217,6 +229,33 @@ function mockRuntimeServices(overrides: {
       model: 'gpt-4o-mini'
     }
   });
+  const startTextCandidates = vi.fn().mockResolvedValue({
+    triggerMessageId: 'message-1',
+    userMessage: createUserMessage(),
+    candidates: [
+      {
+        candidate: createCandidate('run-1', 0),
+        run: createRun({ id: 'run-1', triggerMessageId: 'message-1' })
+      },
+      {
+        candidate: createCandidate('run-2', 1),
+        run: createRun({ id: 'run-2', triggerMessageId: 'message-1' })
+      }
+    ],
+    answerSelection: {
+      threadId: 'thread-1',
+      triggerMessageId: 'message-1',
+      selectedRunId: 'run-1',
+      source: 'default',
+      selectedByUserId: null,
+      createdAt: now(),
+      updatedAt: now()
+    },
+    runtimeSelection: {
+      provider: 'openai',
+      model: 'gpt-4o-mini'
+    }
+  });
   const runText = vi.fn().mockResolvedValue({
     run: createRun({ status: 'completed', finishedAt: now(), triggerMessageId: 'message-1' }),
     messages: [createUserMessage(), createAssistantMessage()],
@@ -242,7 +281,8 @@ function mockRuntimeServices(overrides: {
       },
       turns: {
         runText,
-        startText
+        startText,
+        startTextCandidates
       }
     },
     durableRuntime: {
@@ -284,7 +324,8 @@ function mockRuntimeServices(overrides: {
     runText,
     runTurn,
     services,
-    startText
+    startText,
+    startTextCandidates
   };
 }
 
@@ -320,6 +361,7 @@ describe('playground run stream route', () => {
   });
 
   afterEach(() => {
+    delete process.env.PLAYGROUND_DUAL_ANSWER_ENABLED;
     vi.doUnmock('@/lib/playground-app-services');
     vi.doUnmock('@/lib/playground-services');
     vi.doUnmock('@/lib/playground-thread-access');
@@ -407,6 +449,227 @@ describe('playground run stream route', () => {
       type: 'run.ready',
       runId: 'run-1'
     });
+  });
+
+  it('rejects dual-answer stream requests when the feature flag is disabled', async () => {
+    mockThreadAccess();
+    const { getPlaygroundRuntimeServices } = mockRuntimeServices();
+    const { POST } = await importStreamRoute();
+
+    const response = await POST(new Request('http://localhost/api/threads/thread-1/runs/stream', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'hello', answerMode: 'dual', candidateCount: 2 })
+    }), {
+      params: Promise.resolve({ threadId: 'thread-1' })
+    });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'Dual-answer streaming is disabled.'
+    });
+    expect(getPlaygroundRuntimeServices).not.toHaveBeenCalled();
+  });
+
+  it('starts two candidate runs and streams candidate metadata when dual-answer is enabled', async () => {
+    process.env.PLAYGROUND_DUAL_ANSWER_ENABLED = 'true';
+    mockThreadAccess();
+    const completedRun1 = createRun({ id: 'run-1', status: 'completed', finishedAt: now(), triggerMessageId: 'message-1' });
+    const completedRun2 = createRun({ id: 'run-2', status: 'completed', finishedAt: now(), triggerMessageId: 'message-1' });
+    const { runTurn, startText, startTextCandidates } = mockRuntimeServices();
+    runTurn.mockImplementation(async (
+      _repos: unknown,
+      input: { runId: string },
+      callbacks: { onPersistedUpdate(update: { run: Run }): void }
+    ) => {
+      callbacks.onPersistedUpdate({ run: input.runId === 'run-1' ? completedRun1 : completedRun2 });
+    });
+    const { POST } = await importStreamRoute();
+
+    const response = await POST(new Request('http://localhost/api/threads/thread-1/runs/stream', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'hello', answerMode: 'dual', candidateCount: 2 })
+    }), {
+      params: Promise.resolve({ threadId: 'thread-1' })
+    });
+
+    const events = await readSseEvents(response);
+    const readyEvents = events.filter((event) => event.type === 'run.ready');
+    expect(startText).not.toHaveBeenCalled();
+    expect(startTextCandidates).toHaveBeenCalledWith(expect.objectContaining({
+      threadId: 'thread-1',
+      text: 'hello',
+      candidateCount: 2
+    }));
+    expect(runTurn).toHaveBeenCalledTimes(2);
+    expect(runTurn.mock.calls.map((call) => (call[1] as { runId: string }).runId)).toEqual(['run-1', 'run-2']);
+    expect(readyEvents).toHaveLength(2);
+    expect(readyEvents[0]?.data).toMatchObject({
+      type: 'run.ready',
+      runId: 'run-1',
+      triggerMessageId: 'message-1',
+      candidateId: 'candidate-1',
+      ordinal: 0,
+      kind: 'primary'
+    });
+    expect(readyEvents[1]?.data).toMatchObject({
+      type: 'run.ready',
+      runId: 'run-2',
+      triggerMessageId: 'message-1',
+      candidateId: 'candidate-2',
+      ordinal: 1,
+      kind: 'alternative'
+    });
+  });
+
+  it('keeps the dual stream open when one candidate fails before the sibling completes', async () => {
+    process.env.PLAYGROUND_DUAL_ANSWER_ENABLED = 'true';
+    mockThreadAccess();
+    const failedRun1 = createRun({ id: 'run-1', status: 'failed', error: 'primary failed', finishedAt: now(), triggerMessageId: 'message-1' });
+    const completedRun2 = createRun({ id: 'run-2', status: 'completed', finishedAt: now(), triggerMessageId: 'message-1' });
+    const { runTurn } = mockRuntimeServices();
+    runTurn.mockImplementation(async (
+      _repos: unknown,
+      input: { runId: string },
+      callbacks: {
+        onLiveAssistantUpdate(update: { messageId: string; kind: 'assistant_delta'; textDelta: string }): void;
+        onPersistedUpdate(update: { run: Run }): void;
+      }
+    ) => {
+      if (input.runId === 'run-1') {
+        callbacks.onPersistedUpdate({ run: failedRun1 });
+        return;
+      }
+
+      callbacks.onLiveAssistantUpdate({
+        messageId: 'assistant-2',
+        kind: 'assistant_delta',
+        textDelta: 'alternative answer'
+      });
+      callbacks.onPersistedUpdate({ run: completedRun2 });
+    });
+    const { POST } = await importStreamRoute();
+
+    const response = await POST(new Request('http://localhost/api/threads/thread-1/runs/stream', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'hello', candidateCount: 2 })
+    }), {
+      params: Promise.resolve({ threadId: 'thread-1' })
+    });
+
+    const events = await readSseEvents(response);
+    expect(events.map((event) => [event.type, event.data.runId])).toEqual([
+      ['run.ready', 'run-1'],
+      ['run.ready', 'run-2'],
+      ['run.state', 'run-1'],
+      ['run.failed', 'run-1'],
+      ['run.assistant', 'run-2'],
+      ['run.state', 'run-2'],
+      ['run.completed', 'run-2'],
+      ['thread.title_updated', undefined]
+    ]);
+  });
+
+  it('auto-titles only once after a dual-answer turn finishes', async () => {
+    process.env.PLAYGROUND_DUAL_ANSWER_ENABLED = 'true';
+    mockThreadAccess();
+    const completedRun1 = createRun({ id: 'run-1', status: 'completed', finishedAt: now(), triggerMessageId: 'message-1' });
+    const completedRun2 = createRun({ id: 'run-2', status: 'completed', finishedAt: now(), triggerMessageId: 'message-1' });
+    const { generateText, rename, runTurn } = mockRuntimeServices();
+    runTurn.mockImplementation(async (
+      _repos: unknown,
+      input: { runId: string },
+      callbacks: { onPersistedUpdate(update: { run: Run }): void }
+    ) => {
+      callbacks.onPersistedUpdate({ run: input.runId === 'run-1' ? completedRun1 : completedRun2 });
+    });
+    const { POST } = await importStreamRoute();
+
+    const response = await POST(new Request('http://localhost/api/threads/thread-1/runs/stream', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'hello', candidateCount: 2 })
+    }), {
+      params: Promise.resolve({ threadId: 'thread-1' })
+    });
+
+    const events = await readSseEvents(response);
+    expect(events.filter((event) => event.type === 'thread.title_updated')).toHaveLength(1);
+    expect(generateText).toHaveBeenCalledTimes(1);
+    expect(rename).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats aborted dual stream clients as detach-only and leaves runtimes running', async () => {
+    process.env.PLAYGROUND_DUAL_ANSWER_ENABLED = 'true';
+    mockThreadAccess();
+    let releaseRun1!: () => void;
+    let releaseRun2!: () => void;
+    const runTurn = vi.fn().mockImplementation(async (_repos: unknown, input: { runId: string }) => {
+      await new Promise<void>((resolve) => {
+        if (input.runId === 'run-1') {
+          releaseRun1 = resolve;
+        } else {
+          releaseRun2 = resolve;
+        }
+      });
+    });
+    mockRuntimeServices({
+      getPlaygroundRuntimeServices: vi.fn().mockResolvedValue({
+        app: {
+          turns: {
+            startText: vi.fn(),
+            startTextCandidates: vi.fn().mockResolvedValue({
+              triggerMessageId: 'message-1',
+              userMessage: createUserMessage(),
+              candidates: [
+                { candidate: createCandidate('run-1', 0), run: createRun({ id: 'run-1', triggerMessageId: 'message-1' }) },
+                { candidate: createCandidate('run-2', 1), run: createRun({ id: 'run-2', triggerMessageId: 'message-1' }) }
+              ],
+              answerSelection: {
+                threadId: 'thread-1',
+                triggerMessageId: 'message-1',
+                selectedRunId: 'run-1',
+                source: 'default',
+                selectedByUserId: null,
+                createdAt: now(),
+                updatedAt: now()
+              },
+              runtimeSelection: {
+                provider: 'openai',
+                model: 'gpt-4o-mini'
+              }
+            })
+          }
+        },
+        durableRuntime: {
+          generateText: vi.fn(),
+          prepare: vi.fn(),
+          runTurn
+        },
+        repos: {
+          runRepo: {},
+          messageRepo: {},
+          toolRepo: {},
+          runEventRepo: {}
+        }
+      })
+    });
+    const { POST } = await importStreamRoute();
+    const controller = new AbortController();
+
+    await POST(new Request('http://localhost/api/threads/thread-1/runs/stream', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'hello', candidateCount: 2 }),
+      signal: controller.signal
+    }), {
+      params: Promise.resolve({ threadId: 'thread-1' })
+    });
+    await waitForRouteWork();
+    controller.abort();
+
+    expect(runTurn).toHaveBeenCalledTimes(2);
+    expect(getPlaygroundRunStreamHub().getSnapshot('run-1')).not.toBeNull();
+    expect(getPlaygroundRunStreamHub().getSnapshot('run-2')).not.toBeNull();
+    releaseRun1();
+    releaseRun2();
   });
 
   it('does not fail the stream when runtime binding persistence fails after startText', async () => {
@@ -514,6 +777,86 @@ describe('playground run stream route', () => {
     await readSseEvents(await firstResponsePromise);
     await readSseEvents(await secondResponsePromise);
     expect(startText).toHaveBeenCalledTimes(2);
+  });
+
+  it('serializes dual-answer starts for the same thread while allowing one turn to create two runs', async () => {
+    process.env.PLAYGROUND_DUAL_ANSWER_ENABLED = 'true';
+    mockThreadAccess();
+    let releaseFirstStart!: (value: unknown) => void;
+    const firstStart = new Promise((resolve) => {
+      releaseFirstStart = resolve;
+    });
+    const queued = {
+      triggerMessageId: 'message-1',
+      userMessage: createUserMessage(),
+      candidates: [
+        { candidate: createCandidate('run-1', 0), run: createRun({ id: 'run-1', triggerMessageId: 'message-1' }) },
+        { candidate: createCandidate('run-2', 1), run: createRun({ id: 'run-2', triggerMessageId: 'message-1' }) }
+      ],
+      answerSelection: {
+        threadId: 'thread-1',
+        triggerMessageId: 'message-1',
+        selectedRunId: 'run-1',
+        source: 'default',
+        selectedByUserId: null,
+        createdAt: now(),
+        updatedAt: now()
+      },
+      runtimeSelection: {
+        provider: 'openai',
+        model: 'gpt-4o-mini'
+      }
+    };
+    const startTextCandidates = vi.fn()
+      .mockReturnValueOnce(firstStart)
+      .mockResolvedValue(queued);
+    mockRuntimeServices({
+      getPlaygroundRuntimeServices: vi.fn().mockResolvedValue({
+        app: {
+          turns: {
+            startText: vi.fn(),
+            startTextCandidates
+          }
+        },
+        durableRuntime: {
+          generateText: vi.fn(),
+          prepare: vi.fn(),
+          runTurn: vi.fn().mockResolvedValue(undefined)
+        },
+        repos: {
+          runRepo: {},
+          messageRepo: {},
+          toolRepo: {},
+          runEventRepo: {}
+        }
+      })
+    });
+    const { POST } = await importStreamRoute();
+
+    const firstResponsePromise = POST(new Request('http://localhost/api/threads/thread-1/runs/stream', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'first', candidateCount: 2 })
+    }), {
+      params: Promise.resolve({ threadId: 'thread-1' })
+    });
+    await waitForRouteWork();
+    expect(startTextCandidates).toHaveBeenCalledTimes(1);
+
+    const secondResponsePromise = POST(new Request('http://localhost/api/threads/thread-1/runs/stream', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'second', candidateCount: 2 })
+    }), {
+      params: Promise.resolve({ threadId: 'thread-1' })
+    });
+    await waitForRouteWork();
+    expect(startTextCandidates).toHaveBeenCalledTimes(1);
+
+    releaseFirstStart(queued);
+
+    await readSseEvents(await firstResponsePromise);
+    await readSseEvents(await secondResponsePromise);
+    expect(startTextCandidates).toHaveBeenCalledTimes(2);
+    expect(startTextCandidates.mock.calls[0]?.[0]).toMatchObject({ candidateCount: 2 });
   });
 
   it('emits one terminal completed event when completion is observed more than once', async () => {
@@ -871,6 +1214,32 @@ describe('playground run attach stream route', () => {
       runId: 'run-1',
       version: 0
     });
+  });
+
+  it('recovers each active candidate run through its own attach stream', async () => {
+    getPlaygroundRunStreamHub().openSession(createSnapshot('run-1'));
+    getPlaygroundRunStreamHub().openSession(createSnapshot('run-2'));
+    mockThreadAccess();
+    mockAppServices({
+      findById: vi.fn().mockImplementation(async (runId: string) => createRun({ id: runId }))
+    });
+    const { GET } = await importAttachRoute();
+
+    const firstResponse = await GET(new Request('http://localhost/api/threads/thread-1/runs/run-1/attach-stream'), {
+      params: Promise.resolve({ threadId: 'thread-1', runId: 'run-1' })
+    });
+    const secondResponse = await GET(new Request('http://localhost/api/threads/thread-1/runs/run-2/attach-stream'), {
+      params: Promise.resolve({ threadId: 'thread-1', runId: 'run-2' })
+    });
+    getPlaygroundRunStreamHub().closeSession('run-1');
+    getPlaygroundRunStreamHub().closeSession('run-2');
+
+    await expect(readSseEvents(firstResponse)).resolves.toMatchObject([
+      { type: 'run.snapshot', data: { runId: 'run-1' } }
+    ]);
+    await expect(readSseEvents(secondResponse)).resolves.toMatchObject([
+      { type: 'run.snapshot', data: { runId: 'run-2' } }
+    ]);
   });
 });
 

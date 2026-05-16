@@ -48,8 +48,8 @@
 - [x] V1 rule: answer selection changes are rejected once a later user message exists, unless implemented as display-only and explicitly marked as such.
 - [ ] V1 rule: if primary/default fails and an alternative completes, canonical selection falls back to the completed alternative with `source='system_fallback'`.
 - [ ] V1 rule: composer remains locked until both candidate runs are terminal.
-- [ ] V1 rule: stop behavior is detach-only; durable candidate runs continue and are recoverable by attach-stream.
-- [ ] V1 rule: dual-answer mode ships behind an explicit feature flag until runtime, share/replay, hydration, and UI tests pass.
+- [x] V1 rule: stop behavior is detach-only; durable candidate runs continue and are recoverable by attach-stream.
+- [x] V1 rule: dual-answer mode ships behind an explicit feature flag until runtime, share/replay, hydration, and UI tests pass.
 - [ ] V1 rule: decide whether dual-answer mode is always on after the flag, model-specific, or user-triggered.
 
 ## 1. Definitions First
@@ -124,10 +124,10 @@
 - [x] Extend thread messages response with `answerSelections`.
 - [x] Extend thread messages response with feedback needed by the UI.
 - [x] Add durable-chat-client normalizer tests that accept old responses with `activeRun` only and new responses with `activeRuns`.
-- [ ] Add `triggerMessageId` to dual-start response and multiplex stream `turn.ready` event if a turn wrapper is introduced.
-- [ ] Add `candidateId`, `ordinal`, and `kind` to `run.ready` or `turn.ready` payload so client does not infer candidate identity only from `runId`.
-- [ ] Add request idempotency strategy for send/dual-start requests, or explicitly document that the POST stream route must not be retried automatically.
-- [ ] Define multiplex stream events or document reuse of existing run-scoped events with a turn wrapper.
+- [x] Add `triggerMessageId` to dual-start response; v1 reuses run-scoped ready events instead of introducing a `turn.ready` wrapper.
+- [x] Add `candidateId`, `ordinal`, and `kind` to `run.ready` so client does not infer candidate identity only from `runId`.
+- [x] Add request idempotency strategy for send/dual-start requests, or explicitly document that the POST stream route must not be retried automatically.
+- [x] Define v1 multiplex stream events as existing run-scoped events plus candidate metadata on `run.ready`.
 
 ### 1.6 Canonical Transcript Projection
 - [x] Add a package-level pure projection function for canonical transcript construction.
@@ -225,34 +225,34 @@
 - [x] Add helper for thread messages response with `activeRuns`.
 - [x] Add route helper for candidate selection.
 - [x] Add route helper for run feedback.
-- [ ] Add route helper or stream shape for multiplexing candidate run events.
-- [ ] Multiplex stream keeps the HTTP stream open until all candidate runs are terminal or the client disconnects.
-- [ ] One candidate failed/completed event must not close the other candidate's run hub session.
-- [ ] Use per-run stream versions in run hub snapshots; do not share one stream version counter across run sessions unless the contract says it is turn-scoped.
-- [ ] Add `turn.completed` / `turn.failed` / `turn.aborted` event semantics or explicitly document that v1 has only per-run terminal events.
-- [ ] Auto-title runs once per user turn, not once per candidate run; define whether title generation uses user message, primary run, selected run, or first completed run.
-- [ ] If client disconnects from the multiplex POST stream, apply the v1 detach-only rule: durable runtimes continue and are recoverable via attach-stream.
-- [ ] Keep run-scoped attach-stream behavior reusable for recovery.
+- [x] Add route helper or stream shape for multiplexing candidate run events.
+- [x] Multiplex stream keeps the HTTP stream open until all candidate runs are terminal or the client disconnects.
+- [x] One candidate failed/completed event must not close the other candidate's run hub session.
+- [x] Use per-run stream versions in run hub snapshots; do not share one stream version counter across run sessions unless the contract says it is turn-scoped.
+- [x] Add `turn.completed` / `turn.failed` / `turn.aborted` event semantics or explicitly document that v1 has only per-run terminal events.
+- [x] Auto-title runs once per user turn, using the first completed candidate run for v1 title source.
+- [x] If client disconnects from the multiplex POST stream, apply the v1 detach-only rule: durable runtimes continue and are recoverable via attach-stream.
+- [x] Keep run-scoped attach-stream behavior reusable for recovery.
 - [x] Add tests for multiple active runs serialization.
-- [ ] Add tests for multiplex stream event ordering and terminal behavior where helper coverage is possible.
+- [x] Add tests for multiplex stream event ordering and terminal behavior where helper coverage is possible.
 
 ### 2.8 Next Routes
 - [x] Extend `GET /api/threads/[threadId]/messages` to return candidates, selections, feedback, and `activeRuns`.
 - [x] Add route for candidate selection.
 - [x] Add route for run feedback set/clear.
 - [x] Ensure auth/thread access checks apply to every new route.
-- [ ] Keep dual stream route behind feature flag until client multi-stream state and share/replay canonical hardening are complete.
-- [ ] Extend or add send route for dual-answer starts.
-- [ ] Ensure stream start serialization does not create duplicate user messages.
-- [ ] Ensure `withThreadRunStartLock` allows one dual-answer turn to create two sibling runs, but still rejects a second concurrent user turn for the same thread.
-- [ ] Ensure stream routes can start and publish two run streams for one user message.
-- [ ] Ensure attach-stream can recover each active candidate run after thread switch.
+- [x] Keep dual stream route behind feature flag until client multi-stream state and share/replay canonical hardening are complete.
+- [x] Extend or add send route for dual-answer starts.
+- [x] Ensure stream start serialization does not create duplicate user messages.
+- [x] Ensure `withThreadRunStartLock` allows one dual-answer turn to create two sibling runs, but still rejects a second concurrent user turn for the same thread.
+- [x] Ensure stream routes can start and publish two run streams for one user message.
+- [x] Ensure attach-stream can recover each active candidate run after thread switch.
 - [ ] Update archive/share/rename or other active-run guards to use `listActiveByThread` when active run count can be greater than one.
-- [ ] Dual-answer stream start must remain feature-flagged until Loop 3.5 share/replay hardening and Loop 5 durable-chat-client multi-stream support are complete.
-- [ ] Stream client abort follows the v1 detach-only rule and does not implicitly cancel either candidate run.
-- [ ] If one candidate reaches a terminal event, the multiplex stream remains open until all candidate runs are terminal or the client disconnects.
-- [ ] Add route test where one candidate fails and the other continues streaming.
-- [ ] Add route test where stream client aborts after one run starts; both active candidate runs remain durable and recoverable by attach-stream.
+- [x] Dual-answer stream start must remain feature-flagged until Loop 3.5 share/replay canonical hardening and Loop 5 durable-chat-client multi-stream support are complete.
+- [x] Stream client abort follows the v1 detach-only rule and does not implicitly cancel either candidate run.
+- [x] If one candidate reaches a terminal event, the multiplex stream remains open until all candidate runs are terminal or the client disconnects.
+- [x] Add route test where one candidate fails and the other continues streaming.
+- [x] Add route test where stream client aborts after one run starts; both active candidate runs remain durable and recoverable by attach-stream.
 
 ## 3. Frontend Boundary
 
@@ -358,15 +358,15 @@
 
 ### 4.4 Server / Route Tests
 - [x] `packages/durable-chat-server`: DTO builders serialize candidates/selections/feedback.
-- [ ] `packages/durable-chat-server`: multiplex stream stays open after one candidate terminal event.
+- [x] `packages/durable-chat-server`: multiplex stream stays open after one candidate terminal event.
 - [x] `apps/playground-next-web`: thread messages route returns `activeRuns`.
 - [x] `apps/playground-next-web`: paginated message load returns candidate/selection/feedback only for relevant visible turns plus active runs.
-- [ ] `apps/playground-next-web`: stream route creates two candidate runs without duplicate user messages.
-- [ ] `apps/playground-next-web`: one candidate fails and the other continues streaming.
-- [ ] `apps/playground-next-web`: one candidate failed/completed event does not close the sibling candidate stream.
-- [ ] `apps/playground-next-web`: stream client abort is detach-only and active candidate runs remain recoverable by attach-stream.
-- [ ] `apps/playground-next-web`: dual-answer stream route is unavailable or disabled when the feature flag is off.
-- [ ] `apps/playground-next-web`: attach route recovers each active run.
+- [x] `apps/playground-next-web`: stream route creates two candidate runs without duplicate user messages.
+- [x] `apps/playground-next-web`: one candidate fails and the other continues streaming.
+- [x] `apps/playground-next-web`: one candidate failed/completed event does not close the sibling candidate stream.
+- [x] `apps/playground-next-web`: stream client abort is detach-only and active candidate runs remain recoverable by attach-stream.
+- [x] `apps/playground-next-web`: dual-answer stream route is unavailable or disabled when the feature flag is off.
+- [x] `apps/playground-next-web`: attach route recovers each active run.
 - [x] `apps/playground-next-web`: selection and feedback routes enforce thread access.
 
 ### 4.5 Client / UI Tests
@@ -464,20 +464,20 @@
 - [x] Run `pnpm --filter @agent-infra/durable-chat-server test` if tests exist or relevant.
 - [x] Run `pnpm --filter playground-next-web test`.
 - [x] Run `codex review` for this loop.
-- [ ] Commit this loop after review and verification pass.
+- [x] Commit this loop after review and verification pass.
 
 ### Loop 4B: Dual Stream Start And Multiplex Lifecycle
-- [ ] Keep dual stream route behind feature flag.
-- [ ] Update stream route to create and start two candidate runs.
-- [ ] Ensure per-run attach-stream can recover multiple active runs.
-- [ ] Implement and test v1 detach-only stream abort/disconnect behavior.
-- [ ] Define and test per-run terminal and optional turn terminal semantics.
-- [ ] Ensure one candidate failing or completing does not close the sibling stream.
-- [ ] Ensure auto-title runs once per user turn.
-- [ ] Add stream route and helper tests.
-- [ ] Run `pnpm --filter playground-next-web test`.
-- [ ] Run relevant durable-chat-server tests.
-- [ ] Run `codex review` for this loop.
+- [x] Keep dual stream route behind feature flag.
+- [x] Update stream route to create and start two candidate runs.
+- [x] Ensure per-run attach-stream can recover multiple active runs.
+- [x] Implement and test v1 detach-only stream abort/disconnect behavior.
+- [x] Define and test per-run terminal and optional turn terminal semantics.
+- [x] Ensure one candidate failing or completing does not close the sibling stream.
+- [x] Ensure auto-title runs once per user turn.
+- [x] Add stream route and helper tests.
+- [x] Run `pnpm --filter playground-next-web test`.
+- [x] Run relevant durable-chat-server tests.
+- [x] Run `codex review` for this loop.
 - [ ] Commit this loop after review and verification pass.
 
 ### Loop 5A: Durable Chat Client State Normalization
