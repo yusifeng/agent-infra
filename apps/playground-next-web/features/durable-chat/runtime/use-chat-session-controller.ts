@@ -52,7 +52,7 @@ function createInitialChatSessionState(): ChatSessionState {
       phase: 'idle',
       message: null
     },
-    sidebarOpen: typeof window === 'undefined' ? true : window.innerWidth >= 1024,
+    sidebarOpen: true,
     showScrollToBottom: false
   };
 }

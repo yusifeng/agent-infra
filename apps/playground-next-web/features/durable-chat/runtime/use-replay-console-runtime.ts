@@ -12,9 +12,11 @@ import { useSearchPanelState } from '@/features/durable-chat/runtime/use-search-
 import { useReplayRuntime } from '@/features/durable-chat/runtime/use-replay-runtime';
 import type { ReplaySession } from '@/features/durable-chat/types/replay';
 
+const MOBILE_SIDEBAR_BREAKPOINT = 1024;
+
 export function useReplayConsoleRuntime({ initialThreadId }: { initialThreadId: string | null }) {
   const router = useRouter();
-  const [sidebarOpen, setSidebarOpen] = useState(() => (typeof window !== 'undefined' ? window.innerWidth >= 1024 : true));
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [threads, setThreads] = useState<PlaygroundThreadDto[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(initialThreadId);
   const [loading, setLoading] = useState(Boolean(initialThreadId));
@@ -26,6 +28,12 @@ export function useReplayConsoleRuntime({ initialThreadId }: { initialThreadId: 
   const messagesViewportRef = useRef<HTMLDivElement>(null);
   const searchPanelState = useSearchPanelState(activeThreadId);
   const replayRuntime = useReplayRuntime({ session });
+
+  useEffect(() => {
+    if (window.innerWidth < MOBILE_SIDEBAR_BREAKPOINT) {
+      setSidebarOpen(false);
+    }
+  }, []);
 
   useEffect(() => {
     setActiveThreadId(initialThreadId);
