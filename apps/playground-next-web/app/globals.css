@@ -311,6 +311,36 @@ body {
   }
 }
 
+@keyframes replay-text-flash {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  22% {
+    opacity: 0.22;
+  }
+
+  48% {
+    opacity: 1;
+  }
+
+  70% {
+    opacity: 0.34;
+  }
+}
+
+.chat-shell-theme [data-replay-active='true'] {
+  animation: replay-text-flash 1100ms ease-out 1;
+  will-change: opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-shell-theme [data-replay-active='true'] {
+    animation: none;
+  }
+}
+
 .chat-shimmer-text {
   display: inline-block;
   background: linear-gradient(

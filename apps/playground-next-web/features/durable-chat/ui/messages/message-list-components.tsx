@@ -10,7 +10,8 @@ import {
   buildAnswerContainerContentSections,
   buildLiveAssistantContentSections,
   buildPersistedAssistantContentSections,
-  hasVisiblePersistedAssistantContent
+  hasVisiblePersistedAssistantContent,
+  type AssistantMessageContentSection
 } from '@/features/durable-chat/service/assistant-message-presentation';
 import { collectLiveDraftCopyText, hasVisibleLiveAssistantContent } from '@/features/durable-chat/service/live-assistant-presentation';
 import { buildResearchActivityViewModel, buildResearchTimelineRowsFromActivity, type ResearchTimelineRow } from '@/features/durable-chat/service/research-activity';
@@ -40,15 +41,29 @@ const reasoningTimelineTextClassName = 'text-sm leading-7 text-[color:var(--chat
 const reasoningMarkdownClassName = reasoningTimelineTextClassName;
 const maxInlineBrowsePageCount = 4;
 
+function isActiveReplayTarget(replayBlockId: string | null | undefined, activeReplayBlockId: string | null | undefined) {
+  return Boolean(replayBlockId && activeReplayBlockId && replayBlockId === activeReplayBlockId);
+}
+
 const TimelineItem = memo(function TimelineItem({
+  activeReplayBlockId = null,
   children,
-  marker
+  marker,
+  replayBlockId = null
 }: {
+  activeReplayBlockId?: string | null;
   children: ReactNode;
   marker: ReactNode;
+  replayBlockId?: string | null;
 }) {
+  const replayActive = isActiveReplayTarget(replayBlockId, activeReplayBlockId);
+
   return (
-    <div className="grid grid-cols-[24px_minmax(0,1fr)] gap-3">
+    <div
+      className="grid grid-cols-[24px_minmax(0,1fr)] gap-3"
+      data-replay-active={replayActive ? 'true' : undefined}
+      data-replay-block-id={replayBlockId ?? undefined}
+    >
       <div className="relative flex justify-center pt-[6px]">
         <div className="absolute bottom-[-3px] top-[24px] w-px bg-[color:var(--chat-reasoning-divider)]" />
         <div className="relative z-10 flex h-4 w-4 items-center justify-center bg-[var(--chat-bg)] text-[color:var(--chat-text-secondary)]">
@@ -63,12 +78,16 @@ const TimelineItem = memo(function TimelineItem({
 const reasoningDotMarker = <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--chat-text-secondary)]" />;
 
 const ResearchSummaryLabel = memo(function ResearchSummaryLabel({
+  activeReplayBlockId = null,
   items,
+  replayBlockId = null,
   runId,
   showPersistedResearchStatus = false,
   onOpenSearchResult
 }: {
+  activeReplayBlockId?: string | null;
   items: AssistantTurnItem[];
+  replayBlockId?: string | null;
   runId: string | null;
   showPersistedResearchStatus?: boolean;
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
@@ -83,14 +102,26 @@ const ResearchSummaryLabel = memo(function ResearchSummaryLabel({
     return null;
   }
 
-  return <ResearchTimelineRows onOpenSearchResult={onOpenSearchResult} rows={rows} runId={runId} />;
+  return (
+    <ResearchTimelineRows
+      activeReplayBlockId={activeReplayBlockId}
+      onOpenSearchResult={onOpenSearchResult}
+      replayBlockId={replayBlockId}
+      rows={rows}
+      runId={runId}
+    />
+  );
 });
 
 const ResearchTimelineRows = memo(function ResearchTimelineRows({
+  activeReplayBlockId = null,
+  replayBlockId = null,
   runId,
   rows,
   onOpenSearchResult
 }: {
+  activeReplayBlockId?: string | null;
+  replayBlockId?: string | null;
   runId: string | null;
   rows: ResearchTimelineRow[];
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
@@ -132,7 +163,12 @@ const ResearchTimelineRows = memo(function ResearchTimelineRows({
           );
 
           return (
-            <TimelineItem key={row.id} marker={marker}>
+            <TimelineItem
+              activeReplayBlockId={activeReplayBlockId}
+              key={row.id}
+              marker={marker}
+              replayBlockId={replayBlockId}
+            >
               {isClickable ? (
                 <button
                   type="button"
@@ -157,8 +193,10 @@ const ResearchTimelineRows = memo(function ResearchTimelineRows({
 
         return (
           <TimelineItem
+            activeReplayBlockId={activeReplayBlockId}
             key={row.id}
             marker={row.state === 'running' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+            replayBlockId={replayBlockId}
           >
             <div className={clsx('flex max-w-full flex-wrap items-center gap-x-3 gap-y-1 py-0.5', reasoningTimelineTextClassName)}>
               <span className="inline-flex min-w-0 items-center">
@@ -200,12 +238,16 @@ const ResearchTimelineRows = memo(function ResearchTimelineRows({
 });
 
 const ThinkingTimelinePanel = memo(function ThinkingTimelinePanel({
+  activeReplayBlockId = null,
   entries,
+  getReplayBlockIdForItemId,
   thinking,
   showPersistedResearchStatus = false,
   onOpenSearchResult
 }: {
+  activeReplayBlockId?: string | null;
   entries: Array<ReasoningToken | PersistedResearchToken | LiveSummaryToken>;
+  getReplayBlockIdForItemId?: (itemId: string) => string | null;
   thinking: boolean;
   showPersistedResearchStatus?: boolean;
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
@@ -248,7 +290,12 @@ const ThinkingTimelinePanel = memo(function ThinkingTimelinePanel({
           {entries.map((entry) => {
             if (entry.kind === 'reasoning') {
               return (
-                <TimelineItem key={entry.id} marker={reasoningDotMarker}>
+                <TimelineItem
+                  activeReplayBlockId={activeReplayBlockId}
+                  key={entry.id}
+                  marker={reasoningDotMarker}
+                  replayBlockId={getReplayBlockIdForItemId?.(entry.id) ?? null}
+                >
                   <MarkdownRenderer
                     className={reasoningMarkdownClassName}
                     plainTextClassName={reasoningMarkdownClassName}
@@ -261,9 +308,11 @@ const ThinkingTimelinePanel = memo(function ThinkingTimelinePanel({
             if (entry.kind === 'persisted-research') {
               return (
                 <ResearchSummaryLabel
+                  activeReplayBlockId={activeReplayBlockId}
                   key={entry.id}
                   items={entry.items}
                   onOpenSearchResult={onOpenSearchResult}
+                  replayBlockId={getReplayBlockIdForItemId?.(entry.id) ?? null}
                   runId={entry.runId}
                   showPersistedResearchStatus={showPersistedResearchStatus}
                 />
@@ -272,8 +321,10 @@ const ThinkingTimelinePanel = memo(function ThinkingTimelinePanel({
 
             return (
               <ResearchTimelineRows
+                activeReplayBlockId={activeReplayBlockId}
                 key={entry.id}
                 onOpenSearchResult={onOpenSearchResult}
+                replayBlockId={null}
                 rows={entry.rows}
                 runId={entry.runId}
               />
@@ -585,6 +636,46 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
   );
 });
 
+function getAnswerContainerSectionItemIds(section: AssistantMessageContentSection) {
+  if (section.type === 'content') {
+    return section.token.kind === 'persisted-text' ? [section.token.part.id] : [];
+  }
+
+  if (section.type === 'research') {
+    return section.entry.kind === 'persisted-research'
+      ? [section.entry.id, ...section.entry.items.map((item) => item.id)]
+      : [];
+  }
+
+  return section.entries.flatMap((entry) => {
+    if (entry.kind === 'reasoning') {
+      return [entry.id];
+    }
+
+    if (entry.kind === 'persisted-research') {
+      return [entry.id, ...entry.items.map((item) => item.id)];
+    }
+
+    return [];
+  });
+}
+
+function resolveAnswerContainerSectionReplayBlockId(
+  section: AssistantMessageContentSection,
+  getReplayBlockIdForItemId: (itemId: string) => string | null,
+  activeReplayBlockId: string | null
+) {
+  const blockIds = getAnswerContainerSectionItemIds(section)
+    .map((itemId) => getReplayBlockIdForItemId(itemId))
+    .filter((blockId): blockId is string => Boolean(blockId));
+
+  if (activeReplayBlockId && blockIds.includes(activeReplayBlockId)) {
+    return activeReplayBlockId;
+  }
+
+  return blockIds[0] ?? null;
+}
+
 export const AnswerContainerCard = memo(function AnswerContainerCard({
   container,
   actionContext,
@@ -609,68 +700,93 @@ export const AnswerContainerCard = memo(function AnswerContainerCard({
     return null;
   }
   const replayActive = activeReplayBlockId !== null && container.transcriptBlockIds.includes(activeReplayBlockId);
+  const blockIdByItemId = new Map(
+    container.blocks.flatMap((block) => block.items.map((item) => [item.id, block.id] as const))
+  );
+  const getReplayBlockIdForItemId = (itemId: string) => blockIdByItemId.get(itemId) ?? null;
 
   return (
     <div
       className={clsx('group relative w-[90%] max-w-screen px-4', actionContext.hasVisibleOperation ? 'pb-8' : 'pb-2')}
       data-answer-container-id={container.id}
       data-message-role="assistant"
-      data-replay-active={replayActive ? 'true' : undefined}
-      data-replay-block-id={activeReplayBlockId && replayActive ? activeReplayBlockId : container.transcriptBlockIds[0]}
+      data-replay-container-active={replayActive ? 'true' : undefined}
       style={transcriptRowPerformanceStyle}
     >
       <div className={clsx('relative flex flex-col gap-3 pt-1.5', ui.assistantBubble)}>
         {sections.map((section) => {
-          if (section.type === 'thinking') {
-            return (
-              <ThinkingTimelinePanel
-                key={section.id}
-                entries={section.entries}
-                thinking={section.thinking}
-                showPersistedResearchStatus={showPersistedResearchStatus}
-                onOpenSearchResult={onOpenSearchResult}
-              />
-            );
-          }
+          const sectionReplayBlockId = resolveAnswerContainerSectionReplayBlockId(
+            section,
+            getReplayBlockIdForItemId,
+            activeReplayBlockId
+          );
+          const sectionContent = (() => {
+            if (section.type === 'thinking') {
+              return (
+                <ThinkingTimelinePanel
+                  entries={section.entries}
+                  activeReplayBlockId={activeReplayBlockId}
+                  getReplayBlockIdForItemId={getReplayBlockIdForItemId}
+                  thinking={section.thinking}
+                  showPersistedResearchStatus={showPersistedResearchStatus}
+                  onOpenSearchResult={onOpenSearchResult}
+                />
+              );
+            }
 
-          if (section.type === 'research') {
-            return section.entry.kind === 'persisted-research' ? (
-              <ResearchSummaryLabel
-                key={section.id}
-                items={section.entry.items}
-                onOpenSearchResult={onOpenSearchResult}
-                runId={section.entry.runId}
-                showPersistedResearchStatus={showPersistedResearchStatus}
-              />
-            ) : (
-              <ResearchTimelineRows
-                key={section.id}
-                onOpenSearchResult={onOpenSearchResult}
-                rows={section.entry.rows}
-                runId={section.entry.runId}
-              />
-            );
-          }
+            if (section.type === 'research') {
+              return section.entry.kind === 'persisted-research' ? (
+                <ResearchSummaryLabel
+                  items={section.entry.items}
+                  activeReplayBlockId={activeReplayBlockId}
+                  onOpenSearchResult={onOpenSearchResult}
+                  replayBlockId={sectionReplayBlockId}
+                  runId={section.entry.runId}
+                  showPersistedResearchStatus={showPersistedResearchStatus}
+                />
+              ) : (
+                <ResearchTimelineRows
+                  activeReplayBlockId={activeReplayBlockId}
+                  onOpenSearchResult={onOpenSearchResult}
+                  replayBlockId={sectionReplayBlockId}
+                  rows={section.entry.rows}
+                  runId={section.entry.runId}
+                />
+              );
+            }
 
-          if (section.token.kind === 'persisted-text') {
+            if (section.token.kind === 'persisted-text') {
+              return (
+                <MessagePartView
+                  cacheKey={section.token.part.cacheKey}
+                  part={section.token.part.part}
+                />
+              );
+            }
+
             return (
-              <MessagePartView
-                key={section.id}
-                cacheKey={section.token.part.cacheKey}
-                part={section.token.part.part}
+              <MarkdownRenderer
+                cacheKey={section.token.cacheKey}
+                animateBlocks={false}
+                className="text-[15px] leading-[1.9] text-[color:var(--chat-text)]"
+                plainTextClassName="text-[15px] leading-[1.9] text-[color:var(--chat-text)]"
+                text={section.token.text}
               />
             );
-          }
+          })();
 
           return (
-            <MarkdownRenderer
+            <div
               key={section.id}
-              cacheKey={section.token.cacheKey}
-              animateBlocks={false}
-              className="text-[15px] leading-[1.9] text-[color:var(--chat-text)]"
-              plainTextClassName="text-[15px] leading-[1.9] text-[color:var(--chat-text)]"
-              text={section.token.text}
-            />
+              data-replay-active={
+                section.type === 'content' && isActiveReplayTarget(sectionReplayBlockId, activeReplayBlockId)
+                  ? 'true'
+                  : undefined
+              }
+              data-replay-block-id={sectionReplayBlockId ?? undefined}
+            >
+              {sectionContent}
+            </div>
           );
         })}
       </div>

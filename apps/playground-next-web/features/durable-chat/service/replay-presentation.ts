@@ -321,6 +321,7 @@ export function buildReplayControlState(session: ReplaySession | null, cursor: R
     canTogglePlayback: hasReplayableSteps,
     canPrevious: hasReplayableSteps && activeStepIndex > 0,
     canNext: hasReplayableSteps && activeStepIndex >= 0 && activeStepIndex < replayableStepIndices.length - 1,
+    canFinish: hasReplayableSteps && cursor.status !== 'completed',
     canInspect: hasReplayableSteps
   };
 }

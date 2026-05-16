@@ -93,17 +93,25 @@ describe('useReplayRuntime', () => {
   it('inspects a step without mutating playback cursor', () => {
     render(createSession());
     expect(runtime).not.toBeNull();
+    expect(runtime!.inspectRequestId).toBe(0);
 
     act(() => {
       runtime!.inspectStep(1);
     });
 
+    expect(runtime!.inspectRequestId).toBe(1);
     expect(runtime!.cursor).toMatchObject({ stepIndex: -1, status: 'idle' });
     expect(runtime!.viewState).toMatchObject({
       playbackStepIndex: -1,
       inspectedStepIndex: 1,
       inspectedReplayBlockId: 'replay-assistant:step-2'
     });
+
+    act(() => {
+      runtime!.inspectStep(1);
+    });
+
+    expect(runtime!.inspectRequestId).toBe(2);
   });
 
   it('keeps inspected step when playback changes and clears it on session reset', () => {
@@ -142,5 +150,23 @@ describe('useReplayRuntime', () => {
 
     expect(runtime!.viewState.inspectedStepIndex).toBeNull();
     expect(runtime!.viewState.inspectedReplayBlockId).toBeNull();
+  });
+
+  it('finishes replay immediately without waiting for timers', () => {
+    render(createSession());
+
+    act(() => {
+      runtime!.finishReplay();
+    });
+
+    expect(runtime!.cursor).toMatchObject({
+      stepIndex: 1,
+      status: 'completed'
+    });
+    expect(runtime!.viewState).toMatchObject({
+      currentStepIndex: 2,
+      progressLabel: '2 / 2',
+      playbackStepIndex: 1
+    });
   });
 });

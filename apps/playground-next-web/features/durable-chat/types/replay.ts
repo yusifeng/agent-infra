@@ -97,6 +97,7 @@ export type ReplayControlState = {
   canTogglePlayback: boolean;
   canPrevious: boolean;
   canNext: boolean;
+  canFinish: boolean;
   canInspect: boolean;
 };
 

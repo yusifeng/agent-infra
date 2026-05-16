@@ -15,6 +15,7 @@ const controlState: ReplayControlState = {
   canTogglePlayback: true,
   canPrevious: false,
   canNext: true,
+  canFinish: true,
   canInspect: true
 };
 
@@ -93,6 +94,7 @@ describe('ReplayDock', () => {
 
   it('inspects progress segments without invoking playback controls', () => {
     const onInspectStep = vi.fn();
+    const onFinishReplay = vi.fn();
     const onTogglePlayback = vi.fn();
 
     act(() => {
@@ -104,6 +106,7 @@ describe('ReplayDock', () => {
           onPreviousStep={vi.fn()}
           onNextStep={vi.fn()}
           onInspectStep={onInspectStep}
+          onFinishReplay={onFinishReplay}
           onRestart={vi.fn()}
         />
       );
@@ -116,8 +119,11 @@ describe('ReplayDock', () => {
     expect(segments[2]?.dataset.replaySegmentTone).toBe('answer');
     expect(segments[0]?.style.flexGrow).toBe('1.2');
     expect(segments[2]?.style.flexGrow).toBe('6');
+    expect(segments[0]?.dataset.replaySegmentComplete).toBe('true');
     expect(segments[0]?.dataset.replaySegmentPlaybackActive).toBe('true');
     expect(segments[2]?.dataset.replaySegmentInspected).toBe('true');
+    expect(segments[0]?.className).not.toContain('_62%,white)');
+    expect(segments[1]?.className).not.toContain('_46%,white)');
 
     act(() => {
       segments[2]!.click();
@@ -125,5 +131,13 @@ describe('ReplayDock', () => {
 
     expect(onInspectStep).toHaveBeenCalledWith(2);
     expect(onTogglePlayback).not.toHaveBeenCalled();
+
+    act(() => {
+      [...container.querySelectorAll<HTMLButtonElement>('button')]
+        .find((button) => button.textContent?.includes('完成'))
+        ?.click();
+    });
+
+    expect(onFinishReplay).toHaveBeenCalledOnce();
   });
 });

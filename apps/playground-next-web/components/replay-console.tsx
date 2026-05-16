@@ -35,7 +35,6 @@ export function ReplayConsole({
     loading,
     error,
     messagesViewportRef,
-    replaySpotlightRect,
     answerContainers,
     transcriptBlocks,
     sourceMessages,
@@ -56,6 +55,7 @@ export function ReplayConsole({
     onPreviousStep,
     onNextStep,
     onInspectStep,
+    onFinishReplay,
     onRestart
   } = runtime;
 
@@ -93,19 +93,6 @@ export function ReplayConsole({
 
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div ref={messagesViewportRef} className={clsx('relative flex min-h-0 flex-1 flex-col overflow-y-auto', ui.messageViewport)}>
-              {replaySpotlightRect ? (
-                <div className="pointer-events-none absolute inset-0 z-[1]" aria-hidden="true">
-                  <div
-                    key={replaySpotlightRect.nonce}
-                    className="absolute rounded-2xl border border-[color:color-mix(in_srgb,var(--chat-reasoning-accent)_30%,transparent)] bg-[color:color-mix(in_srgb,var(--chat-reasoning-accent)_6%,transparent)] opacity-35 shadow-[0_18px_48px_rgba(15,23,42,0.10)] transition-[transform,width,height,opacity] duration-200"
-                    style={{
-                      transform: `translate3d(${replaySpotlightRect.left}px, ${replaySpotlightRect.top}px, 0)`,
-                      width: replaySpotlightRect.width,
-                      height: replaySpotlightRect.height
-                    }}
-                  />
-                </div>
-              ) : null}
               <ChatMessageList
                 meta={null}
                 error={error}
@@ -135,6 +122,7 @@ export function ReplayConsole({
               onPreviousStep={onPreviousStep}
               onNextStep={onNextStep}
               onInspectStep={onInspectStep}
+              onFinishReplay={onFinishReplay}
               onRestart={onRestart}
             />
           </div>

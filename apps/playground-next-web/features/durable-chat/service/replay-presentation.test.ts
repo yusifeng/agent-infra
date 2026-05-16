@@ -235,6 +235,7 @@ describe('buildReplayPresentation', () => {
       canTogglePlayback: true,
       canPrevious: false,
       canNext: false,
+      canFinish: true,
       canInspect: true
     });
     expect(idlePresentation.viewState.progressLabel).toBe('0 / 2');
@@ -257,6 +258,7 @@ describe('buildReplayPresentation', () => {
       canTogglePlayback: true,
       canPrevious: false,
       canNext: true,
+      canFinish: true,
       canInspect: true
     });
     expect(pausedPresentation.viewState.progressLabel).toBe('1 / 2');
@@ -337,6 +339,7 @@ describe('buildReplayPresentation', () => {
       canTogglePlayback: false,
       canPrevious: false,
       canNext: false,
+      canFinish: false,
       canInspect: false
     });
     expect(presentation.viewState.progressLabel).toBe('0 / 0');

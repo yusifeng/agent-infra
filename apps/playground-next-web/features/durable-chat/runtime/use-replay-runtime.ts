@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { buildReplayPresentation } from '@/features/durable-chat/service/replay-presentation';
 import {
+  getReplayableStepIndices,
   moveReplayCursorBy,
   seekReplayToStep,
   toggleReplayPlayback
@@ -24,6 +25,7 @@ function createInitialCursor(): ReplayCursor {
 export function useReplayRuntime({ session }: { session: ReplaySession | null }) {
   const [cursor, setCursor] = useState<ReplayCursor>(() => createInitialCursor());
   const [inspectedStepIndex, setInspectedStepIndex] = useState<number | null>(null);
+  const [inspectRequestId, setInspectRequestId] = useState(0);
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -41,6 +43,7 @@ export function useReplayRuntime({ session }: { session: ReplaySession | null })
     }
     setCursor(createInitialCursor());
     setInspectedStepIndex(null);
+    setInspectRequestId(0);
   }, [session]);
 
   useEffect(() => {
@@ -164,6 +167,29 @@ export function useReplayRuntime({ session }: { session: ReplaySession | null })
 
   function inspectStep(stepIndex: number) {
     setInspectedStepIndex(stepIndex);
+    setInspectRequestId((current) => current + 1);
+  }
+
+  function finishReplay() {
+    const replayableStepIndices = getReplayableStepIndices(session);
+    const lastRawStepIndex = replayableStepIndices[replayableStepIndices.length - 1] ?? null;
+    if (lastRawStepIndex === null) {
+      return;
+    }
+
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+
+    const now = Date.now();
+    setCursor((current) => ({
+      ...current,
+      stepIndex: lastRawStepIndex,
+      status: 'completed',
+      startedAtMs: current.startedAtMs ?? now,
+      lastAdvancedAtMs: now
+    }));
   }
 
   function restart() {
@@ -173,10 +199,12 @@ export function useReplayRuntime({ session }: { session: ReplaySession | null })
     }
     setCursor(createInitialCursor());
     setInspectedStepIndex(null);
+    setInspectRequestId(0);
   }
 
   return {
     cursor,
+    inspectRequestId,
     answerContainers: presentation.answerContainers,
     controlState: presentation.controlState,
     transcriptBlocks: presentation.transcriptBlocks,
@@ -189,6 +217,7 @@ export function useReplayRuntime({ session }: { session: ReplaySession | null })
     nextStep,
     seekToStep,
     inspectStep,
+    finishReplay,
     restart
   };
 }
