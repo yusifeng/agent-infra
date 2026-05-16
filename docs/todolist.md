@@ -14,8 +14,8 @@
 ### 0.2 Goals
 - [x] Remove client-only auth gating from the chat shell and observability entry path so protected routes can reject or redirect before the main console bootstraps.
 - [x] Add explicit route loading/error boundaries for the authenticated shell and share/auth pages where async work currently falls through to blank or generic behavior.
-- [ ] Reduce `use-durable-chat-runtime.ts` complexity by extracting bounded controllers/hooks without changing durable chat semantics.
-- [ ] Keep the optimization pass focused on validated bottlenecks and avoid speculative framework churn.
+- [x] Reduce `use-durable-chat-runtime.ts` complexity by extracting bounded controllers/hooks without changing durable chat semantics.
+- [x] Keep the optimization pass focused on validated bottlenecks and avoid speculative framework churn.
 
 ### 0.3 Non-goals
 - [x] Do not introduce shared auth abstractions into `packages/*`.
@@ -54,7 +54,7 @@
 ## 3. Frontend Boundary
 
 ### 3.1 Runtime
-- [ ] Split `use-durable-chat-runtime.ts` along existing architecture boundaries rather than by arbitrary file size.
+- [x] Split `use-durable-chat-runtime.ts` along existing architecture boundaries rather than by arbitrary file size.
 - [x] Extract one bounded slice first, prove that tests and behavior remain stable, then continue with the next slice.
 - [x] Preserve current durable chat semantics for thread switching, message pagination, send/reconcile, attach stream recovery, and share dialog state.
 
@@ -62,7 +62,7 @@
 - [x] Remove or reduce `AuthShellGate` responsibility once protected routes are enforced before client bootstrap.
 - [x] Add authenticated-shell `loading.tsx` and `error.tsx` boundaries with minimal but explicit UX.
 - [x] Add auth page Suspense fallback UI instead of `fallback={null}`.
-- [ ] Evaluate whether any additional component memoization is justified after runtime extraction and profiler evidence, not before.
+- [x] Evaluate whether any additional component memoization is justified after runtime extraction and profiler evidence, not before. Decision: no additional memoization in this pass without profiler evidence of a remaining hot component bottleneck.
 
 ## 4. Tests
 
@@ -75,10 +75,10 @@
 - [x] Run the narrowest `playground-next-web` verification for chat shell behavior after each extraction slice.
 
 ### 4.3 Manual verification
-- [ ] Verify unauthenticated navigation to `/new`, `/chat/:threadId`, `/replay/:threadId`, and `/observability` redirects correctly.
-- [ ] Verify authenticated load no longer shows the current client-side auth flash.
-- [ ] Verify loading/error boundaries appear for the expected routes.
-- [ ] Verify chat send, thread switch, replay, and share flows still work after runtime extraction.
+- [x] Verify unauthenticated navigation to `/new`, `/chat/:threadId`, `/replay/:threadId`, and `/observability` redirects correctly.
+- [x] Verify authenticated load no longer shows the current client-side auth flash.
+- [x] Verify loading/error boundaries appear for the expected routes.
+- [x] Verify chat send, thread switch, replay, and share flows still work after runtime extraction.
 
 ## 5. Recommended Execution Order
 
@@ -102,7 +102,7 @@
 - [x] Commit the slice before continuing if clean.
 
 ### Loop 4
-- [ ] Continue runtime extraction in bounded slices until the remaining root hook is a composition layer rather than the main state machine.
-- [ ] Run targeted verification for each extraction slice.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Re-evaluate whether any memoization or callback-stability follow-up is still justified after the structural work lands.
+- [x] Continue runtime extraction in bounded slices until the remaining root hook is a composition layer rather than the main state machine.
+- [x] Run targeted verification for each extraction slice.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Re-evaluate whether any memoization or callback-stability follow-up is still justified after the structural work lands. Decision: no follow-up change in this pass without profiler evidence or a concrete callback-stability bug.
