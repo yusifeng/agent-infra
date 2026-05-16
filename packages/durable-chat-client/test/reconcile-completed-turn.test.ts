@@ -85,7 +85,7 @@ describe('runReconcileCompletedTurn', () => {
       setActiveResponseRun: createSetterSpy<RunDto | null>(),
       setChatPhase: createSetterSpy<'idle' | 'thinking' | 'streaming' | 'transcript-final' | 'failed'>(),
       setError: createSetterSpy<string | null>(),
-      setLiveAssistantDraft: createSetterSpy<null>(),
+      setLiveAssistantDraft: createSetterSpy<any>(),
       setLoadingThreadId: createSetterSpy<string | null>(),
       setMessages: createSetterSpy<MessageDto[]>(),
       setMessagePageInfo: createSetterSpy<{
@@ -146,7 +146,8 @@ describe('runReconcileCompletedTurn', () => {
     });
     expect(actions.setActiveResponseRun).toHaveBeenCalledWith(null);
     expect(actions.setOptimisticUserMessage).toHaveBeenCalledWith(null);
-    expect(actions.setLiveAssistantDraft).toHaveBeenCalledWith(null);
+    const nextDraft = resolveUpdater(actions.setLiveAssistantDraft.mock.calls[0]?.[0], null);
+    expect(nextDraft).toBeNull();
   });
 
   it('preserves existing message identity when reconciling without page info', async () => {
@@ -376,5 +377,98 @@ describe('runReconcileCompletedTurn', () => {
     expect(actions.setMessages).toHaveBeenCalledWith([createMessage('message-1', 1), durableAssistantMessage]);
     expect(nextDraft).toBeNull();
     expect(actions.setOptimisticUserMessage).not.toHaveBeenCalled();
+  });
+
+  it('keeps a current live draft when completed reconcile has not loaded durable assistant content yet', async () => {
+    fetchThreadMessagesResponseMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        messages: [],
+        pageInfo: {
+          hasOlder: true,
+          hasNewer: false,
+          startCursor: null,
+          endCursor: null
+        },
+        activeRun: null
+      }
+    });
+
+    const actions = {
+      setActiveResponseRun: createSetterSpy<RunDto | null>(),
+      setChatPhase: createSetterSpy<'idle' | 'thinking' | 'streaming' | 'transcript-final' | 'failed'>(),
+      setError: createSetterSpy<string | null>(),
+      setLiveAssistantDraft: createSetterSpy<any>(),
+      setLoadingThreadId: createSetterSpy<string | null>(),
+      setMessages: createSetterSpy<MessageDto[]>(),
+      setMessagePageInfo: createSetterSpy<{
+        hasOlder: boolean;
+        hasNewer: boolean;
+        startCursor: string | null;
+        endCursor: string | null;
+      } | null>(),
+      setOptimisticUserMessage: createSetterSpy<MessageDto | null>(),
+      setPersistingTurn: createSetterSpy<boolean>(),
+      setRecentRuns: createSetterSpy<never[]>(),
+      setRecentRunsError: createSetterSpy<string | null>(),
+      setRecentRunsLoading: createSetterSpy<boolean>(),
+      setSelectedRunId: createSetterSpy<string | null>(),
+      setTimeline: createSetterSpy<null>(),
+      setTimelineError: createSetterSpy<string | null>(),
+      setTimelineLoading: createSetterSpy<boolean>()
+    };
+
+    await runReconcileCompletedTurn({
+      threadId: 'thread-1',
+      preferredRunId: 'run-1',
+      requestId: 4,
+      state: {
+        messages: [createMessage('message-1', 1)],
+        pageInfo: {
+          hasOlder: false,
+          hasNewer: false,
+          startCursor: 'cursor-1',
+          endCursor: 'cursor-1'
+        }
+      },
+      refs: {
+        activeThreadIdRef: { current: 'thread-1' },
+        logOpenRef: { current: false },
+        reconcileRequestIdRef: { current: 0 },
+        selectedRunIdRef: { current: null },
+        sendRequestIdRef: { current: 4 }
+      },
+      actions
+    });
+
+    const currentDraft = {
+      runId: 'run-1',
+      messageId: 'assistant-live',
+      source: 'restored',
+      committedText: 'still visible',
+      partialText: 'still visible',
+      segmentText: 'still visible',
+      segmentTextMessageId: 'assistant-live',
+      partialReasoning: null,
+      segmentReasoningMessageId: null,
+      activeTools: [],
+      eventType: 'text_end',
+      segments: [
+        {
+          id: 'assistant-live:0',
+          messageId: 'assistant-live',
+          text: 'still visible',
+          reasoning: null,
+          tools: [],
+          eventType: 'text_end'
+        }
+      ]
+    };
+    const nextDraft = resolveUpdater(actions.setLiveAssistantDraft.mock.calls[0]?.[0], currentDraft);
+
+    expect(actions.setMessages).toHaveBeenCalledWith([createMessage('message-1', 1)]);
+    expect(actions.setOptimisticUserMessage).toHaveBeenCalledWith(null);
+    expect(nextDraft).toBe(currentDraft);
   });
 });

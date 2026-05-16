@@ -139,20 +139,18 @@ export async function runReconcileCompletedTurn({
       actions.setActiveResponseRun(messagesResult.data.activeRun ?? null);
       if (isCurrentSend()) {
         actions.setOptimisticUserMessage(null);
-        actions.setLiveAssistantDraft(null);
-      } else {
-        actions.setLiveAssistantDraft((current) => {
-          if (!current?.runId) {
-            return current;
-          }
-
-          const hasPersistedAssistantForLiveRun = reconciledMessages.some(
-            (message) => message.runId === current.runId && assistantMessageHasVisibleContent(message)
-          );
-
-          return hasPersistedAssistantForLiveRun ? null : current;
-        });
       }
+      actions.setLiveAssistantDraft((current) => {
+        if (!current?.runId) {
+          return current;
+        }
+
+        const hasPersistedAssistantForLiveRun = reconciledMessages.some(
+          (message) => message.runId === current.runId && assistantMessageHasVisibleContent(message)
+        );
+
+        return hasPersistedAssistantForLiveRun ? null : current;
+      });
     }
 
     if (inspectorEnabled) {
