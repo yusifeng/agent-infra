@@ -45,6 +45,10 @@ export function wrapCodeBlock(codeHtml: string) {
   return `<div data-component="markdown-code">${codeHtml}<button type="button" data-copy-code aria-label="Copy code" title="Copy code">Copy</button></div>`;
 }
 
+export function wrapFallbackCodeBlocks(html: string) {
+  return html.replace(new RegExp(CODE_BLOCK_PATTERN, 'g'), (full) => wrapCodeBlock(full));
+}
+
 export async function highlightCodeBlocks(
   html: string,
   getShikiRuntime: () => Promise<MarkdownShikiRuntime>
@@ -60,7 +64,7 @@ export async function highlightCodeBlocks(
   try {
     runtime = await getShikiRuntime();
   } catch {
-    return html.replace(new RegExp(CODE_BLOCK_PATTERN, 'g'), (full) => wrapCodeBlock(full));
+    return wrapFallbackCodeBlocks(html);
   }
 
   let result = '';

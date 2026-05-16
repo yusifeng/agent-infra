@@ -2,7 +2,7 @@
 
 import DOMPurify, { type Config as DOMPurifyConfig } from 'dompurify';
 import type { MarkdownShikiRuntime } from './markdown-shiki-runtime';
-import { CODE_BLOCK_PATTERN, escapeHtml, highlightCodeBlocks, parseMarkdown } from './markdown-core';
+import { CODE_BLOCK_PATTERN, escapeHtml, highlightCodeBlocks, parseMarkdown, wrapFallbackCodeBlocks } from './markdown-core';
 
 export type MarkdownCacheEntry = {
   hash: string;
@@ -161,9 +161,10 @@ export function prepareMarkdownRender(args: { text: string; cacheKey?: string })
   }
 
   const rawHtml = parseMarkdown(args.text);
-  const safeBaseHtml = cached?.baseHtml ?? sanitizeMarkdownHtml(rawHtml);
   const hasCodeBlocks =
     typeof cached?.hasCodeBlocks === 'boolean' ? cached.hasCodeBlocks : HAS_CODE_BLOCK_REGEX.test(rawHtml);
+  const baseHtml = hasCodeBlocks ? wrapFallbackCodeBlocks(rawHtml) : rawHtml;
+  const safeBaseHtml = cached?.baseHtml ?? sanitizeMarkdownHtml(baseHtml);
 
   return {
     key,

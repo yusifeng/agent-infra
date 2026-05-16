@@ -1,1 +1,1 @@
-export const SHIKI_THEME = 'github-light';
+export const SHIKI_THEME = 'github-dark';

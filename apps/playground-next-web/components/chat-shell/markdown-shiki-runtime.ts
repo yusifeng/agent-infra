@@ -72,7 +72,7 @@ export async function createMarkdownShikiRuntime(): Promise<MarkdownShikiRuntime
   const [{ createHighlighterCore }, { createJavaScriptRegexEngine }, themeModule] = await Promise.all([
     import('shiki/core'),
     import('shiki/engine/javascript'),
-    import('shiki/themes/github-light.mjs')
+    import('shiki/themes/github-dark.mjs')
   ]);
 
   const highlighter = (await createHighlighterCore({
