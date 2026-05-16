@@ -183,8 +183,19 @@
 - `service` 负责纯逻辑，例如消息合并、run 选择、chat phase 决策
 - `runtime` 负责 router/history、副作用编排、abort controller、viewport 行为
 - `runtime/controllers` 承载已拆出的运行时编排 seam，例如 stream lifecycle、thread load/navigation、inspector hydration、route/load 决策
+- `runtime/chat-runtime-view-model.ts` 承载从 runtime state 到 UI props 的纯派生逻辑，例如当前 thread title、response status、transcript projection、answer containers、send disabled 与 mode presentation
+- `runtime/controllers/send-reconcile-controller.ts` 承载发送完成后的局部 reconcile 编排，保持 abort controller 与 stream ownership 留在 root runtime hook
 - `ui/messages` 承载 durable chat 的消息列表 composition 与 leaf message components
+- `ui/messages/message-list.tsx` 负责消息列表 composition；已验证的 leaf UI 可以继续拆到同目录小文件，但不要把 service-like 决策复制进 JSX
 - `components/chat-shell/*` 继续承载 shell/header/sidebar/composer/dialog、markdown renderer 与共享视觉 primitives，不直接解析未知输入，也不直接持有复杂 fetch/stream 状态机
+
+当前 app-local regression gate 是：
+
+- `pnpm --filter playground-next-web test` 覆盖 route/service/controller/component smoke
+- `pnpm --filter playground-next-web typecheck` 覆盖 Next consumer 类型边界
+- `pnpm --filter playground-next-web smoke:chat` 覆盖 thread 切换无中心 loading interstitial、known-title 不显示 thread id、stream reconnect 后 persisted assistant 内容可见、markdown code wrapper 稳定性
+
+`smoke:chat` 仍然是 jsdom/Vitest 的 deterministic smoke，不依赖 live provider，也不替代真实浏览器手测。原生拖拽选区这类浏览器行为继续由 viewport hook 测试兜住核心状态机，只有在引入可靠浏览器 runner 后才提升为真实 browser smoke。
 
 其中已被证明可复用的 browser-side 能力，当前已上移到 `@agent-infra/durable-chat-client`：
 

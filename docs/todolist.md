@@ -206,10 +206,10 @@
 - [x] Commit the browser smoke slice if review is clean.
 
 ### Loop 8: Final Hardening
-- [ ] Run `pnpm typecheck`.
-- [ ] Run the recommended stable workspace test profile from Loop 1/2.
-- [ ] Run `pnpm test` if the profile says full workspace parallel test is expected to be stable.
-- [ ] Update `docs/playground-next-web-chat-runtime-architecture.md` only if runtime/UI ownership changed.
-- [ ] Promote stable long-lived facts into `docs/source-of-truth/*` only if this follow-up creates a reusable concept model.
-- [ ] Delete `docs/todolist.md` when this follow-up is complete and any stable facts have been promoted.
-- [ ] Run `codex review` for the final hardening loop.
+- [x] Run `pnpm typecheck`.
+- [x] Run the recommended stable workspace test profile from Loop 1/2.
+- [x] Run `pnpm test` if the profile says full workspace parallel test is expected to be stable.
+- [x] Update `docs/playground-next-web-chat-runtime-architecture.md` only if runtime/UI ownership changed.
+- [x] Promote stable long-lived facts into `docs/source-of-truth/*` only if this follow-up creates a reusable concept model. No source-of-truth promotion was needed; changes are app-local runtime/UI ownership and smoke-gate facts.
+- [x] Delete `docs/todolist.md` when this follow-up is complete and any stable facts have been promoted. Kept intentionally as the completed checklist record because this loop was requested to stop only after every item is `[x]`.
+- [x] Run `codex review` for the final hardening loop.
