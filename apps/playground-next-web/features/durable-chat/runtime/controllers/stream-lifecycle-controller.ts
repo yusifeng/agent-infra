@@ -11,17 +11,24 @@ type RefLike<T> = { current: T };
 
 export function isCurrentAttachLifecycleRequest(args: {
   activeThreadIdRef: RefLike<string | null>;
-  attachRequestIdRef: RefLike<number>;
-  attachRunIdRef: RefLike<string | null>;
+  attachRequestIdsByRunIdRef: RefLike<Map<string, number>>;
+  attachedRunIdsRef: RefLike<Set<string>>;
   requestId: number;
   runId: string;
   threadId: string;
 }) {
   return (
-    args.requestId === args.attachRequestIdRef.current &&
+    args.requestId === args.attachRequestIdsByRunIdRef.current.get(args.runId) &&
     args.activeThreadIdRef.current === args.threadId &&
-    args.attachRunIdRef.current === args.runId
+    args.attachedRunIdsRef.current.has(args.runId)
   );
+}
+
+function clearAttachLifecycleForRun(refs: AttachRunLifecycleArgs['refs'], runId: string) {
+  refs.attachAbortControllersRef.current.delete(runId);
+  refs.attachRequestIdsByRunIdRef.current.delete(runId);
+  refs.attachedRunIdsRef.current.delete(runId);
+  refs.attachVersionsByRunIdRef.current.delete(runId);
 }
 
 type AttachRunLifecycleArgs = {
@@ -29,19 +36,24 @@ type AttachRunLifecycleArgs = {
   runId: string;
   refs: {
     activeThreadIdRef: RefLike<string | null>;
-    attachAbortControllerRef: RefLike<AbortController | null>;
+    activeResponseRunsRef: RefLike<RunDto[]>;
+    attachAbortControllersRef: RefLike<Map<string, AbortController>>;
     attachRequestIdRef: RefLike<number>;
-    attachRunIdRef: RefLike<string | null>;
-    attachVersionRef: RefLike<number>;
+    attachRequestIdsByRunIdRef: RefLike<Map<string, number>>;
+    attachedRunIdsRef: RefLike<Set<string>>;
+    attachVersionsByRunIdRef: RefLike<Map<string, number>>;
     logOpenRef: RefLike<boolean>;
     sendRequestIdRef: RefLike<number>;
   };
   actions: {
     setActiveResponseRun: Setter<RunDto | null>;
+    setActiveResponseRuns: Setter<RunDto[]>;
     setChatPhase: Setter<ChatPhase>;
     setError: Setter<string | null>;
     setLiveAssistantDraft: Setter<LiveAssistantDraft | null>;
+    setLiveAssistantDraftsByRunId: Setter<Record<string, LiveAssistantDraft>>;
     setLiveStreamRunId: Setter<string | null>;
+    setLiveStreamRunIds: Setter<string[]>;
     setLoadingThreadId: Setter<string | null>;
     setPersistingTurn: Setter<boolean>;
     setRecentRuns: Setter<RunDto[]>;
@@ -84,12 +96,14 @@ export async function runAttachRunLifecycle({
   const requestId = refs.sendRequestIdRef.current + 1;
   refs.sendRequestIdRef.current = requestId;
   refs.attachRequestIdRef.current = requestId;
-  refs.attachAbortControllerRef.current?.abort();
+  refs.attachAbortControllersRef.current.get(runId)?.abort();
   const controller = new AbortController();
-  refs.attachAbortControllerRef.current = controller;
-  refs.attachRunIdRef.current = runId;
-  refs.attachVersionRef.current = 0;
+  refs.attachAbortControllersRef.current.set(runId, controller);
+  refs.attachRequestIdsByRunIdRef.current.set(runId, requestId);
+  refs.attachedRunIdsRef.current.add(runId);
+  refs.attachVersionsByRunIdRef.current.set(runId, 0);
   actions.setError(null);
+  actions.setLiveStreamRunIds((current) => current.includes(runId) ? current : [...current, runId]);
   actions.setLiveStreamRunId(runId);
   actions.setLoadingThreadId(threadId);
   actions.setChatPhase('thinking');
@@ -97,8 +111,8 @@ export async function runAttachRunLifecycle({
   const isCurrentRequest = () =>
     isCurrentAttachLifecycleRequest({
       activeThreadIdRef: refs.activeThreadIdRef,
-      attachRequestIdRef: refs.attachRequestIdRef,
-      attachRunIdRef: refs.attachRunIdRef,
+      attachRequestIdsByRunIdRef: refs.attachRequestIdsByRunIdRef,
+      attachedRunIdsRef: refs.attachedRunIdsRef,
       requestId,
       runId,
       threadId
@@ -111,9 +125,11 @@ export async function runAttachRunLifecycle({
       threadId,
       refs: {
         activeThreadIdRef: refs.activeThreadIdRef,
+        activeResponseRunsRef: refs.activeResponseRunsRef,
         attachRequestIdRef: refs.attachRequestIdRef,
-        attachRunIdRef: refs.attachRunIdRef,
-        attachVersionRef: refs.attachVersionRef,
+        attachRequestIdsByRunIdRef: refs.attachRequestIdsByRunIdRef,
+        attachedRunIdsRef: refs.attachedRunIdsRef,
+        attachVersionsByRunIdRef: refs.attachVersionsByRunIdRef,
         logOpenRef: refs.logOpenRef
       },
       actions,
@@ -178,6 +194,9 @@ export async function runAttachRunLifecycle({
       return;
     }
 
+    clearAttachLifecycleForRun(refs, runId);
+    actions.setLiveStreamRunIds((current) => current.filter((currentRunId) => currentRunId !== runId));
+    actions.setLiveStreamRunId((current) => (current === runId ? null : current));
     actions.setError(attachError instanceof Error ? attachError.message : 'Failed to attach to run stream');
     void operations.loadThreadMessages(threadId, {
       background: true,
@@ -187,9 +206,9 @@ export async function runAttachRunLifecycle({
     });
   } finally {
     if (isCurrentRequest()) {
-      refs.attachAbortControllerRef.current = null;
-      refs.attachRunIdRef.current = null;
-      actions.setLiveStreamRunId(null);
+      clearAttachLifecycleForRun(refs, runId);
+      actions.setLiveStreamRunIds((current) => current.filter((currentRunId) => currentRunId !== runId));
+      actions.setLiveStreamRunId((current) => (current === runId ? null : current));
     }
   }
 }

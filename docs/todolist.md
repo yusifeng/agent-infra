@@ -25,7 +25,7 @@
 - [x] Add canonical transcript projection so non-selected candidates do not pollute future model context.
 - [x] Make message persistence safe when sibling runs write assistant/tool messages concurrently.
 - [ ] Support two simultaneous streaming runs for one user message.
-- [ ] Hydrate and recover multiple active candidate streams after thread/tab switches.
+- [x] Hydrate and recover multiple active candidate streams after thread/tab switches.
 - [ ] Render candidate answers side-by-side in `/chat`, with choose-best and thumbs feedback controls.
 - [x] Keep reusable durable behavior in `packages/*`; keep `apps/playground-next-web` as the validation/UI host.
 - [x] Preserve legacy thread behavior without destructive migration.
@@ -269,17 +269,17 @@
 - [x] Add durable-chat-client tests for interleaved A/B stream events.
 
 ### 3.2 Durable Chat Client Attach / Reconcile Lifecycle
-- [ ] Replace `attachRunIdRef` and `attachAbortControllerRef` with runId-keyed maps or a multi-attach controller.
-- [ ] Replace `attachVersionRef` with runId-keyed version tracking.
-- [ ] Hydrate multiple active runs from thread messages response.
-- [ ] Attach to multiple active run streams after thread switch.
-- [ ] Reconcile completion by `completedRunId`; only clear that run's draft when persisted assistant content for that run exists.
-- [ ] Ensure one candidate completing only clears that candidate's live draft.
-- [ ] Reconcile completed candidate runs without wiping still-streaming candidates.
-- [ ] Stop/detach affects all active candidate attach streams as detach-only; it does not cancel durable candidate runs in v1.
-- [ ] Add tests for one run completing before the other.
-- [ ] Add tests for hydration with multiple active runs.
-- [ ] Add tests for stale attach events from run A not mutating draft/state for run B.
+- [x] Replace `attachRunIdRef` and `attachAbortControllerRef` with runId-keyed maps or a multi-attach controller.
+- [x] Replace `attachVersionRef` with runId-keyed version tracking.
+- [x] Hydrate multiple active runs from thread messages response.
+- [x] Attach to multiple active run streams after thread switch.
+- [x] Reconcile completion by `completedRunId`; only clear that run's draft when persisted assistant content for that run exists.
+- [x] Ensure one candidate completing only clears that candidate's live draft.
+- [x] Reconcile completed candidate runs without wiping still-streaming candidates.
+- [x] Stop/detach affects all active candidate attach streams as detach-only; it does not cancel durable candidate runs in v1.
+- [x] Add tests for one run completing before the other.
+- [x] Add tests for hydration with multiple active runs.
+- [x] Add tests for stale attach events from run A not mutating draft/state for run B.
 
 ### 3.3 Next App Repo / Schema
 - [ ] Update playground chat API schema for new candidate/selection/feedback DTOs.
@@ -371,9 +371,9 @@
 
 ### 4.5 Client / UI Tests
 - [x] `packages/durable-chat-client`: interleaved run events update separate live drafts.
-- [ ] `packages/durable-chat-client`: completing one run leaves the other live.
-- [ ] `packages/durable-chat-client`: hydration attaches multiple active runs.
-- [ ] `packages/durable-chat-client`: stale attach event for A cannot clear B's draft.
+- [x] `packages/durable-chat-client`: completing one run leaves the other live.
+- [x] `packages/durable-chat-client`: hydration attaches multiple active runs.
+- [x] `packages/durable-chat-client`: stale attach event for A cannot clear B's draft.
 - [ ] `apps/playground-next-web`: candidate grouping projection.
 - [ ] `apps/playground-next-web`: side-by-side render smoke.
 - [ ] `apps/playground-next-web`: choose-best action.
@@ -489,16 +489,16 @@
 - [x] Add durable-chat-client tests for old/new response shapes and interleaved events.
 - [x] Run `pnpm --filter @agent-infra/durable-chat-client test`.
 - [x] Run `codex review` for this loop.
-- [ ] Commit this loop after review and verification pass.
+- [x] Commit this loop after review and verification pass.
 
 ### Loop 5B: Durable Chat Client Multi-Attach And Reconcile
-- [ ] Replace single attach refs/controllers with runId-keyed maps.
-- [ ] Replace single attach version with runId-keyed version tracking.
-- [ ] Reconcile one candidate completion without clearing other candidates.
-- [ ] Hydrate and attach multiple active runs after thread switch.
-- [ ] Add stale-event and partial-completion tests.
-- [ ] Run `pnpm --filter @agent-infra/durable-chat-client test`.
-- [ ] Run `codex review` for this loop.
+- [x] Replace single attach refs/controllers with runId-keyed maps.
+- [x] Replace single attach version with runId-keyed version tracking.
+- [x] Reconcile one candidate completion without clearing other candidates.
+- [x] Hydrate and attach multiple active runs after thread switch.
+- [x] Add stale-event and partial-completion tests.
+- [x] Run `pnpm --filter @agent-infra/durable-chat-client test`.
+- [x] Run `codex review` for this loop.
 - [ ] Commit this loop after review and verification pass.
 
 ### Loop 6: Next Chat Presentation And UI

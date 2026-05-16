@@ -9,7 +9,7 @@ import {
   runActivateThread,
   runLoadThreadMessages
 } from '@/features/durable-chat/runtime/load-thread-flow';
-import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
+import type { LiveAssistantDraft, LiveAssistantDraftsByRunId } from '@/features/durable-chat/types/live-assistant-draft';
 import type { ChatPhase, DurableRecoveryState } from '@/features/durable-chat/types/runtime';
 
 type Updater<T> = T | ((current: T) => T);
@@ -25,10 +25,12 @@ export type ThreadLoadOptions = {
 
 type ThreadLoadControllerActions = {
   setActiveResponseRun: Setter<RunDto | null>;
+  setActiveResponseRuns: Setter<RunDto[]>;
   setChatPhase: Setter<ChatPhase>;
   setError: Setter<string | null>;
   setHistoryLoading: Setter<boolean>;
   setLiveAssistantDraft: Setter<LiveAssistantDraft | null>;
+  setLiveAssistantDraftsByRunId: Setter<LiveAssistantDraftsByRunId>;
   setLoadingMessages: Setter<boolean>;
   setMessagePageInfo: Setter<ThreadMessagesPageInfoDto | null>;
   setMessages: Setter<MessageDto[]>;
@@ -65,11 +67,12 @@ export async function runLoadThreadMessagesController(args: {
     refs: args.refs,
     actions: args.actions,
     operations: {
-      applyHydratedTranscript: ({ messages, pageInfo, activeResponseRun, selectedRunId, runs }) =>
+      applyHydratedTranscript: ({ messages, pageInfo, activeResponseRun, activeResponseRuns, selectedRunId, runs }) =>
         applyHydratedTranscriptState({
           messages,
           pageInfo,
           activeResponseRun,
+          activeResponseRuns,
           selectedRunId,
           runs,
           actions: args.actions

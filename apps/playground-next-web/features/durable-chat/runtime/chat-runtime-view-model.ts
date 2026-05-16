@@ -1,5 +1,6 @@
 import type {
   MessageDto,
+  RunDto,
   RunTimelineResponseDto,
   RuntimePiMetaDto,
   ThreadMessagesPageInfoDto
@@ -18,6 +19,7 @@ import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assi
 
 export type ChatRuntimeViewModelInput = {
   activeResponseRun: RunTimelineResponseDto['run'];
+  activeResponseRuns?: RunDto[];
   activeThreadId: string | null;
   chatPhase: ChatPhase;
   draft: string;
@@ -54,6 +56,7 @@ export function buildChatRuntimeViewModel(input: ChatRuntimeViewModelInput) {
   const currentThreadPinned = activeThread?.pinned === true;
   const responseStatus = deriveMainChatResponseStatus({
     activeResponseRun: input.activeResponseRun,
+    activeResponseRuns: input.activeResponseRuns,
     activeThreadId: input.activeThreadId,
     loadingThreadId: input.loadingThreadId,
     chatPhase: input.chatPhase,

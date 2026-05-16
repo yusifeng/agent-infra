@@ -39,6 +39,22 @@ function createMessage(id: string, seq: number): MessageDto {
   };
 }
 
+function createRun(id: string, status: RunDto['status'] = 'running'): RunDto {
+  return {
+    id,
+    threadId: 'thread-1',
+    triggerMessageId: 'message-user',
+    provider: 'openai',
+    model: 'gpt-4o-mini',
+    status,
+    usage: null,
+    error: null,
+    startedAt: null,
+    finishedAt: status === 'completed' || status === 'failed' ? '2026-01-01T00:00:02.000Z' : null,
+    createdAt: '2026-01-01T00:00:00.000Z'
+  };
+}
+
 function createVisibleAssistantMessage(id: string, seq: number, runId = 'run-1'): MessageDto {
   return {
     ...createMessage(id, seq),
@@ -578,5 +594,73 @@ describe('runReconcileCompletedTurn', () => {
 
     expect(actions.setMessages).toHaveBeenCalledWith([createMessage('message-1', 1), emptyAssistantShell]);
     expect(nextDraft).toBe(currentDraft);
+  });
+
+  it('does not settle global chat state while another candidate run remains active', async () => {
+    const activeRun = createRun('run-b', 'running');
+    fetchThreadMessagesResponseMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        messages: [createVisibleAssistantMessage('assistant-a', 2, 'run-a')],
+        pageInfo: {
+          hasOlder: false,
+          hasNewer: false,
+          startCursor: 'cursor-1',
+          endCursor: 'cursor-2'
+        },
+        activeRun,
+        activeRuns: [activeRun]
+      }
+    });
+
+    const actions = {
+      setActiveResponseRun: createSetterSpy<RunDto | null>(),
+      setActiveResponseRuns: createSetterSpy<RunDto[]>(),
+      setChatPhase: createSetterSpy<'idle' | 'thinking' | 'streaming' | 'transcript-final' | 'failed'>(),
+      setError: createSetterSpy<string | null>(),
+      setLiveAssistantDraft: createSetterSpy<any>(),
+      setLiveAssistantDraftsByRunId: createSetterSpy<Record<string, any>>(),
+      setLoadingThreadId: createSetterSpy<string | null>(),
+      setMessages: createSetterSpy<MessageDto[]>(),
+      setMessagePageInfo: createSetterSpy<{
+        hasOlder: boolean;
+        hasNewer: boolean;
+        startCursor: string | null;
+        endCursor: string | null;
+      } | null>(),
+      setOptimisticUserMessage: createSetterSpy<MessageDto | null>(),
+      setPersistingTurn: createSetterSpy<boolean>(),
+      setRecentRuns: createSetterSpy<never[]>(),
+      setRecentRunsError: createSetterSpy<string | null>(),
+      setRecentRunsLoading: createSetterSpy<boolean>(),
+      setSelectedRunId: createSetterSpy<string | null>(),
+      setTimeline: createSetterSpy<null>(),
+      setTimelineError: createSetterSpy<string | null>(),
+      setTimelineLoading: createSetterSpy<boolean>()
+    };
+
+    await runReconcileCompletedTurn({
+      threadId: 'thread-1',
+      preferredRunId: 'run-a',
+      requestId: 4,
+      state: {
+        messages: [createMessage('message-user', 1)],
+        pageInfo: null
+      },
+      refs: {
+        activeThreadIdRef: { current: 'thread-1' },
+        logOpenRef: { current: false },
+        reconcileRequestIdRef: { current: 0 },
+        selectedRunIdRef: { current: null },
+        sendRequestIdRef: { current: 4 }
+      },
+      actions
+    });
+
+    expect(actions.setActiveResponseRuns).toHaveBeenCalledWith([activeRun]);
+    expect(actions.setPersistingTurn).not.toHaveBeenCalled();
+    expect(actions.setChatPhase).not.toHaveBeenCalled();
+    expect(actions.setLoadingThreadId).not.toHaveBeenCalled();
   });
 });

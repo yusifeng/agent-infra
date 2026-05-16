@@ -43,10 +43,13 @@ function resolveUpdater<T>(value: Updater<T>, current: T) {
 function createHarness(overrides: { attachRunId?: string | null; attachVersion?: number } = {}) {
   const state = {
     activeResponseRun: undefined as RunDto | null | undefined,
+    activeResponseRuns: [] as RunDto[],
     chatPhase: undefined as ChatPhase | undefined,
     error: undefined as string | null | undefined,
     liveAssistantDraft: null as LiveAssistantDraft | null,
+    liveAssistantDraftsByRunId: {} as Record<string, LiveAssistantDraft>,
     liveStreamRunId: undefined as string | null | undefined,
+    liveStreamRunIds: [] as string[],
     loadingThreadId: undefined as string | null | undefined,
     persistingTurn: undefined as boolean | undefined,
     recentRuns: [] as RunDto[]
@@ -58,6 +61,9 @@ function createHarness(overrides: { attachRunId?: string | null; attachVersion?:
       setActiveResponseRun: vi.fn((next: Updater<RunDto | null>) => {
         state.activeResponseRun = resolveUpdater(next, state.activeResponseRun ?? null);
       }),
+      setActiveResponseRuns: vi.fn((next: Updater<RunDto[]>) => {
+        state.activeResponseRuns = resolveUpdater(next, state.activeResponseRuns);
+      }),
       setChatPhase: vi.fn((next: Updater<ChatPhase>) => {
         state.chatPhase = resolveUpdater(next, state.chatPhase ?? 'idle');
       }),
@@ -67,8 +73,14 @@ function createHarness(overrides: { attachRunId?: string | null; attachVersion?:
       setLiveAssistantDraft: vi.fn((next: Updater<LiveAssistantDraft | null>) => {
         state.liveAssistantDraft = resolveUpdater(next, state.liveAssistantDraft);
       }),
+      setLiveAssistantDraftsByRunId: vi.fn((next: Updater<Record<string, LiveAssistantDraft>>) => {
+        state.liveAssistantDraftsByRunId = resolveUpdater(next, state.liveAssistantDraftsByRunId);
+      }),
       setLiveStreamRunId: vi.fn((next: Updater<string | null>) => {
         state.liveStreamRunId = resolveUpdater(next, state.liveStreamRunId ?? null);
+      }),
+      setLiveStreamRunIds: vi.fn((next: Updater<string[]>) => {
+        state.liveStreamRunIds = resolveUpdater(next, state.liveStreamRunIds);
       }),
       setLoadingThreadId: vi.fn((next: Updater<string | null>) => {
         state.loadingThreadId = resolveUpdater(next, state.loadingThreadId ?? null);
@@ -85,9 +97,11 @@ function createHarness(overrides: { attachRunId?: string | null; attachVersion?:
       reconcileCompletedTurn
     },
     refs: {
+      activeResponseRunsRef: { current: [] as RunDto[] },
       attachRequestIdRef: { current: 7 },
-      attachRunIdRef: { current: overrides.attachRunId ?? 'run-1' },
-      attachVersionRef: { current: overrides.attachVersion ?? 0 },
+      attachRequestIdsByRunIdRef: { current: new Map([[overrides.attachRunId ?? 'run-1', 7]]) },
+      attachedRunIdsRef: { current: new Set([overrides.attachRunId ?? 'run-1']) },
+      attachVersionsByRunIdRef: { current: new Map([[overrides.attachRunId ?? 'run-1', overrides.attachVersion ?? 0]]) },
       activeThreadIdRef: { current: 'thread-1' },
       logOpenRef: { current: true }
     },
@@ -121,9 +135,10 @@ describe('applyAttachRunEvent', () => {
     const { harness, terminal } = apply(createSnapshot());
 
     expect(terminal).toBe(false);
-    expect(harness.refs.attachVersionRef.current).toBe(1);
+    expect(harness.refs.attachVersionsByRunIdRef.current.get('run-1')).toBe(1);
     expect(harness.state.liveStreamRunId).toBe('run-1');
     expect(harness.state.activeResponseRun?.id).toBe('run-1');
+    expect(harness.state.activeResponseRuns.map((run) => run.id)).toEqual(['run-1']);
     expect(harness.state.loadingThreadId).toBe('thread-1');
     expect(harness.state.liveAssistantDraft).toBeNull();
     expect(harness.state.chatPhase).toBe('thinking');
@@ -202,9 +217,41 @@ describe('applyAttachRunEvent', () => {
     expect(harness.operations.reconcileCompletedTurn).toHaveBeenCalledWith('thread-1', 'run-1', 7);
   });
 
+  it('completes one attached candidate without clearing another live candidate', () => {
+    const harness = createHarness();
+    const runA = createRun({ id: 'run-a' });
+    const runB = createRun({ id: 'run-b' });
+    harness.refs.activeResponseRunsRef.current = [runA, runB];
+    harness.refs.attachRequestIdsByRunIdRef.current = new Map([['run-a', 7]]);
+    harness.refs.attachedRunIdsRef.current = new Set(['run-a', 'run-b']);
+    harness.refs.attachVersionsByRunIdRef.current = new Map([['run-a', 2], ['run-b', 3]]);
+    harness.state.activeResponseRuns = [runA, runB];
+    harness.state.liveStreamRunIds = ['run-a', 'run-b'];
+    harness.state.loadingThreadId = 'thread-1';
+    harness.state.chatPhase = 'streaming';
+
+    const { terminal } = apply(
+      {
+        type: 'run.completed',
+        runId: 'run-a',
+        run: createRun({ id: 'run-a', status: 'completed', finishedAt: '2026-01-01T00:00:01.000Z' }),
+        version: 3
+      },
+      harness
+    );
+
+    expect(terminal).toBe(true);
+    expect(harness.state.activeResponseRuns.map((run) => run.id)).toEqual(['run-b']);
+    expect(harness.state.liveStreamRunIds).toEqual(['run-b']);
+    expect(harness.state.loadingThreadId).toBe('thread-1');
+    expect(harness.state.persistingTurn).toBe(false);
+    expect(harness.state.chatPhase).toBe('thinking');
+    expect(harness.operations.reconcileCompletedTurn).toHaveBeenCalledWith('thread-1', 'run-a', 7);
+  });
+
   it('ignores completed events from stale attach requests without clearing current live state', () => {
     const harness = createHarness();
-    harness.refs.attachRequestIdRef.current = 8;
+    harness.refs.attachRequestIdsByRunIdRef.current.set('run-1', 8);
     harness.state.liveStreamRunId = 'run-current';
     harness.state.loadingThreadId = 'thread-current';
     harness.state.persistingTurn = false;

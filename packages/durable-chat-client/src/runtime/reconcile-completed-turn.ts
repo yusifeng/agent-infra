@@ -96,6 +96,7 @@ export async function runReconcileCompletedTurn({
   let reconciledPageInfo = state.pageInfo;
   const reconcileStartedAtMs = performance.now();
   let reconcileCompletedWithoutError = false;
+  let hasActiveRunsAfterReconcile = false;
 
   try {
     {
@@ -138,8 +139,10 @@ export async function runReconcileCompletedTurn({
       });
       actions.setMessages(reconciledMessages);
       actions.setMessagePageInfo(reconciledPageInfo);
+      const activeResponseRuns = messagesResult.data.activeRuns ?? (messagesResult.data.activeRun ? [messagesResult.data.activeRun] : []);
+      hasActiveRunsAfterReconcile = activeResponseRuns.some((run) => run.status === 'queued' || run.status === 'running');
       actions.setActiveResponseRun(messagesResult.data.activeRun ?? null);
-      actions.setActiveResponseRuns?.(messagesResult.data.activeRuns ?? (messagesResult.data.activeRun ? [messagesResult.data.activeRun] : []));
+      actions.setActiveResponseRuns?.(activeResponseRuns);
       if (isCurrentSend()) {
         actions.setOptimisticUserMessage(null);
       }
@@ -263,7 +266,7 @@ export async function runReconcileCompletedTurn({
       url: `/api/threads/${threadId}/messages`
     });
     reconcileController.abort();
-    if (requestId === refs.sendRequestIdRef.current) {
+    if (requestId === refs.sendRequestIdRef.current && !hasActiveRunsAfterReconcile) {
       actions.setPersistingTurn(false);
       actions.setChatPhase(resolvePostReconcileChatPhase);
       actions.setLoadingThreadId(null);

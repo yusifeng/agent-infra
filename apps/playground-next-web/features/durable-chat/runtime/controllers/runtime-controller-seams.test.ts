@@ -56,25 +56,26 @@ describe('runtime controller seams', () => {
     expect(resolveActiveRunAttachDecision({
       activeThreadId: 'thread-1',
       activeResponseRun: createRun(),
-      attachedRunId: null,
+      attachedRunIds: [],
       sendInFlight: false
     })).toEqual({
-      type: 'attach',
+      type: 'sync',
       threadId: 'thread-1',
-      runId: 'run-1'
+      abortRunIds: [],
+      attachRunIds: ['run-1']
     });
 
     expect(resolveActiveRunAttachDecision({
       activeThreadId: 'thread-1',
       activeResponseRun: createRun(),
-      attachedRunId: null,
+      attachedRunIds: [],
       sendInFlight: true
     })).toEqual({ type: 'idle' });
 
     expect(resolveActiveRunAttachDecision({
       activeThreadId: 'thread-1',
       activeResponseRun: createRun(),
-      attachedRunId: 'run-1',
+      attachedRunIds: ['run-1'],
       sendInFlight: false
     })).toEqual({ type: 'idle' });
   });
@@ -83,23 +84,40 @@ describe('runtime controller seams', () => {
     expect(resolveActiveRunAttachDecision({
       activeThreadId: 'thread-2',
       activeResponseRun: createRun(),
-      attachedRunId: 'run-1',
+      attachedRunIds: ['run-1'],
       sendInFlight: false
     })).toEqual({ type: 'abort' });
 
     expect(resolveActiveRunAttachDecision({
       activeThreadId: 'thread-1',
       activeResponseRun: createRun({ status: 'completed' }),
-      attachedRunId: 'run-1',
+      attachedRunIds: ['run-1'],
       sendInFlight: false
     })).toEqual({ type: 'abort' });
 
     expect(resolveActiveRunAttachDecision({
       activeThreadId: null,
       activeResponseRun: createRun(),
-      attachedRunId: 'run-1',
+      attachedRunIds: ['run-1'],
       sendInFlight: false
     })).toEqual({ type: 'abort' });
+  });
+
+  it('syncs multiple active runs against already attached run ids', () => {
+    expect(resolveActiveRunAttachDecision({
+      activeThreadId: 'thread-1',
+      activeResponseRuns: [
+        createRun({ id: 'run-a' }),
+        createRun({ id: 'run-b' })
+      ],
+      attachedRunIds: ['run-a', 'run-stale'],
+      sendInFlight: false
+    })).toEqual({
+      type: 'sync',
+      threadId: 'thread-1',
+      abortRunIds: ['run-stale'],
+      attachRunIds: ['run-b']
+    });
   });
 
   it('keeps an active thread route idle while visible optimistic or live content is still present', () => {

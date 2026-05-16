@@ -5,34 +5,43 @@ import type { ChatPhase } from '@/features/durable-chat/types/runtime';
 
 export type ActiveRunAttachDecision =
   | { type: 'abort' }
-  | { type: 'attach'; threadId: string; runId: string }
+  | { type: 'sync'; threadId: string; abortRunIds: string[]; attachRunIds: string[] }
   | { type: 'idle' };
 
 export function resolveActiveRunAttachDecision(input: {
   activeThreadId: string | null;
-  activeResponseRun: RunDto | null;
-  attachedRunId: string | null;
+  activeResponseRun?: RunDto | null;
+  activeResponseRuns?: RunDto[];
+  attachedRunIds: string[];
   sendInFlight: boolean;
 }): ActiveRunAttachDecision {
-  const run = input.activeResponseRun;
-  const runIsActive = run?.status === 'queued' || run?.status === 'running';
+  const activeRuns = (input.activeResponseRuns ?? (input.activeResponseRun ? [input.activeResponseRun] : []))
+    .filter((run) => run.status === 'queued' || run.status === 'running');
 
-  if (input.activeThreadId && run && run.threadId !== input.activeThreadId) {
+  if (input.activeThreadId && activeRuns.some((run) => run.threadId !== input.activeThreadId)) {
     return { type: 'abort' };
   }
 
-  if (!input.activeThreadId || !run || !runIsActive) {
+  if (!input.activeThreadId || activeRuns.length === 0) {
     return { type: 'abort' };
   }
 
-  if (input.sendInFlight || input.attachedRunId === run.id) {
+  const activeRunIds = new Set(activeRuns.map((run) => run.id));
+  const attachedRunIds = new Set(input.attachedRunIds);
+  const abortRunIds = input.attachedRunIds.filter((runId) => !activeRunIds.has(runId));
+  const attachRunIds = input.sendInFlight
+    ? []
+    : activeRuns.map((run) => run.id).filter((runId) => !attachedRunIds.has(runId));
+
+  if (abortRunIds.length === 0 && attachRunIds.length === 0) {
     return { type: 'idle' };
   }
 
   return {
-    type: 'attach',
+    type: 'sync',
     threadId: input.activeThreadId,
-    runId: run.id
+    abortRunIds,
+    attachRunIds
   };
 }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import type { DurableRecoveryState } from '@agent-infra/durable-chat-client';
+import type { DurableRecoveryState, LiveAssistantDraftsByRunId } from '@agent-infra/durable-chat-client';
 import type { MessageDto, RunDto, RuntimePiMetaDto, ThreadDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
 import { useReducer } from 'react';
 
@@ -13,6 +13,35 @@ type ChatSessionAction = Partial<ChatSessionState> | ((current: ChatSessionState
 
 function resolveNext<T>(current: T, next: Updater<T>) {
   return typeof next === 'function' ? (next as (value: T) => T)(current) : next;
+}
+
+export function selectPrimaryLiveAssistantDraft(
+  state: ChatSessionState,
+  liveAssistantDraftsByRunId: LiveAssistantDraftsByRunId
+) {
+  const preferredRunIds = [
+    state.liveStreamRunId,
+    ...state.liveStreamRunIds,
+    state.activeResponseRun?.id ?? null,
+    ...state.activeResponseRuns.map((run) => run.id)
+  ].filter((runId): runId is string => typeof runId === 'string' && runId.length > 0);
+
+  for (const runId of preferredRunIds) {
+    const draft = liveAssistantDraftsByRunId[runId];
+    if (draft) {
+      return draft;
+    }
+  }
+
+  return null;
+}
+
+export function selectPrimaryActiveResponseRun(state: ChatSessionState, activeResponseRuns: RunDto[]) {
+  if (state.activeResponseRun && activeResponseRuns.some((run) => run.id === state.activeResponseRun?.id)) {
+    return state.activeResponseRun;
+  }
+
+  return activeResponseRuns[0] ?? null;
 }
 
 function chatSessionReducer(state: ChatSessionState, action: ChatSessionAction) {
@@ -45,9 +74,12 @@ function createInitialChatSessionState(): ChatSessionState {
     historyLoading: false,
     error: null,
     liveStreamRunId: null,
+    liveStreamRunIds: [],
     liveAssistantDraft: null,
+    liveAssistantDraftsByRunId: {},
     messagePageInfo: null,
     activeResponseRun: null,
+    activeResponseRuns: [],
     durableRecoveryState: {
       phase: 'idle',
       message: null
@@ -114,14 +146,44 @@ export function useChatSessionController() {
     setLiveStreamRunId: (next: Updater<string | null>) => {
       dispatch((current) => ({ ...current, liveStreamRunId: resolveNext(current.liveStreamRunId, next) }));
     },
+    setLiveStreamRunIds: (next: Updater<string[]>) => {
+      dispatch((current) => {
+        const liveStreamRunIds = resolveNext(current.liveStreamRunIds, next);
+        return {
+          ...current,
+          liveStreamRunIds,
+          liveStreamRunId: liveStreamRunIds[0] ?? null
+        };
+      });
+    },
     setLiveAssistantDraft: (next: Updater<LiveAssistantDraft | null>) => {
       dispatch((current) => ({ ...current, liveAssistantDraft: resolveNext(current.liveAssistantDraft, next) }));
+    },
+    setLiveAssistantDraftsByRunId: (next: Updater<LiveAssistantDraftsByRunId>) => {
+      dispatch((current) => {
+        const liveAssistantDraftsByRunId = resolveNext(current.liveAssistantDraftsByRunId, next);
+        return {
+          ...current,
+          liveAssistantDraftsByRunId,
+          liveAssistantDraft: selectPrimaryLiveAssistantDraft(current, liveAssistantDraftsByRunId)
+        };
+      });
     },
     setMessagePageInfo: (next: Updater<ThreadMessagesPageInfoDto | null>) => {
       dispatch((current) => ({ ...current, messagePageInfo: resolveNext(current.messagePageInfo, next) }));
     },
     setActiveResponseRun: (next: Updater<RunDto | null>) => {
       dispatch((current) => ({ ...current, activeResponseRun: resolveNext(current.activeResponseRun, next) }));
+    },
+    setActiveResponseRuns: (next: Updater<RunDto[]>) => {
+      dispatch((current) => {
+        const activeResponseRuns = resolveNext(current.activeResponseRuns, next);
+        return {
+          ...current,
+          activeResponseRuns,
+          activeResponseRun: selectPrimaryActiveResponseRun(current, activeResponseRuns)
+        };
+      });
     },
     setDurableRecoveryState: (next: Updater<DurableRecoveryState>) => {
       dispatch((current) => ({ ...current, durableRecoveryState: resolveNext(current.durableRecoveryState, next) }));

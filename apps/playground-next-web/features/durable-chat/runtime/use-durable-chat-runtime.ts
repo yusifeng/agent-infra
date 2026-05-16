@@ -3,6 +3,7 @@
 import type { LoadThreadMessagesResult } from '@agent-infra/durable-chat-client';
 import type {
   MessageDto,
+  RunDto,
   RuntimePiMetaDto,
   ThreadDto
 } from '@agent-infra/contracts';
@@ -85,9 +86,12 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       historyLoading,
       error,
       liveStreamRunId,
+      liveStreamRunIds,
       liveAssistantDraft,
+      liveAssistantDraftsByRunId,
       messagePageInfo,
       activeResponseRun,
+      activeResponseRuns,
       durableRecoveryState,
       sidebarOpen,
       showScrollToBottom
@@ -109,9 +113,12 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     setHistoryLoading,
     setError,
     setLiveStreamRunId,
+    setLiveStreamRunIds,
     setLiveAssistantDraft,
+    setLiveAssistantDraftsByRunId,
     setMessagePageInfo,
     setActiveResponseRun,
+    setActiveResponseRuns,
     setDurableRecoveryState,
     setSidebarOpen,
     setShowScrollToBottom
@@ -153,12 +160,14 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const timelineRequestIdRef = useRef(0);
   const timelineAbortControllerRef = useRef<AbortController | null>(null);
   const attachRequestIdRef = useRef(0);
-  const attachAbortControllerRef = useRef<AbortController | null>(null);
-  const attachRunIdRef = useRef<string | null>(null);
-  const attachVersionRef = useRef(0);
+  const attachAbortControllersRef = useRef(new Map<string, AbortController>());
+  const attachRequestIdsByRunIdRef = useRef(new Map<string, number>());
+  const attachedRunIdsRef = useRef(new Set<string>());
+  const attachVersionsByRunIdRef = useRef(new Map<string, number>());
   const sendRequestIdRef = useRef(0);
   const sendAbortControllerRef = useRef<AbortController | null>(null);
   const reconcileRequestIdRef = useRef(0);
+  const activeResponseRunsRef = useRef<RunDto[]>([]);
 
   const {
     currentThreadPinned,
@@ -179,6 +188,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     () =>
       buildChatRuntimeViewModel({
         activeResponseRun,
+        activeResponseRuns,
         activeThreadId,
         chatPhase,
         draft,
@@ -197,6 +207,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       }),
     [
       activeResponseRun,
+      activeResponseRuns,
       activeThreadId,
       chatPhase,
       draft,
@@ -334,6 +345,10 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }, [messages]);
 
   useEffect(() => {
+    activeResponseRunsRef.current = activeResponseRuns;
+  }, [activeResponseRuns]);
+
+  useEffect(() => {
     selectedRunIdRef.current = selectedRunId;
   }, [selectedRunId]);
 
@@ -367,11 +382,14 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       actions: {
         setActiveThreadId,
         setActiveResponseRun,
+        setActiveResponseRuns,
         setChatPhase,
         setDraft,
         setHistoryLoading,
         setLiveAssistantDraft,
+        setLiveAssistantDraftsByRunId,
         setLiveStreamRunId,
+        setLiveStreamRunIds,
         setLoadingMessages,
         setLoadingThreadId,
         setMessages,
@@ -411,17 +429,23 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }
 
   function stopViewingLiveResponse() {
-    attachAbortControllerRef.current?.abort();
-    attachAbortControllerRef.current = null;
-    attachRunIdRef.current = null;
+    for (const controller of attachAbortControllersRef.current.values()) {
+      controller.abort();
+    }
+    attachAbortControllersRef.current.clear();
+    attachRequestIdsByRunIdRef.current.clear();
+    attachedRunIdsRef.current.clear();
+    attachVersionsByRunIdRef.current.clear();
     runStopViewingLiveResponse({
       refs: {
         sendAbortControllerRef
       },
       actions: {
         setActiveResponseRun,
+        setActiveResponseRuns,
         setChatPhase,
         setLiveStreamRunId,
+        setLiveStreamRunIds,
         setLoadingThreadId,
         setPersistingTurn
       }
@@ -434,19 +458,24 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       runId,
       refs: {
         activeThreadIdRef,
-        attachAbortControllerRef,
+        activeResponseRunsRef,
+        attachAbortControllersRef,
         attachRequestIdRef,
-        attachRunIdRef,
-        attachVersionRef,
+        attachRequestIdsByRunIdRef,
+        attachedRunIdsRef,
+        attachVersionsByRunIdRef,
         logOpenRef,
         sendRequestIdRef
       },
       actions: {
         setActiveResponseRun,
+        setActiveResponseRuns,
         setChatPhase,
         setError,
         setLiveAssistantDraft,
+        setLiveAssistantDraftsByRunId,
         setLiveStreamRunId,
+        setLiveStreamRunIds,
         setLoadingThreadId,
         setPersistingTurn,
         setRecentRuns
@@ -594,7 +623,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     return {
       messages: result.data.messages ?? [],
       pageInfo: result.data.pageInfo ?? null,
-      activeResponseRun: result.data.activeRun ?? null
+      activeResponseRun: result.data.activeRun ?? null,
+      activeResponseRuns: result.data.activeRuns ?? (result.data.activeRun ? [result.data.activeRun] : [])
     };
   }
 
@@ -618,10 +648,12 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       },
       actions: {
         setActiveResponseRun,
+        setActiveResponseRuns,
         setChatPhase,
         setError,
         setHistoryLoading,
         setLiveAssistantDraft,
+        setLiveAssistantDraftsByRunId,
         setLoadingMessages,
         setMessagePageInfo,
         setMessages,
@@ -663,6 +695,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       },
       actions: {
         setActiveResponseRun,
+        setActiveResponseRuns,
         setError,
         setHistoryLoading,
         setMessages,
@@ -697,9 +730,11 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       },
       actions: {
         setActiveResponseRun,
+        setActiveResponseRuns,
         setChatPhase,
         setError,
         setLiveAssistantDraft,
+        setLiveAssistantDraftsByRunId,
         setLoadingThreadId,
         setMessages,
         setMessagePageInfo,
@@ -755,11 +790,14 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       actions: {
         setActiveThreadId,
         setActiveResponseRun,
+        setActiveResponseRuns,
         setChatPhase,
         setDraft,
         setError,
         setLiveAssistantDraft,
+        setLiveAssistantDraftsByRunId,
         setLiveStreamRunId,
+        setLiveStreamRunIds,
         setLoadingThreadId,
         setMessages,
         setOptimisticUserMessage,
@@ -831,15 +869,19 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   useEffect(() => {
     const decision = resolveActiveRunAttachDecision({
       activeThreadId,
-      activeResponseRun,
-      attachedRunId: attachRunIdRef.current,
+      activeResponseRuns,
+      attachedRunIds: [...attachedRunIdsRef.current],
       sendInFlight: sendAbortControllerRef.current !== null
     });
 
     if (decision.type === 'abort') {
-      attachAbortControllerRef.current?.abort();
-      attachAbortControllerRef.current = null;
-      attachRunIdRef.current = null;
+      for (const controller of attachAbortControllersRef.current.values()) {
+        controller.abort();
+      }
+      attachAbortControllersRef.current.clear();
+      attachRequestIdsByRunIdRef.current.clear();
+      attachedRunIdsRef.current.clear();
+      attachVersionsByRunIdRef.current.clear();
       return;
     }
 
@@ -847,8 +889,20 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       return;
     }
 
-    void attachToActiveRun(decision.threadId, decision.runId);
-  }, [activeThreadId, activeResponseRun?.id, activeResponseRun?.status]);
+    for (const runId of decision.abortRunIds) {
+      attachAbortControllersRef.current.get(runId)?.abort();
+      attachAbortControllersRef.current.delete(runId);
+      attachRequestIdsByRunIdRef.current.delete(runId);
+      attachedRunIdsRef.current.delete(runId);
+      attachVersionsByRunIdRef.current.delete(runId);
+    }
+    for (const runId of decision.attachRunIds) {
+      void attachToActiveRun(decision.threadId, runId);
+    }
+  }, [
+    activeThreadId,
+    activeResponseRuns.map((run) => `${run.id}:${run.status}:${run.threadId}`).join('|')
+  ]);
 
   useEffect(() => {
     const requestId = routeChangeRequestIdRef.current + 1;

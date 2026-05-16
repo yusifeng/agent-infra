@@ -46,9 +46,11 @@ function streamFromEvents(events: unknown[]) {
 function createHarness() {
   const state = {
     activeResponseRun: null as RunDto | null,
+    activeResponseRuns: [] as RunDto[],
     chatPhase: 'idle' as ChatPhase,
     error: null as string | null,
     liveStreamRunId: null as string | null,
+    liveStreamRunIds: [] as string[],
     loadingThreadId: null as string | null,
     persistingTurn: false,
     recentRuns: [] as RunDto[]
@@ -61,6 +63,9 @@ function createHarness() {
       setActiveResponseRun: vi.fn((next: Updater<RunDto | null>) => {
         state.activeResponseRun = resolveUpdater(next, state.activeResponseRun);
       }),
+      setActiveResponseRuns: vi.fn((next: Updater<RunDto[]>) => {
+        state.activeResponseRuns = resolveUpdater(next, state.activeResponseRuns);
+      }),
       setChatPhase: vi.fn((next: Updater<ChatPhase>) => {
         state.chatPhase = resolveUpdater(next, state.chatPhase);
       }),
@@ -70,6 +75,10 @@ function createHarness() {
       setLiveAssistantDraft: vi.fn(),
       setLiveStreamRunId: vi.fn((next: Updater<string | null>) => {
         state.liveStreamRunId = resolveUpdater(next, state.liveStreamRunId);
+      }),
+      setLiveAssistantDraftsByRunId: vi.fn(),
+      setLiveStreamRunIds: vi.fn((next: Updater<string[]>) => {
+        state.liveStreamRunIds = resolveUpdater(next, state.liveStreamRunIds);
       }),
       setLoadingThreadId: vi.fn((next: Updater<string | null>) => {
         state.loadingThreadId = resolveUpdater(next, state.loadingThreadId);
@@ -89,10 +98,12 @@ function createHarness() {
     },
     refs: {
       activeThreadIdRef: { current: 'thread-1' as string | null },
-      attachAbortControllerRef: { current: null as AbortController | null },
+      activeResponseRunsRef: { current: [] as RunDto[] },
+      attachAbortControllersRef: { current: new Map<string, AbortController>() },
       attachRequestIdRef: { current: 4 },
-      attachRunIdRef: { current: null as string | null },
-      attachVersionRef: { current: 0 },
+      attachRequestIdsByRunIdRef: { current: new Map<string, number>() },
+      attachedRunIdsRef: { current: new Set<string>() },
+      attachVersionsByRunIdRef: { current: new Map<string, number>() },
       logOpenRef: { current: true },
       sendRequestIdRef: { current: 5 }
     },
@@ -131,16 +142,17 @@ describe('runAttachRunLifecycle', () => {
     expect(harness.state.persistingTurn).toBe(true);
     expect(harness.state.loadingThreadId).toBeNull();
     expect(harness.state.liveStreamRunId).toBeNull();
-    expect(harness.refs.attachAbortControllerRef.current).toBeNull();
-    expect(harness.refs.attachRunIdRef.current).toBeNull();
+    expect(harness.refs.attachAbortControllersRef.current.has('run-1')).toBe(false);
+    expect(harness.refs.attachedRunIdsRef.current.has('run-1')).toBe(false);
     expect(harness.operations.reconcileCompletedTurn).toHaveBeenCalledWith('thread-1', 'run-1', 6);
   });
 
   it('does not clear a newer attach lifecycle when the current request becomes stale', async () => {
     const harness = createHarness();
     harness.operations.openAttachStream.mockImplementation(async () => {
-      harness.refs.attachRequestIdRef.current = 99;
-      harness.refs.attachRunIdRef.current = 'run-current';
+      harness.refs.attachRequestIdsByRunIdRef.current.set('run-1', 99);
+      harness.refs.attachedRunIdsRef.current.delete('run-1');
+      harness.refs.attachedRunIdsRef.current.add('run-current');
       harness.state.liveStreamRunId = 'run-current';
       return {
         ok: true,
@@ -151,10 +163,46 @@ describe('runAttachRunLifecycle', () => {
 
     await runWithHarness(harness);
 
-    expect(harness.refs.attachRunIdRef.current).toBe('run-current');
+    expect(harness.refs.attachedRunIdsRef.current.has('run-current')).toBe(true);
     expect(harness.state.liveStreamRunId).toBe('run-current');
     expect(harness.actions.setLiveStreamRunId).not.toHaveBeenLastCalledWith(null);
     expect(harness.operations.reconcileCompletedTurn).not.toHaveBeenCalled();
+  });
+
+  it('can start a second attach lifecycle without aborting the first run', async () => {
+    const harness = createHarness();
+    const signals: AbortSignal[] = [];
+    harness.operations.openAttachStream.mockImplementation(async (_threadId, runId, signal) => {
+      if (runId === 'run-1') {
+        signals.push(signal);
+        return {
+          ok: true,
+          status: 200,
+          body: streamFromEvents([])
+        };
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        body: streamFromEvents([])
+      };
+    });
+
+    await Promise.all([
+      runWithHarness(harness),
+      runAttachRunLifecycle({
+        threadId: 'thread-1',
+        runId: 'run-2',
+        refs: harness.refs,
+        actions: harness.actions,
+        operations: harness.operations
+      })
+    ]);
+
+    expect(signals[0]?.aborted).toBe(false);
+    expect(harness.operations.openAttachStream).toHaveBeenCalledWith('thread-1', 'run-1', expect.any(AbortSignal));
+    expect(harness.operations.openAttachStream).toHaveBeenCalledWith('thread-1', 'run-2', expect.any(AbortSignal));
   });
 
   it('falls back to durable message reload when attach stream opening fails', async () => {
@@ -170,6 +218,8 @@ describe('runAttachRunLifecycle', () => {
 
     expect(harness.state.error).toBe('attach unavailable');
     expect(harness.state.liveStreamRunId).toBeNull();
+    expect(harness.refs.attachedRunIdsRef.current.has('run-1')).toBe(false);
+    expect(harness.refs.attachRequestIdsByRunIdRef.current.has('run-1')).toBe(false);
     expect(harness.operations.loadThreadMessages).toHaveBeenCalledWith('thread-1', {
       background: true,
       preferredRunId: 'run-1',

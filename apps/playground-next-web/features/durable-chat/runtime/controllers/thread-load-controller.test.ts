@@ -115,6 +115,7 @@ describe('thread load controller', () => {
     const run = createRun();
     const state = {
       activeResponseRun: null as RunDto | null,
+      activeResponseRuns: [] as RunDto[],
       chatPhase: 'thinking' as ChatPhase,
       error: 'old error' as string | null,
       liveAssistantDraft: null,
@@ -135,6 +136,9 @@ describe('thread load controller', () => {
         setActiveResponseRun: vi.fn((next: Updater<RunDto | null>) => {
           state.activeResponseRun = resolveUpdater(next, state.activeResponseRun);
         }),
+        setActiveResponseRuns: vi.fn((next: Updater<RunDto[]>) => {
+          state.activeResponseRuns = resolveUpdater(next, state.activeResponseRuns);
+        }),
         setChatPhase: vi.fn((next: Updater<ChatPhase>) => {
           state.chatPhase = resolveUpdater(next, state.chatPhase);
         }),
@@ -145,6 +149,7 @@ describe('thread load controller', () => {
         setLiveAssistantDraft: vi.fn((next) => {
           state.liveAssistantDraft = resolveUpdater(next, state.liveAssistantDraft);
         }),
+        setLiveAssistantDraftsByRunId: vi.fn(),
         setLoadingMessages: vi.fn(),
         setMessagePageInfo: vi.fn((next: Updater<ThreadMessagesPageInfoDto | null>) => {
           state.pageInfo = resolveUpdater(next, state.pageInfo);
@@ -164,7 +169,8 @@ describe('thread load controller', () => {
         hydrateTranscript: vi.fn().mockResolvedValue({
           messages,
           pageInfo,
-          activeResponseRun: run
+          activeResponseRun: run,
+          activeResponseRuns: [run]
         }),
         loadLogInspector: vi.fn(),
         resetLogInspectorState: vi.fn()
@@ -175,6 +181,7 @@ describe('thread load controller', () => {
     expect(state.messages).toEqual(messages);
     expect(state.pageInfo).toEqual(pageInfo);
     expect(state.activeResponseRun).toEqual(run);
+    expect(state.activeResponseRuns).toEqual([run]);
     expect(state.error).toBeNull();
   });
 });
