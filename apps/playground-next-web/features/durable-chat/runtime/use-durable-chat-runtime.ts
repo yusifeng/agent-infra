@@ -49,6 +49,11 @@ import {
   parseRunAttachSseChunk,
   shouldShowMainChatLoading
 } from '@/features/durable-chat/service/chat-runtime';
+import {
+  resolveActiveRunAttachDecision,
+  resolveInspectorLoadDecision,
+  resolveThreadRouteDecision
+} from '@/features/durable-chat/runtime/runtime-controller-seams';
 import { buildAnswerContainers } from '@/features/durable-chat/service/build-answer-containers';
 import { buildDeepseekModePresentation } from '@/features/durable-chat/service/deepseek-mode-presentation';
 import { buildTranscriptPresentation } from '@/features/durable-chat/service/transcript-presentation';
@@ -943,34 +948,41 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }, []);
 
   useEffect(() => {
-    const run = activeResponseRun;
-    const runIsActive = run?.status === 'queued' || run?.status === 'running';
-    if (activeThreadId && run && run.threadId !== activeThreadId) {
+    const decision = resolveActiveRunAttachDecision({
+      activeThreadId,
+      activeResponseRun,
+      attachedRunId: attachRunIdRef.current,
+      sendInFlight: sendAbortControllerRef.current !== null
+    });
+
+    if (decision.type === 'abort') {
       attachAbortControllerRef.current?.abort();
       attachAbortControllerRef.current = null;
       attachRunIdRef.current = null;
       return;
     }
 
-    if (!activeThreadId || !run || !runIsActive) {
-      attachAbortControllerRef.current?.abort();
-      attachAbortControllerRef.current = null;
-      attachRunIdRef.current = null;
+    if (decision.type === 'idle') {
       return;
     }
 
-    if (sendAbortControllerRef.current || attachRunIdRef.current === run.id) {
-      return;
-    }
-
-    void attachToActiveRun(activeThreadId, run.id);
+    void attachToActiveRun(decision.threadId, decision.runId);
   }, [activeThreadId, activeResponseRun?.id, activeResponseRun?.status]);
 
   useEffect(() => {
     const requestId = routeChangeRequestIdRef.current + 1;
     routeChangeRequestIdRef.current = requestId;
+    const decision = resolveThreadRouteDecision({
+      activeThreadId,
+      chatPhase,
+      initialThreadId,
+      liveAssistantDraft,
+      loadingThreadId,
+      optimisticUserMessage,
+      runtimeBootstrapped: runtimeBootstrappedRef.current
+    });
 
-    if (!runtimeBootstrappedRef.current) {
+    if (decision.type === 'initialize') {
       runtimeBootstrappedRef.current = true;
       void runInitializeRuntime({
         initialThreadId,
@@ -992,17 +1004,13 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       return;
     }
 
-    if (
-      initialThreadId &&
-      activeThreadId === initialThreadId &&
-      (loadingThreadId === initialThreadId || chatPhase !== 'idle' || optimisticUserMessage !== null || liveAssistantDraft !== null)
-    ) {
+    if (decision.type === 'idle') {
       return;
     }
 
-    if (initialThreadId) {
-      void activateThread(initialThreadId, {
-        preferredRunId: readPersistedRunId(initialThreadId)
+    if (decision.type === 'activate-thread') {
+      void activateThread(decision.threadId, {
+        preferredRunId: readPersistedRunId(decision.threadId)
       });
       return;
     }
@@ -1016,21 +1024,23 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   }, [initialThreadId]);
 
   useEffect(() => {
-    if (!logOpen) {
+    const decision = resolveInspectorLoadDecision({
+      activeThreadId,
+      loadingMessages,
+      logOpen
+    });
+
+    if (decision.type === 'reset') {
       resetLogInspectorState();
       return;
     }
 
-    if (!activeThreadId) {
+    if (decision.type === 'idle') {
       return;
     }
 
-    if (loadingMessages) {
-      return;
-    }
-
-    void loadLogInspector(activeThreadId, messages, {
-      preferredRunId: readPersistedRunId(activeThreadId) ?? selectedRunIdRef.current,
+    void loadLogInspector(decision.threadId, messages, {
+      preferredRunId: readPersistedRunId(decision.threadId) ?? selectedRunIdRef.current,
       preserveExistingTimeline: true
     });
   }, [activeThreadId, loadingMessages, logOpen]);

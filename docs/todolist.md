@@ -61,8 +61,8 @@
 
 ### 1.4 Types / Interfaces
 - [x] Define the message UI split boundaries before editing: list shell, user card, assistant transcript card, live assistant card, thinking timeline, research timeline, message part, answer container, actions, and empty states.
-- [ ] Define the runtime split boundaries before editing: thread navigation/load, send/attach stream lifecycle, completed-turn reconcile, inspector hydration, title/meta refresh, and viewport coordination.
-- [ ] Keep exported component/hook props stable unless a narrower internal type reduces coupling without changing public usage.
+- [x] Define the runtime split boundaries before editing: thread navigation/load, send/attach stream lifecycle, completed-turn reconcile, inspector hydration, title/meta refresh, and viewport coordination.
+- [x] Keep exported component/hook props stable unless a narrower internal type reduces coupling without changing public usage.
 - [x] Prefer pure service functions for behavior that can be tested without React or DOM.
 - [x] Define a small message-list render decision seam before extracting leaf UI components, so service-like visibility/grouping logic does not get duplicated across JSX files.
 
@@ -75,7 +75,7 @@
 
 ### 2.2 Contracts / Routes / DB
 - [x] Confirm no contract, route, or DB change is required for the first UI split.
-- [ ] Confirm no contract, route, or DB change is required for the first runtime split.
+- [x] Confirm no contract, route, or DB change is required for the first runtime split.
 - [ ] If a contract or route gap appears, pause the refactor loop and create a smaller package-first implementation slice.
 
 ## 3. Frontend Boundary
@@ -86,10 +86,10 @@
 - [x] Keep markdown/code-block transformation behavior centralized instead of duplicating fallback logic across components.
 
 ### 3.2 Runtime Layer
-- [ ] Treat `use-durable-chat-runtime.ts` extraction as higher risk than `message-list.tsx` extraction.
-- [ ] Add or strengthen runtime-flow tests before moving send, attach, or reconcile logic.
-- [ ] Keep the root hook responsible for composition and dependency injection after extraction.
-- [ ] Keep abort-controller ownership explicit in whichever controller owns the corresponding async flow.
+- [x] Treat `use-durable-chat-runtime.ts` extraction as higher risk than `message-list.tsx` extraction.
+- [x] Add or strengthen runtime-flow tests before moving send, attach, or reconcile logic.
+- [x] Keep the root hook responsible for composition and dependency injection after extraction.
+- [x] Keep abort-controller ownership explicit in whichever controller owns the corresponding async flow.
 
 ### 3.3 UI Layer
 - [x] Split `message-list.tsx` into feature-local components without changing markup semantics or CSS class behavior.
@@ -196,13 +196,13 @@
 - [x] Commit the service cleanup slice if review is clean.
 
 ### Loop 5: Runtime Test Seams
-- [ ] Define only the minimum controller seams needed for testing stream lifecycle, thread load/navigation, and inspector hydration; do not design a large controller architecture upfront.
-- [ ] Add tests around the highest-risk runtime flows before moving implementation code.
-- [ ] Keep `use-durable-chat-runtime.ts` behavior unchanged in this loop unless a tiny extraction is necessary for testability.
-- [ ] Run `pnpm --filter playground-next-web test`.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit the runtime-test seam slice if review is clean.
+- [x] Define only the minimum controller seams needed for testing stream lifecycle, thread load/navigation, and inspector hydration; do not design a large controller architecture upfront.
+- [x] Add tests around the highest-risk runtime flows before moving implementation code.
+- [x] Keep `use-durable-chat-runtime.ts` behavior unchanged in this loop unless a tiny extraction is necessary for testability.
+- [x] Run `pnpm --filter playground-next-web test`.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit the runtime-test seam slice if review is clean.
 
 ### Loop 6: Stream Lifecycle Runtime Split
 - [ ] Extract send, attach/recovery, live draft, and completed-turn reconcile coordination into a bounded runtime controller.
