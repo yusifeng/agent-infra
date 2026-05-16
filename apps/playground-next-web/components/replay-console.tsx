@@ -3,7 +3,7 @@
 import clsx from 'clsx';
 
 import { ChatHeader } from './chat-shell/chat-header';
-import { ChatMessageList } from './chat-shell/message-list';
+import { ChatMessageList } from '@/features/durable-chat/ui/messages/message-list';
 import { ReplayControlBar } from './chat-shell/replay-control-bar';
 import { SearchResultsPanel } from './chat-shell/search-results-panel';
 import { ChatSidebar } from './chat-shell/sidebar';

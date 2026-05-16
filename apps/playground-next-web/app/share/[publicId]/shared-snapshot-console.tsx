@@ -6,7 +6,7 @@ import { useMemo, useRef, useState } from 'react';
 
 import { ChatThemeProvider } from '@/components/chat-theme-provider';
 import { ChatHeader } from '@/components/chat-shell/chat-header';
-import { ChatMessageList } from '@/components/chat-shell/message-list';
+import { ChatMessageList } from '@/features/durable-chat/ui/messages/message-list';
 import { SearchResultsPanel } from '@/components/chat-shell/search-results-panel';
 import { ui } from '@/components/chat-shell/ui';
 import {

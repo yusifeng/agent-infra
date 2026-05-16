@@ -34,14 +34,14 @@ import {
   loadRunTimelineController,
   persistSelectedRunSelection,
   resetInspectorControllerState
-} from '@/features/durable-chat/runtime/inspector-controller';
+} from '@/features/durable-chat/runtime/controllers/inspector-controller';
 import { runSendMessageFlow } from '@/features/durable-chat/runtime/send-message-flow';
 import { runReconcileCompletedTurn } from '@/features/durable-chat/runtime/reconcile-completed-turn';
-import { runAttachRunLifecycle } from '@/features/durable-chat/runtime/stream-lifecycle-controller';
+import { runAttachRunLifecycle } from '@/features/durable-chat/runtime/controllers/stream-lifecycle-controller';
 import {
   runActivateThreadController,
   runLoadThreadMessagesController
-} from '@/features/durable-chat/runtime/thread-load-controller';
+} from '@/features/durable-chat/runtime/controllers/thread-load-controller';
 import { useChatSessionController } from '@/features/durable-chat/runtime/use-chat-session-controller';
 import { useRunInspectorController } from '@/features/durable-chat/runtime/use-run-inspector-controller';
 import {
@@ -54,7 +54,7 @@ import {
   resolveActiveRunAttachDecision,
   resolveInspectorLoadDecision,
   resolveThreadRouteDecision
-} from '@/features/durable-chat/runtime/runtime-controller-seams';
+} from '@/features/durable-chat/runtime/controllers/runtime-controller-seams';
 import { buildAnswerContainers } from '@/features/durable-chat/service/build-answer-containers';
 import { buildDeepseekModePresentation } from '@/features/durable-chat/service/deepseek-mode-presentation';
 import { buildTranscriptPresentation } from '@/features/durable-chat/service/transcript-presentation';

@@ -23,14 +23,14 @@ import type { AnswerContainer } from '@/features/durable-chat/types/answer-conta
 import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
 import type { ActiveSearchPanelData } from '@/features/durable-chat/types/search';
 import type { AssistantTurnItem, TranscriptBlock } from '@/features/durable-chat/types/transcript-blocks';
-import { copyMessageToClipboard, copyTextToClipboard } from './helpers';
-import { MarkdownRenderer } from './markdown-renderer';
-import { MessageActions } from './message-actions';
-import { ReasoningPanel } from './reasoning-panel';
-import { useRenderDiagnostic } from './render-diagnostics';
-import { AnimatedEmoji } from './shared';
-import { SiteIconBadge } from './site-icon-badge';
-import { ui } from './ui';
+import { copyMessageToClipboard, copyTextToClipboard } from '@/components/chat-shell/helpers';
+import { MarkdownRenderer } from '@/components/chat-shell/markdown-renderer';
+import { MessageActions } from '@/components/chat-shell/message-actions';
+import { ReasoningPanel } from '@/components/chat-shell/reasoning-panel';
+import { useRenderDiagnostic } from '@/components/chat-shell/render-diagnostics';
+import { AnimatedEmoji } from '@/components/chat-shell/shared';
+import { SiteIconBadge } from '@/components/chat-shell/site-icon-badge';
+import { ui } from '@/components/chat-shell/ui';
 
 const transcriptRowPerformanceStyle: CSSProperties = {
   containIntrinsicSize: '180px',

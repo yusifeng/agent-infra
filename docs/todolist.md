@@ -95,12 +95,12 @@
 - [x] Split `message-list.tsx` into feature-local components without changing markup semantics or CSS class behavior.
 - [x] Keep memoization decisions local and evidence-driven; do not add blanket `memo`, `useMemo`, or `useCallback` as a substitute for state-boundary cleanup.
 - [x] Avoid changing visual hierarchy while extracting components.
-- [ ] Keep `components/chat-shell` from continuing to accumulate unrelated feature panels once the new directory shape is clear.
+- [x] Keep `components/chat-shell` from continuing to accumulate unrelated feature panels once the new directory shape is clear.
 
 ### 3.4 Directory Shape
-- [ ] Propose the final directory shape only after the first UI and runtime slices prove the seams.
-- [ ] Prefer feature-local directories such as `features/durable-chat/ui/messages`, `features/durable-chat/ui/shell`, and `features/durable-chat/runtime/controllers` if they match actual code ownership.
-- [ ] Move files in small batches with behavior tests passing between moves.
+- [x] Propose the final directory shape only after the first UI and runtime slices prove the seams.
+- [x] Prefer feature-local directories such as `features/durable-chat/ui/messages`, `features/durable-chat/ui/shell`, and `features/durable-chat/runtime/controllers` if they match actual code ownership.
+- [x] Move files in small batches with behavior tests passing between moves.
 
 ## 4. Tests
 
@@ -129,8 +129,8 @@
 - [x] Avoid brittle full-page snapshots for the chat shell.
 
 ### 4.4 Targeted Verification Commands
-- [ ] Run `pnpm --filter playground-next-web test` after each frontend behavior or extraction slice.
-- [ ] Run `pnpm --filter playground-next-web typecheck` after each extraction slice that changes component or hook boundaries.
+- [x] Run `pnpm --filter playground-next-web test` after each frontend behavior or extraction slice.
+- [x] Run `pnpm --filter playground-next-web typecheck` after each extraction slice that changes component or hook boundaries.
 - [ ] Run `pnpm --filter @agent-infra/durable-chat-client test` if any shared runtime package behavior changes.
 - [ ] Run `pnpm typecheck` before considering the full refactor complete.
 
@@ -235,11 +235,11 @@
 - [ ] Commit the inspector split slice if review is clean.
 
 ### Loop 9: Directory Reorganization
-- [ ] Move extracted files into the final feature-local directory shape only after imports and ownership are clear.
-- [ ] Update imports without changing behavior.
-- [ ] Run `pnpm --filter playground-next-web test`.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
+- [x] Move extracted files into the final feature-local directory shape only after imports and ownership are clear.
+- [x] Update imports without changing behavior.
+- [x] Run `pnpm --filter playground-next-web test`.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run `codex review` for this loop after targeted verification passes.
 - [ ] Commit the directory organization slice if review is clean.
 
 ### Loop 10: Final Hardening

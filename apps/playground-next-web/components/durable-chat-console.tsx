@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import { useCallback, useRef, useState } from 'react';
 
 import { ChatHeader } from './chat-shell/chat-header';
-import { ChatMessageList } from './chat-shell/message-list';
+import { ChatMessageList } from '@/features/durable-chat/ui/messages/message-list';
 import { ComposerDock } from './chat-shell/composer-dock';
 import { SearchResultsPanel } from './chat-shell/search-results-panel';
 import { ShareDialog } from './chat-shell/share-dialog';

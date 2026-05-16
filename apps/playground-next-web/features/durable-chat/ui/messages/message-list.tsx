@@ -20,8 +20,8 @@ import {
   TranscriptBlockCard,
   WelcomeMessage
 } from './message-list-components';
-import { useRenderDiagnostic } from './render-diagnostics';
-import { maxWithTW, messageListMinHeight, ui } from './ui';
+import { useRenderDiagnostic } from '@/components/chat-shell/render-diagnostics';
+import { maxWithTW, messageListMinHeight, ui } from '@/components/chat-shell/ui';
 
 type ChatMessageListProps = {
   meta: RuntimePiMetaDto | null;
