@@ -1,7 +1,6 @@
 'use client';
 
 import type { LoadThreadMessagesResult } from '@agent-infra/durable-chat-client';
-import { installChatRenderDiagnostics } from '@agent-infra/durable-chat-client';
 import type {
   MessageDto,
   RunAttachStreamEventDto,
@@ -52,8 +51,8 @@ import {
 } from '@/features/durable-chat/service/chat-runtime';
 import { buildAnswerContainers } from '@/features/durable-chat/service/build-answer-containers';
 import { buildDeepseekModePresentation } from '@/features/durable-chat/service/deepseek-mode-presentation';
-import { collectCompletedLiveSearchToolCallIds } from '@/features/durable-chat/service/research-activity';
 import { buildTranscriptPresentation } from '@/features/durable-chat/service/transcript-presentation';
+import { useChatShellEffects } from '@/features/durable-chat/runtime/use-chat-shell-effects';
 import { useSearchPanelState } from '@/features/durable-chat/runtime/use-search-panel-state';
 import { useChatViewportController } from '@/features/durable-chat/runtime/use-chat-viewport-controller';
 import { useThreadActionController } from '@/features/durable-chat/runtime/use-thread-action-controller';
@@ -63,7 +62,6 @@ import type { DurableChatRuntimeOptions } from '@/features/durable-chat/types/ru
 import { isDefaultThreadTitle } from '@/features/thread-title/default-thread-title';
 
 const PENDING_NEW_THREAD_LOADING_ID = '__pending-new-thread__';
-const DEFAULT_DOCUMENT_TITLE = 'playground-next-web';
 
 export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRuntimeOptions) {
   const router = useRouter();
@@ -159,7 +157,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const sendRequestIdRef = useRef(0);
   const sendAbortControllerRef = useRef<AbortController | null>(null);
   const reconcileRequestIdRef = useRef(0);
-  const previousDocumentTitleRef = useRef<string | null>(null);
 
   const activeThread = useMemo(
     () => (threads.find((thread) => thread.id === activeThreadId) as PlaygroundThreadDto | undefined) ?? null,
@@ -302,10 +299,12 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   } = useThreadShareController({
     activeThreadIdRef
   });
-
-  useEffect(() => {
-    installChatRenderDiagnostics();
-  }, []);
+  const { closeSidebarForMobile } = useChatShellEffects({
+    currentVisibleThreadTitle,
+    liveAssistantDraft,
+    prefetchSearchResult,
+    setSidebarOpen
+  });
 
   useEffect(() => {
     activeThreadIdRef.current = activeThreadId;
@@ -314,19 +313,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   useEffect(() => {
     threadsRef.current = threads;
   }, [threads]);
-
-  useEffect(() => {
-    previousDocumentTitleRef.current = document.title;
-
-    return () => {
-      document.title = previousDocumentTitleRef.current || DEFAULT_DOCUMENT_TITLE;
-      previousDocumentTitleRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    document.title = currentVisibleThreadTitle || DEFAULT_DOCUMENT_TITLE;
-  }, [currentVisibleThreadTitle]);
 
   useEffect(() => {
     logOpenRef.current = logOpen;
@@ -339,24 +325,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
-
-  useEffect(() => {
-    const runId = liveAssistantDraft?.runId;
-    if (!runId) {
-      return;
-    }
-
-    const completedSearchToolCallIdGroups = liveAssistantDraft.segments
-      .map((segment) => collectCompletedLiveSearchToolCallIds(segment.tools))
-      .filter((toolCallIds) => toolCallIds.length > 0);
-    if (completedSearchToolCallIdGroups.length === 0) {
-      return;
-    }
-
-    void Promise.all(
-      completedSearchToolCallIdGroups.map((toolCallIds) => prefetchSearchResult(runId, toolCallIds).catch(() => null))
-    );
-  }, [liveAssistantDraft, prefetchSearchResult]);
 
   useEffect(() => {
     selectedRunIdRef.current = selectedRunId;
@@ -373,16 +341,6 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
 
     persistSelectedRunId(activeThreadId, selectedRunId);
   }, [activeThreadId, selectedRunId]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    if (window.innerWidth < 1024) {
-      setSidebarOpen(false);
-    }
-  }, []);
 
   function resetDraftThreadState() {
     runResetDraftThreadState({
@@ -951,9 +909,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       phase: 'idle',
       message: null
     });
-    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-      setSidebarOpen(false);
-    }
+    closeSidebarForMobile();
     navigateToNewChat();
   }
 
@@ -964,9 +920,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       phase: 'idle',
       message: null
     });
-    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-      setSidebarOpen(false);
-    }
+    closeSidebarForMobile();
     navigateToThread(threadId);
   }
 
