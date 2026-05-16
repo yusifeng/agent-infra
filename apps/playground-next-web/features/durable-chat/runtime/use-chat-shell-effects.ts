@@ -68,7 +68,7 @@ export function useChatShellEffects({
     if (shouldUseMobileSidebarBehavior()) {
       setSidebarOpen(false);
     }
-  }, [setSidebarOpen]);
+  }, []);
 
   return {
     closeSidebarForMobile: () => {

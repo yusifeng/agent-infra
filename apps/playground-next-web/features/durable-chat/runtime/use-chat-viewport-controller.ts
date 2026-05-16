@@ -57,7 +57,7 @@ export function useChatViewportController({
     return () => {
       viewport.removeEventListener('scroll', handleScroll);
     };
-  }, [setShowScrollToBottom]);
+  }, []);
 
   useEffect(() => {
     const viewport = messagesViewportRef.current;
