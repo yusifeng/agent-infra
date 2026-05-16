@@ -13,9 +13,9 @@
 - [x] The product boundary remains the shared platform packages and contracts; `playground-next-web` is a reference consumer and validation surface.
 
 ### 0.2 Goals
-- [ ] Make test results stable enough that future refactors do not require manual interpretation of timeout noise.
-- [ ] Keep `pnpm --filter playground-next-web test` and `pnpm --filter playground-next-web typecheck` as reliable frontend gates.
-- [ ] Define a reliable workspace-level verification profile for slow integration suites.
+- [x] Make test results stable enough that future refactors do not require manual interpretation of timeout noise.
+- [x] Keep `pnpm --filter playground-next-web test` and `pnpm --filter playground-next-web typecheck` as reliable frontend gates.
+- [x] Define a reliable workspace-level verification profile for slow integration suites.
 - [ ] Continue reducing `use-durable-chat-runtime.ts` by extracting stable derived view-model and send/reconcile wiring seams.
 - [ ] Continue reducing `message-list-components.tsx` by splitting proven leaf UI components without changing markup semantics.
 - [ ] Create a focused markdown/code-block streaming stability slice if flicker remains observable.
@@ -34,8 +34,8 @@
 
 ### 1.1 Source of Truth
 - [ ] Reconfirm that follow-up refactors stay consistent with `docs/playground-next-web-chat-runtime-architecture.md`.
-- [ ] Decide whether test-stability facts belong in an existing runbook/doc or should remain only in this todo.
-- [ ] Promote only stable long-lived facts into `docs/source-of-truth/*`; keep execution details in this todo.
+- [x] Decide whether test-stability facts belong in an existing runbook/doc or should remain only in this todo. Keep this as execution context in this todo; no durable concept model changed.
+- [x] Promote only stable long-lived facts into `docs/source-of-truth/*`; keep execution details in this todo. No source-of-truth promotion is needed for app-local Vitest timeout settings.
 
 ### 1.2 Test Stability Model
 - [x] Classify current failing/slow tests into unit, integration, route module, and browser smoke categories. Current failures are cold-run route/auth integration timeout issues, not chat UI behavior failures.
@@ -65,21 +65,21 @@
 ## 2. Backend / Platform
 
 ### 2.1 Package Boundary
-- [ ] Confirm no package-level code changes are needed for test stabilization.
+- [x] Confirm no package-level code changes are needed for test stabilization.
 - [ ] If test stabilization requires shared package behavior changes, add package-level tests before changing any consumer.
 - [ ] Keep shared platform package tests independent from playground UI refactor state.
 
 ### 2.2 Fastify Test Stability
-- [ ] Reproduce `apps/playground-fastify-server` auth/server timeout behavior with targeted commands.
-- [ ] Identify whether slow cases are CPU-bound Argon2, SQLite setup, server lifecycle, or Vitest default timeout mismatch.
-- [ ] Add an app-level Vitest config or per-test timeout only after identifying the actual timing profile.
-- [ ] Preserve real failure detection for route/auth tests; do not mask unresolved hangs.
+- [x] Reproduce `apps/playground-fastify-server` auth/server timeout behavior with targeted commands.
+- [x] Identify whether slow cases are CPU-bound Argon2, SQLite setup, server lifecycle, or Vitest default timeout mismatch. The failing cases completed quickly once the app timeout was raised, so the issue was a default timeout mismatch under cold/workspace load rather than a real hang.
+- [x] Add an app-level Vitest config or per-test timeout only after identifying the actual timing profile.
+- [x] Preserve real failure detection for route/auth tests; do not mask unresolved hangs.
 
 ### 2.3 Next Route Test Stability
-- [ ] Reproduce `apps/playground-next-web` route test timeout/mock leakage behavior from a cold run.
-- [ ] Review module mock setup/reset in `lib/playground-thread-messages-route.test.ts`, `lib/playground-run-stream-routes.test.ts`, and `lib/playground-share-routes.test.ts`.
-- [ ] Strengthen mock cleanup only where it prevents cross-test contamination.
-- [ ] Keep `fileParallelism = false` unless a safer parallel strategy is proven.
+- [x] Reproduce `apps/playground-next-web` route test timeout/mock leakage behavior from a cold run.
+- [x] Review module mock setup/reset in `lib/playground-thread-messages-route.test.ts`, `lib/playground-run-stream-routes.test.ts`, and `lib/playground-share-routes.test.ts`.
+- [x] Strengthen mock cleanup only where it prevents cross-test contamination. No additional mock cleanup was needed after the timeout profile was fixed.
+- [x] Keep `fileParallelism = false` unless a safer parallel strategy is proven.
 
 ## 3. Frontend Boundary
 
@@ -111,9 +111,9 @@
 ### 4.1 Test Stability Tests / Verification
 - [x] Run `pnpm --filter playground-next-web test` from a clean shell and record baseline timing. Baseline failed after about 268s because 4 tests exceeded Vitest's 5s default timeout.
 - [x] Run `pnpm --filter playground-fastify-server test` from a clean shell and record baseline timing. Baseline failed after about 181s because 7 tests exceeded Vitest's 5s default timeout.
-- [ ] Run `pnpm -r --workspace-concurrency=1 --if-present test` after stabilization changes.
-- [ ] Run `pnpm test` only after targeted suite stability is proven.
-- [ ] If a timeout remains, capture exact test names and decide whether it is an app issue or a command-profile issue.
+- [x] Run `pnpm -r --workspace-concurrency=1 --if-present test` after stabilization changes.
+- [x] Run `pnpm test` only after targeted suite stability is proven.
+- [x] If a timeout remains, capture exact test names and decide whether it is an app issue or a command-profile issue. No timeout remained after stabilization.
 
 ### 4.2 Runtime Tests
 - [ ] Add focused tests for the runtime view-model seam.
@@ -141,18 +141,18 @@
 - [x] Identify whether failures are real hangs, default timeout mismatches, CPU-bound tests, or workspace concurrency effects.
 - [x] Write down the recommended verification command profile in this todo.
 - [x] Run `codex review` for this loop if configuration or test code changed. No configuration or test code changed in Loop 1.
-- [ ] Commit the baseline/config slice if changes were made and review is clean.
+- [x] Commit the baseline/config slice if changes were made and review is clean.
 
 ### Loop 2: Stabilize Route/Auth Test Gates
-- [ ] Apply the smallest test/config changes needed to make targeted app suites stable.
-- [ ] Strengthen Next route-test mock isolation only if reproduction shows leakage.
-- [ ] Add or adjust Fastify test timeouts only for tests proven to exceed the default 5s under normal local conditions.
-- [ ] Run `pnpm --filter playground-next-web test`.
-- [ ] Run `pnpm --filter playground-fastify-server test`.
-- [ ] Run `pnpm --filter playground-next-web typecheck` if Next config/test imports changed.
-- [ ] Run `pnpm --filter playground-fastify-server typecheck` if Fastify config/test imports changed.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit the test-stability slice if review is clean.
+- [x] Apply the smallest test/config changes needed to make targeted app suites stable.
+- [x] Strengthen Next route-test mock isolation only if reproduction shows leakage.
+- [x] Add or adjust Fastify test timeouts only for tests proven to exceed the default 5s under normal local conditions.
+- [x] Run `pnpm --filter playground-next-web test`.
+- [x] Run `pnpm --filter playground-fastify-server test`.
+- [x] Run `pnpm --filter playground-next-web typecheck` if Next config/test imports changed.
+- [x] Run `pnpm --filter playground-fastify-server typecheck` if Fastify config/test imports changed.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit the test-stability slice if review is clean.
 
 ### Loop 3: Runtime View-Model Seam
 - [ ] Extract pure derived chat view-model logic from `use-durable-chat-runtime.ts`.
