@@ -74,6 +74,7 @@ export type FetchThreadMessagesOptions = {
   before?: string | null;
   after?: string | null;
   limit?: number;
+  projection?: 'chat' | 'canonical';
   signal?: AbortSignal;
 };
 
@@ -108,6 +109,9 @@ export async function fetchThreadMessagesResponse(threadId: string, options?: Ab
   }
   if (resolvedOptions.after) {
     searchParams.set('after', resolvedOptions.after);
+  }
+  if (resolvedOptions.projection) {
+    searchParams.set('projection', resolvedOptions.projection);
   }
 
   const suffix = searchParams.size > 0 ? `?${searchParams.toString()}` : '';

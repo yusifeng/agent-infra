@@ -927,16 +927,27 @@ describe('createAgentInfraApp', () => {
       feedbackActorId: 'actor-1',
       value: 'thumbs_down'
     });
-    const hydrated = await app.threads.getMessagesWithAnswerCandidates({ threadId: thread.id });
+    const hydrated = await app.threads.getMessagesWithAnswerCandidates({ threadId: thread.id, feedbackActorId: 'actor-1' });
 
     expect(positive.id).toBe(negative.id);
     expect(hydrated.runFeedback).toMatchObject([{ runId: candidateRunId, value: 'thumbs_down' }]);
+    expect((await app.threads.getMessagesWithAnswerCandidates({ threadId: thread.id })).runFeedback).toEqual([]);
+
+    const otherThread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Other feedback path' });
+    await expect(
+      app.turns.clearRunFeedback({
+        threadId: otherThread.id,
+        runId: candidateRunId,
+        feedbackActorId: 'actor-1'
+      })
+    ).rejects.toBeInstanceOf(InvalidRunFeedbackError);
 
     await app.turns.clearRunFeedback({
+      threadId: thread.id,
       runId: candidateRunId,
       feedbackActorId: 'actor-1'
     });
-    expect((await app.threads.getMessagesWithAnswerCandidates({ threadId: thread.id })).runFeedback).toEqual([]);
+    expect((await app.threads.getMessagesWithAnswerCandidates({ threadId: thread.id, feedbackActorId: 'actor-1' })).runFeedback).toEqual([]);
 
     await expect(
       app.turns.setRunFeedback({
@@ -947,6 +958,31 @@ describe('createAgentInfraApp', () => {
         value: 'thumbs_up'
       })
     ).rejects.toBeInstanceOf(InvalidRunFeedbackError);
+  });
+
+  it('filters paginated answer candidate hydration to visible turns', async () => {
+    const { app, repositories } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Paged candidate hydration' });
+    const first = await app.turns.startTextCandidates({
+      threadId: thread.id,
+      text: 'First candidate turn',
+      candidateCount: 2
+    });
+    const second = await app.turns.startTextCandidates({
+      threadId: thread.id,
+      text: 'Second candidate turn',
+      candidateCount: 2
+    });
+
+    await persistAssistantAnswer(repositories, { threadId: thread.id, runId: first.candidates[0]!.run.id, text: 'First answer' });
+    await persistAssistantAnswer(repositories, { threadId: thread.id, runId: second.candidates[1]!.run.id, text: 'Second visible answer' });
+
+    const page = await app.threads.getMessagesWithAnswerCandidates({ threadId: thread.id, limit: 1 });
+
+    expect(page.messages.map((message) => message.parts[0]?.textValue)).toEqual(['Second visible answer']);
+    expect(page.answerCandidates.map((candidate) => candidate.triggerMessageId)).toEqual([second.triggerMessageId]);
+    expect(page.answerSelections.map((selection) => selection.triggerMessageId)).toEqual([second.triggerMessageId]);
+    expect(page.answerCandidates.map((candidate) => candidate.runId)).toEqual([second.candidates[1]!.run.id]);
   });
 
   it('returns projected failed state when runtime execution throws after persistence', async () => {

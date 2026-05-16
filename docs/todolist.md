@@ -111,19 +111,19 @@
 - [x] Avoid route-local DB access for durable candidate/selection/feedback state.
 
 ### 1.5 Contracts / DTOs
-- [ ] Add `AnswerCandidateDto`.
-- [ ] Add `AnswerSelectionDto`.
-- [ ] Add `RunFeedbackDto`.
-- [ ] Add request DTO for starting multiple answer candidates.
-- [ ] Add `candidateCount` or `answerMode` to the start request, with validation that v1 only supports `1` or `2` candidates.
-- [ ] Add request DTO for selecting a candidate.
-- [ ] Add request DTO for setting/clearing run feedback.
-- [ ] Extend thread messages response with `activeRuns`.
-- [ ] Define `activeRuns` as the new source of truth, while `activeRun` remains a derived compatibility field equal to the latest active run or `null`.
-- [ ] Extend thread messages response with `answerCandidates`.
-- [ ] Extend thread messages response with `answerSelections`.
-- [ ] Extend thread messages response with feedback needed by the UI.
-- [ ] Add durable-chat-client normalizer tests that accept old responses with `activeRun` only and new responses with `activeRuns`.
+- [x] Add `AnswerCandidateDto`.
+- [x] Add `AnswerSelectionDto`.
+- [x] Add `RunFeedbackDto`.
+- [x] Add request DTO for starting multiple answer candidates.
+- [x] Add `candidateCount` or `answerMode` to the start request, with validation that v1 only supports `1` or `2` candidates.
+- [x] Add request DTO for selecting a candidate.
+- [x] Add request DTO for setting/clearing run feedback.
+- [x] Extend thread messages response with `activeRuns`.
+- [x] Define `activeRuns` as the new source of truth, while `activeRun` remains a derived compatibility field equal to the latest active run or `null`.
+- [x] Extend thread messages response with `answerCandidates`.
+- [x] Extend thread messages response with `answerSelections`.
+- [x] Extend thread messages response with feedback needed by the UI.
+- [x] Add durable-chat-client normalizer tests that accept old responses with `activeRun` only and new responses with `activeRuns`.
 - [ ] Add `triggerMessageId` to dual-start response and multiplex stream `turn.ready` event if a turn wrapper is introduced.
 - [ ] Add `candidateId`, `ordinal`, and `kind` to `run.ready` or `turn.ready` payload so client does not infer candidate identity only from `runId`.
 - [ ] Add request idempotency strategy for send/dual-start requests, or explicitly document that the POST stream route must not be retried automatically.
@@ -141,7 +141,7 @@
 - [x] Projection should preserve legacy assistant/tool messages when no candidate grouping exists.
 - [x] Projection should handle missing or failed selected runs deterministically.
 - [x] Projection should return diagnostics for missing selected run, selected run from wrong trigger, no candidate ordinal `0`, and failed selected candidate fallback.
-- [ ] Projection should be shared by runtime context construction, share snapshots, and replay/canonical readers.
+- [x] Projection should be shared by runtime context construction, share snapshots, and replay/canonical readers.
 - [x] Projection should not live only in `apps/playground-next-web`.
 
 ## 2. Backend / Platform
@@ -186,7 +186,7 @@
 - [x] Add `runs.listActiveByThread` or equivalent app method.
 - [x] Add `answerMode/candidateCount` handling so existing `startText` remains the default single-answer path.
 - [x] Add `threads.getCanonicalMessages` or equivalent projection entry point.
-- [ ] Add canonical projection entry point used by share snapshot creation, not only runtime and UI hydration.
+- [x] Add canonical projection entry point used by share snapshot creation, not only runtime and UI hydration.
 - [x] Add `threads.getMessagesWithAnswerCandidates` for UI hydration.
 - [x] Ensure legacy `startText` path does not create candidate/selection rows unless explicitly configured.
 - [x] Add app tests for one user message plus two candidate runs.
@@ -221,10 +221,10 @@
 - [x] Do not implement full replay of both candidates in v1.
 
 ### 2.7 Durable Chat Server / Route Helpers
-- [ ] Add DTO builders for answer candidates, selections, and feedback.
-- [ ] Add helper for thread messages response with `activeRuns`.
-- [ ] Add route helper for candidate selection.
-- [ ] Add route helper for run feedback.
+- [x] Add DTO builders for answer candidates, selections, and feedback.
+- [x] Add helper for thread messages response with `activeRuns`.
+- [x] Add route helper for candidate selection.
+- [x] Add route helper for run feedback.
 - [ ] Add route helper or stream shape for multiplexing candidate run events.
 - [ ] Multiplex stream keeps the HTTP stream open until all candidate runs are terminal or the client disconnects.
 - [ ] One candidate failed/completed event must not close the other candidate's run hub session.
@@ -233,14 +233,14 @@
 - [ ] Auto-title runs once per user turn, not once per candidate run; define whether title generation uses user message, primary run, selected run, or first completed run.
 - [ ] If client disconnects from the multiplex POST stream, apply the v1 detach-only rule: durable runtimes continue and are recoverable via attach-stream.
 - [ ] Keep run-scoped attach-stream behavior reusable for recovery.
-- [ ] Add tests for multiple active runs serialization.
+- [x] Add tests for multiple active runs serialization.
 - [ ] Add tests for multiplex stream event ordering and terminal behavior where helper coverage is possible.
 
 ### 2.8 Next Routes
-- [ ] Extend `GET /api/threads/[threadId]/messages` to return candidates, selections, feedback, and `activeRuns`.
-- [ ] Add route for candidate selection.
-- [ ] Add route for run feedback set/clear.
-- [ ] Ensure auth/thread access checks apply to every new route.
+- [x] Extend `GET /api/threads/[threadId]/messages` to return candidates, selections, feedback, and `activeRuns`.
+- [x] Add route for candidate selection.
+- [x] Add route for run feedback set/clear.
+- [x] Ensure auth/thread access checks apply to every new route.
 - [ ] Keep dual stream route behind feature flag until client multi-stream state and share/replay canonical hardening are complete.
 - [ ] Extend or add send route for dual-answer starts.
 - [ ] Ensure stream start serialization does not create duplicate user messages.
@@ -257,15 +257,15 @@
 ## 3. Frontend Boundary
 
 ### 3.1 Durable Chat Client State Normalization
-- [ ] Normalize both `activeRun` and `activeRuns`; expose `activeRuns` as canonical client state.
-- [ ] Preserve compatibility for existing old responses with `activeRun` only.
+- [x] Normalize both `activeRun` and `activeRuns`; expose `activeRuns` as canonical client state.
+- [x] Preserve compatibility for existing old responses with `activeRun` only.
 - [ ] Replace single active response state with multi-run state while preserving compatibility.
 - [ ] Replace single live draft state with `liveAssistantDraftsByRunId`.
 - [ ] Track `liveStreamRunIds` as a set or equivalent.
 - [ ] Apply incoming stream events by `runId`.
 - [ ] Chat responding state remains true while any active candidate run is queued/running.
 - [ ] Keep single-run consumers working during the migration.
-- [ ] Add durable-chat-client normalizer tests for old and new response shapes.
+- [x] Add durable-chat-client normalizer tests for old and new response shapes.
 - [ ] Add durable-chat-client tests for interleaved A/B stream events.
 
 ### 3.2 Durable Chat Client Attach / Reconcile Lifecycle
@@ -338,36 +338,36 @@
 - [x] `packages/db`: two concurrent runs each persist assistant plus tool messages without seq collision.
 
 ### 4.2 App / Projection Tests
-- [ ] `packages/app`: dual start creates one user message and two runs.
-- [ ] `packages/app`: candidate rows and default selection are created atomically.
-- [ ] `packages/app`: legacy `startText` path creates no candidate rows and still returns the old shape.
-- [ ] `packages/app`: legacy thread canonical projection is unchanged.
-- [ ] `packages/app`: selected alternative excludes primary assistant/tool messages from canonical context.
-- [ ] `packages/app`: feedback attaches to run and does not change canonical projection.
-- [ ] `packages/app`: invalid selection rejects runs from a different thread or trigger message.
-- [ ] `packages/app`: old selection change is rejected after a later user message exists.
-- [ ] `packages/app`: share snapshot uses canonical projection and excludes unselected candidate.
+- [x] `packages/app`: dual start creates one user message and two runs.
+- [x] `packages/app`: candidate rows and default selection are created atomically.
+- [x] `packages/app`: legacy `startText` path creates no candidate rows and still returns the old shape.
+- [x] `packages/app`: legacy thread canonical projection is unchanged.
+- [x] `packages/app`: selected alternative excludes primary assistant/tool messages from canonical context.
+- [x] `packages/app`: feedback attaches to run and does not change canonical projection.
+- [x] `packages/app`: invalid selection rejects runs from a different thread or trigger message.
+- [x] `packages/app`: old selection change is rejected after a later user message exists.
+- [x] `packages/app`: share snapshot uses canonical projection and excludes unselected candidate.
 
 ### 4.3 Runtime Tests
-- [ ] `packages/runtime-pi`: model context excludes non-selected candidate messages.
-- [ ] `packages/runtime-pi`: both candidate runs use the same pre-answer history snapshot.
-- [ ] `packages/runtime-pi`: candidate B starts after candidate A persisted assistant text, but B receives pre-answer snapshot only.
-- [ ] `packages/runtime-pi`: raw thread ends with non-canonical assistant, canonical input still ends with user U.
-- [ ] `packages/runtime-pi`: failed primary fallback follows the decided product rule.
-- [ ] `packages/runtime-pi`: old single-run tests still pass without candidate rows.
+- [x] `packages/runtime-pi`: model context excludes non-selected candidate messages.
+- [x] `packages/runtime-pi`: both candidate runs use the same pre-answer history snapshot.
+- [x] `packages/runtime-pi`: candidate B starts after candidate A persisted assistant text, but B receives pre-answer snapshot only.
+- [x] `packages/runtime-pi`: raw thread ends with non-canonical assistant, canonical input still ends with user U.
+- [x] `packages/runtime-pi`: failed primary fallback follows the decided product rule.
+- [x] `packages/runtime-pi`: old single-run tests still pass without candidate rows.
 
 ### 4.4 Server / Route Tests
-- [ ] `packages/durable-chat-server`: DTO builders serialize candidates/selections/feedback.
+- [x] `packages/durable-chat-server`: DTO builders serialize candidates/selections/feedback.
 - [ ] `packages/durable-chat-server`: multiplex stream stays open after one candidate terminal event.
-- [ ] `apps/playground-next-web`: thread messages route returns `activeRuns`.
-- [ ] `apps/playground-next-web`: paginated message load returns candidate/selection/feedback only for relevant visible turns plus active runs.
+- [x] `apps/playground-next-web`: thread messages route returns `activeRuns`.
+- [x] `apps/playground-next-web`: paginated message load returns candidate/selection/feedback only for relevant visible turns plus active runs.
 - [ ] `apps/playground-next-web`: stream route creates two candidate runs without duplicate user messages.
 - [ ] `apps/playground-next-web`: one candidate fails and the other continues streaming.
 - [ ] `apps/playground-next-web`: one candidate failed/completed event does not close the sibling candidate stream.
 - [ ] `apps/playground-next-web`: stream client abort is detach-only and active candidate runs remain recoverable by attach-stream.
 - [ ] `apps/playground-next-web`: dual-answer stream route is unavailable or disabled when the feature flag is off.
 - [ ] `apps/playground-next-web`: attach route recovers each active run.
-- [ ] `apps/playground-next-web`: selection and feedback routes enforce thread access.
+- [x] `apps/playground-next-web`: selection and feedback routes enforce thread access.
 
 ### 4.5 Client / UI Tests
 - [ ] `packages/durable-chat-client`: interleaved run events update separate live drafts.
@@ -381,17 +381,17 @@
 - [ ] `apps/playground-next-web`: text selection/auto-scroll regression around streaming candidate content if existing test utilities support it.
 
 ### 4.6 Share / Replay Tests
-- [ ] `apps/playground-next-web`: unselected candidate messages are not included in canonical share snapshots.
-- [ ] `apps/playground-next-web`: public share DTO remains unchanged for legacy threads.
-- [ ] `apps/playground-next-web`: replay remains linear for dual-answer threads.
-- [ ] `apps/playground-next-web`: replay block ids remain linear and do not expose candidate group state in v1.
+- [x] `apps/playground-next-web`: unselected candidate messages are not included in canonical share snapshots.
+- [x] `apps/playground-next-web`: public share DTO remains unchanged for legacy threads.
+- [x] `apps/playground-next-web`: replay remains linear for dual-answer threads.
+- [x] `apps/playground-next-web`: replay block ids remain linear and do not expose candidate group state in v1.
 
 ### 4.7 Verification Commands
 - [x] Run `pnpm --filter @agent-infra/db test` after DB slice.
-- [ ] Run `pnpm --filter @agent-infra/app test` after app/projection slice.
-- [ ] Run `pnpm --filter @agent-infra/runtime-pi test` after runtime projection slice.
-- [ ] Run `pnpm --filter @agent-infra/durable-chat-client test` after client runtime slice.
-- [ ] Run `pnpm --filter playground-next-web test` after Next route/UI slices.
+- [x] Run `pnpm --filter @agent-infra/app test` after app/projection slice.
+- [x] Run `pnpm --filter @agent-infra/runtime-pi test` after runtime projection slice.
+- [x] Run `pnpm --filter @agent-infra/durable-chat-client test` after client runtime slice.
+- [x] Run `pnpm --filter playground-next-web test` after Next route/UI slices.
 - [ ] Run `pnpm typecheck` before final integration commit if the touched package set is broad.
 
 ## 5. Recommended Execution Order
@@ -452,18 +452,18 @@
 - [x] Run `pnpm --filter playground-next-web test`.
 - [x] Run any relevant package tests touched by projection reuse.
 - [x] Run `codex review` for this loop.
-- [ ] Commit this loop after review and verification pass.
+- [x] Commit this loop after review and verification pass.
 
 ### Loop 4A: Contracts, Hydration Routes, Selection, And Feedback
-- [ ] Add contracts for candidates, selections, feedback, active runs, and dual start request shape.
-- [ ] Add durable-chat-server DTO builders and route helpers.
-- [ ] Update Next thread messages route with `activeRuns`, candidates, selections, and feedback.
-- [ ] Add Next selection and feedback routes.
-- [ ] Add compatibility normalization for `activeRun` and `activeRuns`.
-- [ ] Add server/route tests for hydration, selection, feedback, and auth.
-- [ ] Run `pnpm --filter @agent-infra/durable-chat-server test` if tests exist or relevant.
-- [ ] Run `pnpm --filter playground-next-web test`.
-- [ ] Run `codex review` for this loop.
+- [x] Add contracts for candidates, selections, feedback, active runs, and dual start request shape.
+- [x] Add durable-chat-server DTO builders and route helpers.
+- [x] Update Next thread messages route with `activeRuns`, candidates, selections, and feedback.
+- [x] Add Next selection and feedback routes.
+- [x] Add compatibility normalization for `activeRun` and `activeRuns`.
+- [x] Add server/route tests for hydration, selection, feedback, and auth.
+- [x] Run `pnpm --filter @agent-infra/durable-chat-server test` if tests exist or relevant.
+- [x] Run `pnpm --filter playground-next-web test`.
+- [x] Run `codex review` for this loop.
 - [ ] Commit this loop after review and verification pass.
 
 ### Loop 4B: Dual Stream Start And Multiplex Lifecycle

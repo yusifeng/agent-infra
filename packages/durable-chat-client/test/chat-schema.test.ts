@@ -97,9 +97,96 @@ describe('durable-chat-client schema', () => {
       endCursor: 'cursor-2'
     });
     expect(messages.activeRun?.id).toBe('run-active');
+    expect(messages.activeRuns?.map((run) => run.id)).toEqual(['run-active']);
     expect(messages.activeRun?.usage).toEqual(usage);
     expect(runs.runs).toHaveLength(1);
     expect(runs.runs[0]?.usage).toEqual(usage);
+  });
+
+  it('normalizes active runs and answer candidate hydration data', () => {
+    const messages = normalizeThreadMessagesResponse({
+      messages: [],
+      activeRun: {
+        id: 'stale-run',
+        threadId: 'thread-1',
+        triggerMessageId: 'message-1',
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+        status: 'running',
+        usage: null,
+        error: null,
+        startedAt: null,
+        finishedAt: null,
+        createdAt: '2026-01-01T00:00:01.000Z'
+      },
+      activeRuns: [
+        {
+          id: 'run-2',
+          threadId: 'thread-1',
+          triggerMessageId: 'message-1',
+          provider: 'openai',
+          model: 'gpt-4o-mini',
+          status: 'running',
+          usage: null,
+          error: null,
+          startedAt: null,
+          finishedAt: null,
+          createdAt: '2026-01-01T00:00:02.000Z'
+        },
+        {
+          id: 'broken-run'
+        }
+      ],
+      answerCandidates: [
+        {
+          id: 'candidate-1',
+          threadId: 'thread-1',
+          triggerMessageId: 'message-1',
+          runId: 'run-2',
+          ordinal: 1,
+          kind: 'alternative',
+          createdAt: '2026-01-01T00:00:02.000Z'
+        },
+        {
+          id: 'broken-candidate'
+        }
+      ],
+      answerSelections: [
+        {
+          threadId: 'thread-1',
+          triggerMessageId: 'message-1',
+          selectedRunId: 'run-2',
+          source: 'user',
+          selectedByUserId: 'user-1',
+          createdAt: '2026-01-01T00:00:03.000Z',
+          updatedAt: '2026-01-01T00:00:03.000Z'
+        },
+        {
+          threadId: 'thread-1'
+        }
+      ],
+      runFeedback: [
+        {
+          id: 'feedback-1',
+          threadId: 'thread-1',
+          triggerMessageId: 'message-1',
+          runId: 'run-2',
+          feedbackActorId: 'user-1',
+          value: 'thumbs_up',
+          createdAt: '2026-01-01T00:00:04.000Z',
+          updatedAt: '2026-01-01T00:00:04.000Z'
+        },
+        {
+          id: 'broken-feedback'
+        }
+      ]
+    });
+
+    expect(messages.activeRun?.id).toBe('run-2');
+    expect(messages.activeRuns?.map((run) => run.id)).toEqual(['run-2']);
+    expect(messages.answerCandidates).toMatchObject([{ runId: 'run-2', ordinal: 1, kind: 'alternative' }]);
+    expect(messages.answerSelections).toMatchObject([{ selectedRunId: 'run-2', source: 'user' }]);
+    expect(messages.runFeedback).toMatchObject([{ runId: 'run-2', value: 'thumbs_up' }]);
   });
 
   it('normalizes runtime meta arrays and keeps missing fields optional', () => {

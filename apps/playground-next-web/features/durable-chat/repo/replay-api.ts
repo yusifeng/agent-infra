@@ -38,7 +38,8 @@ export async function fetchReplayThreadMessages(threadId: string, signal?: Abort
     const result = await fetchThreadMessagesResponse(threadId, {
       signal,
       limit: REPLAY_MESSAGE_PAGE_LIMIT,
-      before: beforeCursor
+      before: beforeCursor,
+      projection: 'canonical'
     });
     if (!result.ok) {
       return {

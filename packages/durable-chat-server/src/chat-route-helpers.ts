@@ -1,11 +1,20 @@
-import type { CreateThreadSnapshotShareResult, PublicChatShareResult, RunTextTurnResult, RunTimelineResult, RunTraceResult, StartTextTurnResult } from '@agent-infra/app';
-import type { Message, MessagePageResult, MessagePart, Run, Thread } from '@agent-infra/core';
 import type {
+  CreateThreadSnapshotShareResult,
+  PublicChatShareResult,
+  RunTextTurnResult,
+  RunTimelineResult,
+  RunTraceResult,
+  StartTextTurnResult
+} from '@agent-infra/app';
+import type { AnswerCandidate, AnswerSelection, Message, MessagePageResult, MessagePart, Run, RunFeedback, Thread } from '@agent-infra/core';
+import type {
+  AnswerSelectionResponseDto,
   CreateThreadShareResponseDto,
   PublicChatShareResponseDto,
   RevokeChatShareResponseDto,
   CreateThreadResponseDto,
   RenameThreadRequestDto,
+  RunFeedbackResponseDto,
   RunStreamAssistantEventDto,
   RunStreamCompletedEventDto,
   RunStreamEventDto,
@@ -16,6 +25,8 @@ import type {
   RunTimelineResponseDto,
   RunTextTurnRequestDto,
   RunTextTurnResponseDto,
+  SelectAnswerCandidateRequestDto,
+  SetRunFeedbackRequestDto,
   RuntimePiMetaDto,
   ThreadShareStateResponseDto,
   ThreadMessagesResponseDto,
@@ -26,9 +37,12 @@ import type {
 } from '@agent-infra/contracts';
 
 import {
+  toAnswerCandidateDto,
+  toAnswerSelectionDto,
   toChatShareDto,
   toMessageDto,
   toPublicChatShareDto,
+  toRunFeedbackDto,
   toRunDto,
   toRunEventDto,
   toRuntimeMetaDto,
@@ -36,7 +50,7 @@ import {
   toToolInvocationDto,
   type RuntimeMetaDtoInput
 } from './api-dto.js';
-import { getRouteErrorMessage, InvalidRouteCursorError } from './route-errors.js';
+import { getRouteErrorMessage, InvalidRouteBodyError, InvalidRouteCursorError } from './route-errors.js';
 
 function asObject(value: unknown) {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
@@ -238,20 +252,83 @@ export function buildThreadMessagesResponse(
         messages: Array<Message & { parts: MessagePart[] }>;
         pageInfo?: MessagePageResult['pageInfo'];
         activeRun?: Run | null;
+        activeRuns?: Run[];
+        answerCandidates?: AnswerCandidate[];
+        answerSelections?: AnswerSelection[];
+        runFeedback?: RunFeedback[];
       }
 ): ThreadMessagesResponseDto {
   const messages = Array.isArray(input) ? input : input.messages;
   const pageInfo = Array.isArray(input) ? undefined : input.pageInfo;
   const activeRun = Array.isArray(input) ? undefined : 'activeRun' in input ? input.activeRun : undefined;
-
-  return {
+  const activeRuns = Array.isArray(input) ? undefined : 'activeRuns' in input ? input.activeRuns : undefined;
+  const compatibilityActiveRun = activeRuns?.[0] ?? activeRun ?? null;
+  const response: ThreadMessagesResponseDto = {
     messages: messages.map(toMessageDto),
     pageInfo: toThreadMessagesPageInfoDto(messages, pageInfo),
-    activeRun: activeRun ? toRunDto(activeRun) : null
+    activeRun: compatibilityActiveRun ? toRunDto(compatibilityActiveRun) : null
   };
+
+  if (activeRuns) {
+    response.activeRuns = activeRuns.map((run) => toRunDto(run)).filter((run): run is NonNullable<typeof run> => run !== null);
+  }
+  if (!Array.isArray(input) && 'answerCandidates' in input && input.answerCandidates) {
+    response.answerCandidates = input.answerCandidates.map(toAnswerCandidateDto);
+  }
+  if (!Array.isArray(input) && 'answerSelections' in input && input.answerSelections) {
+    response.answerSelections = input.answerSelections.map(toAnswerSelectionDto);
+  }
+  if (!Array.isArray(input) && 'runFeedback' in input && input.runFeedback) {
+    response.runFeedback = input.runFeedback.map(toRunFeedbackDto);
+  }
+
+  return response;
 }
 
 export function buildThreadMessagesErrorResponse(error: unknown, fallbackMessage: string): ThreadMessagesResponseDto {
+  return {
+    error: getRouteErrorMessage(error, fallbackMessage)
+  };
+}
+
+export function parseSelectAnswerCandidateInput(body: unknown): SelectAnswerCandidateRequestDto {
+  const record = asObject(body);
+  return {
+    triggerMessageId: typeof record.triggerMessageId === 'string' ? record.triggerMessageId.trim() : ''
+  };
+}
+
+export function buildAnswerSelectionResponse(selection: AnswerSelection): AnswerSelectionResponseDto {
+  return {
+    answerSelection: toAnswerSelectionDto(selection)
+  };
+}
+
+export function buildAnswerSelectionErrorResponse(error: unknown, fallbackMessage: string): AnswerSelectionResponseDto {
+  return {
+    error: getRouteErrorMessage(error, fallbackMessage)
+  };
+}
+
+export function parseSetRunFeedbackInput(body: unknown): SetRunFeedbackRequestDto {
+  const record = asObject(body);
+  if (record.value !== 'thumbs_up' && record.value !== 'thumbs_down') {
+    throw new InvalidRouteBodyError('invalid run feedback value');
+  }
+
+  return {
+    triggerMessageId: typeof record.triggerMessageId === 'string' ? record.triggerMessageId.trim() : '',
+    value: record.value
+  };
+}
+
+export function buildRunFeedbackResponse(feedback: RunFeedback | null): RunFeedbackResponseDto {
+  return {
+    runFeedback: feedback ? toRunFeedbackDto(feedback) : null
+  };
+}
+
+export function buildRunFeedbackErrorResponse(error: unknown, fallbackMessage: string): RunFeedbackResponseDto {
   return {
     error: getRouteErrorMessage(error, fallbackMessage)
   };
@@ -270,7 +347,9 @@ export function parseRunTextTurnInput(body: unknown): RunTextTurnRequestDto {
     model: typeof record.model === 'string' ? record.model.trim() : undefined,
     thinkingEnabled,
     reasoningEffort,
-    webSearchEnabled
+    webSearchEnabled,
+    answerMode: record.answerMode === 'dual' ? 'dual' : record.answerMode === 'single' ? 'single' : undefined,
+    candidateCount: record.candidateCount === 2 ? 2 : record.candidateCount === 1 ? 1 : undefined
   };
 }
 

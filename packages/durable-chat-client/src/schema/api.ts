@@ -1,7 +1,10 @@
 import type {
+  AnswerCandidateDto,
+  AnswerSelectionDto,
   CreateThreadResponseDto,
   MessageDto,
   MessagePartDto,
+  RunFeedbackDto,
   RunDto,
   RunEventDto,
   RunTraceResponseDto,
@@ -184,6 +187,94 @@ function normalizeMessage(value: unknown): MessageDto | null {
     metadata: asJsonRecordOrNull(record.metadata),
     createdAt,
     parts: Array.isArray(record.parts) ? record.parts.map(normalizeMessagePart).filter((part): part is MessagePartDto => part !== null) : []
+  };
+}
+
+function normalizeAnswerCandidate(value: unknown): AnswerCandidateDto | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const id = asString(record.id);
+  const threadId = asString(record.threadId);
+  const triggerMessageId = asString(record.triggerMessageId);
+  const runId = asString(record.runId);
+  const ordinal = asNumber(record.ordinal);
+  const kind = asString(record.kind) as AnswerCandidateDto['kind'] | null;
+  const createdAt = asString(record.createdAt);
+
+  if (!id || !threadId || !triggerMessageId || !runId || ordinal === null || !kind || !createdAt) {
+    return null;
+  }
+
+  return {
+    id,
+    threadId,
+    triggerMessageId,
+    runId,
+    ordinal,
+    kind,
+    createdAt
+  };
+}
+
+function normalizeAnswerSelection(value: unknown): AnswerSelectionDto | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const threadId = asString(record.threadId);
+  const triggerMessageId = asString(record.triggerMessageId);
+  const selectedRunId = asString(record.selectedRunId);
+  const source = asString(record.source) as AnswerSelectionDto['source'] | null;
+  const createdAt = asString(record.createdAt);
+  const updatedAt = asString(record.updatedAt);
+
+  if (!threadId || !triggerMessageId || !selectedRunId || !source || !createdAt || !updatedAt) {
+    return null;
+  }
+
+  return {
+    threadId,
+    triggerMessageId,
+    selectedRunId,
+    source,
+    selectedByUserId: asNullableString(record.selectedByUserId),
+    createdAt,
+    updatedAt
+  };
+}
+
+function normalizeRunFeedback(value: unknown): RunFeedbackDto | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const id = asString(record.id);
+  const threadId = asString(record.threadId);
+  const triggerMessageId = asString(record.triggerMessageId);
+  const runId = asString(record.runId);
+  const feedbackActorId = asString(record.feedbackActorId);
+  const feedbackValue = asString(record.value) as RunFeedbackDto['value'] | null;
+  const createdAt = asString(record.createdAt);
+  const updatedAt = asString(record.updatedAt);
+
+  if (!id || !threadId || !triggerMessageId || !runId || !feedbackActorId || !feedbackValue || !createdAt || !updatedAt) {
+    return null;
+  }
+
+  return {
+    id,
+    threadId,
+    triggerMessageId,
+    runId,
+    feedbackActorId,
+    value: feedbackValue,
+    createdAt,
+    updatedAt
   };
 }
 
@@ -716,12 +807,30 @@ export function normalizeCreateThreadResponse(value: unknown): CreateThreadRespo
 
 export function normalizeThreadMessagesResponse(value: unknown): ThreadMessagesResponseDto {
   const record = asRecord(value) ?? {};
+  const legacyActiveRun = normalizeRun(record.activeRun);
+  const canonicalActiveRuns = Array.isArray(record.activeRuns) ? record.activeRuns : null;
+  const activeRuns = canonicalActiveRuns
+    ? canonicalActiveRuns.map(normalizeRun).filter((run): run is RunDto => run !== null)
+    : legacyActiveRun
+      ? [legacyActiveRun]
+      : [];
+  const activeRun = canonicalActiveRuns ? activeRuns[0] ?? null : legacyActiveRun;
   return {
     messages: Array.isArray(record.messages)
       ? record.messages.map(normalizeMessage).filter((message): message is MessageDto => message !== null)
       : [],
     pageInfo: normalizeThreadMessagesPageInfo(record.pageInfo) ?? undefined,
-    activeRun: normalizeRun(record.activeRun),
+    activeRun,
+    activeRuns,
+    answerCandidates: Array.isArray(record.answerCandidates)
+      ? record.answerCandidates.map(normalizeAnswerCandidate).filter((candidate): candidate is AnswerCandidateDto => candidate !== null)
+      : [],
+    answerSelections: Array.isArray(record.answerSelections)
+      ? record.answerSelections.map(normalizeAnswerSelection).filter((selection): selection is AnswerSelectionDto => selection !== null)
+      : [],
+    runFeedback: Array.isArray(record.runFeedback)
+      ? record.runFeedback.map(normalizeRunFeedback).filter((feedback): feedback is RunFeedbackDto => feedback !== null)
+      : [],
     error: readApiError(record) ?? undefined
   };
 }

@@ -13,8 +13,11 @@ export {
 } from '@agent-infra/durable-chat-client';
 
 import type {
+  AnswerSelectionResponseDto,
   CreateThreadShareResponseDto,
   RevokeChatShareResponseDto,
+  RunFeedbackDto,
+  RunFeedbackResponseDto,
   ThreadDto,
   ThreadShareStateResponseDto,
   ToolInvocationDto,
@@ -136,4 +139,35 @@ export async function fetchSearchToolInvocations(runId: string, toolCallIds: str
       toolInvocations
     }
   };
+}
+
+export async function selectAnswerCandidate(threadId: string, runId: string, triggerMessageId: string, signal?: AbortSignal) {
+  return fetchJson<AnswerSelectionResponseDto>(`/api/threads/${threadId}/answer-candidates/${runId}/selection`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ triggerMessageId }),
+    signal
+  });
+}
+
+export async function setRunFeedback(
+  threadId: string,
+  runId: string,
+  triggerMessageId: string,
+  value: RunFeedbackDto['value'],
+  signal?: AbortSignal
+) {
+  return fetchJson<RunFeedbackResponseDto>(`/api/threads/${threadId}/runs/${runId}/feedback`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ triggerMessageId, value }),
+    signal
+  });
+}
+
+export async function clearRunFeedback(threadId: string, runId: string, signal?: AbortSignal) {
+  return fetchJson<RunFeedbackResponseDto>(`/api/threads/${threadId}/runs/${runId}/feedback`, {
+    method: 'DELETE',
+    signal
+  });
 }

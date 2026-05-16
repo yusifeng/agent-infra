@@ -2,8 +2,11 @@ import type {
   ChatShareScopeType,
   ChatShareSnapshotPayloadFormat,
   ChatShareStatus,
+  AnswerCandidateKind,
+  AnswerSelectionSource,
   MessagePartType,
   MessageRole,
+  RunFeedbackValue,
   RunUsageSummaryV1,
   RunStatus,
   ToolInvocationStatus
@@ -75,6 +78,37 @@ export interface ToolInvocationDto {
   startedAt?: IsoDateString | null;
   finishedAt?: IsoDateString | null;
   createdAt: IsoDateString;
+}
+
+export interface AnswerCandidateDto {
+  id: string;
+  threadId: string;
+  triggerMessageId: string;
+  runId: string;
+  ordinal: number;
+  kind: AnswerCandidateKind;
+  createdAt: IsoDateString;
+}
+
+export interface AnswerSelectionDto {
+  threadId: string;
+  triggerMessageId: string;
+  selectedRunId: string;
+  source: AnswerSelectionSource;
+  selectedByUserId?: string | null;
+  createdAt: IsoDateString;
+  updatedAt: IsoDateString;
+}
+
+export interface RunFeedbackDto {
+  id: string;
+  threadId: string;
+  triggerMessageId: string;
+  runId: string;
+  feedbackActorId: string;
+  value: RunFeedbackValue;
+  createdAt: IsoDateString;
+  updatedAt: IsoDateString;
 }
 
 export interface RunEventDto {
@@ -272,6 +306,32 @@ export interface RunTextTurnRequestDto {
   thinkingEnabled?: boolean;
   reasoningEffort?: RuntimePiReasoningEffortDto;
   webSearchEnabled?: boolean;
+  answerMode?: 'single' | 'dual';
+  candidateCount?: 1 | 2;
+}
+
+export interface StartAnswerCandidatesRequestDto extends RunTextTurnRequestDto {
+  answerMode?: 'dual';
+  candidateCount: 2;
+}
+
+export interface SelectAnswerCandidateRequestDto {
+  triggerMessageId: string;
+}
+
+export interface SetRunFeedbackRequestDto {
+  triggerMessageId: string;
+  value: RunFeedbackValue;
+}
+
+export interface AnswerSelectionResponseDto {
+  answerSelection?: AnswerSelectionDto;
+  error?: string;
+}
+
+export interface RunFeedbackResponseDto {
+  runFeedback?: RunFeedbackDto | null;
+  error?: string;
 }
 
 export interface GetRunTimelineRequestDto {
@@ -306,6 +366,10 @@ export interface ThreadMessagesResponseDto {
   messages?: MessageDto[];
   pageInfo?: ThreadMessagesPageInfoDto;
   activeRun?: RunDto | null;
+  activeRuns?: RunDto[];
+  answerCandidates?: AnswerCandidateDto[];
+  answerSelections?: AnswerSelectionDto[];
+  runFeedback?: RunFeedbackDto[];
   error?: string;
 }
 

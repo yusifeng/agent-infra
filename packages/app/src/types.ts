@@ -120,6 +120,7 @@ export interface GetThreadMessagesInput {
   limit?: number;
   beforeSeq?: number;
   afterSeq?: number;
+  feedbackActorId?: string | null;
 }
 
 export interface RunTextTurnInput {
@@ -152,6 +153,7 @@ export interface SetRunFeedbackInput {
 }
 
 export interface ClearRunFeedbackInput {
+  threadId: string;
   runId: string;
   feedbackActorId: string;
 }
@@ -174,6 +176,7 @@ export interface CanonicalThreadMessagesPageResult extends MessagePageResult {
 
 export interface ThreadMessagesWithAnswerCandidatesResult {
   messages: Array<Message & { parts: MessagePart[] }>;
+  pageInfo?: MessagePageResult['pageInfo'];
   activeRuns: Run[];
   activeRun: Run | null;
   answerCandidates: AnswerCandidate[];

@@ -21,7 +21,7 @@ import {
   parseThreadRunsLimit,
   parseRunTextTurnInput
 } from '../src/chat-route-helpers';
-import { getRouteErrorMessage, getRouteErrorStatus } from '../src/route-errors';
+import { getRouteErrorMessage, getRouteErrorStatus, InvalidRouteBodyError } from '../src/route-errors';
 
 describe('durable chat server route helpers', () => {
   it('maps app errors to route status codes and messages', () => {
@@ -29,6 +29,7 @@ describe('durable chat server route helpers', () => {
 
     expect(getRouteErrorStatus(error)).toBe(400);
     expect(getRouteErrorMessage(error, 'fallback')).toBe(error.message);
+    expect(getRouteErrorStatus(new InvalidRouteBodyError('bad body'))).toBe(400);
     expect(getRouteErrorStatus(new Error('boom'))).toBe(500);
     expect(getRouteErrorMessage(null, 'fallback')).toBe('fallback');
   });
@@ -312,6 +313,80 @@ describe('durable chat server route helpers', () => {
     expect(decodeThreadMessageCursor(response.pageInfo?.startCursor ?? '', 'thread-1')).toBe(2);
     expect(() => decodeThreadMessageCursor(response.pageInfo?.startCursor ?? '', 'thread-2')).toThrow('invalid thread message cursor');
     expect(response.activeRun?.status).toBe('running');
+  });
+
+  it('serializes answer candidate hydration fields on thread messages', () => {
+    const response = buildThreadMessagesResponse({
+      messages: [],
+      activeRun: {
+        id: 'stale-run',
+        threadId: 'thread-1',
+        triggerMessageId: 'message-1',
+        provider: 'deepseek',
+        model: 'deepseek-v4-flash',
+        status: 'running',
+        usage: null,
+        error: null,
+        startedAt: null,
+        finishedAt: null,
+        createdAt: new Date('2026-01-01T00:00:01.000Z')
+      },
+      activeRuns: [
+        {
+          id: 'run-2',
+          threadId: 'thread-1',
+          triggerMessageId: 'message-1',
+          provider: 'deepseek',
+          model: 'deepseek-v4-flash',
+          status: 'running',
+          usage: null,
+          error: null,
+          startedAt: null,
+          finishedAt: null,
+          createdAt: new Date('2026-01-01T00:00:02.000Z')
+        }
+      ],
+      answerCandidates: [
+        {
+          id: 'candidate-1',
+          threadId: 'thread-1',
+          triggerMessageId: 'message-1',
+          runId: 'run-2',
+          ordinal: 1,
+          kind: 'alternative',
+          createdAt: new Date('2026-01-01T00:00:02.000Z')
+        }
+      ],
+      answerSelections: [
+        {
+          threadId: 'thread-1',
+          triggerMessageId: 'message-1',
+          selectedRunId: 'run-2',
+          source: 'user',
+          selectedByUserId: 'user-1',
+          createdAt: new Date('2026-01-01T00:00:03.000Z'),
+          updatedAt: new Date('2026-01-01T00:00:03.000Z')
+        }
+      ],
+      runFeedback: [
+        {
+          id: 'feedback-1',
+          threadId: 'thread-1',
+          triggerMessageId: 'message-1',
+          runId: 'run-2',
+          feedbackActorId: 'user-1',
+          value: 'thumbs_up',
+          createdAt: new Date('2026-01-01T00:00:04.000Z'),
+          updatedAt: new Date('2026-01-01T00:00:04.000Z')
+        }
+      ]
+    });
+
+    expect(response.activeRun?.id).toBe('run-2');
+    expect(response.activeRuns).toMatchObject([{ id: 'run-2' }]);
+    expect(response.answerCandidates).toMatchObject([{ runId: 'run-2', ordinal: 1, kind: 'alternative' }]);
+    expect(response.answerSelections).toMatchObject([{ selectedRunId: 'run-2', source: 'user' }]);
+    expect(response.runFeedback).toMatchObject([{ runId: 'run-2', value: 'thumbs_up' }]);
   });
 
   it('builds run stream events and encodes sse frames', () => {

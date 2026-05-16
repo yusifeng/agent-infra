@@ -749,32 +749,44 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
       },
       async getMessagesWithAnswerCandidates(input) {
         await loadThreadOrThrow(dependencies.repositories, input.threadId);
-        const messagesPromise =
-          typeof input.beforeSeq === 'number' || typeof input.afterSeq === 'number' || typeof input.limit === 'number'
-            ? dependencies.repositories.messageRepo
-                .listPageByThread(input.threadId, {
-                  limit: input.limit,
-                  beforeSeq: input.beforeSeq,
-                  afterSeq: input.afterSeq
-                })
-                .then((page) => page.messages)
-            : dependencies.repositories.messageRepo.listByThread(input.threadId);
+        const hasPagination = typeof input.beforeSeq === 'number' || typeof input.afterSeq === 'number' || typeof input.limit === 'number';
+        const messagesPromise = hasPagination
+          ? dependencies.repositories.messageRepo.listPageByThread(input.threadId, {
+              limit: input.limit,
+              beforeSeq: input.beforeSeq,
+              afterSeq: input.afterSeq
+            })
+          : dependencies.repositories.messageRepo.listByThread(input.threadId).then((messages) => ({ messages, pageInfo: undefined }));
 
-        const [messages, activeRuns, answerCandidates, answerSelections] = await Promise.all([
+        const [messageResult, activeRuns, answerCandidates, answerSelections] = await Promise.all([
           messagesPromise,
           dependencies.repositories.runRepo.listActiveByThread(input.threadId),
           dependencies.repositories.answerCandidateRepo.listByThread(input.threadId),
           dependencies.repositories.answerSelectionRepo.listByThread(input.threadId)
         ]);
-        const runIds = [...new Set(answerCandidates.map((candidate) => candidate.runId))];
-        const runFeedback = await dependencies.repositories.runFeedbackRepo.listByRunIds(runIds);
+        const messages = messageResult.messages;
+        const visibleMessageIds = new Set(messages.map((message) => message.id));
+        const visibleRunIds = new Set(messages.map((message) => message.runId).filter((runId): runId is string => typeof runId === 'string'));
+        const relevantCandidates = hasPagination
+          ? answerCandidates.filter((candidate) => visibleMessageIds.has(candidate.triggerMessageId) || visibleRunIds.has(candidate.runId))
+          : answerCandidates;
+        const relevantTriggerIds = new Set(relevantCandidates.map((candidate) => candidate.triggerMessageId));
+        const relevantSelections = hasPagination
+          ? answerSelections.filter((selection) => relevantTriggerIds.has(selection.triggerMessageId))
+          : answerSelections;
+        const runIds = [...new Set(relevantCandidates.map((candidate) => candidate.runId))];
+        const feedbackActorId = input.feedbackActorId?.trim() || null;
+        const runFeedback = runIds.length > 0 && feedbackActorId
+          ? await dependencies.repositories.runFeedbackRepo.listByRunIds(runIds, feedbackActorId)
+          : [];
 
         return {
           messages,
+          pageInfo: messageResult.pageInfo,
           activeRuns,
           activeRun: activeRuns[0] ?? null,
-          answerCandidates,
-          answerSelections,
+          answerCandidates: relevantCandidates,
+          answerSelections: relevantSelections,
           runFeedback
         };
       }
@@ -822,6 +834,12 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
         });
       },
       async clearRunFeedback(input) {
+        await loadThreadOrThrow(dependencies.repositories, input.threadId);
+        const run = await dependencies.repositories.runRepo.findById(input.runId);
+        if (!run || run.threadId !== input.threadId) {
+          throw new InvalidRunFeedbackError('feedback run is not part of the thread', { ...input });
+        }
+
         await dependencies.repositories.runFeedbackRepo.clear(input);
       },
       async runText(input) {

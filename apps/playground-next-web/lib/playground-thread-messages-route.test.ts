@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Message, MessagePart, Run } from '@agent-infra/core';
+import type { AnswerCandidate, AnswerSelection, Message, MessagePart, Run, RunFeedback } from '@agent-infra/core';
 
 const user = { id: 'user-1', email: 'user@example.com' };
 
@@ -113,6 +113,46 @@ function createMessagesWithPolicyOnlyToolTrace() {
   return [assistant, policyResult, visible];
 }
 
+function createAnswerCandidate(overrides: Partial<AnswerCandidate> = {}): AnswerCandidate {
+  return {
+    id: 'candidate-1',
+    threadId: 'thread-1',
+    triggerMessageId: 'user-message',
+    runId: 'run-1',
+    ordinal: 0,
+    kind: 'primary',
+    createdAt: now(),
+    ...overrides
+  };
+}
+
+function createAnswerSelection(overrides: Partial<AnswerSelection> = {}): AnswerSelection {
+  return {
+    threadId: 'thread-1',
+    triggerMessageId: 'user-message',
+    selectedRunId: 'run-1',
+    source: 'default',
+    selectedByUserId: null,
+    createdAt: now(),
+    updatedAt: now(),
+    ...overrides
+  };
+}
+
+function createRunFeedback(overrides: Partial<RunFeedback> = {}): RunFeedback {
+  return {
+    id: 'feedback-1',
+    threadId: 'thread-1',
+    triggerMessageId: 'user-message',
+    runId: 'run-1',
+    feedbackActorId: 'user-1',
+    value: 'thumbs_up',
+    createdAt: now(),
+    updatedAt: now(),
+    ...overrides
+  };
+}
+
 async function importMessagesRoute() {
   return import('../app/api/threads/[threadId]/messages/route');
 }
@@ -136,8 +176,10 @@ function mockAppServices(overrides: {
   getMessages?: ReturnType<typeof vi.fn>;
   getCanonicalMessages?: ReturnType<typeof vi.fn>;
   getCanonicalMessagesPage?: ReturnType<typeof vi.fn>;
+  getMessagesWithAnswerCandidates?: ReturnType<typeof vi.fn>;
   getMessagesPage?: ReturnType<typeof vi.fn>;
   getActiveByThread?: ReturnType<typeof vi.fn>;
+  listActiveByThread?: ReturnType<typeof vi.fn>;
 } = {}) {
   const getMessages = overrides.getMessages ?? vi.fn().mockResolvedValue(createMessagesWithPolicyOnlyToolTrace());
   const getCanonicalMessages = overrides.getCanonicalMessages ?? vi.fn().mockResolvedValue({
@@ -165,17 +207,34 @@ function mockAppServices(overrides: {
     canonicalRunIds: [],
     diagnostics: []
   });
+  const getMessagesWithAnswerCandidates = overrides.getMessagesWithAnswerCandidates ?? vi.fn().mockResolvedValue({
+    messages: createMessagesWithPolicyOnlyToolTrace(),
+    pageInfo: {
+      hasOlder: false,
+      hasNewer: true,
+      startSeq: 1,
+      endSeq: 3
+    },
+    activeRun: createRun(),
+    activeRuns: [createRun()],
+    answerCandidates: [],
+    answerSelections: [],
+    runFeedback: []
+  });
   const getActiveByThread = overrides.getActiveByThread ?? vi.fn().mockResolvedValue(createRun());
+  const listActiveByThread = overrides.listActiveByThread ?? vi.fn().mockResolvedValue([createRun()]);
   const services = {
     app: {
       runs: {
-        getActiveByThread
+        getActiveByThread,
+        listActiveByThread
       },
       threads: {
         getMessages,
         getCanonicalMessages,
         getCanonicalMessagesPage,
-        getMessagesPage
+        getMessagesPage,
+        getMessagesWithAnswerCandidates
       }
     }
   };
@@ -190,7 +249,9 @@ function mockAppServices(overrides: {
     getCanonicalMessages,
     getCanonicalMessagesPage,
     getMessages,
+    getMessagesWithAnswerCandidates,
     getMessagesPage,
+    listActiveByThread,
     getPlaygroundAppServices
   };
 }
@@ -208,7 +269,7 @@ describe('playground thread messages route', () => {
 
   it('filters policy-only tool traces from full thread messages', async () => {
     mockThreadAccess();
-    const { getCanonicalMessages } = mockAppServices();
+    const { getMessagesWithAnswerCandidates } = mockAppServices();
     const { GET } = await importMessagesRoute();
 
     const response = await GET(new Request('http://localhost/api/threads/thread-1/messages'), {
@@ -234,14 +295,21 @@ describe('playground thread messages route', () => {
       ],
       activeRun: {
         id: 'run-1'
-      }
+      },
+      activeRuns: [{ id: 'run-1' }]
     });
-    expect(getCanonicalMessages).toHaveBeenCalledWith({ threadId: 'thread-1' });
+    expect(getMessagesWithAnswerCandidates).toHaveBeenCalledWith({
+      threadId: 'thread-1',
+      limit: undefined,
+      beforeSeq: undefined,
+      afterSeq: undefined,
+      feedbackActorId: 'user-1'
+    });
   });
 
-  it('serves replay-compatible canonical messages without unselected candidates', async () => {
+  it('serves replay-compatible canonical messages without unselected candidates when requested', async () => {
     mockThreadAccess();
-    mockAppServices({
+    const { getCanonicalMessages, getMessagesWithAnswerCandidates } = mockAppServices({
       getCanonicalMessages: vi.fn().mockResolvedValue({
         messages: [
           createMessage({
@@ -264,7 +332,7 @@ describe('playground thread messages route', () => {
     });
     const { GET } = await importMessagesRoute();
 
-    const response = await GET(new Request('http://localhost/api/threads/thread-1/messages'), {
+    const response = await GET(new Request('http://localhost/api/threads/thread-1/messages?projection=canonical'), {
       params: Promise.resolve({ threadId: 'thread-1' })
     });
 
@@ -282,11 +350,67 @@ describe('playground thread messages route', () => {
         }
       ]
     });
+    expect(getCanonicalMessages).toHaveBeenCalledWith({ threadId: 'thread-1' });
+    expect(getMessagesWithAnswerCandidates).not.toHaveBeenCalled();
+  });
+
+  it('returns answer candidate hydration data for chat messages', async () => {
+    mockThreadAccess();
+    mockAppServices({
+      getMessagesWithAnswerCandidates: vi.fn().mockResolvedValue({
+        messages: [
+          createMessage({
+            id: 'user-message',
+            role: 'user',
+            seq: 1,
+            parts: [createPart('user-message', 0, 'text', null, 'question')]
+          })
+        ],
+        pageInfo: undefined,
+        activeRun: createRun({ id: 'run-2' }),
+        activeRuns: [createRun({ id: 'run-2' }), createRun({ id: 'run-1' })],
+        answerCandidates: [createAnswerCandidate({ runId: 'run-1' }), createAnswerCandidate({ id: 'candidate-2', runId: 'run-2', ordinal: 1, kind: 'alternative' })],
+        answerSelections: [createAnswerSelection({ selectedRunId: 'run-1' })],
+        runFeedback: [createRunFeedback({ runId: 'run-1' })]
+      })
+    });
+    const { GET } = await importMessagesRoute();
+
+    const response = await GET(new Request('http://localhost/api/threads/thread-1/messages'), {
+      params: Promise.resolve({ threadId: 'thread-1' })
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      activeRun: { id: 'run-2' },
+      activeRuns: [{ id: 'run-2' }, { id: 'run-1' }],
+      answerCandidates: [
+        { runId: 'run-1', ordinal: 0, kind: 'primary' },
+        { runId: 'run-2', ordinal: 1, kind: 'alternative' }
+      ],
+      answerSelections: [{ selectedRunId: 'run-1', source: 'default' }],
+      runFeedback: [{ runId: 'run-1', value: 'thumbs_up' }]
+    });
   });
 
   it('filters policy-only tool traces from paginated thread messages', async () => {
     mockThreadAccess();
-    const { getCanonicalMessages, getCanonicalMessagesPage, getMessages, getMessagesPage } = mockAppServices();
+    const { getCanonicalMessages, getCanonicalMessagesPage, getMessages, getMessagesWithAnswerCandidates, getMessagesPage } = mockAppServices({
+      getMessagesWithAnswerCandidates: vi.fn().mockResolvedValue({
+        messages: createMessagesWithPolicyOnlyToolTrace(),
+        pageInfo: {
+          hasOlder: false,
+          hasNewer: true,
+          startSeq: 1,
+          endSeq: 3
+        },
+        activeRun: createRun(),
+        activeRuns: [createRun()],
+        answerCandidates: [createAnswerCandidate()],
+        answerSelections: [createAnswerSelection()],
+        runFeedback: [createRunFeedback()]
+      })
+    });
     const { GET } = await importMessagesRoute();
 
     const response = await GET(new Request('http://localhost/api/threads/thread-1/messages?limit=3'), {
@@ -313,23 +437,28 @@ describe('playground thread messages route', () => {
       pageInfo: {
         hasOlder: false,
         hasNewer: true
-      }
+      },
+      answerCandidates: [{ runId: 'run-1' }],
+      answerSelections: [{ selectedRunId: 'run-1' }],
+      runFeedback: [{ value: 'thumbs_up' }]
     });
     expect(getMessages).not.toHaveBeenCalled();
     expect(getMessagesPage).not.toHaveBeenCalled();
     expect(getCanonicalMessages).not.toHaveBeenCalled();
-    expect(getCanonicalMessagesPage).toHaveBeenCalledWith({
+    expect(getCanonicalMessagesPage).not.toHaveBeenCalled();
+    expect(getMessagesWithAnswerCandidates).toHaveBeenCalledWith({
       threadId: 'thread-1',
       limit: 3,
       beforeSeq: undefined,
-      afterSeq: undefined
+      afterSeq: undefined,
+      feedbackActorId: 'user-1'
     });
   });
 
   it('keeps pagination cursors when every returned message is filtered out', async () => {
     mockThreadAccess();
     mockAppServices({
-      getCanonicalMessagesPage: vi.fn().mockResolvedValue({
+      getMessagesWithAnswerCandidates: vi.fn().mockResolvedValue({
         messages: [
           createMessage({
             id: 'tool-1',

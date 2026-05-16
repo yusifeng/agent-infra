@@ -1,5 +1,19 @@
-import type { ChatShare, ChatShareSnapshot, Message, MessagePart, Run, RunEvent, Thread, ToolInvocation } from '@agent-infra/core';
 import type {
+  AnswerCandidate,
+  AnswerSelection,
+  ChatShare,
+  ChatShareSnapshot,
+  Message,
+  MessagePart,
+  Run,
+  RunEvent,
+  RunFeedback,
+  Thread,
+  ToolInvocation
+} from '@agent-infra/core';
+import type {
+  AnswerCandidateDto,
+  AnswerSelectionDto,
   ChatShareDto,
   ChatShareSnapshotDto,
   MessageDto,
@@ -8,6 +22,7 @@ import type {
   RunDto,
   RunEventDto,
   RunEventSummaryDto,
+  RunFeedbackDto,
   RuntimePiMetaDto,
   SharedMessageDto,
   SharedMessagePartDto,
@@ -179,6 +194,43 @@ export function toChatShareSnapshotDto(snapshot: ChatShareSnapshot): ChatShareSn
     startSeq: snapshot.startSeq ?? null,
     endSeq: snapshot.endSeq ?? null,
     createdAt: snapshot.createdAt.toISOString()
+  };
+}
+
+export function toAnswerCandidateDto(candidate: AnswerCandidate): AnswerCandidateDto {
+  return {
+    id: candidate.id,
+    threadId: candidate.threadId,
+    triggerMessageId: candidate.triggerMessageId,
+    runId: candidate.runId,
+    ordinal: candidate.ordinal,
+    kind: candidate.kind,
+    createdAt: candidate.createdAt.toISOString()
+  };
+}
+
+export function toAnswerSelectionDto(selection: AnswerSelection): AnswerSelectionDto {
+  return {
+    threadId: selection.threadId,
+    triggerMessageId: selection.triggerMessageId,
+    selectedRunId: selection.selectedRunId,
+    source: selection.source,
+    selectedByUserId: selection.selectedByUserId ?? null,
+    createdAt: selection.createdAt.toISOString(),
+    updatedAt: selection.updatedAt.toISOString()
+  };
+}
+
+export function toRunFeedbackDto(feedback: RunFeedback): RunFeedbackDto {
+  return {
+    id: feedback.id,
+    threadId: feedback.threadId,
+    triggerMessageId: feedback.triggerMessageId,
+    runId: feedback.runId,
+    feedbackActorId: feedback.feedbackActorId,
+    value: feedback.value,
+    createdAt: feedback.createdAt.toISOString(),
+    updatedAt: feedback.updatedAt.toISOString()
   };
 }
 

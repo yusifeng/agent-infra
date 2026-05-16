@@ -70,7 +70,7 @@ describe('replay api', () => {
       'message-4'
     ]);
     expect(fetchMock).toHaveBeenLastCalledWith(
-      '/api/threads/thread-1/messages?limit=100&before=cursor-3',
+      '/api/threads/thread-1/messages?limit=100&before=cursor-3&projection=canonical',
       expect.objectContaining({ signal: undefined })
     );
   });
