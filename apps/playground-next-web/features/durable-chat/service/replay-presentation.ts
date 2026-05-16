@@ -1,4 +1,5 @@
 import { buildAnswerContainers } from '@/features/durable-chat/service/build-answer-containers';
+import { getActiveReplayableStepIndex, getReplayableStepIndices } from '@/features/durable-chat/service/replay-player';
 import type { MessageDto, MessagePartDto } from '@agent-infra/contracts';
 
 import type {
@@ -11,6 +12,14 @@ import type {
   ReplayViewState
 } from '@/features/durable-chat/types/replay';
 import type { AssistantTurnItem, SearchStatusBlock, SearchSummaryBlock, TranscriptBlock } from '@/features/durable-chat/types/transcript-blocks';
+
+const replayStepKindLabels: Record<ReplayStep['kind'], string> = {
+  text: '消息',
+  'search-loading': '搜索中',
+  'search-summary': '搜索结果',
+  'tool-part': '工具调用',
+  done: '完成'
+};
 
 function createReplayPart(step: ReplayTextStep): MessagePartDto {
   return {
@@ -212,26 +221,57 @@ export function buildReplayTranscriptBlocks(session: ReplaySession, cursor: Repl
 }
 
 export function buildReplayControlState(session: ReplaySession | null, cursor: ReplayCursor): ReplayControlState {
-  const hasReplayableSteps = Boolean(session?.steps.some((step) => step.kind !== 'done'));
+  const replayableStepIndices = getReplayableStepIndices(session);
+  const hasReplayableSteps = replayableStepIndices.length > 0;
   const hasStarted = cursor.stepIndex >= 0 || cursor.status === 'completed';
+  const activeStepIndex =
+    cursor.status === 'completed' && replayableStepIndices.length > 0
+      ? replayableStepIndices.length - 1
+      : getActiveReplayableStepIndex(session, cursor);
 
   return {
     canPlay: hasReplayableSteps && cursor.status === 'idle',
     canPause: hasReplayableSteps && cursor.status === 'playing',
     canResume: hasReplayableSteps && cursor.status === 'paused',
-    canRestart: hasReplayableSteps && hasStarted
+    canRestart: hasReplayableSteps && hasStarted,
+    canTogglePlayback: hasReplayableSteps,
+    canPrevious: hasReplayableSteps && activeStepIndex > 0,
+    canNext: hasReplayableSteps && activeStepIndex >= 0 && activeStepIndex < replayableStepIndices.length - 1,
+    canSeek: hasReplayableSteps
   };
 }
 
 export function buildReplayViewState(session: ReplaySession | null, cursor: ReplayCursor): ReplayViewState {
-  const totalSteps = session ? session.steps.filter((step) => step.kind !== 'done').length : 0;
-  const consumedSteps = cursor.stepIndex >= 0 ? Math.min(cursor.stepIndex + 1, totalSteps) : 0;
+  const replayableStepIndices = getReplayableStepIndices(session);
+  const totalSteps = replayableStepIndices.length;
+  const consumedSteps =
+    cursor.stepIndex >= 0 ? replayableStepIndices.filter((stepIndex) => stepIndex <= cursor.stepIndex).length : 0;
+  const activeStepIndex =
+    cursor.status === 'completed' && totalSteps > 0 ? totalSteps - 1 : getActiveReplayableStepIndex(session, cursor);
+  const activeStepRawIndex = replayableStepIndices[activeStepIndex] ?? null;
+  const activeStep = activeStepRawIndex === null ? null : session?.steps[activeStepRawIndex] ?? null;
 
   return {
     status: cursor.status,
     currentStepIndex: consumedSteps,
     totalSteps,
-    progressLabel: totalSteps > 0 ? `${consumedSteps} / ${totalSteps}` : '0 / 0'
+    progressLabel: totalSteps > 0 ? `${consumedSteps} / ${totalSteps}` : '0 / 0',
+    activeStepIndex,
+    currentStepLabel: activeStep ? replayStepKindLabels[activeStep.kind] : '等待开始',
+    currentStepKind: activeStep?.kind ?? null,
+    progressSegments: replayableStepIndices.map((rawStepIndex, stepIndex) => {
+      const step = session?.steps[rawStepIndex];
+      const kind = step?.kind ?? 'done';
+
+      return {
+        stepIndex,
+        rawStepIndex,
+        label: replayStepKindLabels[kind],
+        kind,
+        complete: stepIndex < consumedSteps,
+        active: stepIndex === activeStepIndex
+      };
+    })
   };
 }
 

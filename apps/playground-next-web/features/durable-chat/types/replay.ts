@@ -91,6 +91,10 @@ export type ReplayControlState = {
   canPause: boolean;
   canResume: boolean;
   canRestart: boolean;
+  canTogglePlayback: boolean;
+  canPrevious: boolean;
+  canNext: boolean;
+  canSeek: boolean;
 };
 
 export type ReplayViewState = {
@@ -98,6 +102,17 @@ export type ReplayViewState = {
   currentStepIndex: number;
   totalSteps: number;
   progressLabel: string;
+  activeStepIndex: number;
+  currentStepLabel: string;
+  currentStepKind: ReplayStepKind | null;
+  progressSegments: Array<{
+    stepIndex: number;
+    rawStepIndex: number;
+    label: string;
+    kind: ReplayStepKind;
+    complete: boolean;
+    active: boolean;
+  }>;
 };
 
 export type ReplayPresentation = {

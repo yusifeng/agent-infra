@@ -230,18 +230,54 @@ describe('buildReplayPresentation', () => {
       canPlay: true,
       canPause: false,
       canResume: false,
-      canRestart: false
+      canRestart: false,
+      canTogglePlayback: true,
+      canPrevious: false,
+      canNext: false,
+      canSeek: true
     });
     expect(idlePresentation.viewState.progressLabel).toBe('0 / 2');
+    expect(idlePresentation.viewState).toMatchObject({
+      activeStepIndex: -1,
+      currentStepLabel: '等待开始',
+      currentStepKind: null
+    });
 
     const pausedPresentation = buildReplayPresentation(session, createCursor({ stepIndex: 0, status: 'paused' }));
     expect(pausedPresentation.controlState).toEqual({
       canPlay: false,
       canPause: false,
       canResume: true,
-      canRestart: true
+      canRestart: true,
+      canTogglePlayback: true,
+      canPrevious: false,
+      canNext: true,
+      canSeek: true
     });
     expect(pausedPresentation.viewState.progressLabel).toBe('1 / 2');
+    expect(pausedPresentation.viewState).toMatchObject({
+      activeStepIndex: 0,
+      currentStepLabel: '消息',
+      currentStepKind: 'text'
+    });
+    expect(pausedPresentation.viewState.progressSegments).toEqual([
+      {
+        stepIndex: 0,
+        rawStepIndex: 0,
+        label: '消息',
+        kind: 'text',
+        complete: true,
+        active: true
+      },
+      {
+        stepIndex: 1,
+        rawStepIndex: 1,
+        label: '消息',
+        kind: 'text',
+        complete: false,
+        active: false
+      }
+    ]);
   });
 
   it('disables controls when the session only has the terminal step', () => {
@@ -255,7 +291,11 @@ describe('buildReplayPresentation', () => {
       canPlay: false,
       canPause: false,
       canResume: false,
-      canRestart: false
+      canRestart: false,
+      canTogglePlayback: false,
+      canPrevious: false,
+      canNext: false,
+      canSeek: false
     });
     expect(presentation.viewState.progressLabel).toBe('0 / 0');
   });

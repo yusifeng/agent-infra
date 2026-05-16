@@ -4,7 +4,7 @@ import clsx from 'clsx';
 
 import { ChatHeader } from './chat-shell/chat-header';
 import { ChatMessageList } from '@/features/durable-chat/ui/messages/message-list';
-import { ReplayControlBar } from './chat-shell/replay-control-bar';
+import { ReplayDock } from './chat-shell/replay-dock';
 import { SearchResultsPanel } from './chat-shell/search-results-panel';
 import { ChatSidebar } from './chat-shell/sidebar';
 import { ui } from './chat-shell/ui';
@@ -50,9 +50,10 @@ export function ReplayConsole({
     onNewChat,
     onOpenSearchResult,
     onCloseSearchPanel,
-    onPlay,
-    onPause,
-    onResume,
+    onTogglePlayback,
+    onPreviousStep,
+    onNextStep,
+    onSeekToStep,
     onRestart
   } = runtime;
 
@@ -111,12 +112,13 @@ export function ReplayConsole({
               />
             </div>
 
-            <ReplayControlBar
+            <ReplayDock
               controlState={controlState}
               viewState={viewState}
-              onPlay={onPlay}
-              onPause={onPause}
-              onResume={onResume}
+              onTogglePlayback={onTogglePlayback}
+              onPreviousStep={onPreviousStep}
+              onNextStep={onNextStep}
+              onSeekToStep={onSeekToStep}
               onRestart={onRestart}
             />
           </div>

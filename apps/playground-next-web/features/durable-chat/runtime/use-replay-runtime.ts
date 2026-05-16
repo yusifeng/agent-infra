@@ -3,6 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { buildReplayPresentation } from '@/features/durable-chat/service/replay-presentation';
+import {
+  moveReplayCursorBy,
+  seekReplayToStep,
+  toggleReplayPlayback
+} from '@/features/durable-chat/service/replay-player';
 import type { ReplayCursor, ReplaySession } from '@/features/durable-chat/types/replay';
 
 const INITIAL_CURSOR: ReplayCursor = {
@@ -136,6 +141,22 @@ export function useReplayRuntime({ session }: { session: ReplaySession | null })
     });
   }
 
+  function togglePlayback() {
+    setCursor((current) => toggleReplayPlayback(session, current, Date.now()));
+  }
+
+  function previousStep() {
+    setCursor((current) => moveReplayCursorBy(session, current, -1, Date.now()));
+  }
+
+  function nextStep() {
+    setCursor((current) => moveReplayCursorBy(session, current, 1, Date.now()));
+  }
+
+  function seekToStep(stepIndex: number) {
+    setCursor((current) => seekReplayToStep(session, current, stepIndex, Date.now()));
+  }
+
   function restart() {
     if (timerRef.current !== null) {
       window.clearTimeout(timerRef.current);
@@ -153,6 +174,10 @@ export function useReplayRuntime({ session }: { session: ReplaySession | null })
     play,
     pause,
     resume,
+    togglePlayback,
+    previousStep,
+    nextStep,
+    seekToStep,
     restart
   };
 }

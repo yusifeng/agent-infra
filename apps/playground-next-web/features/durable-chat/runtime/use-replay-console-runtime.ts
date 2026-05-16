@@ -149,9 +149,10 @@ export function useReplayConsoleRuntime({ initialThreadId }: { initialThreadId: 
     },
     onOpenSearchResult: searchPanelState.onOpenSearchResult,
     onCloseSearchPanel: searchPanelState.onCloseSearchPanel,
-    onPlay: replayRuntime.play,
-    onPause: replayRuntime.pause,
-    onResume: replayRuntime.resume,
+    onTogglePlayback: replayRuntime.togglePlayback,
+    onPreviousStep: replayRuntime.previousStep,
+    onNextStep: replayRuntime.nextStep,
+    onSeekToStep: replayRuntime.seekToStep,
     onRestart: replayRuntime.restart
   };
 }
