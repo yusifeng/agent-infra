@@ -48,8 +48,8 @@
 ### 1.3 Runtime Interfaces
 - [x] Identify which remaining `use-durable-chat-runtime.ts` sections are pure derived state vs side-effect orchestration.
 - [x] Define a small view-model seam for derived values such as response status, title, visible transcript, send disabled, and answer containers.
-- [ ] Define a send/reconcile wiring seam that keeps dependency injection explicit and does not hide abort-controller ownership.
-- [ ] Keep the public `useDurableChatRuntime` return shape stable unless the component layer is changed in the same loop and covered by tests.
+- [x] Define a send/reconcile wiring seam that keeps dependency injection explicit and does not hide abort-controller ownership.
+- [x] Keep the public `useDurableChatRuntime` return shape stable unless the component layer is changed in the same loop and covered by tests.
 
 ### 1.4 Message UI Interfaces
 - [ ] Inventory leaf components currently inside `features/durable-chat/ui/messages/message-list-components.tsx`.
@@ -86,7 +86,7 @@
 ### 3.1 Runtime Layer
 - [x] Extract a pure view-model builder or hook from `use-durable-chat-runtime.ts`.
 - [x] Add focused tests for the view-model seam before replacing inline logic.
-- [ ] Extract send/reconcile wiring only after the view-model seam is stable.
+- [x] Extract send/reconcile wiring only after the view-model seam is stable.
 - [ ] Keep route/thread/stream/inspector controllers as the current runtime controller boundary; do not introduce a generic controller abstraction.
 
 ### 3.2 UI Layer
@@ -117,7 +117,7 @@
 
 ### 4.2 Runtime Tests
 - [x] Add focused tests for the runtime view-model seam.
-- [ ] Add focused tests for send/reconcile wiring if that seam is extracted.
+- [x] Add focused tests for send/reconcile wiring if that seam is extracted.
 - [ ] Keep existing stream/thread/inspector controller tests passing.
 
 ### 4.3 UI Tests
@@ -165,14 +165,14 @@
 - [x] Commit the runtime view-model slice if review is clean.
 
 ### Loop 4: Send/Reconcile Wiring Cleanup
-- [ ] Identify the smallest send/reconcile wiring extraction that reduces root hook complexity.
-- [ ] Preserve streaming recovery and completed-turn reconcile behavior.
-- [ ] Add focused tests before replacing inline wiring.
-- [ ] Run `pnpm --filter playground-next-web test`.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run manual/browser smoke for send completion or attach recovery if feasible.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit the send/reconcile cleanup slice if review is clean.
+- [x] Identify the smallest send/reconcile wiring extraction that reduces root hook complexity.
+- [x] Preserve streaming recovery and completed-turn reconcile behavior.
+- [x] Add focused tests before replacing inline wiring.
+- [x] Run `pnpm --filter playground-next-web test`.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run manual/browser smoke for send completion or attach recovery if feasible. Not run as a browser pass for this controller-only extraction; package and controller tests cover the send/reconcile call contract.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit the send/reconcile cleanup slice if review is clean.
 
 ### Loop 5: Message Leaf UI Split
 - [ ] Split one small group of leaf components out of `message-list-components.tsx`.

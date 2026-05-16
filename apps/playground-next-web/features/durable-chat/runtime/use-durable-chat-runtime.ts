@@ -35,7 +35,7 @@ import {
   resetInspectorControllerState
 } from '@/features/durable-chat/runtime/controllers/inspector-controller';
 import { runSendMessageFlow } from '@/features/durable-chat/runtime/send-message-flow';
-import { runReconcileCompletedTurn } from '@/features/durable-chat/runtime/reconcile-completed-turn';
+import { runReconcileCompletedTurnController } from '@/features/durable-chat/runtime/controllers/send-reconcile-controller';
 import { runAttachRunLifecycle } from '@/features/durable-chat/runtime/controllers/stream-lifecycle-controller';
 import {
   runActivateThreadController,
@@ -680,7 +680,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     preferredRunId: string | null,
     requestId: number
   ) {
-    await runReconcileCompletedTurn({
+    await runReconcileCompletedTurnController({
       threadId,
       preferredRunId,
       requestId,
@@ -712,22 +712,14 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         setTimeline,
         setTimelineError,
         setTimelineLoading
+      },
+      operations: {
+        getThreads: () => threadsRef.current,
+        isDefaultThreadTitle,
+        refreshThreadAfterCompletedRun,
+        refreshThreads
       }
     });
-    const currentThread = threadsRef.current.find((thread) => thread.id === threadId) ?? null;
-    if (!currentThread || isDefaultThreadTitle(currentThread.title)) {
-      try {
-        await refreshThreadAfterCompletedRun(threadId);
-      } catch {
-        // Thread title refresh is a best-effort fallback after the durable turn reconciles.
-      }
-    } else {
-      try {
-        await refreshThreads();
-      } catch {
-        // Thread list refresh is best-effort after a completed durable turn.
-      }
-    }
   }
 
   async function createThreadRecord() {
