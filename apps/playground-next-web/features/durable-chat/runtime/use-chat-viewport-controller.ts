@@ -10,9 +10,12 @@ import {
   isChatViewportNearBottom,
   resolveChatViewportModeFromPosition,
   shouldAutoFollowViewport,
-  type ChatViewportMetrics,
   type ChatViewportMode
 } from '@/features/durable-chat/service/chat-viewport-state';
+import {
+  getChatViewportMetrics,
+  selectionIntersectsChatViewport
+} from '@/features/durable-chat/runtime/chat-viewport-dom';
 
 type ChatViewportControllerOptions = {
   activeThreadId: string | null;
@@ -44,39 +47,11 @@ export function useChatViewportController({
   const shouldAutoScrollRef = useRef(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  function getViewportMetrics(viewport: HTMLDivElement): ChatViewportMetrics {
-    return {
-      scrollHeight: viewport.scrollHeight,
-      scrollTop: viewport.scrollTop,
-      clientHeight: viewport.clientHeight
-    };
-  }
-
   function syncViewportModeFromPosition(viewport: HTMLDivElement) {
-    const mode = resolveChatViewportModeFromPosition(getViewportMetrics(viewport));
+    const mode = resolveChatViewportModeFromPosition(getChatViewportMetrics(viewport));
     viewportModeRef.current = mode;
     shouldAutoScrollRef.current = shouldAutoFollowViewport(mode);
-    setShowScrollToBottom(!isChatViewportNearBottom(getViewportMetrics(viewport)));
-  }
-
-  function selectionIntersectsViewport(viewport: HTMLDivElement) {
-    const selection = document.getSelection();
-    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
-      return false;
-    }
-
-    for (let index = 0; index < selection.rangeCount; index += 1) {
-      const range = selection.getRangeAt(index);
-      try {
-        if (range.intersectsNode(viewport)) {
-          return true;
-        }
-      } catch {
-        // Detached selection ranges can throw in some browsers while DOM updates.
-      }
-    }
-
-    return false;
+    setShowScrollToBottom(!isChatViewportNearBottom(getChatViewportMetrics(viewport)));
   }
 
   function lockAutoFollowForSelection() {
@@ -93,7 +68,7 @@ export function useChatViewportController({
   }
 
   function scrollToBottomIfFollowing(viewport: HTMLDivElement, behavior: ScrollBehavior) {
-    if (!shouldAutoFollowViewport(viewportModeRef.current) || selectionIntersectsViewport(viewport)) {
+    if (!shouldAutoFollowViewport(viewportModeRef.current) || selectionIntersectsChatViewport(viewport)) {
       return;
     }
 
@@ -158,7 +133,7 @@ export function useChatViewportController({
     }
 
     const handleContentResize = () => {
-      if (shouldAutoFollowViewport(viewportModeRef.current) && !selectionIntersectsViewport(viewport)) {
+      if (shouldAutoFollowViewport(viewportModeRef.current) && !selectionIntersectsChatViewport(viewport)) {
         scheduleScrollToBottom(viewport, 'auto');
       }
     };
@@ -187,7 +162,7 @@ export function useChatViewportController({
     }
 
     const handleScroll = () => {
-      if (selectionIntersectsViewport(viewport)) {
+      if (selectionIntersectsChatViewport(viewport)) {
         lockAutoFollowForSelection();
         return;
       }
@@ -220,7 +195,7 @@ export function useChatViewportController({
     };
 
     const handleSelectionChange = () => {
-      if (selectionIntersectsViewport(viewport)) {
+      if (selectionIntersectsChatViewport(viewport)) {
         lockAutoFollowForSelection();
         return;
       }
@@ -278,7 +253,7 @@ export function useChatViewportController({
       shouldAutoScrollRef.current = true;
     }
 
-    if (!consumedThreadBottomScroll && (viewportModeRef.current === 'selecting' || selectionIntersectsViewport(viewport))) {
+    if (!consumedThreadBottomScroll && (viewportModeRef.current === 'selecting' || selectionIntersectsChatViewport(viewport))) {
       lockAutoFollowForSelection();
       return;
     }
