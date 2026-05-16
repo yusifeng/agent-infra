@@ -182,7 +182,9 @@
 - `repo` 负责 fetch / stream / storage 访问，并向 runtime 返回已正常化数据
 - `service` 负责纯逻辑，例如消息合并、run 选择、chat phase 决策
 - `runtime` 负责 router/history、副作用编排、abort controller、viewport 行为
-- `components/chat-shell/*` 继续作为渲染层，不直接解析未知输入，也不直接持有复杂 fetch/stream 状态机
+- `runtime/controllers` 承载已拆出的运行时编排 seam，例如 stream lifecycle、thread load/navigation、inspector hydration、route/load 决策
+- `ui/messages` 承载 durable chat 的消息列表 composition 与 leaf message components
+- `components/chat-shell/*` 继续承载 shell/header/sidebar/composer/dialog、markdown renderer 与共享视觉 primitives，不直接解析未知输入，也不直接持有复杂 fetch/stream 状态机
 
 其中已被证明可复用的 browser-side 能力，当前已上移到 `@agent-infra/durable-chat-client`：
 
