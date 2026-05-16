@@ -2,7 +2,7 @@ import type { MessageDto, RunDto, RunTimelineResponseDto, RuntimePiMetaDto, Thre
 
 import { createThreadResponse, fetchRuntimeMetaResponse, fetchThreadsResponse } from '../repo/chat-api.js';
 import { normalizeRuntimeMeta } from '../service/chat-runtime.js';
-import type { LiveAssistantDraft } from '../types/live-assistant-draft.js';
+import type { LiveAssistantDraft, LiveAssistantDraftsByRunId } from '../types/live-assistant-draft.js';
 import type { ChatPhase, DurableRecoveryState } from '../types/runtime.js';
 
 type Updater<T> = T | ((current: T) => T);
@@ -24,11 +24,14 @@ type ResetDraftThreadStateArgs = {
   actions: {
     setActiveThreadId: Setter<string | null>;
     setActiveResponseRun: Setter<RunDto | null>;
+    setActiveResponseRuns?: Setter<RunDto[]>;
     setChatPhase: Setter<ChatPhase>;
     setDraft: Setter<string>;
     setHistoryLoading: Setter<boolean>;
     setLiveAssistantDraft: Setter<LiveAssistantDraft | null>;
+    setLiveAssistantDraftsByRunId?: Setter<LiveAssistantDraftsByRunId>;
     setLiveStreamRunId: Setter<string | null>;
+    setLiveStreamRunIds?: Setter<string[]>;
     setLoadingMessages: Setter<boolean>;
     setLoadingThreadId: Setter<string | null>;
     setMessages: Setter<MessageDto[]>;
@@ -51,8 +54,10 @@ type StopViewingLiveResponseArgs = {
   };
   actions: {
     setActiveResponseRun: Setter<RunDto | null>;
+    setActiveResponseRuns?: Setter<RunDto[]>;
     setChatPhase: Setter<ChatPhase>;
     setLiveStreamRunId: Setter<string | null>;
+    setLiveStreamRunIds?: Setter<string[]>;
     setLoadingThreadId: Setter<string | null>;
     setPersistingTurn: Setter<boolean>;
   };
@@ -114,6 +119,7 @@ export function runResetDraftThreadState({ refs, actions }: ResetDraftThreadStat
   refs.sendAbortControllerRef.current?.abort();
   actions.setChatPhase('idle');
   actions.setActiveResponseRun(null);
+  actions.setActiveResponseRuns?.([]);
   actions.setPersistingTurn(false);
   actions.setLoadingThreadId(null);
   actions.setActiveThreadId(null);
@@ -128,7 +134,9 @@ export function runResetDraftThreadState({ refs, actions }: ResetDraftThreadStat
   actions.setTimelineError(null);
   actions.setTimelineLoading(false);
   actions.setLiveAssistantDraft(null);
+  actions.setLiveAssistantDraftsByRunId?.({});
   actions.setLiveStreamRunId(null);
+  actions.setLiveStreamRunIds?.([]);
   actions.setRecentRunsLoading(false);
   actions.setRecentRunsError(null);
   actions.setLoadingMessages(false);
@@ -138,8 +146,10 @@ export function runResetDraftThreadState({ refs, actions }: ResetDraftThreadStat
 export function runStopViewingLiveResponse({ refs, actions }: StopViewingLiveResponseArgs) {
   refs.sendAbortControllerRef.current?.abort();
   actions.setActiveResponseRun(null);
+  actions.setActiveResponseRuns?.([]);
   actions.setChatPhase('idle');
   actions.setLiveStreamRunId(null);
+  actions.setLiveStreamRunIds?.([]);
   actions.setPersistingTurn(false);
   actions.setLoadingThreadId(null);
 }

@@ -48,6 +48,22 @@ function createMessage(id: string, seq: number): MessageDto {
   };
 }
 
+function createRun(id: string, status: RunDto['status']): RunDto {
+  return {
+    id,
+    threadId: 'thread-1',
+    triggerMessageId: null,
+    provider: 'openai',
+    model: 'gpt-4o-mini',
+    status,
+    usage: null,
+    error: null,
+    startedAt: null,
+    finishedAt: null,
+    createdAt: '2026-01-01T00:00:00.000Z'
+  };
+}
+
 afterEach(() => {
   fetchThreadMessagesResponseMock.mockReset();
 });
@@ -322,6 +338,81 @@ describe('runLoadThreadMessages', () => {
 });
 
 describe('applyHydratedTranscriptState', () => {
+  it('hydrates multiple active runs and prunes restored drafts by run id', () => {
+    const setActiveResponseRuns = createSetterSpy<RunDto[]>();
+    const setLiveAssistantDraftsByRunId = createSetterSpy<Record<string, any>>();
+    const actions = {
+      setActiveResponseRun: createSetterSpy<RunDto | null>(),
+      setActiveResponseRuns,
+      setChatPhase: createSetterSpy<'idle' | 'thinking' | 'streaming' | 'transcript-final' | 'failed'>(),
+      setError: createSetterSpy<string | null>(),
+      setLiveAssistantDraft: createSetterSpy<any>(),
+      setLiveAssistantDraftsByRunId,
+      setMessages: createSetterSpy<MessageDto[]>(),
+      setMessagePageInfo: createSetterSpy<ThreadMessagesPageInfoDto | null>(),
+      setOptimisticUserMessage: createSetterSpy<MessageDto | null>(),
+      setRecentRuns: createSetterSpy<RunDto[]>(),
+      setRecentRunsError: createSetterSpy<string | null>(),
+      setSelectedRunId: createSetterSpy<string | null>()
+    };
+
+    applyHydratedTranscriptState({
+      messages: [
+        {
+          ...createMessage('assistant-message-1', 2),
+          role: 'assistant',
+          runId: 'run-a',
+          parts: [
+            {
+              id: 'part-1',
+              messageId: 'assistant-message-1',
+              partIndex: 0,
+              type: 'text',
+              textValue: 'persisted A',
+              jsonValue: null
+            }
+          ]
+        }
+      ],
+      pageInfo: null,
+      activeResponseRun: createRun('run-a', 'running'),
+      activeResponseRuns: [createRun('run-a', 'running'), createRun('run-b', 'queued')],
+      selectedRunId: null,
+      runs: [],
+      actions
+    });
+
+    const nextDrafts = resolveUpdater(setLiveAssistantDraftsByRunId.mock.calls[0]?.[0], {
+      'run-a': {
+        runId: 'run-a',
+        messageId: 'assistant-a',
+        source: 'restored',
+        partialText: 'A',
+        segments: []
+      },
+      'run-b': {
+        runId: 'run-b',
+        messageId: 'assistant-b',
+        source: 'restored',
+        partialText: 'B',
+        segments: []
+      },
+      'run-old': {
+        runId: 'run-old',
+        messageId: 'assistant-old',
+        source: 'restored',
+        partialText: 'old',
+        segments: []
+      }
+    });
+
+    expect(setActiveResponseRuns).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'run-a' }),
+      expect.objectContaining({ id: 'run-b' })
+    ]);
+    expect(Object.keys(nextDrafts)).toEqual(['run-b']);
+  });
+
   it('keeps a restored live draft for the active running run even when selectedRunId is null', () => {
     const setLiveAssistantDraft = createSetterSpy<any>();
     const actions = {

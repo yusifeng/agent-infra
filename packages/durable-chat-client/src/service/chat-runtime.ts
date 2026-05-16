@@ -39,6 +39,7 @@ export function shouldShowMainChatLoading(status: MainChatResponseStatus) {
 
 export function deriveMainChatResponseStatus(input: {
   activeResponseRun: RunDto | null;
+  activeResponseRuns?: RunDto[];
   activeThreadId: string | null;
   loadingThreadId: string | null;
   chatPhase: ChatPhase;
@@ -46,7 +47,10 @@ export function deriveMainChatResponseStatus(input: {
   pendingNewThreadLoadingId: string;
 }) {
   const { activeResponseRun, activeThreadId, loadingThreadId, chatPhase, persistingTurn, pendingNewThreadLoadingId } = input;
-  const durableStatus = deriveDurableResponseStatus(activeResponseRun);
+  const activeResponseRuns = input.activeResponseRuns ?? (activeResponseRun ? [activeResponseRun] : []);
+  const durableStatus =
+    activeResponseRuns.map(deriveDurableResponseStatus).find((status) => status === 'queued' || status === 'in_progress') ??
+    deriveDurableResponseStatus(activeResponseRun);
 
   if (durableStatus === 'queued' || durableStatus === 'in_progress') {
     return durableStatus;

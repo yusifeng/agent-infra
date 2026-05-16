@@ -97,6 +97,21 @@ describe('durable-chat-client service', () => {
     expect(
       deriveMainChatResponseStatus({
         activeResponseRun: null,
+        activeResponseRuns: [
+          { ...createRun('run-3', '2026-01-03T00:00:00.000Z'), status: 'completed' },
+          { ...createRun('run-4', '2026-01-04T00:00:00.000Z'), status: 'queued' }
+        ],
+        activeThreadId: 'thread-1',
+        loadingThreadId: null,
+        chatPhase: 'idle',
+        persistingTurn: false,
+        pendingNewThreadLoadingId: '__pending__'
+      })
+    ).toBe('queued');
+
+    expect(
+      deriveMainChatResponseStatus({
+        activeResponseRun: null,
         activeThreadId: null,
         loadingThreadId: '__pending__',
         chatPhase: 'thinking',

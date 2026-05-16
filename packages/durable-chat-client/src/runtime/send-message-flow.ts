@@ -17,7 +17,7 @@ import {
   createEmptyLiveDraft,
   resolveAssistantStreamChatPhase
 } from './live-assistant-draft.js';
-import type { LiveAssistantDraft } from '../types/live-assistant-draft.js';
+import type { LiveAssistantDraft, LiveAssistantDraftsByRunId } from '../types/live-assistant-draft.js';
 import type { ChatPhase } from '../types/runtime.js';
 
 type Updater<T> = T | ((current: T) => T);
@@ -48,11 +48,14 @@ type SendMessageFlowArgs = {
   actions: {
     setActiveThreadId: Setter<string | null>;
     setActiveResponseRun: Setter<RunDto | null>;
+    setActiveResponseRuns?: Setter<RunDto[]>;
     setChatPhase: Setter<ChatPhase>;
     setDraft: Setter<string>;
     setError: Setter<string | null>;
     setLiveAssistantDraft: Setter<LiveAssistantDraft | null>;
+    setLiveAssistantDraftsByRunId?: Setter<LiveAssistantDraftsByRunId>;
     setLiveStreamRunId: Setter<string | null>;
+    setLiveStreamRunIds?: Setter<string[]>;
     setLoadingThreadId: Setter<string | null>;
     setMessages: Setter<MessageDto[]>;
     setOptimisticUserMessage: Setter<MessageDto | null>;
@@ -94,6 +97,9 @@ export async function runSendMessageFlow({ state, refs, actions, operations, str
   let terminalStreamError: string | null = null;
   let readyEventReceived = false;
   let requiresTranscriptRecovery = false;
+  const activeResponseRunsById = new Map<string, RunDto>();
+  const liveStreamRunIds = new Set<string>();
+  const completedRunIds = new Set<string>();
   const streamDiagnostics = {
     firstAssistantEmitted: false,
     firstEventEmitted: false,
@@ -101,12 +107,46 @@ export async function runSendMessageFlow({ state, refs, actions, operations, str
     streamOpenedAtMs: 0
   };
 
+  const getActiveResponseRuns = () => [...activeResponseRunsById.values()];
+
+  const syncActiveResponseRuns = () => {
+    const activeRuns = getActiveResponseRuns();
+    actions.setActiveResponseRuns?.(activeRuns);
+    actions.setActiveResponseRun(activeRuns[0] ?? null);
+  };
+
+  const syncLiveStreamRunIds = () => {
+    const runIds = [...liveStreamRunIds];
+    actions.setLiveStreamRunIds?.(runIds);
+    actions.setLiveStreamRunId(runIds[0] ?? null);
+  };
+
+  const upsertActiveResponseRun = (run: RunDto) => {
+    if (run.status === 'queued' || run.status === 'running') {
+      activeResponseRunsById.set(run.id, run);
+    } else {
+      activeResponseRunsById.delete(run.id);
+    }
+    syncActiveResponseRuns();
+  };
+
+  const clearLiveRun = (runId: string) => {
+    liveStreamRunIds.delete(runId);
+    syncLiveStreamRunIds();
+  };
+
   const applyAssistantStreamEvent = (event: Extract<RunStreamEventDto, { type: 'run.assistant' }>) => {
     if (event.assistant.kind === 'tool_event') {
       requiresTranscriptRecovery = true;
     }
     actions.setChatPhase(resolveAssistantStreamChatPhase(event));
-    actions.setLiveAssistantDraft((current) => applyRunAssistantEventToLiveDraft(current, event));
+    actions.setLiveAssistantDraftsByRunId?.((current) => ({
+      ...current,
+      [event.runId]: applyRunAssistantEventToLiveDraft(current[event.runId] ?? null, event)
+    }));
+    actions.setLiveAssistantDraft((current) =>
+      current && current.runId !== event.runId ? current : applyRunAssistantEventToLiveDraft(current, event)
+    );
   };
 
   const processStreamEvent = (event: RunStreamEventDto) => {
@@ -125,7 +165,8 @@ export async function runSendMessageFlow({ state, refs, actions, operations, str
     }
 
     streamedRunId = event.runId;
-    actions.setLiveStreamRunId(event.runId);
+    liveStreamRunIds.add(event.runId);
+    syncLiveStreamRunIds();
 
     if (event.type === 'run.ready' && refs.logOpenRef.current && refs.selectedRunIdRef.current === null) {
       refs.selectedRunIdRef.current = event.runId;
@@ -139,7 +180,7 @@ export async function runSendMessageFlow({ state, refs, actions, operations, str
 
     if (event.type === 'run.ready') {
       readyEventReceived = true;
-      actions.setActiveResponseRun(event.run);
+      upsertActiveResponseRun(event.run);
       actions.setOptimisticUserMessage(null);
       actions.setMessages((current) => upsertMessage(current, attachMessageRenderKey(event.userMessage, `optimistic-user-${requestId}`)));
       actions.setRecentRuns((current) => upsertRun(current, event.run));
@@ -180,18 +221,25 @@ export async function runSendMessageFlow({ state, refs, actions, operations, str
     }
 
     if (event.type === 'run.state') {
-      actions.setActiveResponseRun(event.run.status === 'queued' || event.run.status === 'running' ? event.run : null);
+      upsertActiveResponseRun(event.run);
     }
 
     if (event.type === 'run.failed') {
       requiresTranscriptRecovery = true;
       terminalStreamError = event.error;
-      actions.setActiveResponseRun(null);
-      actions.setError(event.error);
-      actions.setLiveStreamRunId(null);
-      actions.setPersistingTurn(false);
-      actions.setChatPhase('failed');
+      activeResponseRunsById.delete(event.runId);
+      syncActiveResponseRuns();
+      clearLiveRun(event.runId);
+      actions.setLiveAssistantDraftsByRunId?.((current) => {
+        const { [event.runId]: _removed, ...next } = current;
+        return next;
+      });
       actions.setLiveAssistantDraft((current) => (current?.runId === event.runId ? null : current));
+      if (activeResponseRunsById.size === 0) {
+        actions.setError(event.error);
+        actions.setPersistingTurn(false);
+        actions.setChatPhase(completedRunIds.size > 0 ? resolveSettledChatPhase : 'failed');
+      }
       emitApiDiagnostic({
         durationMs: elapsedMs,
         kind: 'stream-terminal',
@@ -206,10 +254,14 @@ export async function runSendMessageFlow({ state, refs, actions, operations, str
     }
 
     if (event.type === 'run.completed') {
-      actions.setActiveResponseRun(null);
-      actions.setError(null);
-      actions.setLiveStreamRunId(null);
-      actions.setChatPhase(resolveSettledChatPhase);
+      completedRunIds.add(event.runId);
+      activeResponseRunsById.delete(event.runId);
+      syncActiveResponseRuns();
+      clearLiveRun(event.runId);
+      if (activeResponseRunsById.size === 0) {
+        actions.setError(null);
+        actions.setChatPhase(resolveSettledChatPhase);
+      }
       emitApiDiagnostic({
         durationMs: elapsedMs,
         kind: 'stream-terminal',
@@ -235,10 +287,12 @@ export async function runSendMessageFlow({ state, refs, actions, operations, str
 
   actions.setChatPhase('thinking');
   actions.setActiveResponseRun(null);
+  actions.setActiveResponseRuns?.([]);
   actions.setPersistingTurn(false);
   actions.setLoadingThreadId(threadId ?? operations.pendingNewThreadLoadingId);
   actions.setError(null);
   actions.setLiveStreamRunId(null);
+  actions.setLiveStreamRunIds?.([]);
   actions.setDraft('');
   refs.timelineRequestIdRef.current += 1;
   refs.timelineAbortControllerRef.current?.abort();
@@ -247,6 +301,7 @@ export async function runSendMessageFlow({ state, refs, actions, operations, str
   refs.shouldAutoScrollRef.current = true;
   actions.setOptimisticUserMessage(buildOptimisticUserMessage(optimisticThreadId, requestId, text, state.messages));
   actions.setLiveAssistantDraft(createEmptyLiveDraft(`pending-${requestId}`, `pending-assistant-${requestId}`));
+  actions.setLiveAssistantDraftsByRunId?.({});
 
   try {
     if (!threadId) {
@@ -325,12 +380,15 @@ export async function runSendMessageFlow({ state, refs, actions, operations, str
     if (!readyEventReceived) {
       actions.setDraft(text);
       actions.setActiveResponseRun(null);
+      actions.setActiveResponseRuns?.([]);
       actions.setOptimisticUserMessage(null);
       actions.setLiveAssistantDraft(null);
+      actions.setLiveAssistantDraftsByRunId?.({});
     } else {
       requiresTranscriptRecovery = true;
     }
     actions.setActiveResponseRun(null);
+    actions.setActiveResponseRuns?.([]);
     actions.setChatPhase('failed');
     actions.setPersistingTurn(false);
     actions.setLoadingThreadId(null);
@@ -338,8 +396,14 @@ export async function runSendMessageFlow({ state, refs, actions, operations, str
   } finally {
     if (requestId === refs.sendRequestIdRef.current) {
       refs.sendAbortControllerRef.current = null;
-      actions.setLiveStreamRunId(null);
-      actions.setChatPhase(resolveSettledChatPhase);
+      if (activeResponseRunsById.size === 0) {
+        actions.setLiveStreamRunId(null);
+        actions.setLiveStreamRunIds?.([]);
+        actions.setChatPhase(resolveSettledChatPhase);
+      } else {
+        syncActiveResponseRuns();
+        syncLiveStreamRunIds();
+      }
     }
 
     if (!controller.signal.aborted && requestId === refs.sendRequestIdRef.current && (streamSessionStarted || streamedRunId)) {
@@ -349,7 +413,7 @@ export async function runSendMessageFlow({ state, refs, actions, operations, str
         void operations.reconcileCompletedTurn(threadId, preferredRunId, requestId);
       }
 
-      if (terminalStreamError) {
+      if (terminalStreamError && completedRunIds.size === 0) {
         actions.setError(terminalStreamError);
       }
     }

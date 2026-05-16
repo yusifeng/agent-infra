@@ -259,14 +259,14 @@
 ### 3.1 Durable Chat Client State Normalization
 - [x] Normalize both `activeRun` and `activeRuns`; expose `activeRuns` as canonical client state.
 - [x] Preserve compatibility for existing old responses with `activeRun` only.
-- [ ] Replace single active response state with multi-run state while preserving compatibility.
-- [ ] Replace single live draft state with `liveAssistantDraftsByRunId`.
-- [ ] Track `liveStreamRunIds` as a set or equivalent.
-- [ ] Apply incoming stream events by `runId`.
-- [ ] Chat responding state remains true while any active candidate run is queued/running.
-- [ ] Keep single-run consumers working during the migration.
+- [x] Replace single active response state with multi-run state while preserving compatibility.
+- [x] Replace single live draft state with `liveAssistantDraftsByRunId`.
+- [x] Track `liveStreamRunIds` as a set or equivalent.
+- [x] Apply incoming stream events by `runId`.
+- [x] Chat responding state remains true while any active candidate run is queued/running.
+- [x] Keep single-run consumers working during the migration.
 - [x] Add durable-chat-client normalizer tests for old and new response shapes.
-- [ ] Add durable-chat-client tests for interleaved A/B stream events.
+- [x] Add durable-chat-client tests for interleaved A/B stream events.
 
 ### 3.2 Durable Chat Client Attach / Reconcile Lifecycle
 - [ ] Replace `attachRunIdRef` and `attachAbortControllerRef` with runId-keyed maps or a multi-attach controller.
@@ -284,9 +284,9 @@
 ### 3.3 Next App Repo / Schema
 - [ ] Update playground chat API schema for new candidate/selection/feedback DTOs.
 - [ ] Update API client methods for selection and feedback.
-- [ ] Update stream parsing to handle candidate/turn multiplexing if new event types are added.
-- [ ] Keep schema validation strict enough to catch malformed candidate payloads.
-- [ ] Add schema tests for new DTOs and stream events.
+- [x] Update stream parsing to handle candidate/turn multiplexing if new event types are added.
+- [x] Keep schema validation strict enough to catch malformed candidate payloads.
+- [x] Add schema tests for new DTOs and stream events.
 
 ### 3.4 Presentation Services
 - [ ] Add `AnswerCandidateGroup` type for one user turn with one or more candidate answer containers.
@@ -370,7 +370,7 @@
 - [x] `apps/playground-next-web`: selection and feedback routes enforce thread access.
 
 ### 4.5 Client / UI Tests
-- [ ] `packages/durable-chat-client`: interleaved run events update separate live drafts.
+- [x] `packages/durable-chat-client`: interleaved run events update separate live drafts.
 - [ ] `packages/durable-chat-client`: completing one run leaves the other live.
 - [ ] `packages/durable-chat-client`: hydration attaches multiple active runs.
 - [ ] `packages/durable-chat-client`: stale attach event for A cannot clear B's draft.
@@ -478,17 +478,17 @@
 - [x] Run `pnpm --filter playground-next-web test`.
 - [x] Run relevant durable-chat-server tests.
 - [x] Run `codex review` for this loop.
-- [ ] Commit this loop after review and verification pass.
+- [x] Commit this loop after review and verification pass.
 
 ### Loop 5A: Durable Chat Client State Normalization
-- [ ] Normalize `activeRun` and `activeRuns`.
-- [ ] Replace single active response state with multi-run state.
-- [ ] Replace single live draft state with `runId` keyed draft state.
-- [ ] Apply stream events by `runId`.
-- [ ] Keep single-run consumers working during the migration.
-- [ ] Add durable-chat-client tests for old/new response shapes and interleaved events.
-- [ ] Run `pnpm --filter @agent-infra/durable-chat-client test`.
-- [ ] Run `codex review` for this loop.
+- [x] Normalize `activeRun` and `activeRuns`.
+- [x] Replace single active response state with multi-run state.
+- [x] Replace single live draft state with `runId` keyed draft state.
+- [x] Apply stream events by `runId`.
+- [x] Keep single-run consumers working during the migration.
+- [x] Add durable-chat-client tests for old/new response shapes and interleaved events.
+- [x] Run `pnpm --filter @agent-infra/durable-chat-client test`.
+- [x] Run `codex review` for this loop.
 - [ ] Commit this loop after review and verification pass.
 
 ### Loop 5B: Durable Chat Client Multi-Attach And Reconcile

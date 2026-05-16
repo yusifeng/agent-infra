@@ -15,7 +15,7 @@ import { emitApiDiagnostic } from '../service/api-diagnostics.js';
 import { emitChatRenderDiagnostic } from '../service/render-diagnostics.js';
 import { assistantMessageHasVisibleContent } from '../service/message-visibility.js';
 import type { ChatPhase } from '../types/runtime.js';
-import type { LiveAssistantDraft } from '../types/live-assistant-draft.js';
+import type { LiveAssistantDraft, LiveAssistantDraftsByRunId } from '../types/live-assistant-draft.js';
 
 type Updater<T> = T | ((current: T) => T);
 type Setter<T> = (next: Updater<T>) => void;
@@ -38,9 +38,11 @@ type ReconcileCompletedTurnArgs = {
   };
   actions: {
     setActiveResponseRun: Setter<RunDto | null>;
+    setActiveResponseRuns?: Setter<RunDto[]>;
     setChatPhase: Setter<ChatPhase>;
     setError: Setter<string | null>;
     setLiveAssistantDraft: Setter<LiveAssistantDraft | null>;
+    setLiveAssistantDraftsByRunId?: Setter<LiveAssistantDraftsByRunId>;
     setLoadingThreadId: Setter<string | null>;
     setMessages: Setter<MessageDto[]>;
     setMessagePageInfo: Setter<ThreadMessagesPageInfoDto | null>;
@@ -137,9 +139,22 @@ export async function runReconcileCompletedTurn({
       actions.setMessages(reconciledMessages);
       actions.setMessagePageInfo(reconciledPageInfo);
       actions.setActiveResponseRun(messagesResult.data.activeRun ?? null);
+      actions.setActiveResponseRuns?.(messagesResult.data.activeRuns ?? (messagesResult.data.activeRun ? [messagesResult.data.activeRun] : []));
       if (isCurrentSend()) {
         actions.setOptimisticUserMessage(null);
       }
+      actions.setLiveAssistantDraftsByRunId?.((current) => {
+        const next: LiveAssistantDraftsByRunId = {};
+        for (const [runId, draft] of Object.entries(current)) {
+          const hasPersistedAssistantForRun = reconciledMessages.some(
+            (message) => message.runId === runId && assistantMessageHasVisibleContent(message)
+          );
+          if (!hasPersistedAssistantForRun) {
+            next[runId] = draft;
+          }
+        }
+        return next;
+      });
       actions.setLiveAssistantDraft((current) => {
         if (!current?.runId) {
           return current;
@@ -225,6 +240,7 @@ export async function runReconcileCompletedTurn({
 
     if (isCurrentSend()) {
       actions.setLiveAssistantDraft(null);
+      actions.setLiveAssistantDraftsByRunId?.({});
     }
 
     actions.setError(reconcileError instanceof Error ? reconcileError.message : 'Failed to reconcile thread messages');

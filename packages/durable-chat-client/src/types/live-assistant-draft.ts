@@ -28,3 +28,5 @@ export type LiveAssistantDraft = {
   eventType: 'start' | 'thinking' | 'streaming' | 'searching';
   segments: LiveAssistantSegment[];
 };
+
+export type LiveAssistantDraftsByRunId = Record<string, LiveAssistantDraft>;

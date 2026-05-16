@@ -65,6 +65,30 @@ function createMessage(id: string, seq: number): MessageDto {
   };
 }
 
+function createUserMessage(id: string, seq: number): MessageDto {
+  return {
+    id,
+    threadId: 'thread-existing',
+    runId: null,
+    role: 'user',
+    seq,
+    status: 'completed',
+    metadata: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    parts: [
+      {
+        id: `${id}-part`,
+        messageId: id,
+        partIndex: 0,
+        type: 'text',
+        textValue: '你好',
+        jsonValue: null,
+        createdAt: '2026-01-01T00:00:00.000Z'
+      }
+    ]
+  };
+}
+
 function createRun(id: string, status: RunDto['status']): RunDto {
   return {
     id,
@@ -132,11 +156,14 @@ function createActions() {
   return {
     setActiveThreadId: createSetterSpy<string | null>(),
     setActiveResponseRun: createSetterSpy<RunDto | null>(),
+    setActiveResponseRuns: createSetterSpy<RunDto[]>(),
     setChatPhase: createSetterSpy<'idle' | 'thinking' | 'streaming' | 'transcript-final' | 'failed'>(),
     setDraft: createSetterSpy<string>(),
     setError: createSetterSpy<string | null>(),
     setLiveAssistantDraft: createSetterSpy<LiveAssistantDraft | null>(),
+    setLiveAssistantDraftsByRunId: createSetterSpy<Record<string, LiveAssistantDraft>>(),
     setLiveStreamRunId: createSetterSpy<string | null>(),
+    setLiveStreamRunIds: createSetterSpy<string[]>(),
     setLoadingThreadId: createSetterSpy<string | null>(),
     setMessages: createSetterSpy<MessageDto[]>(),
     setOptimisticUserMessage: createSetterSpy<MessageDto | null>(),
@@ -1354,5 +1381,169 @@ describe('runSendMessageFlow', () => {
 
     expect(reconcileCompletedTurn).toHaveBeenCalledWith('thread-existing', 'run-5', 1);
     expect(actions.setChatPhase).toHaveBeenCalledWith('streaming');
+  });
+
+  it('keeps interleaved dual-answer stream state keyed by run id', async () => {
+    const refs = createRefs();
+    refs.activeThreadIdRef.current = 'thread-existing';
+    const actions = createActions();
+    const reconcileCompletedTurn = vi.fn().mockResolvedValue(undefined);
+
+    openThreadRunStreamMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      requestId: 'req-dual',
+      body: createTextStream([
+        {
+          type: 'run.ready',
+          runId: 'run-a',
+          run: createRun('run-a', 'queued'),
+          userMessage: createUserMessage('message-user-dual', 2)
+        },
+        {
+          type: 'run.ready',
+          runId: 'run-b',
+          run: createRun('run-b', 'queued'),
+          userMessage: createUserMessage('message-user-dual', 2)
+        },
+        {
+          type: 'run.assistant',
+          runId: 'run-a',
+          assistant: {
+            messageId: 'assistant-a',
+            kind: 'assistant_delta',
+            textDelta: 'A1'
+          }
+        },
+        {
+          type: 'run.assistant',
+          runId: 'run-b',
+          assistant: {
+            messageId: 'assistant-b',
+            kind: 'assistant_delta',
+            textDelta: 'B1'
+          }
+        },
+        {
+          type: 'run.completed',
+          runId: 'run-a',
+          run: createRun('run-a', 'completed')
+        },
+        {
+          type: 'run.assistant',
+          runId: 'run-b',
+          assistant: {
+            messageId: 'assistant-b',
+            kind: 'assistant_delta',
+            textDelta: 'B2'
+          }
+        },
+        {
+          type: 'run.completed',
+          runId: 'run-b',
+          run: createRun('run-b', 'completed')
+        }
+      ])
+    });
+
+    await runSendMessageFlow({
+      state: {
+        activeThreadId: 'thread-existing',
+        draft: '给我两个答案',
+        isChatResponding: false,
+        messages: [createMessage('message-1', 1)],
+        selectedWebSearchEnabled: false,
+        selectedThinkingEnabled: false,
+        selectedReasoningEffort: 'high',
+        selectedModelOption: createSelectedModelOption()
+      },
+      refs,
+      actions,
+      operations: {
+        createThreadRecord: vi.fn(),
+        pendingNewThreadLoadingId: 'pending-new-thread',
+        reconcileCompletedTurn,
+        replaceCurrentPath: vi.fn()
+      }
+    });
+
+    const finalDraftsByRunId = replaySetterCalls(
+      actions.setLiveAssistantDraftsByRunId.mock.calls as Array<[Updater<Record<string, LiveAssistantDraft>>]>,
+      {}
+    );
+    expect(finalDraftsByRunId['run-a']?.partialText).toBe('A1');
+    expect(finalDraftsByRunId['run-b']?.partialText).toBe('B1B2');
+
+    let currentActiveRuns: RunDto[] = [];
+    const activeRunStates = actions.setActiveResponseRuns.mock.calls.map(([next]) => {
+      currentActiveRuns = resolveUpdater(next, currentActiveRuns);
+      return currentActiveRuns.map((run) => run.id);
+    });
+    expect(activeRunStates).toContainEqual(['run-b']);
+    expect(reconcileCompletedTurn).toHaveBeenCalledWith('thread-existing', 'run-b', 1);
+  });
+
+  it('preserves active multi-run state when the stream ends before terminal events', async () => {
+    const refs = createRefs();
+    refs.activeThreadIdRef.current = 'thread-existing';
+    const actions = createActions();
+    const reconcileCompletedTurn = vi.fn().mockResolvedValue(undefined);
+
+    openThreadRunStreamMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      requestId: 'req-active',
+      body: createTextStream([
+        {
+          type: 'run.ready',
+          runId: 'run-a',
+          run: createRun('run-a', 'running'),
+          userMessage: createUserMessage('message-user-active', 2)
+        },
+        {
+          type: 'run.ready',
+          runId: 'run-b',
+          run: createRun('run-b', 'queued'),
+          userMessage: createUserMessage('message-user-active', 2)
+        }
+      ])
+    });
+
+    await runSendMessageFlow({
+      state: {
+        activeThreadId: 'thread-existing',
+        draft: '继续生成',
+        isChatResponding: false,
+        messages: [createMessage('message-1', 1)],
+        selectedWebSearchEnabled: false,
+        selectedThinkingEnabled: false,
+        selectedReasoningEffort: 'high',
+        selectedModelOption: createSelectedModelOption()
+      },
+      refs,
+      actions,
+      operations: {
+        createThreadRecord: vi.fn(),
+        pendingNewThreadLoadingId: 'pending-new-thread',
+        reconcileCompletedTurn,
+        replaceCurrentPath: vi.fn()
+      }
+    });
+
+    let currentActiveRuns: RunDto[] = [];
+    for (const [next] of actions.setActiveResponseRuns.mock.calls as Array<[Updater<RunDto[]>]>) {
+      currentActiveRuns = resolveUpdater(next, currentActiveRuns);
+    }
+    let currentLiveRunIds: string[] = [];
+    for (const [next] of actions.setLiveStreamRunIds.mock.calls as Array<[Updater<string[]>]>) {
+      currentLiveRunIds = resolveUpdater(next, currentLiveRunIds);
+    }
+
+    expect(currentActiveRuns.map((run) => run.id)).toEqual(['run-a', 'run-b']);
+    expect(currentLiveRunIds).toEqual(['run-a', 'run-b']);
+    expect(actions.setChatPhase).not.toHaveBeenLastCalledWith('idle');
+    expect(reconcileCompletedTurn).toHaveBeenCalledWith('thread-existing', 'run-b', 1);
   });
 });
