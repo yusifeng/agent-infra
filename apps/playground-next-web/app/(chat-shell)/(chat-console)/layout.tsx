@@ -1,11 +1,11 @@
 import { ChatRouteShell } from '@/components/chat-shell/chat-route-shell';
 import { getCurrentAuthUserFromNextCookies } from '@/lib/playground-auth-server';
 
-type ChatRouteLayoutProps = {
+type ChatConsoleLayoutProps = {
   children: React.ReactNode;
 };
 
-export default async function ChatRouteLayout({ children }: ChatRouteLayoutProps) {
+export default async function ChatConsoleLayout({ children }: ChatConsoleLayoutProps) {
   const currentUser = await getCurrentAuthUserFromNextCookies();
 
   return (
