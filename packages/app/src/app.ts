@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import {
   projectCanonicalTranscript,
   type Dataset,
+  type DatasetExample,
   type EvalExampleResult,
   type EvalRun,
   type Message,
@@ -49,6 +50,7 @@ import {
   buildExpectedOutputSnapshotFromDatasetExample,
   mergeEvalExampleResultReviewMetadataV1,
   parseEvalExampleResultReviewUpdateV1,
+  parseEvalRunConfigV1,
   parseEvalRunSummaryV1,
   selectEligibleDatasetExamplesV1
 } from './eval-run.js';
@@ -65,6 +67,7 @@ import type {
   DatasetMessagePartSnapshotV1,
   DatasetMessageSnapshotV1,
   DatasetToolInvocationsSnapshotV1,
+  EvalActualOutputSnapshotV1,
   EvalRunSummaryV1,
   PublicChatShareResult,
   RunTraceResult,
@@ -191,6 +194,24 @@ async function loadEvalExampleResultForRunOrThrow(
   }
 
   return result;
+}
+
+async function refreshEvalRunSummary(
+  repositories: AgentInfraAppRepositories,
+  input: { evalRun: EvalRun; updatedAt: Date }
+): Promise<EvalRun> {
+  const previousSummary = parseEvalRunSummaryV1(input.evalRun.summaryJson);
+  const results = await repositories.evalExampleResultRepo.listByEvalRun(input.evalRun.id);
+  const nextSummary: EvalRunSummaryV1 = buildEvalRunSummaryV1({
+    selection: previousSummary.selection,
+    results
+  });
+
+  return repositories.evalRunRepo.update(
+    input.evalRun.id,
+    { summaryJson: nextSummary as unknown as Record<string, unknown> },
+    input.updatedAt
+  );
 }
 
 async function buildCanonicalThreadMessages(repositories: AgentInfraAppRepositories, threadId: string, cutoffMessageId?: string | null) {
@@ -334,6 +355,10 @@ function toIsoString(value: Date | null | undefined) {
   return value ? value.toISOString() : null;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 function trimDatasetName(name: string) {
   const trimmed = name.trim();
   if (!trimmed) {
@@ -386,6 +411,163 @@ function buildDatasetInputSnapshot(
   };
 }
 
+interface EvalInputMaterializationPlan {
+  inputSnapshot: DatasetInputSnapshotV1;
+  historyMessages: DatasetMessageSnapshotV1[];
+  triggerMessage: DatasetMessageSnapshotV1;
+  triggerText: string;
+}
+
+function parseDatasetInputSnapshotForEval(example: DatasetExample): EvalInputMaterializationPlan {
+  const inputJson = example.inputJson;
+  if (!isRecord(inputJson)) {
+    throw new InvalidEvalInputError('dataset example inputJson must be an object', { datasetExampleId: example.id });
+  }
+  if (inputJson.schemaVersion !== 1 || inputJson.kind !== 'chat_turn') {
+    throw new InvalidEvalInputError('dataset example inputJson must be a chat_turn snapshot', { datasetExampleId: example.id });
+  }
+  if (typeof inputJson.triggerMessageId !== 'string' || inputJson.triggerMessageId.length === 0) {
+    throw new InvalidEvalInputError('eval input snapshot is missing triggerMessageId', { datasetExampleId: example.id });
+  }
+  if (example.triggerMessageId && example.triggerMessageId !== inputJson.triggerMessageId) {
+    throw new InvalidEvalInputError('dataset example triggerMessageId does not match input snapshot triggerMessageId', {
+      datasetExampleId: example.id,
+      triggerMessageId: example.triggerMessageId,
+      inputTriggerMessageId: inputJson.triggerMessageId
+    });
+  }
+  if (!Array.isArray(inputJson.messages)) {
+    throw new InvalidEvalInputError('eval input snapshot messages must be an array', { datasetExampleId: example.id });
+  }
+
+  const messages = inputJson.messages as DatasetMessageSnapshotV1[];
+  const matchingTriggers = messages.filter((message) => message.id === inputJson.triggerMessageId);
+  if (matchingTriggers.length !== 1) {
+    throw new InvalidEvalInputError('eval input snapshot must contain exactly one trigger message', {
+      datasetExampleId: example.id,
+      triggerMessageId: inputJson.triggerMessageId,
+      matchCount: matchingTriggers.length
+    });
+  }
+
+  const triggerMessage = matchingTriggers[0]!;
+  if (triggerMessage.role !== 'user') {
+    throw new InvalidEvalInputError('eval trigger message must be a user message', {
+      datasetExampleId: example.id,
+      triggerMessageId: triggerMessage.id,
+      role: triggerMessage.role
+    });
+  }
+
+  const parts = Array.isArray(triggerMessage.parts) ? triggerMessage.parts : [];
+  if (parts.length !== 1 || parts[0]?.type !== 'text') {
+    throw new InvalidEvalInputError('eval trigger message must contain exactly one text part', {
+      datasetExampleId: example.id,
+      triggerMessageId: triggerMessage.id
+    });
+  }
+
+  const triggerText = parts[0].textValue?.trim() ?? '';
+  if (!triggerText) {
+    throw new InvalidEvalInputError('eval trigger text is required', {
+      datasetExampleId: example.id,
+      triggerMessageId: triggerMessage.id
+    });
+  }
+
+  const sortedMessages = [...messages].sort((left, right) => left.seq - right.seq);
+  return {
+    inputSnapshot: inputJson as unknown as DatasetInputSnapshotV1,
+    historyMessages: sortedMessages.filter((message) => message.seq < triggerMessage.seq),
+    triggerMessage,
+    triggerText
+  };
+}
+
+async function materializeEvalMessageSnapshot(
+  repositories: AgentInfraAppRepositories,
+  input: {
+    generateId: () => string;
+    evalThreadId: string;
+    sourceMessage: DatasetMessageSnapshotV1;
+    role?: Message['role'];
+    status?: Message['status'];
+    textValueOverride?: string | null;
+    metadata?: Record<string, unknown> | null;
+  }
+): Promise<Message & { parts: MessagePart[] }> {
+  const source = input.sourceMessage;
+  const message = await repositories.messageRepo.createWithNextSeq({
+    id: input.generateId(),
+    threadId: input.evalThreadId,
+    runId: null,
+    role: input.role ?? source.role,
+    status: input.status ?? source.status,
+    metadata: input.metadata ?? {
+      eval: {
+        kind: 'materialized_source_message',
+        sourceMessageId: source.id,
+        sourceThreadId: source.threadId,
+        sourceRunId: source.runId ?? null,
+        sourceSeq: source.seq
+      }
+    }
+  });
+
+  const sourceParts = [...source.parts].sort((left, right) => left.partIndex - right.partIndex);
+  const parts: MessagePart[] = [];
+  for (const sourcePart of sourceParts) {
+    parts.push(
+      await repositories.messageRepo.createPart({
+        id: input.generateId(),
+        messageId: message.id,
+        partIndex: sourcePart.partIndex,
+        type: sourcePart.type,
+        textValue: sourcePart.partIndex === 0 && input.textValueOverride !== undefined ? input.textValueOverride : sourcePart.textValue ?? null,
+        jsonValue: sourcePart.jsonValue ?? null
+      })
+    );
+  }
+
+  return {
+    ...message,
+    parts
+  };
+}
+
+function mergeEvalExecutionMetadata(
+  metadataJson: unknown,
+  execution: Record<string, unknown>
+): Record<string, unknown> {
+  const metadata = isRecord(metadataJson) ? { ...metadataJson } : {};
+  const current = isRecord(metadata.execution) ? metadata.execution : {};
+  return {
+    ...metadata,
+    execution: {
+      ...current,
+      ...execution
+    }
+  };
+}
+
+function projectEvalRuntimeOptionsForRunText(config: ReturnType<typeof parseEvalRunConfigV1>): Pick<
+  RunTextTurnInput,
+  'thinkingEnabled' | 'reasoningEffort' | 'webSearchEnabled'
+> {
+  const options = config.runtime?.options;
+  if (!isRecord(options)) {
+    return {};
+  }
+
+  return {
+    ...(options.thinkingEnabled === true ? { thinkingEnabled: true } : {}),
+    ...(options.reasoningEffort === 'high' || options.reasoningEffort === 'max'
+      ? { reasoningEffort: options.reasoningEffort }
+      : {}),
+    ...(options.webSearchEnabled === true ? { webSearchEnabled: true } : {})
+  };
+}
+
 function buildDatasetBaselineOutputSnapshot(run: Run, messages: Array<Message & { parts: MessagePart[] }>): DatasetBaselineOutputSnapshotV1 | null {
   const assistantMessages = messages
     .filter((message) => message.runId === run.id && message.role === 'assistant')
@@ -404,6 +586,34 @@ function buildDatasetBaselineOutputSnapshot(run: Run, messages: Array<Message & 
     error: run.error ?? null,
     assistantMessages
   };
+}
+
+function buildEvalActualOutputSnapshot(
+  outputRun: Run,
+  evalThreadId: string,
+  messages: Array<Message & { parts: MessagePart[] }>
+): EvalActualOutputSnapshotV1 {
+  const assistantMessages = messages
+    .filter((message) => message.runId === outputRun.id && message.role === 'assistant')
+    .sort((left, right) => left.seq - right.seq)
+    .map(toDatasetMessageSnapshot);
+
+  return {
+    schemaVersion: 1,
+    kind: 'eval_run_output',
+    outputRunId: outputRun.id,
+    evalThreadId,
+    status: outputRun.status,
+    error: outputRun.error ?? null,
+    assistantMessages
+  };
+}
+
+function durationMs(startedAt: Date | null | undefined, finishedAt: Date | null | undefined) {
+  if (!startedAt || !finishedAt) {
+    return null;
+  }
+  return Math.max(0, finishedAt.getTime() - startedAt.getTime());
 }
 
 function buildDatasetContextSnapshot(
@@ -988,6 +1198,240 @@ async function queueTextCandidatesTurn(
   };
 }
 
+async function executeEvalExampleResult(input: {
+  dependencies: AgentInfraAppDependencies;
+  evalRun: EvalRun;
+  result: EvalExampleResult;
+  config: ReturnType<typeof parseEvalRunConfigV1>;
+  runtimeSelection: RuntimeSelection;
+  generateId: () => string;
+  now: () => Date;
+}) {
+  const { dependencies, evalRun, result, config, runtimeSelection, generateId, now } = input;
+  const attemptStartedAt = now();
+  let runningResult = await dependencies.transaction(async (repositories) => {
+    const updated = await repositories.evalExampleResultRepo.update(
+      result.id,
+      {
+        status: 'running',
+        error: null,
+        startedAt: attemptStartedAt,
+        finishedAt: null,
+        metadataJson: mergeEvalExecutionMetadata(result.metadataJson ?? null, {
+          startedAt: attemptStartedAt.toISOString()
+        })
+      },
+      attemptStartedAt
+    );
+    await refreshEvalRunSummary(repositories, { evalRun, updatedAt: attemptStartedAt });
+    return updated;
+  });
+
+  const failSelectedResult = async (error: unknown, patch: Partial<EvalExampleResult> = {}) => {
+    const finishedAt = now();
+    const errorMessage = toErrorMessage(error, 'eval result execution failed');
+    runningResult = await dependencies.transaction(async (repositories) => {
+      const updated = await repositories.evalExampleResultRepo.update(
+        runningResult.id,
+        {
+          ...patch,
+          status: 'failed',
+          error: errorMessage,
+          finishedAt,
+          metadataJson: mergeEvalExecutionMetadata(patch.metadataJson ?? runningResult.metadataJson ?? null, {
+            failedAt: finishedAt.toISOString(),
+            durationMs: durationMs(runningResult.startedAt, finishedAt),
+            error: errorMessage
+          })
+        },
+        finishedAt
+      );
+      await refreshEvalRunSummary(repositories, { evalRun, updatedAt: finishedAt });
+      return updated;
+    });
+    return runningResult;
+  };
+
+  const example = await dependencies.repositories.datasetExampleRepo.findById(result.datasetExampleId);
+  if (!example) {
+    return failSelectedResult(new InvalidEvalInputError('eval result dataset example was not found', {
+      evalRunId: evalRun.id,
+      evalExampleResultId: result.id,
+      datasetExampleId: result.datasetExampleId
+    }));
+  }
+
+  let materialization: EvalInputMaterializationPlan;
+  try {
+    materialization = parseDatasetInputSnapshotForEval(example);
+  } catch (error) {
+    return failSelectedResult(error);
+  }
+
+  let evalThread: Thread;
+  let outputRun: Run;
+  let runtimeHistoryMessages: Array<Message & { parts: MessagePart[] }>;
+  try {
+    const materialized = await dependencies.transaction(async (repositories) => {
+      const thread = await repositories.threadRepo.create({
+        id: generateId(),
+        appId: evalRun.appId,
+        userId: null,
+        title: `Eval ${evalRun.id} #${result.exampleOrdinal}`,
+        status: 'active',
+        metadata: {
+          eval: {
+            kind: 'eval_thread',
+            evalRunId: evalRun.id,
+            evalExampleResultId: result.id,
+            datasetId: evalRun.datasetId,
+            datasetExampleId: result.datasetExampleId
+          }
+        },
+        archivedAt: null
+      });
+
+      const historyMessages: Array<Message & { parts: MessagePart[] }> = [];
+      for (const sourceMessage of materialization.historyMessages) {
+        historyMessages.push(
+          await materializeEvalMessageSnapshot(repositories, {
+            generateId,
+            evalThreadId: thread.id,
+            sourceMessage
+          })
+        );
+      }
+
+      const triggerMessage = await materializeEvalMessageSnapshot(repositories, {
+        generateId,
+        evalThreadId: thread.id,
+        sourceMessage: materialization.triggerMessage,
+        role: 'user',
+        status: 'completed',
+        textValueOverride: materialization.triggerText,
+        metadata: {
+          eval: {
+            kind: 'fresh_eval_trigger',
+            sourceMessageId: materialization.triggerMessage.id,
+            sourceThreadId: materialization.triggerMessage.threadId,
+            sourceSeq: materialization.triggerMessage.seq
+          }
+        }
+      });
+
+      const run = await repositories.runRepo.create({
+        id: generateId(),
+        threadId: thread.id,
+        triggerMessageId: triggerMessage.id,
+        provider: runtimeSelection.provider,
+        model: runtimeSelection.model,
+        status: 'queued',
+        usage: null,
+        error: null,
+        startedAt: null,
+        finishedAt: null
+      });
+
+      const updatedResult = await repositories.evalExampleResultRepo.update(
+        runningResult.id,
+        {
+          evalThreadId: thread.id,
+          outputRunId: run.id,
+          inputJson: materialization.inputSnapshot as unknown as Record<string, unknown>,
+          metadataJson: mergeEvalExecutionMetadata(runningResult.metadataJson ?? null, {
+            evalThreadId: thread.id,
+            outputRunId: run.id,
+            triggerMessageId: triggerMessage.id,
+            materializedHistoryMessageCount: historyMessages.length,
+            runtimeProvider: runtimeSelection.provider,
+            runtimeModel: runtimeSelection.model
+          })
+        },
+        now()
+      );
+      await refreshEvalRunSummary(repositories, { evalRun, updatedAt: now() });
+
+      return {
+        thread,
+        run,
+        result: updatedResult,
+        runtimeHistoryMessages: [...historyMessages, triggerMessage]
+      };
+    });
+
+    evalThread = materialized.thread;
+    outputRun = materialized.run;
+    runningResult = materialized.result;
+    runtimeHistoryMessages = materialized.runtimeHistoryMessages;
+  } catch (error) {
+    return failSelectedResult(error);
+  }
+
+  let runtimeError: unknown = null;
+  try {
+    await dependencies.runtime.runTextTurn(dependencies.repositories, {
+      threadId: evalThread.id,
+      runId: outputRun.id,
+      historyMessages: runtimeHistoryMessages,
+      provider: runtimeSelection.provider,
+      model: runtimeSelection.model,
+      ...projectEvalRuntimeOptionsForRunText(config)
+    });
+  } catch (error) {
+    runtimeError = error;
+  }
+
+  let persistedOutputRun = await dependencies.repositories.runRepo.findById(outputRun.id);
+  if (!persistedOutputRun) {
+    return failSelectedResult(new InvalidEvalInputError('eval output run was not found after runtime execution', {
+      evalRunId: evalRun.id,
+      evalExampleResultId: result.id,
+      outputRunId: outputRun.id
+    }));
+  }
+  if (runtimeError && (persistedOutputRun.status === 'queued' || persistedOutputRun.status === 'running')) {
+    persistedOutputRun = await dependencies.repositories.runRepo.updateStatus(persistedOutputRun.id, 'failed', {
+      error: toErrorMessage(runtimeError, 'runtime execution failed'),
+      finishedAt: now()
+    });
+  }
+
+  const evalMessages = await dependencies.repositories.messageRepo.listByThread(evalThread.id);
+  const actualOutput = buildEvalActualOutputSnapshot(persistedOutputRun, evalThread.id, evalMessages);
+  const finishedAt = now();
+  const runtimeErrorMessage = runtimeError ? toErrorMessage(runtimeError, 'runtime execution failed') : null;
+  const outputlessError =
+    persistedOutputRun.status === 'completed' && actualOutput.assistantMessages.length === 0
+      ? 'eval output run completed without assistant output'
+      : null;
+  const resultStatus = persistedOutputRun.status === 'completed' && actualOutput.assistantMessages.length > 0 ? 'completed' : 'failed';
+  const resultError =
+    resultStatus === 'completed'
+      ? null
+      : runtimeErrorMessage ?? persistedOutputRun.error ?? outputlessError ?? `eval output run ended with status ${persistedOutputRun.status}`;
+
+  return dependencies.transaction(async (repositories) => {
+    const updated = await repositories.evalExampleResultRepo.update(
+      runningResult.id,
+      {
+        status: resultStatus,
+        actualOutputJson: actualOutput as unknown as Record<string, unknown>,
+        usageJson: persistedOutputRun.usage as Record<string, unknown> | null,
+        error: resultError,
+        finishedAt,
+        metadataJson: mergeEvalExecutionMetadata(runningResult.metadataJson ?? null, {
+          finishedAt: finishedAt.toISOString(),
+          durationMs: durationMs(runningResult.startedAt, finishedAt),
+          outputRunStatus: persistedOutputRun.status
+        })
+      },
+      finishedAt
+    );
+    await refreshEvalRunSummary(repositories, { evalRun, updatedAt: finishedAt });
+    return updated;
+  });
+}
+
 export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): AgentInfraApp {
   const generateId = dependencies.idGenerator ?? crypto.randomUUID;
   const now = dependencies.now ?? (() => new Date());
@@ -1006,7 +1450,8 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
         });
       },
       async list(input) {
-        return dependencies.repositories.threadRepo.listByApp(input.appId);
+        const threads = await dependencies.repositories.threadRepo.listByApp(input.appId);
+        return threads.filter((thread) => !(isRecord(thread.metadata?.eval) && thread.metadata.eval.kind === 'eval_thread'));
       },
       async rename(input) {
         const thread = await loadThreadOrThrow(dependencies.repositories, input.threadId);
@@ -1420,6 +1865,128 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
       async listResults(input) {
         const evalRun = await loadEvalRunForAppOrThrow(dependencies.repositories, input);
         return dependencies.repositories.evalExampleResultRepo.listByEvalRun(evalRun.id);
+      },
+      async run(input) {
+        const evalRun = await loadEvalRunForAppOrThrow(dependencies.repositories, input);
+        if (evalRun.status !== 'queued') {
+          throw new InvalidEvalInputError('only queued eval runs can be executed', {
+            evalRunId: evalRun.id,
+            status: evalRun.status
+          });
+        }
+
+        const config = parseEvalRunConfigV1(evalRun.configJson);
+        const queuedResults = (await dependencies.repositories.evalExampleResultRepo.listByEvalRun(evalRun.id)).filter(
+          (result) => result.status === 'queued'
+        );
+        if (queuedResults.length === 0) {
+          return dependencies.transaction(async (repositories) => {
+            const completedAt = now();
+            const summaryRun = await refreshEvalRunSummary(repositories, { evalRun, updatedAt: completedAt });
+            return repositories.evalRunRepo.update(
+              summaryRun.id,
+              { status: 'completed', startedAt: summaryRun.startedAt ?? completedAt, finishedAt: completedAt, error: null },
+              completedAt
+            );
+          });
+        }
+
+        let runtimeSelection: RuntimeSelection;
+        try {
+          runtimeSelection = await resolveRuntimeSelection(dependencies, {
+            provider: config.runtime?.provider ?? undefined,
+            model: config.runtime?.model ?? undefined
+          });
+        } catch (error) {
+          const failedAt = now();
+          await dependencies.transaction(async (repositories) => {
+            const current = await loadEvalRunForAppOrThrow(repositories, input);
+            if (current.status !== 'queued') {
+              return current;
+            }
+            return repositories.evalRunRepo.update(
+              current.id,
+              {
+                status: 'failed',
+                error: toErrorMessage(error, 'runtime is unavailable'),
+                startedAt: current.startedAt ?? failedAt,
+                finishedAt: failedAt
+              },
+              failedAt
+            );
+          });
+          throw error;
+        }
+
+        const runningEvalRun = await dependencies.transaction(async (repositories) => {
+          const current = await loadEvalRunForAppOrThrow(repositories, input);
+          if (current.status !== 'queued') {
+            throw new InvalidEvalInputError('only queued eval runs can be executed', {
+              evalRunId: current.id,
+              status: current.status
+            });
+          }
+          return repositories.evalRunRepo.update(
+            current.id,
+            {
+              status: 'running',
+              startedAt: now(),
+              finishedAt: null,
+              error: null
+            },
+            now()
+          );
+        });
+
+        try {
+          for (const result of queuedResults) {
+            await executeEvalExampleResult({
+              dependencies,
+              evalRun: runningEvalRun,
+              result,
+              config,
+              runtimeSelection,
+              generateId,
+              now
+            });
+          }
+        } catch (error) {
+          const failedAt = now();
+          return dependencies.transaction(async (repositories) => {
+            const latestResults = await repositories.evalExampleResultRepo.listByEvalRun(runningEvalRun.id);
+            for (const result of latestResults.filter((item) => item.status === 'queued')) {
+              await repositories.evalExampleResultRepo.update(
+                result.id,
+                {
+                  status: 'skipped',
+                  error: 'batch-level orchestration failed before this result was attempted',
+                  finishedAt: failedAt,
+                  metadataJson: mergeEvalExecutionMetadata(result.metadataJson ?? null, {
+                    skippedAt: failedAt.toISOString(),
+                    reason: 'batch_orchestration_failed'
+                  })
+                },
+                failedAt
+              );
+            }
+            const summarized = await refreshEvalRunSummary(repositories, { evalRun: runningEvalRun, updatedAt: failedAt });
+            return repositories.evalRunRepo.update(
+              summarized.id,
+              { status: 'failed', error: toErrorMessage(error, 'eval run execution failed'), finishedAt: failedAt },
+              failedAt
+            );
+          });
+        }
+
+        return dependencies.transaction(async (repositories) => {
+          const completedAt = now();
+          const summarized = await refreshEvalRunSummary(repositories, { evalRun: runningEvalRun, updatedAt: completedAt });
+          return repositories.evalRunRepo.update(
+            summarized.id,
+            { status: 'completed', error: null, finishedAt: completedAt },
+            completedAt
+          );
+        });
       },
       async updateResultReview(input) {
         const rawInput = input as unknown as Record<string, unknown>;

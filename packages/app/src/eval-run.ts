@@ -1,4 +1,4 @@
-import type { DatasetExample, EvalExampleResult, EvalExampleResultStatus } from '@agent-infra/core';
+import type { DatasetExample, EvalExampleResult, EvalExampleResultStatus, RunUsageSummaryV1 } from '@agent-infra/core';
 
 import { InvalidEvalInputError } from './errors.js';
 import {
@@ -54,6 +54,62 @@ function normalizeOptionalText(value: unknown, maxLength: number, field: string)
 
 function incrementCount(record: Record<string, number>, key: string, amount = 1) {
   record[key] = (record[key] ?? 0) + amount;
+}
+
+function isRunUsageSummaryV1(value: unknown): value is RunUsageSummaryV1 {
+  return isRecord(value) && value.schemaVersion === 1 && isRecord(value.tokens);
+}
+
+function aggregateEvalResultUsage(results: EvalExampleResult[]): RunUsageSummaryV1 | null {
+  const usageItems: RunUsageSummaryV1[] = [];
+  for (const result of results) {
+    if (isRunUsageSummaryV1(result.usageJson)) {
+      usageItems.push(result.usageJson);
+    }
+  }
+  if (usageItems.length === 0) {
+    return null;
+  }
+
+  const tokens: RunUsageSummaryV1['tokens'] = {};
+  let provider: string | null | undefined = usageItems[0]?.provider ?? null;
+  let model: string | null | undefined = usageItems[0]?.model ?? null;
+
+  for (const usage of usageItems) {
+    if (usage.provider !== provider) provider = null;
+    if (usage.model !== model) model = null;
+    for (const key of ['input', 'output', 'cacheRead', 'cacheWrite', 'reasoning', 'total'] as const) {
+      const value = usage.tokens[key];
+      if (typeof value === 'number') {
+        tokens[key] = (tokens[key] ?? 0) + value;
+      }
+    }
+  }
+
+  return {
+    schemaVersion: 1,
+    provider,
+    model,
+    normalizationStatus: usageItems.length === results.length ? 'complete' : 'partial',
+    tokens,
+    estimatedCost: null,
+    rawProviderUsage: null
+  };
+}
+
+function aggregateEvalResultDurationMs(results: EvalExampleResult[]) {
+  let total = 0;
+  let hasDuration = false;
+
+  for (const result of results) {
+    if (!result.startedAt || !result.finishedAt) {
+      continue;
+    }
+    total += Math.max(0, result.finishedAt.getTime() - result.startedAt.getTime());
+    hasDuration = true;
+  }
+
+  return hasDuration ? total : null;
 }
 
 export function buildEvalRunConfigV1(input: {
@@ -283,8 +339,8 @@ export function buildEvalRunSummaryV1(input: {
     results: {
       statusCounts,
       reviewStatusCounts,
-      aggregateUsage: null,
-      durationMs: null
+      aggregateUsage: input.results ? aggregateEvalResultUsage(input.results) : null,
+      durationMs: input.results ? aggregateEvalResultDurationMs(input.results) : null
     }
   };
 }

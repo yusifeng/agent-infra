@@ -19,11 +19,11 @@
 ### 0.2 Goals
 - [x] Add `EvalRun` as a durable dataset regression batch model.
 - [x] Add `EvalExampleResult` as a durable per-example regression execution result model.
-- [ ] Run only dataset examples whose effective eligibility is `eligible = true`.
-- [ ] Execute eligible examples against the current runtime using captured canonical context.
-- [ ] Do not mutate or append to the original source thread during eval execution.
-- [ ] Persist actual output, expected output snapshot, runtime status, runtime run refs, usage, duration, and errors for each result.
-- [ ] Let each example fail independently without losing the whole eval run.
+- [x] Run only dataset examples whose effective eligibility is `eligible = true`.
+- [x] Execute eligible examples against the current runtime using captured canonical context.
+- [x] Do not mutate or append to the original source thread during eval execution.
+- [x] Persist actual output, expected output snapshot, runtime status, runtime run refs, usage, duration, and errors for each result.
+- [x] Let each example fail independently without losing the whole eval run.
 - [ ] Add manual result review with `pass`, `fail`, `needs_review`, and `not_applicable`.
 - [ ] Add shared contracts/server/client helpers for eval runs and eval results.
 - [ ] Add authenticated playground routes for creating, running, listing, reading, and reviewing eval runs.
@@ -181,9 +181,9 @@
 - [x] Add helper for selecting eligible examples from dataset examples.
 - [x] Add helper for summarizing eval run results.
 - [x] Add helper for calculating selection summary and eligibility reason histogram.
-- [ ] Add helper for building actual-output snapshot from a runtime output run.
+- [x] Add helper for building actual-output snapshot from a runtime output run.
 - [x] Add helper for building expected-output snapshot from a dataset example.
-- [ ] Add helper for input materialization from dataset input snapshots.
+- [x] Add helper for input materialization from dataset input snapshots.
 - [ ] Keep DTOs wire-compatible and versioned where JSON envelopes are introduced.
 
 ## 2. Backend / Platform
@@ -217,47 +217,47 @@
 - [x] Add `app.evals.listByDataset`.
 - [x] Add `app.evals.get`.
 - [x] Add `app.evals.listResults`.
-- [ ] Add `app.evals.run`.
+- [x] Add `app.evals.run`.
 - [x] Add `app.evals.updateResultReview`.
 - [x] Ensure eval use cases enforce dataset app boundary.
 - [x] Ensure private datasets remain accessible only to the creating actor.
 - [x] Ensure app-visible datasets remain accessible within the app boundary.
-- [ ] Ensure eval execution uses effective eligibility and excludes ineligible examples.
+- [x] Ensure eval execution uses effective eligibility and excludes ineligible examples.
 - [x] Ensure no result rows are created for ineligible examples in v1.
 - [x] Ensure `app.evals.create` transactionally creates the `EvalRun` and all selected eligible examples' queued `EvalExampleResult` rows.
 - [x] Ensure `app.evals.create` snapshots expected output, example ordinal, selection metadata, and relevant dataset example timestamps.
-- [ ] Ensure `app.evals.run` executes only existing queued result rows and does not create replacement rows.
+- [x] Ensure `app.evals.run` executes only existing queued result rows and does not create replacement rows.
 - [x] Ensure eval run summary records eligible, ineligible, and eligibility reason counts.
-- [ ] Ensure no source run/thread access is required for eval execution.
-- [ ] Ensure eval execution does not mutate the original source thread.
-- [ ] Ensure eval execution materializes only pre-trigger history and creates a fresh trigger message.
-- [ ] Ensure expected output is not re-snapshotted during `app.evals.run`.
+- [x] Ensure no source run/thread access is required for eval execution.
+- [x] Ensure eval execution does not mutate the original source thread.
+- [x] Ensure eval execution materializes only pre-trigger history and creates a fresh trigger message.
+- [x] Ensure expected output is not re-snapshotted during `app.evals.run`.
 - [x] Ensure expected output snapshots remain immutable when the source dataset example is edited later.
-- [ ] Ensure result errors are persisted per example.
-- [ ] Ensure invalid triggers update selected result rows to `failed` with no eval thread, no output run, no actual output, and no usage.
-- [ ] Ensure outputless completed runtime runs persist an actual-output snapshot but mark the result `failed`.
-- [ ] Ensure eval run status and summary update after execution.
+- [x] Ensure result errors are persisted per example.
+- [x] Ensure invalid triggers update selected result rows to `failed` with no eval thread, no output run, no actual output, and no usage.
+- [x] Ensure outputless completed runtime runs persist an actual-output snapshot but mark the result `failed`.
+- [x] Ensure eval run status and summary update after execution.
 - [x] Ensure eval run summary refreshes transactionally after result review updates, or explicitly recomputes on read.
-- [ ] Ensure `completed` eval runs can contain failed example results.
-- [ ] Ensure batch-level failures use `EvalRun.status = 'failed'`.
-- [ ] Ensure the same eval run cannot be executed concurrently or rerun after a terminal state.
-- [ ] Ensure normal thread listing use cases hide eval-only threads by default while explicit eval lineage reads still work.
+- [x] Ensure `completed` eval runs can contain failed example results.
+- [x] Ensure batch-level failures use `EvalRun.status = 'failed'`.
+- [x] Ensure the same eval run cannot be executed concurrently or rerun after a terminal state.
+- [x] Ensure normal thread listing use cases hide eval-only threads by default while explicit eval lineage reads still work.
 - [x] Ensure runtime ports are called only by execution use cases, not by create/list/read/review use cases.
 
 ### 2.4 Execution Implementation
-- [ ] Implement isolated eval thread creation as the v1 execution strategy.
-- [ ] Persist eval thread metadata linking it to eval run/result.
-- [ ] Materialize captured pre-trigger canonical context into the isolated eval thread without treating it as exact historical prompt replay.
-- [ ] Create a fresh trigger user message in the eval thread.
-- [ ] Pass canonical eval history through `RunTextRuntimeInput.historyMessages` when appropriate, using eval-thread materialized messages rather than source snapshot messages.
-- [ ] Run current runtime for the trigger input.
-- [ ] Capture runtime output run id.
-- [ ] Capture actual assistant output snapshot.
-- [ ] Capture usage snapshot from the eval output run.
-- [ ] Capture duration from result start/finish or run timestamps.
-- [ ] Capture actual output edge cases including no assistant message, multiple assistant messages, failed runtime output, and usage without message.
-- [ ] Handle runtime failure without aborting remaining eligible examples.
-- [ ] Keep v1 serial execution unless source-of-truth explicitly chooses parallel execution.
+- [x] Implement isolated eval thread creation as the v1 execution strategy.
+- [x] Persist eval thread metadata linking it to eval run/result.
+- [x] Materialize captured pre-trigger canonical context into the isolated eval thread without treating it as exact historical prompt replay.
+- [x] Create a fresh trigger user message in the eval thread.
+- [x] Pass canonical eval history through `RunTextRuntimeInput.historyMessages` when appropriate, using eval-thread materialized messages rather than source snapshot messages.
+- [x] Run current runtime for the trigger input.
+- [x] Capture runtime output run id.
+- [x] Capture actual assistant output snapshot.
+- [x] Capture usage snapshot from the eval output run.
+- [x] Capture duration from result start/finish or run timestamps.
+- [x] Capture actual output edge cases including no assistant message, multiple assistant messages, failed runtime output, and usage without message.
+- [x] Handle runtime failure without aborting remaining eligible examples.
+- [x] Keep v1 serial execution unless source-of-truth explicitly chooses parallel execution.
 
 ### 2.5 Contracts / Server / Client
 - [ ] Add `EvalRunDto`.
@@ -328,8 +328,8 @@
 - [x] Add tests rejecting caller-supplied review actor/time.
 - [x] Add tests for expected output snapshot construction.
 - [x] Add tests proving expected output snapshots are immutable after the dataset example expected output changes.
-- [ ] Add tests for actual output snapshot construction.
-- [ ] Add tests for actual output edge cases: no assistant message, multiple assistant messages, runtime failed output, and usage without message.
+- [x] Add tests for actual output snapshot construction.
+- [x] Add tests for actual output edge cases: no assistant message, multiple assistant messages, runtime failed output, and usage without message.
 - [x] Add tests for eval run summary calculation.
 - [x] Add tests for selection summary and eligibility reason histogram calculation.
 - [x] Add tests for typed eval run config envelope parsing/building.
@@ -353,33 +353,33 @@
 - [x] Add app tests for selecting only eligible dataset examples.
 - [x] Add app tests proving `app.evals.create` creates queued result rows and create-time expected output snapshots.
 - [x] Add app tests for no eligible examples.
-- [ ] Add app tests proving source run access is not required for eval execution.
-- [ ] Add app tests proving source thread is not mutated.
-- [ ] Add app tests proving eval creates isolated execution state.
-- [ ] Add app tests proving eval thread metadata links `evalRunId`, `evalExampleResultId`, `datasetId`, and `datasetExampleId`.
-- [ ] Add app tests proving only pre-trigger history is materialized.
-- [ ] Add app tests proving trigger message is not duplicated in history and is created as a fresh eval user message.
-- [ ] Add app tests proving source message ids are not reused for eval messages.
-- [ ] Add app tests for invalid trigger behavior: missing trigger, trigger not user, trigger without executable text, and unsupported non-text or multi-part trigger.
-- [ ] Add app tests proving invalid triggers create failed selected result rows, not skipped rows and not selection exclusions.
+- [x] Add app tests proving source run access is not required for eval execution.
+- [x] Add app tests proving source thread is not mutated.
+- [x] Add app tests proving eval creates isolated execution state.
+- [x] Add app tests proving eval thread metadata links `evalRunId`, `evalExampleResultId`, `datasetId`, and `datasetExampleId`.
+- [x] Add app tests proving only pre-trigger history is materialized.
+- [x] Add app tests proving trigger message is not duplicated in history and is created as a fresh eval user message.
+- [x] Add app tests proving source message ids are not reused for eval messages.
+- [x] Add app tests for invalid trigger behavior: missing trigger, trigger not user, trigger without executable text, and unsupported non-text or multi-part trigger.
+- [x] Add app tests proving invalid triggers create failed selected result rows, not skipped rows and not selection exclusions.
 - [x] Add app tests proving expected output is snapshotted.
 - [x] Add app tests proving editing dataset example expected output after eval creation but before eval run does not change result expected snapshot.
-- [ ] Add app tests proving actual output is persisted.
-- [ ] Add app tests for actual output edge cases: outputless completed run fails the result while preserving snapshot, runtime throws after writing failed run, usage with no message, and multiple assistant messages.
-- [ ] Add app tests proving usage and duration are persisted.
-- [ ] Add app tests proving one failed example does not abort remaining examples.
-- [ ] Add app tests for eval run status transitions.
-- [ ] Add app tests proving `completed` eval runs can include failed result rows.
-- [ ] Add app tests proving batch-level failures use `EvalRun.status = 'failed'`.
-- [ ] Add app tests proving the same eval run cannot run concurrently or rerun after terminal status.
+- [x] Add app tests proving actual output is persisted.
+- [x] Add app tests for actual output edge cases: outputless completed run fails the result while preserving snapshot, runtime throws after writing failed run, usage with no message, and multiple assistant messages.
+- [x] Add app tests proving usage and duration are persisted.
+- [x] Add app tests proving one failed example does not abort remaining examples.
+- [x] Add app tests for eval run status transitions.
+- [x] Add app tests proving `completed` eval runs can include failed result rows.
+- [x] Add app tests proving batch-level failures use `EvalRun.status = 'failed'`.
+- [x] Add app tests proving the same eval run cannot run concurrently or rerun after terminal status.
 - [x] Add app tests for eval run summary updates.
 - [x] Add app tests for summary correctness: eligible/ineligible counts, eligibility reason counts, result status counts, review status counts, aggregate usage, and duration.
 - [x] Add app tests proving no eligible examples creates a completed empty eval run with no result rows.
 - [x] Add app tests for result review updates and actor/time assignment.
 - [x] Add app tests proving result review updates refresh summary review counts.
-- [ ] Add app tests proving normal thread listing excludes eval-only threads by default.
-- [ ] Add app tests proving runtime receives or reads eval-thread messages rather than source-thread messages.
-- [ ] Add app tests proving non-execution use cases do not call runtime ports.
+- [x] Add app tests proving normal thread listing excludes eval-only threads by default.
+- [x] Add app tests proving runtime receives or reads eval-thread messages rather than source-thread messages.
+- [x] Add app tests proving non-execution use cases do not call runtime ports.
 
 ### 4.4 Contracts / Server / Client Tests
 - [ ] Add contract typecheck coverage for new DTOs.
@@ -473,20 +473,20 @@
 - [x] Commit Loop 2.
 
 ### Loop 3: App Eval Execution
-- [ ] Add app eval run execution use case.
-- [ ] Execute only queued result rows created by `app.evals.create`.
-- [ ] Implement isolated eval thread creation and metadata.
-- [ ] Implement input materialization and fresh trigger creation.
-- [ ] Persist actual output snapshots, usage, duration, and errors.
-- [ ] Mark invalid trigger results as `failed` without eval thread/output run/actual output/usage.
-- [ ] Mark outputless completed runtime runs as failed results while preserving the actual-output snapshot.
-- [ ] Hide eval-only threads from normal thread listing use cases by default.
-- [ ] Implement runtime failure isolation and eval run terminal summary updates.
-- [ ] Add focused app tests for execution, isolation, invalid triggers, failure isolation, actual output edge cases, concurrency, and source thread immutability.
-- [ ] Run `pnpm --filter @agent-infra/app test`.
-- [ ] Run package typechecks for affected shared packages if needed.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 3.
+- [x] Add app eval run execution use case.
+- [x] Execute only queued result rows created by `app.evals.create`.
+- [x] Implement isolated eval thread creation and metadata.
+- [x] Implement input materialization and fresh trigger creation.
+- [x] Persist actual output snapshots, usage, duration, and errors.
+- [x] Mark invalid trigger results as `failed` without eval thread/output run/actual output/usage.
+- [x] Mark outputless completed runtime runs as failed results while preserving the actual-output snapshot.
+- [x] Hide eval-only threads from normal thread listing use cases by default.
+- [x] Implement runtime failure isolation and eval run terminal summary updates.
+- [x] Add focused app tests for execution, isolation, invalid triggers, failure isolation, actual output edge cases, concurrency, and source thread immutability.
+- [x] Run `pnpm --filter @agent-infra/app test`.
+- [x] Run package typechecks for affected shared packages if needed.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit Loop 3.
 
 ### Loop 4: Contracts, Server Helpers, and Client Helpers
 - [ ] Add eval run/result DTOs.

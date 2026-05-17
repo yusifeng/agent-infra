@@ -31,6 +31,7 @@ import {
   InvalidTurnTextError,
   EvalExampleResultNotFoundError,
   EvalRunNotFoundError,
+  RuntimeUnavailableError,
   RunNotFoundError,
   ThreadHasActiveRunError,
   ThreadNotFoundError
@@ -680,6 +681,32 @@ function createFailingRuntime(): AgentInfraRuntimePort {
   };
 }
 
+function createOutputlessRuntime(): AgentInfraRuntimePort {
+  return {
+    async prepare(input) {
+      return {
+        provider: input.provider ?? 'deepseek',
+        model: input.model ?? 'deepseek-v4-flash'
+      };
+    },
+    async runTextTurn(repositories, input: RunTextRuntimeInput) {
+      await repositories.runRepo.updateStatus(input.runId, 'running', {
+        startedAt: new Date('2026-04-10T01:00:00.000Z')
+      });
+      await repositories.runRepo.updateStatus(input.runId, 'completed', {
+        finishedAt: new Date('2026-04-10T01:00:05.000Z')
+      });
+    },
+    async generateText(input) {
+      return {
+        provider: input.provider ?? 'deepseek',
+        model: input.model ?? 'deepseek-v4-flash',
+        text: input.userPrompt
+      };
+    }
+  };
+}
+
 async function persistAssistantAnswer(repositories: AgentInfraAppRepositories, input: { threadId: string; runId: string; text: string }) {
   const message = await repositories.messageRepo.createWithNextSeq({
     id: `assistant-${input.runId}`,
@@ -706,6 +733,54 @@ async function persistAssistantAnswer(repositories: AgentInfraAppRepositories, i
   return message;
 }
 
+async function createMessageFixture(
+  repositories: AgentInfraAppRepositories,
+  input: { threadId: string; id: string; role: Message['role']; text: string; runId?: string | null; metadata?: Record<string, unknown> | null }
+) {
+  const message = await repositories.messageRepo.createWithNextSeq({
+    id: input.id,
+    threadId: input.threadId,
+    runId: input.runId ?? null,
+    role: input.role,
+    status: 'completed',
+    metadata: input.metadata ?? null
+  });
+  const part = await repositories.messageRepo.createPart({
+    id: `part-${input.id}`,
+    messageId: message.id,
+    partIndex: 0,
+    type: 'text',
+    textValue: input.text,
+    jsonValue: null
+  });
+  return {
+    ...message,
+    parts: [part]
+  };
+}
+
+function toMessageSnapshot(message: StoredMessage) {
+  return {
+    id: message.id,
+    threadId: message.threadId,
+    runId: message.runId ?? null,
+    role: message.role,
+    seq: message.seq,
+    status: message.status,
+    metadata: message.metadata ?? null,
+    createdAt: message.createdAt.toISOString(),
+    parts: message.parts.map((part) => ({
+      id: part.id,
+      messageId: part.messageId,
+      partIndex: part.partIndex,
+      type: part.type,
+      textValue: part.textValue ?? null,
+      jsonValue: part.jsonValue ?? null,
+      createdAt: part.createdAt.toISOString()
+    }))
+  };
+}
+
 async function createDatasetExampleFixture(
   repositories: AgentInfraAppRepositories,
   input: {
@@ -713,22 +788,51 @@ async function createDatasetExampleFixture(
     datasetId: string;
     expectedOutputJson?: Record<string, unknown> | null;
     metadataJson?: Record<string, unknown> | null;
+    inputJson?: Record<string, unknown>;
+    sourceThreadId?: string | null;
     triggerMessageId?: string | null;
   }
 ) {
   const triggerMessageId = input.triggerMessageId ?? `trigger-${input.id}`;
+  const inputJson =
+    input.inputJson ?? {
+      schemaVersion: 1,
+      kind: 'chat_turn',
+      contextSource: 'current_canonical_at_capture',
+      triggerMessageId,
+      messages: triggerMessageId
+        ? [
+            {
+              id: triggerMessageId,
+              threadId: `source-thread-${input.id}`,
+              runId: null,
+              role: 'user',
+              seq: 1,
+              status: 'completed',
+              metadata: null,
+              createdAt: '2026-04-10T00:00:00.000Z',
+              parts: [
+                {
+                  id: `part-${triggerMessageId}`,
+                  messageId: triggerMessageId,
+                  partIndex: 0,
+                  type: 'text',
+                  textValue: `Trigger ${input.id}`,
+                  jsonValue: null,
+                  createdAt: '2026-04-10T00:00:00.000Z'
+                }
+              ]
+            }
+          ]
+        : []
+    };
   return repositories.datasetExampleRepo.create({
     id: input.id,
     datasetId: input.datasetId,
     sourceRunId: `source-run-${input.id}`,
-    sourceThreadId: `source-thread-${input.id}`,
+    sourceThreadId: input.sourceThreadId ?? `source-thread-${input.id}`,
     triggerMessageId,
-    inputJson: {
-      schemaVersion: 1,
-      kind: 'chat_turn',
-      triggerMessageId,
-      messages: []
-    },
+    inputJson,
     baselineOutputJson: null,
     expectedOutputJson: input.expectedOutputJson ?? null,
     metadataJson: input.metadataJson ?? null,
@@ -1987,6 +2091,608 @@ describe('createAgentInfraApp', () => {
     expect(prepare).not.toHaveBeenCalled();
     expect(runTextTurn).not.toHaveBeenCalled();
     expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it('runs eval results in isolated threads without mutating source threads', async () => {
+    const baseRuntime = createHappyRuntime();
+    const runtime: AgentInfraRuntimePort = {
+      ...baseRuntime,
+      async runTextTurn(repositories, input) {
+        await baseRuntime.runTextTurn(repositories, input);
+        await repositories.runRepo.updateStatus(input.runId, 'completed', {
+          usage: {
+            schemaVersion: 1,
+            provider: input.provider,
+            model: input.model,
+            normalizationStatus: 'complete',
+            tokens: { input: 11, output: 7, total: 18 }
+          }
+        });
+      }
+    };
+    const runTextTurn = vi.spyOn(runtime, 'runTextTurn');
+    const { app, repositories } = createDependencies(runtime);
+    const sourceThread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Source thread' });
+    const previousUser = await createMessageFixture(repositories, {
+      threadId: sourceThread.id,
+      id: 'source-user-1',
+      role: 'user',
+      text: 'Earlier question'
+    });
+    const previousAssistant = await createMessageFixture(repositories, {
+      threadId: sourceThread.id,
+      id: 'source-assistant-1',
+      role: 'assistant',
+      text: 'Earlier answer',
+      runId: 'source-run-1'
+    });
+    const trigger = await createMessageFixture(repositories, {
+      threadId: sourceThread.id,
+      id: 'source-trigger',
+      role: 'user',
+      text: 'Eval trigger'
+    });
+    const sourceMessageCountBefore = (await repositories.messageRepo.listByThread(sourceThread.id)).length;
+    const dataset = await app.datasets.create({
+      appId: 'playground-runtime-pi',
+      name: 'Executable evals',
+      createdByActorId: 'actor-1'
+    });
+    const example = await createDatasetExampleFixture(repositories, {
+      id: 'executable-example',
+      datasetId: dataset.id,
+      sourceThreadId: sourceThread.id,
+      triggerMessageId: trigger.id,
+      inputJson: {
+        schemaVersion: 1,
+        kind: 'chat_turn',
+        contextSource: 'current_canonical_at_capture',
+        triggerMessageId: trigger.id,
+        messages: [previousUser, previousAssistant, trigger].map(toMessageSnapshot)
+      },
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Hello from runtime' },
+      metadataJson: structuredClone(APPROVED_DEFAULT_EVAL_METADATA)
+    });
+    const evalRun = await app.evals.create({
+      appId: 'playground-runtime-pi',
+      datasetId: dataset.id,
+      actorId: 'actor-1',
+      provider: 'openai',
+      model: 'gpt-test',
+      runtimeOptions: {
+        thinkingEnabled: true,
+        reasoningEffort: 'max',
+        webSearchEnabled: true,
+        temperature: 0
+      }
+    });
+
+    const completedEvalRun = await app.evals.run({
+      appId: 'playground-runtime-pi',
+      evalRunId: evalRun.id,
+      actorId: 'actor-1'
+    });
+    const [result] = await app.evals.listResults({
+      appId: 'playground-runtime-pi',
+      evalRunId: evalRun.id,
+      actorId: 'actor-1'
+    });
+
+    expect(completedEvalRun.status).toBe('completed');
+    expect(completedEvalRun.summaryJson).toMatchObject({
+      results: {
+        statusCounts: { queued: 0, running: 0, completed: 1, failed: 0, skipped: 0 },
+        reviewStatusCounts: { unreviewed: 1, pass: 0, fail: 0, needs_review: 0, not_applicable: 0 },
+        aggregateUsage: { schemaVersion: 1, tokens: { input: 11, output: 7, total: 18 } },
+        durationMs: 0
+      }
+    });
+    expect(result).toMatchObject({
+      datasetExampleId: example.id,
+      status: 'completed',
+      error: null,
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Hello from runtime', notes: null },
+      actualOutputJson: {
+        schemaVersion: 1,
+        kind: 'eval_run_output',
+        status: 'completed',
+        assistantMessages: [expect.objectContaining({ role: 'assistant' })]
+      },
+      usageJson: {
+        schemaVersion: 1,
+        tokens: { input: 11, output: 7, total: 18 }
+      },
+      metadataJson: {
+        selection: { policy: 'effective_eligible_v1' },
+        execution: {
+          materializedHistoryMessageCount: 2,
+          runtimeProvider: 'openai',
+          runtimeModel: 'gpt-test',
+          outputRunStatus: 'completed'
+        }
+      }
+    });
+    expect(result?.evalThreadId).toBeTruthy();
+    expect(result?.outputRunId).toBeTruthy();
+    expect(runTextTurn).toHaveBeenCalledTimes(1);
+    const runtimeInput = runTextTurn.mock.calls[0]?.[1];
+    expect(runtimeInput?.historyMessages?.map((message) => message.parts[0]?.textValue)).toEqual([
+      'Earlier question',
+      'Earlier answer',
+      'Eval trigger'
+    ]);
+    expect(runtimeInput).toMatchObject({
+      thinkingEnabled: true,
+      reasoningEffort: 'max',
+      webSearchEnabled: true
+    });
+    expect(runtimeInput?.historyMessages?.at(-1)?.id).not.toBe(trigger.id);
+    expect(await repositories.messageRepo.listByThread(sourceThread.id)).toHaveLength(sourceMessageCountBefore);
+    expect(await app.threads.list({ appId: 'playground-runtime-pi' })).toEqual([sourceThread]);
+
+    const evalThread = await repositories.threadRepo.findById(result!.evalThreadId!);
+    expect(evalThread?.metadata).toMatchObject({
+      eval: {
+        kind: 'eval_thread',
+        evalRunId: evalRun.id,
+        evalExampleResultId: result!.id,
+        datasetId: dataset.id,
+        datasetExampleId: example.id
+      }
+    });
+    await expect(app.evals.run({
+      appId: 'playground-runtime-pi',
+      evalRunId: evalRun.id,
+      actorId: 'actor-1'
+    })).rejects.toBeInstanceOf(InvalidEvalInputError);
+  });
+
+  it('marks invalid eval triggers as failed results without aborting valid results', async () => {
+    const runtime = createHappyRuntime();
+    const runTextTurn = vi.spyOn(runtime, 'runTextTurn');
+    const { app, repositories } = createDependencies(runtime);
+    const dataset = await app.datasets.create({
+      appId: 'playground-runtime-pi',
+      name: 'Mixed trigger evals',
+      createdByActorId: 'actor-1'
+    });
+    await createDatasetExampleFixture(repositories, {
+      id: 'invalid-trigger-example',
+      datasetId: dataset.id,
+      triggerMessageId: 'missing-trigger',
+      inputJson: {
+        schemaVersion: 1,
+        kind: 'chat_turn',
+        contextSource: 'current_canonical_at_capture',
+        triggerMessageId: 'missing-trigger',
+        messages: []
+      },
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected' },
+      metadataJson: structuredClone(APPROVED_DEFAULT_EVAL_METADATA)
+    });
+    await createDatasetExampleFixture(repositories, {
+      id: 'valid-trigger-example',
+      datasetId: dataset.id,
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected' },
+      metadataJson: structuredClone(APPROVED_DEFAULT_EVAL_METADATA)
+    });
+    const evalRun = await app.evals.create({
+      appId: 'playground-runtime-pi',
+      datasetId: dataset.id,
+      actorId: 'actor-1'
+    });
+
+    const completed = await app.evals.run({
+      appId: 'playground-runtime-pi',
+      evalRunId: evalRun.id,
+      actorId: 'actor-1'
+    });
+    const results = await app.evals.listResults({
+      appId: 'playground-runtime-pi',
+      evalRunId: evalRun.id,
+      actorId: 'actor-1'
+    });
+
+    expect(completed).toMatchObject({
+      status: 'completed',
+      summaryJson: {
+        results: {
+          statusCounts: { queued: 0, running: 0, completed: 1, failed: 1, skipped: 0 }
+        }
+      }
+    });
+    expect(results).toMatchObject([
+      {
+        datasetExampleId: 'invalid-trigger-example',
+        status: 'failed',
+        evalThreadId: null,
+        outputRunId: null,
+        actualOutputJson: null,
+        usageJson: null,
+        error: 'eval input snapshot must contain exactly one trigger message'
+      },
+      {
+        datasetExampleId: 'valid-trigger-example',
+        status: 'completed',
+        actualOutputJson: { kind: 'eval_run_output' }
+      }
+    ]);
+    expect(runTextTurn).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails unsupported eval trigger shapes before runtime execution', async () => {
+    const runtime = createHappyRuntime();
+    const runTextTurn = vi.spyOn(runtime, 'runTextTurn');
+    const { app, repositories } = createDependencies(runtime);
+    const dataset = await app.datasets.create({
+      appId: 'playground-runtime-pi',
+      name: 'Invalid trigger shapes',
+      createdByActorId: 'actor-1'
+    });
+    const cases = [
+      {
+        id: 'assistant-trigger',
+        trigger: {
+          id: 'assistant-trigger-message',
+          threadId: 'source-thread-invalid',
+          runId: 'source-run-invalid',
+          role: 'assistant',
+          seq: 1,
+          status: 'completed',
+          metadata: null,
+          createdAt: '2026-04-10T00:00:00.000Z',
+          parts: [{ id: 'part-assistant-trigger', messageId: 'assistant-trigger-message', partIndex: 0, type: 'text', textValue: 'Not user', jsonValue: null, createdAt: '2026-04-10T00:00:00.000Z' }]
+        },
+        error: 'eval trigger message must be a user message'
+      },
+      {
+        id: 'empty-trigger',
+        trigger: {
+          id: 'empty-trigger-message',
+          threadId: 'source-thread-invalid',
+          runId: null,
+          role: 'user',
+          seq: 1,
+          status: 'completed',
+          metadata: null,
+          createdAt: '2026-04-10T00:00:00.000Z',
+          parts: [{ id: 'part-empty-trigger', messageId: 'empty-trigger-message', partIndex: 0, type: 'text', textValue: '   ', jsonValue: null, createdAt: '2026-04-10T00:00:00.000Z' }]
+        },
+        error: 'eval trigger text is required'
+      },
+      {
+        id: 'data-trigger',
+        trigger: {
+          id: 'data-trigger-message',
+          threadId: 'source-thread-invalid',
+          runId: null,
+          role: 'user',
+          seq: 1,
+          status: 'completed',
+          metadata: null,
+          createdAt: '2026-04-10T00:00:00.000Z',
+          parts: [{ id: 'part-data-trigger', messageId: 'data-trigger-message', partIndex: 0, type: 'data', textValue: null, jsonValue: { value: true }, createdAt: '2026-04-10T00:00:00.000Z' }]
+        },
+        error: 'eval trigger message must contain exactly one text part'
+      },
+      {
+        id: 'multi-part-trigger',
+        trigger: {
+          id: 'multi-part-trigger-message',
+          threadId: 'source-thread-invalid',
+          runId: null,
+          role: 'user',
+          seq: 1,
+          status: 'completed',
+          metadata: null,
+          createdAt: '2026-04-10T00:00:00.000Z',
+          parts: [
+            { id: 'part-multi-trigger-1', messageId: 'multi-part-trigger-message', partIndex: 0, type: 'text', textValue: 'One', jsonValue: null, createdAt: '2026-04-10T00:00:00.000Z' },
+            { id: 'part-multi-trigger-2', messageId: 'multi-part-trigger-message', partIndex: 1, type: 'text', textValue: 'Two', jsonValue: null, createdAt: '2026-04-10T00:00:00.000Z' }
+          ]
+        },
+        error: 'eval trigger message must contain exactly one text part'
+      }
+    ];
+
+    for (const item of cases) {
+      await createDatasetExampleFixture(repositories, {
+        id: item.id,
+        datasetId: dataset.id,
+        triggerMessageId: item.trigger.id,
+        inputJson: {
+          schemaVersion: 1,
+          kind: 'chat_turn',
+          contextSource: 'current_canonical_at_capture',
+          triggerMessageId: item.trigger.id,
+          messages: [item.trigger]
+        },
+        expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected' },
+        metadataJson: structuredClone(APPROVED_DEFAULT_EVAL_METADATA)
+      });
+    }
+
+    const evalRun = await app.evals.create({
+      appId: 'playground-runtime-pi',
+      datasetId: dataset.id,
+      actorId: 'actor-1'
+    });
+    await app.evals.run({
+      appId: 'playground-runtime-pi',
+      evalRunId: evalRun.id,
+      actorId: 'actor-1'
+    });
+
+    const results = await app.evals.listResults({
+      appId: 'playground-runtime-pi',
+      evalRunId: evalRun.id,
+      actorId: 'actor-1'
+    });
+    expect(results.map((result) => ({ id: result.datasetExampleId, status: result.status, error: result.error }))).toEqual(
+      cases.map((item) => ({ id: item.id, status: 'failed', error: item.error }))
+    );
+    expect(results.every((result) => result.evalThreadId === null && result.outputRunId === null && result.actualOutputJson === null)).toBe(true);
+    expect(runTextTurn).not.toHaveBeenCalled();
+  });
+
+  it('persists failed actual output snapshots for runtime failures and outputless completions', async () => {
+    const failing = createDependencies(createFailingRuntime());
+    const failingDataset = await failing.app.datasets.create({
+      appId: 'playground-runtime-pi',
+      name: 'Runtime failure evals',
+      createdByActorId: 'actor-1'
+    });
+    await createDatasetExampleFixture(failing.repositories, {
+      id: 'runtime-failure-example',
+      datasetId: failingDataset.id,
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected' },
+      metadataJson: structuredClone(APPROVED_DEFAULT_EVAL_METADATA)
+    });
+    const failingRun = await failing.app.evals.create({
+      appId: 'playground-runtime-pi',
+      datasetId: failingDataset.id,
+      actorId: 'actor-1'
+    });
+
+    await expect(failing.app.evals.run({
+      appId: 'playground-runtime-pi',
+      evalRunId: failingRun.id,
+      actorId: 'actor-1'
+    })).resolves.toMatchObject({
+      status: 'completed',
+      summaryJson: { results: { statusCounts: { completed: 0, failed: 1 } } }
+    });
+    await expect(failing.app.evals.listResults({
+      appId: 'playground-runtime-pi',
+      evalRunId: failingRun.id,
+      actorId: 'actor-1'
+    })).resolves.toMatchObject([
+      {
+        status: 'failed',
+        error: 'tool explosion',
+        actualOutputJson: { kind: 'eval_run_output', status: 'failed', error: 'tool explosion' }
+      }
+    ]);
+
+    const outputless = createDependencies(createOutputlessRuntime());
+    const outputlessDataset = await outputless.app.datasets.create({
+      appId: 'playground-runtime-pi',
+      name: 'Outputless evals',
+      createdByActorId: 'actor-1'
+    });
+    await createDatasetExampleFixture(outputless.repositories, {
+      id: 'outputless-example',
+      datasetId: outputlessDataset.id,
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected' },
+      metadataJson: structuredClone(APPROVED_DEFAULT_EVAL_METADATA)
+    });
+    const outputlessRun = await outputless.app.evals.create({
+      appId: 'playground-runtime-pi',
+      datasetId: outputlessDataset.id,
+      actorId: 'actor-1'
+    });
+
+    await outputless.app.evals.run({
+      appId: 'playground-runtime-pi',
+      evalRunId: outputlessRun.id,
+      actorId: 'actor-1'
+    });
+    await expect(outputless.app.evals.listResults({
+      appId: 'playground-runtime-pi',
+      evalRunId: outputlessRun.id,
+      actorId: 'actor-1'
+    })).resolves.toMatchObject([
+      {
+        status: 'failed',
+        error: 'eval output run completed without assistant output',
+        actualOutputJson: { kind: 'eval_run_output', status: 'completed', assistantMessages: [] }
+      }
+    ]);
+  });
+
+  it('preserves multiple assistant messages in eval actual output snapshots', async () => {
+    const multiAssistantRuntime: AgentInfraRuntimePort = {
+      async prepare(input) {
+        return {
+          provider: input.provider ?? 'deepseek',
+          model: input.model ?? 'deepseek-v4-flash'
+        };
+      },
+      async runTextTurn(repositories, input) {
+        await repositories.runRepo.updateStatus(input.runId, 'running', {
+          startedAt: new Date('2026-04-10T01:00:00.000Z')
+        });
+        for (const [index, text] of ['First assistant output', 'Second assistant output'].entries()) {
+          const message = await repositories.messageRepo.createWithNextSeq({
+            id: `multi-assistant-${index}-${input.runId}`,
+            threadId: input.threadId,
+            runId: input.runId,
+            role: 'assistant',
+            status: 'completed',
+            metadata: null
+          });
+          await repositories.messageRepo.createPart({
+            id: `multi-part-${index}-${input.runId}`,
+            messageId: message.id,
+            partIndex: 0,
+            type: 'text',
+            textValue: text,
+            jsonValue: null
+          });
+        }
+        await repositories.runRepo.updateStatus(input.runId, 'completed', {
+          finishedAt: new Date('2026-04-10T01:00:05.000Z')
+        });
+      },
+      async generateText(input) {
+        return {
+          provider: input.provider ?? 'deepseek',
+          model: input.model ?? 'deepseek-v4-flash',
+          text: input.userPrompt
+        };
+      }
+    };
+    const { app, repositories } = createDependencies(multiAssistantRuntime);
+    const dataset = await app.datasets.create({
+      appId: 'playground-runtime-pi',
+      name: 'Multi assistant evals',
+      createdByActorId: 'actor-1'
+    });
+    await createDatasetExampleFixture(repositories, {
+      id: 'multi-assistant-example',
+      datasetId: dataset.id,
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected' },
+      metadataJson: structuredClone(APPROVED_DEFAULT_EVAL_METADATA)
+    });
+    const evalRun = await app.evals.create({
+      appId: 'playground-runtime-pi',
+      datasetId: dataset.id,
+      actorId: 'actor-1'
+    });
+
+    await app.evals.run({
+      appId: 'playground-runtime-pi',
+      evalRunId: evalRun.id,
+      actorId: 'actor-1'
+    });
+
+    const [result] = await app.evals.listResults({
+      appId: 'playground-runtime-pi',
+      evalRunId: evalRun.id,
+      actorId: 'actor-1'
+    });
+    expect(result?.actualOutputJson?.assistantMessages).toMatchObject([
+      { parts: [expect.objectContaining({ textValue: 'First assistant output' })] },
+      { parts: [expect.objectContaining({ textValue: 'Second assistant output' })] }
+    ]);
+  });
+
+  it('marks eval runs failed when runtime selection is unavailable before execution starts', async () => {
+    const unavailableRuntime: AgentInfraRuntimePort = {
+      async prepare() {
+        throw new Error('missing runtime configuration');
+      },
+      async runTextTurn() {
+        throw new Error('should not run');
+      },
+      async generateText() {
+        throw new Error('should not generate');
+      }
+    };
+    const { app, repositories } = createDependencies(unavailableRuntime);
+    const dataset = await app.datasets.create({
+      appId: 'playground-runtime-pi',
+      name: 'Unavailable evals',
+      createdByActorId: 'actor-1'
+    });
+    await createDatasetExampleFixture(repositories, {
+      id: 'unavailable-example',
+      datasetId: dataset.id,
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected' },
+      metadataJson: structuredClone(APPROVED_DEFAULT_EVAL_METADATA)
+    });
+    const evalRun = await app.evals.create({
+      appId: 'playground-runtime-pi',
+      datasetId: dataset.id,
+      actorId: 'actor-1'
+    });
+
+    await expect(app.evals.run({
+      appId: 'playground-runtime-pi',
+      evalRunId: evalRun.id,
+      actorId: 'actor-1'
+    })).rejects.toBeInstanceOf(RuntimeUnavailableError);
+    await expect(app.evals.get({
+      appId: 'playground-runtime-pi',
+      evalRunId: evalRun.id,
+      actorId: 'actor-1'
+    })).resolves.toMatchObject({
+      status: 'failed',
+      error: 'missing runtime configuration',
+      startedAt: new Date('2026-04-10T00:00:00.000Z'),
+      finishedAt: new Date('2026-04-10T00:00:00.000Z')
+    });
+    await expect(app.evals.listResults({
+      appId: 'playground-runtime-pi',
+      evalRunId: evalRun.id,
+      actorId: 'actor-1'
+    })).resolves.toMatchObject([{ status: 'queued' }]);
+  });
+
+  it('does not overwrite a concurrent eval run start when runtime preparation fails', async () => {
+    let evalRunId = '';
+    let repos: AgentInfraAppRepositories;
+    const racingRuntime: AgentInfraRuntimePort = {
+      async prepare() {
+        await repos.evalRunRepo.update(
+          evalRunId,
+          { status: 'running', startedAt: new Date('2026-04-10T00:00:01.000Z'), error: null },
+          new Date('2026-04-10T00:00:01.000Z')
+        );
+        throw new Error('missing runtime configuration');
+      },
+      async runTextTurn() {
+        throw new Error('should not run');
+      },
+      async generateText() {
+        throw new Error('should not generate');
+      }
+    };
+    const { app, repositories } = createDependencies(racingRuntime);
+    repos = repositories;
+    const dataset = await app.datasets.create({
+      appId: 'playground-runtime-pi',
+      name: 'Concurrent evals',
+      createdByActorId: 'actor-1'
+    });
+    await createDatasetExampleFixture(repositories, {
+      id: 'concurrent-example',
+      datasetId: dataset.id,
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected' },
+      metadataJson: structuredClone(APPROVED_DEFAULT_EVAL_METADATA)
+    });
+    const evalRun = await app.evals.create({
+      appId: 'playground-runtime-pi',
+      datasetId: dataset.id,
+      actorId: 'actor-1'
+    });
+    evalRunId = evalRun.id;
+
+    await expect(app.evals.run({
+      appId: 'playground-runtime-pi',
+      evalRunId: evalRun.id,
+      actorId: 'actor-1'
+    })).rejects.toBeInstanceOf(RuntimeUnavailableError);
+    await expect(app.evals.get({
+      appId: 'playground-runtime-pi',
+      evalRunId: evalRun.id,
+      actorId: 'actor-1'
+    })).resolves.toMatchObject({
+      status: 'running',
+      error: null,
+      startedAt: new Date('2026-04-10T00:00:01.000Z'),
+      finishedAt: null
+    });
   });
 
   it('rejects missing runs and dataset/run app boundary mismatches during capture', async () => {

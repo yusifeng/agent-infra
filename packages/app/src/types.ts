@@ -280,6 +280,8 @@ export interface GetEvalRunInput {
   actorId?: string | null;
 }
 
+export interface RunEvalRunInput extends GetEvalRunInput {}
+
 export interface ListEvalExampleResultsInput extends GetEvalRunInput {}
 
 export interface UpdateEvalExampleResultReviewInput extends GetEvalRunInput {
@@ -336,6 +338,16 @@ export interface EvalRunSummaryV1 {
     aggregateUsage?: Run['usage'] | null;
     durationMs?: number | null;
   };
+}
+
+export interface EvalActualOutputSnapshotV1 {
+  schemaVersion: 1;
+  kind: 'eval_run_output';
+  outputRunId: string;
+  evalThreadId: string;
+  status: Run['status'];
+  error?: string | null;
+  assistantMessages: DatasetMessageSnapshotV1[];
 }
 
 export interface RunTimelineResult {
@@ -788,6 +800,7 @@ export interface AgentInfraApp {
     listByDataset(input: ListEvalRunsByDatasetInput): Promise<EvalRun[]>;
     get(input: GetEvalRunInput): Promise<EvalRun>;
     listResults(input: ListEvalExampleResultsInput): Promise<EvalExampleResult[]>;
+    run(input: RunEvalRunInput): Promise<EvalRun>;
     updateResultReview(input: UpdateEvalExampleResultReviewInput): Promise<EvalExampleResult>;
   };
   shares: {
