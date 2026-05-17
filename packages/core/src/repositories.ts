@@ -6,6 +6,8 @@ import type {
   ChatShareSnapshot,
   Dataset,
   DatasetExample,
+  EvalExampleResult,
+  EvalRun,
   Message,
   MessagePart,
   RunFeedback,
@@ -92,6 +94,45 @@ export interface DatasetExampleRepository {
     },
     updatedAt: Date
   ): Promise<DatasetExample>;
+}
+
+export interface EvalRunRepository {
+  create(input: Omit<EvalRun, 'createdAt' | 'updatedAt'>): Promise<EvalRun>;
+  findById(id: string): Promise<EvalRun | null>;
+  listByDataset(datasetId: string): Promise<EvalRun[]>;
+  update(
+    id: string,
+    patch: Partial<
+      Pick<EvalRun, 'status' | 'name' | 'configJson' | 'summaryJson' | 'error' | 'startedAt' | 'finishedAt'>
+    >,
+    updatedAt: Date
+  ): Promise<EvalRun>;
+}
+
+export interface EvalExampleResultRepository {
+  create(input: Omit<EvalExampleResult, 'createdAt' | 'updatedAt'>): Promise<EvalExampleResult>;
+  createMany(inputs: Array<Omit<EvalExampleResult, 'createdAt' | 'updatedAt'>>): Promise<EvalExampleResult[]>;
+  findById(id: string): Promise<EvalExampleResult | null>;
+  listByEvalRun(evalRunId: string): Promise<EvalExampleResult[]>;
+  update(
+    id: string,
+    patch: Partial<
+      Pick<
+        EvalExampleResult,
+        | 'status'
+        | 'evalThreadId'
+        | 'outputRunId'
+        | 'actualOutputJson'
+        | 'inputJson'
+        | 'usageJson'
+        | 'metadataJson'
+        | 'error'
+        | 'startedAt'
+        | 'finishedAt'
+      >
+    >,
+    updatedAt: Date
+  ): Promise<EvalExampleResult>;
 }
 
 export interface RunEventRepository {

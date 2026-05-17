@@ -195,6 +195,73 @@ export const datasetExamples = pgTable(
   })
 );
 
+export const evalRuns = pgTable(
+  'eval_runs',
+  {
+    id: text('id').primaryKey(),
+    appId: text('app_id').notNull(),
+    datasetId: text('dataset_id')
+      .notNull()
+      .references(() => datasets.id),
+    status: text('status').notNull(),
+    name: text('name'),
+    configJson: jsonb('config_json').notNull(),
+    summaryJson: jsonb('summary_json').notNull(),
+    error: text('error'),
+    createdByActorId: text('created_by_actor_id'),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull()
+  },
+  (table) => ({
+    appIdIdx: index('eval_runs_app_id_idx').on(table.appId),
+    datasetIdIdx: index('eval_runs_dataset_id_idx').on(table.datasetId),
+    statusIdx: index('eval_runs_status_idx').on(table.status)
+  })
+);
+
+export const evalExampleResults = pgTable(
+  'eval_example_results',
+  {
+    id: text('id').primaryKey(),
+    evalRunId: text('eval_run_id')
+      .notNull()
+      .references(() => evalRuns.id),
+    datasetExampleId: text('dataset_example_id')
+      .notNull()
+      .references(() => datasetExamples.id),
+    exampleOrdinal: integer('example_ordinal').notNull(),
+    status: text('status').notNull(),
+    evalThreadId: text('eval_thread_id').references(() => threads.id),
+    outputRunId: text('output_run_id').references(() => runs.id),
+    expectedOutputJson: jsonb('expected_output_json').notNull(),
+    actualOutputJson: jsonb('actual_output_json'),
+    inputJson: jsonb('input_json'),
+    usageJson: jsonb('usage_json'),
+    metadataJson: jsonb('metadata_json'),
+    error: text('error'),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull()
+  },
+  (table) => ({
+    evalRunIdIdx: index('eval_example_results_eval_run_id_idx').on(table.evalRunId),
+    datasetExampleIdIdx: index('eval_example_results_dataset_example_id_idx').on(table.datasetExampleId),
+    statusIdx: index('eval_example_results_status_idx').on(table.status),
+    exampleOrdinalIdx: index('eval_example_results_example_ordinal_idx').on(table.exampleOrdinal),
+    evalRunDatasetExampleUnique: unique('eval_example_results_eval_run_dataset_example_unique').on(
+      table.evalRunId,
+      table.datasetExampleId
+    ),
+    evalRunExampleOrdinalUnique: unique('eval_example_results_eval_run_example_ordinal_unique').on(
+      table.evalRunId,
+      table.exampleOrdinal
+    )
+  })
+);
+
 export const toolInvocations = pgTable(
   'tool_invocations',
   {

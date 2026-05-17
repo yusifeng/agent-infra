@@ -195,6 +195,73 @@ export const datasetExamples = sqliteTable(
   })
 );
 
+export const evalRuns = sqliteTable(
+  'eval_runs',
+  {
+    id: text('id').primaryKey(),
+    appId: text('app_id').notNull(),
+    datasetId: text('dataset_id')
+      .notNull()
+      .references(() => datasets.id),
+    status: text('status').notNull(),
+    name: text('name'),
+    configJson: text('config_json', { mode: 'json' }).notNull(),
+    summaryJson: text('summary_json', { mode: 'json' }).notNull(),
+    error: text('error'),
+    createdByActorId: text('created_by_actor_id'),
+    startedAt: integer('started_at', { mode: 'timestamp_ms' }),
+    finishedAt: integer('finished_at', { mode: 'timestamp_ms' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
+  },
+  (table) => ({
+    appIdIdx: index('eval_runs_app_id_idx').on(table.appId),
+    datasetIdIdx: index('eval_runs_dataset_id_idx').on(table.datasetId),
+    statusIdx: index('eval_runs_status_idx').on(table.status)
+  })
+);
+
+export const evalExampleResults = sqliteTable(
+  'eval_example_results',
+  {
+    id: text('id').primaryKey(),
+    evalRunId: text('eval_run_id')
+      .notNull()
+      .references(() => evalRuns.id),
+    datasetExampleId: text('dataset_example_id')
+      .notNull()
+      .references(() => datasetExamples.id),
+    exampleOrdinal: integer('example_ordinal').notNull(),
+    status: text('status').notNull(),
+    evalThreadId: text('eval_thread_id').references(() => threads.id),
+    outputRunId: text('output_run_id').references(() => runs.id),
+    expectedOutputJson: text('expected_output_json', { mode: 'json' }).notNull(),
+    actualOutputJson: text('actual_output_json', { mode: 'json' }),
+    inputJson: text('input_json', { mode: 'json' }),
+    usageJson: text('usage_json', { mode: 'json' }),
+    metadataJson: text('metadata_json', { mode: 'json' }),
+    error: text('error'),
+    startedAt: integer('started_at', { mode: 'timestamp_ms' }),
+    finishedAt: integer('finished_at', { mode: 'timestamp_ms' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
+  },
+  (table) => ({
+    evalRunIdIdx: index('eval_example_results_eval_run_id_idx').on(table.evalRunId),
+    datasetExampleIdIdx: index('eval_example_results_dataset_example_id_idx').on(table.datasetExampleId),
+    statusIdx: index('eval_example_results_status_idx').on(table.status),
+    exampleOrdinalIdx: index('eval_example_results_example_ordinal_idx').on(table.exampleOrdinal),
+    evalRunDatasetExampleUnique: uniqueIndex('eval_example_results_eval_run_dataset_example_unique').on(
+      table.evalRunId,
+      table.datasetExampleId
+    ),
+    evalRunExampleOrdinalUnique: uniqueIndex('eval_example_results_eval_run_example_ordinal_unique').on(
+      table.evalRunId,
+      table.exampleOrdinal
+    )
+  })
+);
+
 export const toolInvocations = sqliteTable(
   'tool_invocations',
   {
@@ -406,6 +473,49 @@ export const SQLITE_SCHEMA_STATEMENTS = [
   'CREATE INDEX IF NOT EXISTS dataset_examples_source_run_id_idx ON dataset_examples(source_run_id)',
   'CREATE INDEX IF NOT EXISTS dataset_examples_source_thread_id_idx ON dataset_examples(source_thread_id)',
   'CREATE INDEX IF NOT EXISTS dataset_examples_trigger_message_id_idx ON dataset_examples(trigger_message_id)',
+  `CREATE TABLE IF NOT EXISTS eval_runs (
+    id TEXT PRIMARY KEY,
+    app_id TEXT NOT NULL,
+    dataset_id TEXT NOT NULL REFERENCES datasets(id),
+    status TEXT NOT NULL,
+    name TEXT,
+    config_json TEXT NOT NULL,
+    summary_json TEXT NOT NULL,
+    error TEXT,
+    created_by_actor_id TEXT,
+    started_at INTEGER,
+    finished_at INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  'CREATE INDEX IF NOT EXISTS eval_runs_app_id_idx ON eval_runs(app_id)',
+  'CREATE INDEX IF NOT EXISTS eval_runs_dataset_id_idx ON eval_runs(dataset_id)',
+  'CREATE INDEX IF NOT EXISTS eval_runs_status_idx ON eval_runs(status)',
+  `CREATE TABLE IF NOT EXISTS eval_example_results (
+    id TEXT PRIMARY KEY,
+    eval_run_id TEXT NOT NULL REFERENCES eval_runs(id),
+    dataset_example_id TEXT NOT NULL REFERENCES dataset_examples(id),
+    example_ordinal INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    eval_thread_id TEXT REFERENCES threads(id),
+    output_run_id TEXT REFERENCES runs(id),
+    expected_output_json TEXT NOT NULL,
+    actual_output_json TEXT,
+    input_json TEXT,
+    usage_json TEXT,
+    metadata_json TEXT,
+    error TEXT,
+    started_at INTEGER,
+    finished_at INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  'CREATE INDEX IF NOT EXISTS eval_example_results_eval_run_id_idx ON eval_example_results(eval_run_id)',
+  'CREATE INDEX IF NOT EXISTS eval_example_results_dataset_example_id_idx ON eval_example_results(dataset_example_id)',
+  'CREATE INDEX IF NOT EXISTS eval_example_results_status_idx ON eval_example_results(status)',
+  'CREATE INDEX IF NOT EXISTS eval_example_results_example_ordinal_idx ON eval_example_results(example_ordinal)',
+  'CREATE UNIQUE INDEX IF NOT EXISTS eval_example_results_eval_run_dataset_example_unique ON eval_example_results(eval_run_id, dataset_example_id)',
+  'CREATE UNIQUE INDEX IF NOT EXISTS eval_example_results_eval_run_example_ordinal_unique ON eval_example_results(eval_run_id, example_ordinal)',
   `CREATE TABLE IF NOT EXISTS message_parts (
     id TEXT PRIMARY KEY,
     message_id TEXT NOT NULL REFERENCES messages(id),

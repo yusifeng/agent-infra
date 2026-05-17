@@ -169,10 +169,10 @@
 - [x] Do not add workflow states such as `blocked` in v1.
 
 ### 1.8 Types / Interfaces
-- [ ] Add core `EvalRun` type.
-- [ ] Add core `EvalExampleResult` type.
-- [ ] Add core `EvalRunRepository` interface.
-- [ ] Add core `EvalExampleResultRepository` interface.
+- [x] Add core `EvalRun` type.
+- [x] Add core `EvalExampleResult` type.
+- [x] Add core `EvalRunRepository` interface.
+- [x] Add core `EvalExampleResultRepository` interface.
 - [ ] Add app-layer eval run input/result types.
 - [ ] Add app-layer eval result review types.
 - [ ] Add app-layer `EvalRunConfigV1` envelope, parser, and builder helpers.
@@ -189,28 +189,28 @@
 ## 2. Backend / Platform
 
 ### 2.1 Shared Core
-- [ ] Add `EvalRun` and `EvalExampleResult` to `packages/core/src/types.ts`.
-- [ ] Add repository interfaces to `packages/core/src/repositories.ts`.
-- [ ] Export new types and repository interfaces from package entry points.
-- [ ] Avoid adding judge/report/prompt concepts to core in v1.
+- [x] Add `EvalRun` and `EvalExampleResult` to `packages/core/src/types.ts`.
+- [x] Add repository interfaces to `packages/core/src/repositories.ts`.
+- [x] Export new types and repository interfaces from package entry points.
+- [x] Avoid adding judge/report/prompt concepts to core in v1.
 
 ### 2.2 Database
-- [ ] Add SQLite schema for `eval_runs`.
-- [ ] Add SQLite schema for `eval_example_results`.
-- [ ] Add Postgres schema for `eval_runs`.
-- [ ] Add Postgres schema for `eval_example_results`.
-- [ ] Add indexes for `eval_runs.appId`, `eval_runs.datasetId`, and `eval_runs.status`.
-- [ ] Add indexes for `eval_example_results.evalRunId`, `datasetExampleId`, `status`, and `exampleOrdinal` if needed for ordering.
-- [ ] Add DB unique constraint for `(evalRunId, datasetExampleId)`.
-- [ ] Add DB unique constraint for `(evalRunId, exampleOrdinal)`.
-- [ ] Add foreign-key relationships where existing DB patterns support them.
-- [ ] Add Drizzle migrations.
-- [ ] Add SQLite repository implementation.
-- [ ] Add Postgres/Drizzle repository implementation.
-- [ ] Wire repositories into DB bootstrap/client helpers.
-- [ ] Ensure JSON fields round-trip across SQLite and Postgres.
-- [ ] Ensure list ordering is deterministic.
-- [ ] Ensure eval-only thread metadata JSON round-trips if stored in thread metadata.
+- [x] Add SQLite schema for `eval_runs`.
+- [x] Add SQLite schema for `eval_example_results`.
+- [x] Add Postgres schema for `eval_runs`.
+- [x] Add Postgres schema for `eval_example_results`.
+- [x] Add indexes for `eval_runs.appId`, `eval_runs.datasetId`, and `eval_runs.status`.
+- [x] Add indexes for `eval_example_results.evalRunId`, `datasetExampleId`, `status`, and `exampleOrdinal` if needed for ordering.
+- [x] Add DB unique constraint for `(evalRunId, datasetExampleId)`.
+- [x] Add DB unique constraint for `(evalRunId, exampleOrdinal)`.
+- [x] Add foreign-key relationships where existing DB patterns support them.
+- [x] Add Drizzle migrations.
+- [x] Add SQLite repository implementation.
+- [x] Add Postgres/Drizzle repository implementation.
+- [x] Wire repositories into DB bootstrap/client helpers.
+- [x] Ensure JSON fields round-trip across SQLite and Postgres.
+- [x] Ensure list ordering is deterministic.
+- [x] Ensure eval-only thread metadata JSON round-trips if stored in thread metadata.
 
 ### 2.3 App Use Cases
 - [ ] Add `app.evals.create`.
@@ -336,15 +336,15 @@
 - [ ] Add tests for typed eval run summary envelope parsing/building.
 
 ### 4.2 DB Tests
-- [ ] Add SQLite repository tests for eval run create/find/list/update.
-- [ ] Add SQLite repository tests for eval result create/find/list/update.
-- [ ] Add tests for deterministic ordering.
-- [ ] Add tests for DB-enforced `(evalRunId, datasetExampleId)` uniqueness.
-- [ ] Add tests for DB-enforced `(evalRunId, exampleOrdinal)` uniqueness.
-- [ ] Add tests for JSON round-trip of config, summary, expected output, actual output, usage, and metadata.
-- [ ] Add tests for eval-only thread metadata round-trip if stored through existing thread metadata.
-- [ ] Add bootstrap tests proving new repositories are wired.
-- [ ] Add migration generation and schema checks.
+- [x] Add SQLite repository tests for eval run create/find/list/update.
+- [x] Add SQLite repository tests for eval result create/find/list/update.
+- [x] Add tests for deterministic ordering.
+- [x] Add tests for DB-enforced `(evalRunId, datasetExampleId)` uniqueness.
+- [x] Add tests for DB-enforced `(evalRunId, exampleOrdinal)` uniqueness.
+- [x] Add tests for JSON round-trip of config, summary, expected output, actual output, usage, and metadata.
+- [x] Add tests for eval-only thread metadata round-trip if stored through existing thread metadata.
+- [x] Add bootstrap tests proving new repositories are wired.
+- [x] Add migration generation and schema checks.
 
 ### 4.3 App Tests
 - [ ] Add app tests for creating eval runs with dataset access boundaries.
@@ -413,8 +413,8 @@
 - [ ] Add UI tests proving `/chat` is not part of this workflow.
 
 ### 4.7 Targeted Verification
-- [ ] Run `pnpm --filter @agent-infra/core typecheck` after core type changes.
-- [ ] Run `pnpm --filter @agent-infra/db test` after DB slice.
+- [x] Run `pnpm --filter @agent-infra/core typecheck` after core type changes.
+- [x] Run `pnpm --filter @agent-infra/db test` after DB slice.
 - [ ] Run `pnpm --filter @agent-infra/app test` after app slice.
 - [ ] Run `pnpm --filter @agent-infra/contracts typecheck` after contract slice.
 - [ ] Run `pnpm --filter @agent-infra/durable-chat-server test` after server helper slice.
@@ -448,16 +448,16 @@
 - [x] Commit Loop 0.
 
 ### Loop 1: Core, DB Schema, and Repositories
-- [ ] Add core eval run/result types.
-- [ ] Add core repository interfaces.
-- [ ] Add DB schemas, migrations, indexes, and DB unique constraints.
-- [ ] Add SQLite and Postgres repository implementations.
-- [ ] Wire repositories through DB bootstrap/client helpers.
-- [ ] Add DB repository tests and bootstrap tests.
-- [ ] Run `pnpm --filter @agent-infra/db test`.
-- [ ] Run `pnpm --filter @agent-infra/core typecheck`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 1.
+- [x] Add core eval run/result types.
+- [x] Add core repository interfaces.
+- [x] Add DB schemas, migrations, indexes, and DB unique constraints.
+- [x] Add SQLite and Postgres repository implementations.
+- [x] Wire repositories through DB bootstrap/client helpers.
+- [x] Add DB repository tests and bootstrap tests.
+- [x] Run `pnpm --filter @agent-infra/db test`.
+- [x] Run `pnpm --filter @agent-infra/core typecheck`.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit Loop 1.
 
 ### Loop 2: App Eval Records and Review Semantics
 - [ ] Add app-layer eval types and helpers.

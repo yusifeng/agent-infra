@@ -22,6 +22,10 @@ export type RunUsageNormalizationStatus = 'complete' | 'partial' | 'missing' | '
 
 export type DatasetVisibility = 'private' | 'app';
 
+export type EvalRunStatus = 'queued' | 'running' | 'completed' | 'failed';
+
+export type EvalExampleResultStatus = 'queued' | 'running' | 'completed' | 'failed' | 'skipped';
+
 export interface RunUsageTokensV1 {
   input?: number;
   output?: number;
@@ -132,6 +136,42 @@ export interface DatasetExample {
   contextSnapshotJson?: Record<string, unknown> | null;
   toolInvocationsSnapshotJson?: Record<string, unknown> | null;
   createdByActorId?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface EvalRun {
+  id: string;
+  appId: string;
+  datasetId: string;
+  status: EvalRunStatus;
+  name?: string | null;
+  configJson: Record<string, unknown>;
+  summaryJson: Record<string, unknown>;
+  error?: string | null;
+  createdByActorId?: string | null;
+  startedAt?: Date | null;
+  finishedAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface EvalExampleResult {
+  id: string;
+  evalRunId: string;
+  datasetExampleId: string;
+  exampleOrdinal: number;
+  status: EvalExampleResultStatus;
+  evalThreadId?: string | null;
+  outputRunId?: string | null;
+  expectedOutputJson: Record<string, unknown>;
+  actualOutputJson?: Record<string, unknown> | null;
+  inputJson?: Record<string, unknown> | null;
+  usageJson?: Record<string, unknown> | null;
+  metadataJson?: Record<string, unknown> | null;
+  error?: string | null;
+  startedAt?: Date | null;
+  finishedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -14,6 +14,10 @@ import type {
   DatasetExample,
   DatasetExampleRepository,
   DatasetRepository,
+  EvalExampleResult,
+  EvalExampleResultRepository,
+  EvalRun,
+  EvalRunRepository,
   Message,
   MessagePart,
   MessageRepository,
@@ -36,6 +40,8 @@ import {
   chatShares,
   datasetExamples,
   datasets,
+  evalExampleResults,
+  evalRuns,
   messageParts,
   messages,
   runEvents,
@@ -448,6 +454,98 @@ export class DrizzleDatasetExampleRepository implements DatasetExampleRepository
     await this.db.update(datasetExamples).set(update).where(eq(datasetExamples.id, id));
     const row = await this.findById(id);
     if (!row) throw new Error(`dataset example ${id} not found`);
+    return row;
+  }
+}
+
+export class DrizzleEvalRunRepository implements EvalRunRepository {
+  constructor(private readonly db: any) {}
+
+  async create(input: Omit<EvalRun, 'createdAt' | 'updatedAt'>): Promise<EvalRun> {
+    const now = new Date();
+    await this.db.insert(evalRuns).values({ ...input, createdAt: now, updatedAt: now });
+    return { ...input, createdAt: now, updatedAt: now };
+  }
+
+  async findById(id: string): Promise<EvalRun | null> {
+    const [row] = await this.db.select().from(evalRuns).where(eq(evalRuns.id, id)).limit(1);
+    return row ?? null;
+  }
+
+  async listByDataset(datasetId: string): Promise<EvalRun[]> {
+    return this.db
+      .select()
+      .from(evalRuns)
+      .where(eq(evalRuns.datasetId, datasetId))
+      .orderBy(desc(evalRuns.createdAt), asc(evalRuns.id));
+  }
+
+  async update(
+    id: string,
+    patch: Partial<
+      Pick<EvalRun, 'status' | 'name' | 'configJson' | 'summaryJson' | 'error' | 'startedAt' | 'finishedAt'>
+    >,
+    updatedAt: Date
+  ): Promise<EvalRun> {
+    await this.db.update(evalRuns).set({ ...patch, updatedAt }).where(eq(evalRuns.id, id));
+    const row = await this.findById(id);
+    if (!row) throw new Error(`eval run ${id} not found`);
+    return row;
+  }
+}
+
+export class DrizzleEvalExampleResultRepository implements EvalExampleResultRepository {
+  constructor(private readonly db: any) {}
+
+  async create(input: Omit<EvalExampleResult, 'createdAt' | 'updatedAt'>): Promise<EvalExampleResult> {
+    const now = new Date();
+    await this.db.insert(evalExampleResults).values({ ...input, createdAt: now, updatedAt: now });
+    return { ...input, createdAt: now, updatedAt: now };
+  }
+
+  async createMany(inputs: Array<Omit<EvalExampleResult, 'createdAt' | 'updatedAt'>>): Promise<EvalExampleResult[]> {
+    if (inputs.length === 0) return [];
+    const now = new Date();
+    const rows = inputs.map((input) => ({ ...input, createdAt: now, updatedAt: now }));
+    await this.db.insert(evalExampleResults).values(rows);
+    return rows;
+  }
+
+  async findById(id: string): Promise<EvalExampleResult | null> {
+    const [row] = await this.db.select().from(evalExampleResults).where(eq(evalExampleResults.id, id)).limit(1);
+    return row ?? null;
+  }
+
+  async listByEvalRun(evalRunId: string): Promise<EvalExampleResult[]> {
+    return this.db
+      .select()
+      .from(evalExampleResults)
+      .where(eq(evalExampleResults.evalRunId, evalRunId))
+      .orderBy(asc(evalExampleResults.exampleOrdinal), asc(evalExampleResults.createdAt));
+  }
+
+  async update(
+    id: string,
+    patch: Partial<
+      Pick<
+        EvalExampleResult,
+        | 'status'
+        | 'evalThreadId'
+        | 'outputRunId'
+        | 'actualOutputJson'
+        | 'inputJson'
+        | 'usageJson'
+        | 'metadataJson'
+        | 'error'
+        | 'startedAt'
+        | 'finishedAt'
+      >
+    >,
+    updatedAt: Date
+  ): Promise<EvalExampleResult> {
+    await this.db.update(evalExampleResults).set({ ...patch, updatedAt }).where(eq(evalExampleResults.id, id));
+    const row = await this.findById(id);
+    if (!row) throw new Error(`eval example result ${id} not found`);
     return row;
   }
 }

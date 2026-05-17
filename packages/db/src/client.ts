@@ -12,6 +12,8 @@ import type {
   ChatShareSnapshotRepository,
   DatasetExampleRepository,
   DatasetRepository,
+  EvalExampleResultRepository,
+  EvalRunRepository,
   MessageRepository,
   RunFeedbackRepository,
   RunEventRepository,
@@ -27,6 +29,8 @@ import {
   DrizzleChatShareSnapshotRepository,
   DrizzleDatasetExampleRepository,
   DrizzleDatasetRepository,
+  DrizzleEvalExampleResultRepository,
+  DrizzleEvalRunRepository,
   DrizzleMessageRepository,
   DrizzleRunFeedbackRepository,
   DrizzleRunEventRepository,
@@ -41,6 +45,8 @@ import {
   SqliteChatShareSnapshotRepository,
   SqliteDatasetExampleRepository,
   SqliteDatasetRepository,
+  SqliteEvalExampleResultRepository,
+  SqliteEvalRunRepository,
   SqliteMessageRepository,
   SqliteRunFeedbackRepository,
   SqliteRunEventRepository,
@@ -73,6 +79,8 @@ export interface AgentInfraRepositoryBundle {
   runFeedbackRepo: RunFeedbackRepository;
   datasetRepo: DatasetRepository;
   datasetExampleRepo: DatasetExampleRepository;
+  evalRunRepo: EvalRunRepository;
+  evalExampleResultRepo: EvalExampleResultRepository;
 }
 
 const sqliteTransactionQueues = new Map<string, Promise<void>>();
@@ -143,7 +151,9 @@ export function createAgentInfraRepositories(mode: DbMode, db: any): AgentInfraR
       answerSelectionRepo: new SqliteAnswerSelectionRepository(db),
       runFeedbackRepo: new SqliteRunFeedbackRepository(db),
       datasetRepo: new SqliteDatasetRepository(db),
-      datasetExampleRepo: new SqliteDatasetExampleRepository(db)
+      datasetExampleRepo: new SqliteDatasetExampleRepository(db),
+      evalRunRepo: new SqliteEvalRunRepository(db),
+      evalExampleResultRepo: new SqliteEvalExampleResultRepository(db)
     };
   }
 
@@ -159,7 +169,9 @@ export function createAgentInfraRepositories(mode: DbMode, db: any): AgentInfraR
     answerSelectionRepo: new DrizzleAnswerSelectionRepository(db),
     runFeedbackRepo: new DrizzleRunFeedbackRepository(db),
     datasetRepo: new DrizzleDatasetRepository(db),
-    datasetExampleRepo: new DrizzleDatasetExampleRepository(db)
+    datasetExampleRepo: new DrizzleDatasetExampleRepository(db),
+    evalRunRepo: new DrizzleEvalRunRepository(db),
+    evalExampleResultRepo: new DrizzleEvalExampleResultRepository(db)
   };
 }
 
