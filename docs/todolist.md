@@ -20,8 +20,8 @@
 - [x] Capture an existing run into a dataset example with source refs, input snapshot, baseline output snapshot, context snapshot, tool invocation snapshot, and metadata.
 - [x] Allow `expectedOutputJson` to be `null` in v1 so examples can be captured before human annotation.
 - [x] Expose minimal contracts/server/client helpers for dataset create/list/read/capture flows.
-- [ ] Add a minimal `/observability` capture path that validates the shared package capability.
-- [ ] Copy shared run feedback and playground feedback details into dataset example metadata only as a capture-time snapshot.
+- [x] Add a minimal `/observability` capture path that validates the shared package capability.
+- [x] Copy shared run feedback and playground feedback details into dataset example metadata only as a capture-time snapshot.
 - [ ] Document that Dataset Capture v1 is not evaluation, replay, or experiment execution.
 
 ### 0.3 Non-goals
@@ -155,19 +155,19 @@
 ## 3. Playground Validation Boundary
 
 ### 3.1 Routes / Services
-- [ ] Add authenticated `GET /api/datasets` route in `apps/playground-next-web`.
-- [ ] Add authenticated `POST /api/datasets` route.
-- [ ] Add authenticated `GET /api/datasets/[datasetId]/examples` route.
-- [ ] Add authenticated `POST /api/datasets/[datasetId]/examples/capture-run` route.
-- [ ] Add authenticated expected-output patch route only if needed by the minimal validation surface.
-- [ ] Ensure dataset routes use the shared app/service boundary rather than duplicating persistence logic in Next routes.
-- [ ] Ensure dataset routes preserve playground auth and thread/run access checks.
-- [ ] Ensure capture route rejects source runs inaccessible to the current playground user.
-- [ ] In the capture route, read shared run feedback for the current actor when available.
-- [ ] In the capture route, read playground feedback details sidecar for the current actor when available.
-- [ ] In the capture route, pass shared feedback under `metadataJson.feedback.sharedRunFeedback`.
-- [ ] In the capture route, pass playground feedback details under `metadataJson.host.playground.runFeedbackDetails`.
-- [ ] Avoid adding playground-only dataset tables unless a field is truly host-local.
+- [x] Add authenticated `GET /api/datasets` route in `apps/playground-next-web`.
+- [x] Add authenticated `POST /api/datasets` route.
+- [x] Add authenticated `GET /api/datasets/[datasetId]/examples` route.
+- [x] Add authenticated `POST /api/datasets/[datasetId]/examples/capture-run` route.
+- [x] Add authenticated expected-output patch route only if needed by the minimal validation surface.
+- [x] Ensure dataset routes use the shared app/service boundary rather than duplicating persistence logic in Next routes.
+- [x] Ensure dataset routes preserve playground auth and thread/run access checks.
+- [x] Ensure capture route rejects source runs inaccessible to the current playground user.
+- [x] In the capture route, read shared run feedback for the current actor when available.
+- [x] In the capture route, read playground feedback details sidecar for the current actor when available.
+- [x] In the capture route, pass shared feedback under `metadataJson.feedback.sharedRunFeedback`.
+- [x] In the capture route, pass playground feedback details under `metadataJson.host.playground.runFeedbackDetails`.
+- [x] Avoid adding playground-only dataset tables unless a field is truly host-local.
 
 ### 3.2 Observability UI
 - [ ] Add a minimal capture action for the selected run in `/observability`.
@@ -224,14 +224,14 @@
 - [x] Add durable-chat-client API helper tests if the existing repo API test style supports them.
 
 ### 4.4 Playground Tests
-- [ ] Add route tests for dataset list/create auth.
-- [ ] Add route tests for capture-from-run auth and access control.
-- [ ] Add route tests for capture copying shared feedback value into metadata.
-- [ ] Add route tests for capture copying playground sidecar feedback details into metadata.
-- [ ] Add route tests proving playground sidecar details are stored under `metadataJson.host.playground`.
-- [ ] Add route tests proving inaccessible source runs cannot be captured.
-- [ ] Add route tests proving private datasets are not listable or capturable by another actor.
-- [ ] Add route tests proving app-visible datasets can be used by same-app actors when allowed.
+- [x] Add route tests for dataset list/create auth.
+- [x] Add route tests for capture-from-run auth and access control.
+- [x] Add route tests for capture copying shared feedback value into metadata.
+- [x] Add route tests for capture copying playground sidecar feedback details into metadata.
+- [x] Add route tests proving playground sidecar details are stored under `metadataJson.host.playground`.
+- [x] Add route tests proving inaccessible source runs cannot be captured.
+- [x] Add route tests proving private datasets are not listable or capturable by another actor.
+- [x] Add route tests proving app-visible datasets can be used by same-app actors when allowed.
 - [ ] Add observability UI/runtime tests for opening capture dialog.
 - [ ] Add observability UI/runtime tests for selecting or creating a dataset.
 - [ ] Add observability UI/runtime tests for successful capture submission.
@@ -243,8 +243,8 @@
 - [x] Run `pnpm --filter @agent-infra/contracts typecheck` after contracts slice if available.
 - [x] Run `pnpm --filter @agent-infra/durable-chat-server test` after server helper slice.
 - [x] Run `pnpm --filter @agent-infra/durable-chat-client test` after client helper slice.
-- [ ] Run `pnpm --filter playground-next-web test` after playground route/UI slice.
-- [ ] Run `pnpm --filter playground-next-web typecheck` after playground route/UI slice.
+- [x] Run `pnpm --filter playground-next-web test` after playground route/UI slice.
+- [x] Run `pnpm --filter playground-next-web typecheck` after playground route/UI slice.
 - [x] Confirm broader package typecheck is not needed when targeted verification leaves no cross-package uncertainty.
 
 ## 5. Recommended Execution Order
@@ -307,18 +307,18 @@
 - [x] Commit Loop 3.
 
 ### Loop 4: Playground Routes and Feedback Metadata Bridge
-- [ ] Add Next dataset list/create routes.
-- [ ] Add Next dataset example list route.
-- [ ] Add Next capture-from-run route.
-- [ ] Use existing playground auth and accessible-thread/run checks.
-- [ ] Read current actor shared run feedback during capture when available.
-- [ ] Read playground feedback sidecar details during capture when available.
-- [ ] Pass feedback data into capture metadata under the agreed `feedback` and `host.playground` namespaces.
-- [ ] Add route/service tests for auth, access, successful capture, and metadata bridging.
-- [ ] Run targeted playground route tests.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 4.
+- [x] Add Next dataset list/create routes.
+- [x] Add Next dataset example list route.
+- [x] Add Next capture-from-run route.
+- [x] Use existing playground auth and accessible-thread/run checks.
+- [x] Read current actor shared run feedback during capture when available.
+- [x] Read playground feedback sidecar details during capture when available.
+- [x] Pass feedback data into capture metadata under the agreed `feedback` and `host.playground` namespaces.
+- [x] Add route/service tests for auth, access, successful capture, and metadata bridging.
+- [x] Run targeted playground route tests.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit Loop 4.
 
 ### Loop 5: Observability Capture UI
 - [ ] Add minimal capture action to selected run content in `/observability`.
