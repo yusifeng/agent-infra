@@ -100,20 +100,20 @@
 - [ ] Return eligibility reason codes for UI display and tests: `eligible_default`, `eligible_included_by_review`, `ineligible_unreviewed`, `ineligible_needs_expected_output`, `ineligible_missing_expected_output`, `ineligible_invalid_expected_output`, `ineligible_excluded_by_review`, `ineligible_capture_default`, and `ineligible_contradictory_review_state`.
 
 ### 1.5 Types / Interfaces
-- [ ] Add app-layer `DatasetExpectedOutputV1` type.
-- [ ] Add app-layer `DatasetExampleReviewMetadataV1` type.
-- [ ] Add app-layer `DatasetExampleEffectiveEligibilityV1` type.
-- [ ] Add app-layer parse/normalize helpers for expected output.
-- [ ] Add app-layer parse/normalize helpers for dataset example metadata.
-- [ ] Add app-layer merge helper that updates only `metadataJson.review`.
-- [ ] Normalize `metadataJson: null` and non-object metadata to an empty metadata envelope before adding review metadata.
-- [ ] Preserve `metadataJson.schemaVersion` when applying review updates.
-- [ ] Preserve `metadataJson.evaluation.defaultEligible` when applying review updates.
-- [ ] Preserve unknown metadata namespaces when applying review updates.
-- [ ] Prevent review updates from overwriting `metadataJson.capture`.
-- [ ] Prevent review updates from overwriting `metadataJson.feedback`.
-- [ ] Prevent review updates from overwriting `metadataJson.host`.
-- [ ] Prevent request bodies from passing `capture`, `feedback`, `host`, `evaluation`, or full `metadataJson` into review update semantics.
+- [x] Add app-layer `DatasetExpectedOutputV1` type.
+- [x] Add app-layer `DatasetExampleReviewMetadataV1` type.
+- [x] Add app-layer `DatasetExampleEffectiveEligibilityV1` type.
+- [x] Add app-layer parse/normalize helpers for expected output.
+- [x] Add app-layer parse/normalize helpers for dataset example metadata.
+- [x] Add app-layer merge helper that updates only `metadataJson.review`.
+- [x] Normalize `metadataJson: null` and non-object metadata to an empty metadata envelope before adding review metadata.
+- [x] Preserve `metadataJson.schemaVersion` when applying review updates.
+- [x] Preserve `metadataJson.evaluation.defaultEligible` when applying review updates.
+- [x] Preserve unknown metadata namespaces when applying review updates.
+- [x] Prevent review updates from overwriting `metadataJson.capture`.
+- [x] Prevent review updates from overwriting `metadataJson.feedback`.
+- [x] Prevent review updates from overwriting `metadataJson.host`.
+- [x] Prevent request bodies from passing `capture`, `feedback`, `host`, `evaluation`, or full `metadataJson` into review update semantics.
 - [ ] Keep core `DatasetExample.expectedOutputJson` and `metadataJson` as generic JSON fields.
 - [ ] Keep contract DTO JSON fields wire-compatible while adding stricter request validation where appropriate.
 
@@ -224,19 +224,19 @@
 ## 4. Tests
 
 ### 4.1 Source / Type Tests
-- [ ] Add tests for parsing valid `DatasetExpectedOutputV1`.
-- [ ] Add tests rejecting invalid expected-output shapes.
-- [ ] Add tests rejecting empty or whitespace-only expected-output text.
-- [ ] Add tests proving clearing expected output writes `null`.
-- [ ] Add tests tolerating legacy arbitrary stored `expectedOutputJson` during read normalization.
-- [ ] Add tests for defaulting missing review metadata.
-- [ ] Add tests for parsing valid review metadata.
-- [ ] Add tests for rejecting invalid review statuses, eligibility overrides, and exclusion reasons.
-- [ ] Add tests rejecting unknown review request keys.
-- [ ] Add tests rejecting protected review request namespaces: `capture`, `feedback`, `host`, `evaluation`, and full `metadataJson`.
-- [ ] Add tests rejecting request-supplied `reviewedByActorId` and `reviewedAt`.
-- [ ] Add tests for effective eligibility reason codes.
-- [ ] Add tests rejecting invalid review combinations: `excluded + include`, `approved + missing expected output`, and `include + missing expected output`.
+- [x] Add tests for parsing valid `DatasetExpectedOutputV1`.
+- [x] Add tests rejecting invalid expected-output shapes.
+- [x] Add tests rejecting empty or whitespace-only expected-output text.
+- [x] Add tests proving clearing expected output writes `null`.
+- [x] Add tests tolerating legacy arbitrary stored `expectedOutputJson` during read normalization.
+- [x] Add tests for defaulting missing review metadata.
+- [x] Add tests for parsing valid review metadata.
+- [x] Add tests for rejecting invalid review statuses, eligibility overrides, and exclusion reasons.
+- [x] Add tests rejecting unknown review request keys.
+- [x] Add tests rejecting protected review request namespaces: `capture`, `feedback`, `host`, `evaluation`, and full `metadataJson`.
+- [x] Add tests rejecting request-supplied `reviewedByActorId` and `reviewedAt`.
+- [x] Add tests for effective eligibility reason codes.
+- [x] Add tests rejecting invalid review combinations: `excluded + include`, `approved + missing expected output`, and `include + missing expected output`.
 
 ### 4.2 App Tests
 - [ ] Add app tests for `getExample` dataset/app boundary checks.
@@ -312,21 +312,21 @@
 - [x] Update `docs/roadmap.md` with `Dataset Review and Expected Output Foundation v1` as the active next track.
 - [x] Update this todo if source-of-truth decisions change before implementation starts.
 - [x] Run no tests unless executable code changes.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 0.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit Loop 0.
 
 ### Loop 1: App Types and Safe Metadata Helpers
-- [ ] Add app-layer expected-output, review metadata, and effective eligibility types.
-- [ ] Add expected-output parse/normalize helpers.
-- [ ] Add metadata parse/normalize helpers.
-- [ ] Add safe review metadata merge helper.
-- [ ] Add effective eligibility helper.
-- [ ] Add strict review request validation helper that rejects protected namespaces, unknown keys, and caller-supplied actor/time fields.
-- [ ] Add focused helper tests.
-- [ ] Run `pnpm --filter @agent-infra/app test`.
-- [ ] Run package typecheck for affected shared packages if needed.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 1.
+- [x] Add app-layer expected-output, review metadata, and effective eligibility types.
+- [x] Add expected-output parse/normalize helpers.
+- [x] Add metadata parse/normalize helpers.
+- [x] Add safe review metadata merge helper.
+- [x] Add effective eligibility helper.
+- [x] Add strict review request validation helper that rejects protected namespaces, unknown keys, and caller-supplied actor/time fields.
+- [x] Add focused helper tests.
+- [x] Run `pnpm --filter @agent-infra/app test`.
+- [x] Run package typecheck for affected shared packages if needed.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit Loop 1.
 
 ### Loop 2: App Dataset Review Use Cases
 - [ ] Add `app.datasets.getExample`.

@@ -490,6 +490,69 @@ export interface DatasetToolInvocationsSnapshotV1 {
 
 export type DatasetCaptureKindV1 = 'normal_example' | 'failure_case' | 'debug_case';
 
+export const DATASET_EXPECTED_OUTPUT_TEXT_MAX_LENGTH = 20000;
+export const DATASET_EXPECTED_OUTPUT_NOTES_MAX_LENGTH = 4000;
+export const DATASET_REVIEWER_NOTE_MAX_LENGTH = 4000;
+
+export interface DatasetExpectedOutputV1 {
+  schemaVersion: 1;
+  kind: 'assistant_text';
+  text: string;
+  notes?: string | null;
+}
+
+export type DatasetExpectedOutputStateV1 = 'missing' | 'valid' | 'invalid';
+
+export interface DatasetExpectedOutputNormalizationV1 {
+  state: DatasetExpectedOutputStateV1;
+  expectedOutput: DatasetExpectedOutputV1 | null;
+  reason?: string;
+}
+
+export type DatasetExampleReviewStatusV1 = 'unreviewed' | 'needs_expected_output' | 'approved' | 'excluded';
+
+export type DatasetExampleReviewEvalEligibilityV1 = 'default' | 'include' | 'exclude';
+
+export type DatasetExampleReviewExclusionReasonV1 =
+  | 'failure_case'
+  | 'debug_case'
+  | 'missing_expected_output'
+  | 'not_representative'
+  | 'sensitive_or_unsafe'
+  | 'other';
+
+export interface DatasetExampleReviewMetadataV1 {
+  status: DatasetExampleReviewStatusV1;
+  evalEligibility: DatasetExampleReviewEvalEligibilityV1;
+  exclusionReason?: DatasetExampleReviewExclusionReasonV1 | null;
+  reviewerNote?: string | null;
+  reviewedByActorId?: string | null;
+  reviewedAt?: string | null;
+}
+
+export interface DatasetExampleReviewUpdateV1 {
+  status?: DatasetExampleReviewStatusV1;
+  evalEligibility?: DatasetExampleReviewEvalEligibilityV1;
+  exclusionReason?: DatasetExampleReviewExclusionReasonV1 | null;
+  reviewerNote?: string | null;
+}
+
+export type DatasetExampleEffectiveEligibilityReasonV1 =
+  | 'eligible_default'
+  | 'eligible_included_by_review'
+  | 'ineligible_unreviewed'
+  | 'ineligible_needs_expected_output'
+  | 'ineligible_missing_expected_output'
+  | 'ineligible_invalid_expected_output'
+  | 'ineligible_excluded_by_review'
+  | 'ineligible_capture_default'
+  | 'ineligible_contradictory_review_state';
+
+export interface DatasetExampleEffectiveEligibilityV1 {
+  eligible: boolean;
+  reason: DatasetExampleEffectiveEligibilityReasonV1;
+}
+
 export interface DatasetExampleMetadataSnapshotV1 {
   schemaVersion: 1;
   capture: {
@@ -511,6 +574,7 @@ export interface DatasetExampleMetadataSnapshotV1 {
   evaluation?: {
     defaultEligible: boolean;
   };
+  review?: DatasetExampleReviewMetadataV1;
 }
 
 export interface GetThreadRunsInput {
