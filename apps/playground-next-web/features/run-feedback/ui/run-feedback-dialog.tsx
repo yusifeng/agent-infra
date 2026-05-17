@@ -79,15 +79,15 @@ export function RunFeedbackDialog({ open, loading, onClose, onSubmit }: RunFeedb
         }
       }}
     >
-      <DialogContent className="max-w-[560px] p-7" showClose={false}>
-        <DialogHeader>
-          <DialogTitle className="text-[24px]">反馈</DialogTitle>
+      <DialogContent className="max-w-[560px]" showClose={false}>
+        <DialogHeader className="gap-1">
+          <DialogTitle>反馈</DialogTitle>
           <DialogDescription className="sr-only">
             选择可选原因并填写可选说明后提交点踩反馈。
           </DialogDescription>
         </DialogHeader>
 
-        <div className="mt-6 flex flex-wrap gap-3" aria-label="反馈原因">
+        <div className="mt-3 flex flex-wrap gap-1.5" aria-label="反馈原因">
           {PLAYGROUND_RUN_FEEDBACK_REASON_TAGS.map((tag) => {
             const selected = selectedTags.has(tag);
             return (
@@ -95,7 +95,7 @@ export function RunFeedbackDialog({ open, loading, onClose, onSubmit }: RunFeedb
                 key={tag}
                 type="button"
                 className={cn(
-                  'rounded-full border px-4 py-2 text-[15px] transition',
+                  'rounded-full border px-3 py-1 text-[14px] leading-5 transition',
                   selected
                     ? 'border-primary bg-primary text-primary-foreground'
                     : 'border-border bg-background text-foreground hover:bg-muted'
@@ -110,7 +110,7 @@ export function RunFeedbackDialog({ open, loading, onClose, onSubmit }: RunFeedb
           })}
         </div>
 
-        <label className="mt-4 flex flex-col gap-2">
+        <label className="mt-3 flex flex-col gap-2">
           <span className="sr-only">反馈说明</span>
           <textarea
             value={commentText}
@@ -118,7 +118,7 @@ export function RunFeedbackDialog({ open, loading, onClose, onSubmit }: RunFeedb
             disabled={loading}
             aria-invalid={commentTooLong}
             className={cn(
-              'min-h-[150px] resize-y rounded-[24px] border border-border bg-background px-5 py-4 text-[16px] leading-7 text-foreground outline-none transition placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
+              'min-h-[150px] resize-y rounded-2xl border border-border bg-background px-4 py-3 text-[14px] leading-6 text-foreground outline-none transition placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
               commentTooLong ? 'border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20' : null
             )}
             placeholder="我们想知道你对此回答不满意的原因，你认为更好的回答是什么？"
@@ -130,10 +130,10 @@ export function RunFeedbackDialog({ open, loading, onClose, onSubmit }: RunFeedb
         ) : null}
 
         <DialogFooter>
-          <Button type="button" variant="outline" size="lg" disabled={loading} onClick={onClose}>
+          <Button type="button" variant="outline" className="rounded-full px-4" disabled={loading} onClick={onClose}>
             取消
           </Button>
-          <Button type="button" size="lg" disabled={loading || commentTooLong} onClick={handleSubmit}>
+          <Button type="button" className="rounded-full px-4" disabled={loading || commentTooLong} onClick={handleSubmit}>
             提交
           </Button>
         </DialogFooter>
