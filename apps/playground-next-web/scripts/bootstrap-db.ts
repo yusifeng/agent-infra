@@ -3,6 +3,7 @@ import path from 'node:path';
 import { createDbConfigFromEnv } from '@agent-infra/db';
 
 import { bootstrapPlaygroundAuthSchema } from '../features/auth/repo/schema';
+import { bootstrapPlaygroundRunFeedbackDetails } from '../features/run-feedback/repo/schema';
 import { bootstrapPlaygroundThreadCatalog } from '../features/thread-catalog/repo/schema';
 
 const repoRoot = path.resolve(import.meta.dirname, '../../..');
@@ -44,6 +45,7 @@ const dbConfig = createDbConfigFromEnv();
 await dbConfig.bootstrapSchema();
 await bootstrapPlaygroundAuthSchema(dbConfig);
 await bootstrapPlaygroundThreadCatalog(dbConfig);
+await bootstrapPlaygroundRunFeedbackDetails(dbConfig);
 
 console.log(
   JSON.stringify(

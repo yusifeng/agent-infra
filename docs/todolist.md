@@ -18,11 +18,11 @@
 - [x] The existing shared `app.turns.setRunFeedback` and `clearRunFeedback` use the app's configured repositories; wrapping those singleton calls from playground code does not automatically make sidecar writes part of the same transaction.
 
 ### 0.2 Goals
-- [ ] Add playground-owned run feedback detail persistence without adding `reasonTags` or `commentText` to `packages/core`.
-- [ ] Keep shared contracts focused on generic `RunFeedbackDto` unless a consumer-independent detail contract becomes necessary later.
+- [x] Add playground-owned run feedback detail persistence without adding `reasonTags` or `commentText` to `packages/core`.
+- [x] Keep shared contracts focused on generic `RunFeedbackDto` unless a consumer-independent detail contract becomes necessary later.
 - [ ] Add a thumbs-down dialog in `/chat` that collects optional reason tags and optional comment text.
-- [ ] Persist thumbs-down details transactionally with the shared run feedback value.
-- [ ] Clear playground feedback details whenever the current feedback is cleared or changed away from thumbs down.
+- [x] Persist thumbs-down details transactionally with the shared run feedback value.
+- [x] Clear playground feedback details whenever the current feedback is cleared or changed away from thumbs down.
 - [ ] Preserve the existing feedback UI placement inside answer operation/actions.
 - [ ] Add focused tests around sidecar schema, validation, route/service behavior, and runtime dialog behavior.
 
@@ -46,58 +46,58 @@
 
 ### 1.2 Playground Feedback Detail Model
 - [x] Route-local request shape is `value` plus optional `details`, where `details` is allowed only for `value: 'thumbs_down'`.
-- [ ] Define `PlaygroundRunFeedbackReasonTag` with stable codes: `harmful_or_unsafe`, `false_or_misleading`, `not_helpful`, `other`.
-- [ ] Define `PlaygroundRunFeedbackDetails` as `{ reasonTags: PlaygroundRunFeedbackReasonTag[]; commentText: string | null }`.
+- [x] Define `PlaygroundRunFeedbackReasonTag` with stable codes: `harmful_or_unsafe`, `false_or_misleading`, `not_helpful`, `other`.
+- [x] Define `PlaygroundRunFeedbackDetails` as `{ reasonTags: PlaygroundRunFeedbackReasonTag[]; commentText: string | null }`.
 - [ ] Define tag label mapping in the UI layer so stored codes remain independent from Chinese or English copy.
-- [ ] Trim comment text before save.
-- [ ] Normalize empty comment text to `null`.
-- [ ] Reject comment text over 1000 characters.
-- [ ] Reject unknown reason tag codes.
-- [ ] Deduplicate reason tags and store them in a stable canonical order: `harmful_or_unsafe`, `false_or_misleading`, `not_helpful`, `other`.
-- [ ] Allow empty `reasonTags` and `commentText: null` for thumbs-down submissions.
-- [ ] Reject `details` on `value: 'thumbs_up'` requests with a 400-style route error instead of silently ignoring malformed client intent.
+- [x] Trim comment text before save.
+- [x] Normalize empty comment text to `null`.
+- [x] Reject comment text over 1000 characters.
+- [x] Reject unknown reason tag codes.
+- [x] Deduplicate reason tags and store them in a stable canonical order: `harmful_or_unsafe`, `false_or_misleading`, `not_helpful`, `other`.
+- [x] Allow empty `reasonTags` and `commentText: null` for thumbs-down submissions.
+- [x] Reject `details` on `value: 'thumbs_up'` requests with a 400-style route error instead of silently ignoring malformed client intent.
 
 ### 1.3 Data Model
-- [ ] Add playground sidecar table `playground_run_feedback_details`.
-- [ ] Include `thread_id`, `run_id`, `feedback_actor_id`, `reason_tags_json`, `comment_text`, `created_at`, and `updated_at`.
-- [ ] Add a unique constraint on `(run_id, feedback_actor_id)`.
-- [ ] Add an index on `(thread_id, run_id)` if route hydration or cleanup needs it.
+- [x] Add playground sidecar table `playground_run_feedback_details`.
+- [x] Include `thread_id`, `run_id`, `feedback_actor_id`, `reason_tags_json`, `comment_text`, `created_at`, and `updated_at`.
+- [x] Add a unique constraint on `(run_id, feedback_actor_id)`.
+- [x] Add an index on `(thread_id, run_id)` if route hydration or cleanup needs it.
 - [x] Sidecar foreign-key strategy: reference `threads(id)` and `runs(id)` where the host DB supports them; do not reference `run_feedback` because thumbs-down to thumbs-up updates the feedback row instead of deleting it.
-- [ ] Do not rely only on cascade behavior for cleanup because switching thumbs down to thumbs up updates the shared feedback row instead of deleting it.
-- [ ] Implement both SQLite and PostgreSQL table definitions for the playground sidecar.
-- [ ] Add bootstrap statements for local SQLite/Turso/Postgres playground environments.
-- [ ] Do not add this table to `packages/db` shared schema unless the feature becomes package-level.
+- [x] Do not rely only on cascade behavior for cleanup because switching thumbs down to thumbs up updates the shared feedback row instead of deleting it.
+- [x] Implement both SQLite and PostgreSQL table definitions for the playground sidecar.
+- [x] Add bootstrap statements for local SQLite/Turso/Postgres playground environments.
+- [x] Do not add this table to `packages/db` shared schema unless the feature becomes package-level.
 
 ### 1.4 Service Semantics
-- [ ] Submit thumbs down: validate details, set shared run feedback to `thumbs_down`, and upsert playground detail in one transaction using transaction-bound repositories.
-- [ ] Submit thumbs up: set shared run feedback to `thumbs_up` and delete any playground detail for the same `(runId, feedbackActorId)` in one transaction using transaction-bound repositories.
-- [ ] Clear feedback: clear shared run feedback and delete any playground detail for the same `(runId, feedbackActorId)` in one transaction using transaction-bound repositories.
-- [ ] Implement the transaction by using `withDbTransaction` or an equivalent mechanism that creates both shared repos and the sidecar repo against the same `tx`.
-- [ ] Do not call the singleton `services.app.turns.setRunFeedback` / `clearRunFeedback` from inside the playground transaction unless the app instance is constructed with transaction-bound repositories.
+- [x] Submit thumbs down: validate details, set shared run feedback to `thumbs_down`, and upsert playground detail in one transaction using transaction-bound repositories.
+- [x] Submit thumbs up: set shared run feedback to `thumbs_up` and delete any playground detail for the same `(runId, feedbackActorId)` in one transaction using transaction-bound repositories.
+- [x] Clear feedback: clear shared run feedback and delete any playground detail for the same `(runId, feedbackActorId)` in one transaction using transaction-bound repositories.
+- [x] Implement the transaction by using `withDbTransaction` or an equivalent mechanism that creates both shared repos and the sidecar repo against the same `tx`.
+- [x] Do not call the singleton `services.app.turns.setRunFeedback` / `clearRunFeedback` from inside the playground transaction unless the app instance is constructed with transaction-bound repositories.
 - [ ] Dialog cancel: perform no API call and no optimistic feedback mutation.
-- [ ] Existing feedback rows without playground detail are valid and must continue to hydrate normally.
+- [x] Existing feedback rows without playground detail are valid and must continue to hydrate normally.
 
 ## 2. Backend / Platform
 
 ### 2.1 Shared Packages
-- [ ] Keep `packages/core` unchanged for feedback details.
-- [ ] Keep `packages/contracts` unchanged for feedback details unless route shape forces a generic transport update.
-- [ ] Keep `packages/app` feedback validation centered on run ownership and assistant-output eligibility.
-- [ ] Do not add shared `details_json` to `run_feedback` in this version.
-- [ ] Do not change `SetRunFeedbackRequestDto`; the thumbs-down detail payload is a Next/playground route-local request shape.
-- [ ] Do not add detail normalization to shared durable-chat server/client helpers.
+- [x] Keep `packages/core` unchanged for feedback details.
+- [x] Keep `packages/contracts` unchanged for feedback details unless route shape forces a generic transport update.
+- [x] Keep `packages/app` feedback validation centered on run ownership and assistant-output eligibility.
+- [x] Do not add shared `details_json` to `run_feedback` in this version.
+- [x] Do not change `SetRunFeedbackRequestDto`; the thumbs-down detail payload is a Next/playground route-local request shape.
+- [x] Do not add detail normalization to shared durable-chat server/client helpers.
 
 ### 2.2 Playground Sidecar Repo / Schema
-- [ ] Add playground schema file for `playground_run_feedback_details`.
-- [ ] Add repository methods: `upsert`, `deleteByRunAndActor`, and optionally `findByRunAndActor` for tests.
-- [ ] Add a bootstrap function and call it from `apps/playground-next-web/scripts/bootstrap-db.ts` or the existing playground service bootstrap path.
-- [ ] Ensure sidecar bootstrap is idempotent and handles existing local databases.
-- [ ] Ensure relevant tests bootstrap the sidecar explicitly instead of assuming shared durable service bootstrap prepares app-owned tables.
-- [ ] Add focused tests for sidecar repository create/update/delete behavior.
+- [x] Add playground schema file for `playground_run_feedback_details`.
+- [x] Add repository methods: `upsert`, `deleteByRunAndActor`, and optionally `findByRunAndActor` for tests.
+- [x] Add a bootstrap function and call it from `apps/playground-next-web/scripts/bootstrap-db.ts` or the existing playground service bootstrap path.
+- [x] Ensure sidecar bootstrap is idempotent and handles existing local databases.
+- [x] Ensure relevant tests bootstrap the sidecar explicitly instead of assuming shared durable service bootstrap prepares app-owned tables.
+- [x] Add focused tests for sidecar repository create/update/delete behavior.
 
 ### 2.3 Playground Route / Service
-- [ ] Add a small playground feedback service that coordinates shared `app.turns.setRunFeedback` / `clearRunFeedback` with sidecar detail writes.
-- [ ] Ensure the playground feedback service uses transaction-bound shared repositories, not the singleton shared app instance, when it must coordinate sidecar writes atomically.
+- [x] Add a small playground feedback service that coordinates shared `app.turns.setRunFeedback` / `clearRunFeedback` with sidecar detail writes.
+- [x] Ensure the playground feedback service uses transaction-bound shared repositories, not the singleton shared app instance, when it must coordinate sidecar writes atomically.
 - [ ] Update `POST /api/threads/[threadId]/runs/[runId]/feedback` to accept optional playground detail payload only for `thumbs_down`.
 - [ ] Parse and validate the detail payload in app-local playground code, while keeping the response compatible with shared `RunFeedbackResponseDto`.
 - [ ] Ensure `POST` with `value: 'thumbs_up'` clears sidecar detail.
@@ -134,15 +134,15 @@
 ## 4. Tests
 
 ### 4.1 Backend Tests
-- [ ] Add playground detail parser/normalizer tests for valid empty detail, valid tags, unknown tag rejection, trimming, and 1000-character limit.
-- [ ] Add parser/normalizer tests for duplicate tag dedupe, canonical tag ordering, trim-to-null text, 1000-character acceptance, and 1001-character rejection.
-- [ ] Add sidecar repo tests for upsert, replacement, and delete.
-- [ ] Add sidecar bootstrap tests or SQL assertion tests for idempotent SQLite and Postgres/Turso statement coverage where practical.
+- [x] Add playground detail parser/normalizer tests for valid empty detail, valid tags, unknown tag rejection, trimming, and 1000-character limit.
+- [x] Add parser/normalizer tests for duplicate tag dedupe, canonical tag ordering, trim-to-null text, 1000-character acceptance, and 1001-character rejection.
+- [x] Add sidecar repo tests for upsert, replacement, and delete.
+- [x] Add sidecar bootstrap tests or SQL assertion tests for idempotent SQLite and Postgres/Turso statement coverage where practical.
 - [ ] Add route/service tests for thumbs-down submit writing shared feedback and sidecar detail.
 - [ ] Add route/service tests for thumbs-up clearing sidecar detail.
 - [ ] Add route/service tests for thumbs-up with details being rejected.
 - [ ] Add route/service tests for DELETE clearing sidecar detail.
-- [ ] Add transaction rollback tests proving sidecar write failure does not leave shared feedback behind and shared feedback failure does not leave sidecar detail behind.
+- [x] Add transaction rollback tests proving sidecar write failure does not leave shared feedback behind and shared feedback failure does not leave sidecar detail behind.
 
 ### 4.2 Frontend Tests
 - [ ] Add runtime/controller tests proving inactive thumbs-down opens the dialog and does not call the API.
@@ -154,7 +154,7 @@
 
 ### 4.3 Targeted Verification
 - [ ] Run `pnpm --filter playground-next-web test`.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
 - [ ] Run targeted package tests if shared feedback code is touched.
 
 ## 5. Recommended Execution Order
@@ -168,15 +168,15 @@
 - [x] Commit Loop 0 if this todo is materially changed before implementation starts.
 
 ### Loop 1: Sidecar Schema, Parser, and Service
-- [ ] Implement playground feedback detail types, parser/normalizer, schema, repo, and bootstrap.
-- [ ] Implement the playground service that coordinates shared run feedback with sidecar writes.
-- [ ] Ensure the service uses transaction-bound repositories for shared feedback and sidecar detail writes.
-- [ ] Add backend parser/repo/service tests.
-- [ ] Add transaction rollback tests for shared feedback and sidecar consistency.
-- [ ] Run targeted playground backend tests.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 1.
+- [x] Implement playground feedback detail types, parser/normalizer, schema, repo, and bootstrap.
+- [x] Implement the playground service that coordinates shared run feedback with sidecar writes.
+- [x] Ensure the service uses transaction-bound repositories for shared feedback and sidecar detail writes.
+- [x] Add backend parser/repo/service tests.
+- [x] Add transaction rollback tests for shared feedback and sidecar consistency.
+- [x] Run targeted playground backend tests.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit Loop 1.
 
 ### Loop 2: Route and API Wiring
 - [ ] Update the run feedback route to accept thumbs-down details and clear sidecar details on thumbs-up/delete.
