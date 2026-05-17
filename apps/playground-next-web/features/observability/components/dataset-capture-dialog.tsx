@@ -222,6 +222,13 @@ export function DatasetCaptureDialog({ open, selectedRun, selectedThread, onOpen
               <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
               <span className="min-w-0">
                 Captured example <span className="font-mono">{formatShortId(success.exampleId, 12)}</span> in dataset <span className="font-mono">{formatShortId(success.datasetId, 12)}</span>.
+                {' '}
+                <a
+                  className="font-medium underline underline-offset-2"
+                  href={`/observability/datasets?datasetId=${encodeURIComponent(success.datasetId)}&exampleId=${encodeURIComponent(success.exampleId)}`}
+                >
+                  Review example
+                </a>
               </span>
             </div>
           ) : null}

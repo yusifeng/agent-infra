@@ -17,16 +17,16 @@
 - [x] Playground is a validation consumer, not the product boundary.
 
 ### 0.2 Goals
-- [ ] Stabilize `expectedOutputJson` v1 as a typed expected-output envelope.
-- [ ] Stabilize `metadataJson.review` v1 as a typed review metadata envelope.
-- [ ] Define effective eval eligibility as a computed future-eval readiness signal, not an eval execution contract or second stored truth.
-- [ ] Add app-layer parsing and safe metadata merge helpers so UI cannot overwrite `capture`, `feedback`, `host`, or unrelated metadata namespaces.
-- [ ] Add dedicated app use cases for updating expected output and review metadata.
-- [ ] Tighten contracts/server/client helpers around expected-output and review payloads.
-- [ ] Add authenticated playground routes for example detail, expected-output update, and review update.
-- [ ] Add an independent dataset-centric review surface under `/observability/datasets`.
-- [ ] Let users inspect captured snapshots, edit expected output, and mark examples as approved or excluded.
-- [ ] Keep source refs as lineage links; review must still work from captured snapshots when the source run cannot be opened.
+- [x] Stabilize `expectedOutputJson` v1 as a typed expected-output envelope.
+- [x] Stabilize `metadataJson.review` v1 as a typed review metadata envelope.
+- [x] Define effective eval eligibility as a computed future-eval readiness signal, not an eval execution contract or second stored truth.
+- [x] Add app-layer parsing and safe metadata merge helpers so UI cannot overwrite `capture`, `feedback`, `host`, or unrelated metadata namespaces.
+- [x] Add dedicated app use cases for updating expected output and review metadata.
+- [x] Tighten contracts/server/client helpers around expected-output and review payloads.
+- [x] Add authenticated playground routes for example detail, expected-output update, and review update.
+- [x] Add an independent dataset-centric review surface under `/observability/datasets`.
+- [x] Let users inspect captured snapshots, edit expected output, and mark examples as approved or excluded.
+- [x] Keep source refs as lineage links; review must still work from captured snapshots when the source run cannot be opened.
 
 ### 0.3 Non-goals
 - [x] Do not implement `EvalRun` or `EvalExampleResult` in this track.
@@ -177,49 +177,49 @@
 - [x] Ensure example detail does not require source-run access when dataset access is valid.
 - [x] Ensure inaccessible source lineage renders unavailable without leaking source-run existence outside actor boundary.
 - [x] Preserve playground auth and actor identity boundaries.
-- [ ] Keep playground feedback sidecar details read-only display data in review UI.
-- [ ] Do not parse playground feedback details in shared packages.
+- [x] Keep playground feedback sidecar details read-only display data in review UI.
+- [x] Do not parse playground feedback details in shared packages.
 
 ### 3.2 Dataset Review UI
-- [ ] Add a dataset-centric management surface under `/observability/datasets`.
-- [ ] Add `/observability/datasets/[datasetId]` or an equivalent dataset detail route.
-- [ ] Add `/observability/datasets/[datasetId]/examples/[exampleId]` or an equivalent example detail route if separate detail pages are simpler.
-- [ ] Ensure `/observability/datasets` does not require `threadId` or `runId` query params.
-- [ ] Implement `/observability/datasets` with dedicated dataset-review runtime/state, not `useObservabilityConsole`.
-- [ ] Show dataset list with name, visibility, created actor, created date, and updated date.
-- [ ] Show dataset example list with source run id, source thread id, capture kind, review status, expected-output presence, and created date.
-- [ ] Show effective eligibility state and reason in the example list.
-- [ ] Add example detail view for `inputJson`.
-- [ ] Add example detail view for `baselineOutputJson`.
-- [ ] Add example detail view for `contextSnapshotJson`.
-- [ ] Add example detail view for `toolInvocationsSnapshotJson`.
-- [ ] Collapse tool invocation payloads by default.
-- [ ] Show explicit omitted-by-policy state for tool invocation snapshots.
-- [ ] Show shared run feedback snapshot as read-only context when present.
-- [ ] Show playground feedback details as read-only host-local context when present.
-- [ ] Add expected-output editor for the v1 assistant-text envelope.
-- [ ] Support clearing expected output back to `null`.
-- [ ] Add review status controls.
-- [ ] Add eval eligibility override controls.
-- [ ] Add exclusion reason controls when `status = 'excluded'` or `evalEligibility = 'exclude'`.
-- [ ] Add reviewer note editor.
-- [ ] Link back to `/observability?threadId=...&runId=...` when source lineage is available and accessible.
-- [ ] Show source unavailable state without blocking snapshot review.
-- [ ] Keep `/chat` unchanged.
-- [ ] Keep `/observability` selected-run panel focused on run inspection and capture, not dataset review management.
-- [ ] After capture success, optionally link to the captured example review page.
-- [ ] Display effective eligibility returned by app/server/client helpers; do not recompute durable eligibility semantics in page-local UI code.
-- [ ] Do not send `reviewedByActorId`, `reviewedAt`, protected metadata namespaces, or arbitrary `metadataJson` from the UI.
-- [ ] Show tool snapshot safety copy near tool payload inspection and avoid copy/export/download actions for full tool payloads in v1.
+- [x] Add a dataset-centric management surface under `/observability/datasets`.
+- [x] Add `/observability/datasets/[datasetId]` or an equivalent dataset detail route.
+- [x] Add `/observability/datasets/[datasetId]/examples/[exampleId]` or an equivalent example detail route if separate detail pages are simpler.
+- [x] Ensure `/observability/datasets` does not require `threadId` or `runId` query params.
+- [x] Implement `/observability/datasets` with dedicated dataset-review runtime/state, not `useObservabilityConsole`.
+- [x] Show dataset list with name, visibility, created actor, created date, and updated date.
+- [x] Show dataset example list with source run id, source thread id, capture kind, review status, expected-output presence, and created date.
+- [x] Show effective eligibility state and reason in the example list.
+- [x] Add example detail view for `inputJson`.
+- [x] Add example detail view for `baselineOutputJson`.
+- [x] Add example detail view for `contextSnapshotJson`.
+- [x] Add example detail view for `toolInvocationsSnapshotJson`.
+- [x] Collapse tool invocation payloads by default.
+- [x] Show explicit omitted-by-policy state for tool invocation snapshots.
+- [x] Show shared run feedback snapshot as read-only context when present.
+- [x] Show playground feedback details as read-only host-local context when present.
+- [x] Add expected-output editor for the v1 assistant-text envelope.
+- [x] Support clearing expected output back to `null`.
+- [x] Add review status controls.
+- [x] Add eval eligibility override controls.
+- [x] Add exclusion reason controls when `status = 'excluded'` or `evalEligibility = 'exclude'`.
+- [x] Add reviewer note editor.
+- [x] Link back to `/observability?threadId=...&runId=...` when source lineage is available and accessible.
+- [x] Show source unavailable state without blocking snapshot review.
+- [x] Keep `/chat` unchanged.
+- [x] Keep `/observability` selected-run panel focused on run inspection and capture, not dataset review management.
+- [x] After capture success, optionally link to the captured example review page.
+- [x] Display effective eligibility returned by app/server/client helpers; do not recompute durable eligibility semantics in page-local UI code.
+- [x] Do not send `reviewedByActorId`, `reviewedAt`, protected metadata namespaces, or arbitrary `metadataJson` from the UI.
+- [x] Show tool snapshot safety copy near tool payload inspection and avoid copy/export/download actions for full tool payloads in v1.
 
 ### 3.3 UI Implementation Boundaries
-- [ ] Create a dedicated feature layer for dataset review UI instead of burying logic in route pages.
-- [ ] Keep pages as thin composition roots.
-- [ ] Do not reuse chat transcript components if dataset snapshot shapes do not match chat DTO shapes cleanly.
-- [ ] Add small snapshot rendering helpers that tolerate unknown JSON fields.
-- [ ] Avoid filtering/search/analytics beyond simple local status display in v1.
-- [ ] Avoid batch edit/review operations in v1.
-- [ ] Avoid rich text expected-output editor in v1.
+- [x] Create a dedicated feature layer for dataset review UI instead of burying logic in route pages.
+- [x] Keep pages as thin composition roots.
+- [x] Do not reuse chat transcript components if dataset snapshot shapes do not match chat DTO shapes cleanly.
+- [x] Add small snapshot rendering helpers that tolerate unknown JSON fields.
+- [x] Avoid filtering/search/analytics beyond simple local status display in v1.
+- [x] Avoid batch edit/review operations in v1.
+- [x] Avoid rich text expected-output editor in v1.
 
 ## 4. Tests
 
@@ -262,7 +262,7 @@
 - [x] Add durable-chat-server response helper tests for review/effective eligibility if helpers expose them.
 - [x] Add durable-chat-client normalizer tests for expected output.
 - [x] Add durable-chat-client normalizer tests for review metadata defaults.
-- [ ] Add durable-chat-client API helper tests if the existing repo API test style supports them.
+- [x] Confirm durable-chat-client API helper coverage through exported normalizer/UI call tests; no separate repo API test style exists.
 
 ### 4.4 Playground Route Tests
 - [x] Add route tests for dataset example detail auth.
@@ -279,18 +279,18 @@
 - [x] Add route tests proving app-visible datasets work for same-app actors when allowed.
 
 ### 4.5 Playground UI Tests
-- [ ] Add UI tests for opening dataset list.
-- [ ] Add UI tests for selecting a dataset and seeing examples.
-- [ ] Add UI tests for opening an example detail.
-- [ ] Add UI tests for rendering input/baseline/context/tool snapshots.
-- [ ] Add UI tests for collapsed tool payloads.
-- [ ] Add UI tests for editing expected output.
-- [ ] Add UI tests for clearing expected output.
-- [ ] Add UI tests for review status changes.
-- [ ] Add UI tests for effective eligibility display.
-- [ ] Add UI tests for source unavailable state.
-- [ ] Add UI tests proving dataset review uses `/observability/datasets` state without `threadId` or `runId`.
-- [ ] Add UI tests proving `/chat` is not part of this workflow.
+- [x] Add UI tests for opening dataset list.
+- [x] Add UI tests for selecting a dataset and seeing examples.
+- [x] Add UI tests for opening an example detail.
+- [x] Add UI tests for rendering input/baseline/context/tool snapshots.
+- [x] Add UI tests for collapsed tool payloads.
+- [x] Add UI tests for editing expected output.
+- [x] Add UI tests for clearing expected output.
+- [x] Add UI tests for review status changes.
+- [x] Add UI tests for effective eligibility display.
+- [x] Add UI tests for source unavailable state.
+- [x] Add UI tests proving dataset review uses `/observability/datasets` state without `threadId` or `runId`.
+- [x] Add UI tests proving `/chat` is not part of this workflow.
 
 ### 4.6 Targeted Verification
 - [x] Run `pnpm --filter @agent-infra/app test` after app use-case slice.
@@ -366,19 +366,19 @@
 - [x] Commit Loop 4.
 
 ### Loop 5: Dataset Review UI
-- [ ] Add `/observability/datasets` dataset review surface.
-- [ ] Add dataset list and dataset detail/example list views.
-- [ ] Add example detail view with snapshot inspectors.
-- [ ] Add expected-output editor.
-- [ ] Add review controls and effective eligibility display.
-- [ ] Add lineage links back to source run when available.
-- [ ] Add source unavailable display state.
-- [ ] Add capture-success link to example review page if practical.
-- [ ] Add focused UI tests.
-- [ ] Run targeted playground UI tests.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 5.
+- [x] Add `/observability/datasets` dataset review surface.
+- [x] Add dataset list and dataset detail/example list views.
+- [x] Add example detail view with snapshot inspectors.
+- [x] Add expected-output editor.
+- [x] Add review controls and effective eligibility display.
+- [x] Add lineage links back to source run when available.
+- [x] Add source unavailable display state.
+- [x] Add capture-success link to example review page if practical.
+- [x] Add focused UI tests.
+- [x] Run targeted playground UI tests.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit Loop 5.
 
 ### Loop 6: Closeout
 - [ ] Review source-of-truth docs and remove any parallel long-lived definitions from this todo.

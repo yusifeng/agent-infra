@@ -2,6 +2,8 @@ export {
   createThreadResponse,
   captureDatasetExampleFromRunResponse,
   createDatasetResponse,
+  fetchDatasetExampleResponse,
+  fetchDatasetExamplesResponse,
   fetchDatasetsResponse,
   fetchRunTraceResponse,
   fetchRunTimelineResponse,
@@ -11,6 +13,8 @@ export {
   fetchThreadsResponse,
   openThreadRunAttachStream,
   openThreadRunStream,
+  updateDatasetExampleExpectedOutputResponse,
+  updateDatasetExampleReviewResponse,
   type ApiResult,
   type RunStreamOpenResult
 } from '@agent-infra/durable-chat-client';
