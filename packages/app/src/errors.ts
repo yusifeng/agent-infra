@@ -49,6 +49,26 @@ export class DatasetNotFoundError extends AgentInfraAppError {
   }
 }
 
+export class EvalRunNotFoundError extends AgentInfraAppError {
+  constructor(evalRunId: string) {
+    super(`eval run ${evalRunId} not found`, {
+      statusCode: 404,
+      code: 'eval_run_not_found',
+      context: { evalRunId }
+    });
+  }
+}
+
+export class EvalExampleResultNotFoundError extends AgentInfraAppError {
+  constructor(resultId: string) {
+    super(`eval example result ${resultId} not found`, {
+      statusCode: 404,
+      code: 'eval_example_result_not_found',
+      context: { resultId }
+    });
+  }
+}
+
 export class ChatShareNotFoundError extends AgentInfraAppError {
   constructor(publicId: string) {
     super(`chat share ${publicId} not found`, {
@@ -104,6 +124,16 @@ export class InvalidDatasetInputError extends AgentInfraAppError {
     super(message, {
       statusCode: 400,
       code: 'invalid_dataset_input',
+      context
+    });
+  }
+}
+
+export class InvalidEvalInputError extends AgentInfraAppError {
+  constructor(message: string, context: Record<string, unknown> = {}) {
+    super(message, {
+      statusCode: 400,
+      code: 'invalid_eval_input',
       context
     });
   }

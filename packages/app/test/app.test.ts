@@ -5,6 +5,8 @@ import type {
   ChatShareSnapshot,
   Dataset,
   DatasetExample,
+  EvalExampleResult,
+  EvalRun,
   Message,
   MessagePart,
   Run,
@@ -23,9 +25,12 @@ import {
   InvalidAnswerCandidateSelectionError,
   InvalidDatasetCaptureError,
   InvalidDatasetInputError,
+  InvalidEvalInputError,
   InvalidRunFeedbackError,
   InvalidThreadTitleError,
   InvalidTurnTextError,
+  EvalExampleResultNotFoundError,
+  EvalRunNotFoundError,
   RunNotFoundError,
   ThreadHasActiveRunError,
   ThreadNotFoundError
@@ -47,6 +52,8 @@ type InMemoryState = {
   runFeedback: Map<string, RunFeedback>;
   datasets: Map<string, Dataset>;
   datasetExamples: Map<string, DatasetExample>;
+  evalRuns: Map<string, EvalRun>;
+  evalExampleResults: Map<string, EvalExampleResult>;
 };
 
 function cloneState(state: InMemoryState): InMemoryState {
@@ -70,7 +77,9 @@ function cloneState(state: InMemoryState): InMemoryState {
     answerSelections: new Map([...state.answerSelections.entries()].map(([id, selection]) => [id, { ...selection }])),
     runFeedback: new Map([...state.runFeedback.entries()].map(([id, feedback]) => [id, { ...feedback }])),
     datasets: new Map([...state.datasets.entries()].map(([id, dataset]) => [id, structuredClone(dataset)])),
-    datasetExamples: new Map([...state.datasetExamples.entries()].map(([id, example]) => [id, structuredClone(example)]))
+    datasetExamples: new Map([...state.datasetExamples.entries()].map(([id, example]) => [id, structuredClone(example)])),
+    evalRuns: new Map([...state.evalRuns.entries()].map(([id, run]) => [id, structuredClone(run)])),
+    evalExampleResults: new Map([...state.evalExampleResults.entries()].map(([id, result]) => [id, structuredClone(result)]))
   };
 }
 
@@ -467,6 +476,72 @@ function createRepositories(stateRef: { current: InMemoryState }, snapshot?: InM
         getState().datasetExamples.set(id, next);
         return next;
       }
+    },
+    evalRunRepo: {
+      async create(input) {
+        if (!getState().datasets.has(input.datasetId)) {
+          throw new Error(`dataset ${input.datasetId} not found`);
+        }
+        const createdAt = new Date();
+        const evalRun = { ...input, createdAt, updatedAt: createdAt };
+        getState().evalRuns.set(evalRun.id, evalRun);
+        return evalRun;
+      },
+      async findById(id) {
+        return getState().evalRuns.get(id) ?? null;
+      },
+      async listByDataset(datasetId) {
+        return [...getState().evalRuns.values()]
+          .filter((evalRun) => evalRun.datasetId === datasetId)
+          .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime() || left.id.localeCompare(right.id));
+      },
+      async update(id, patch, updatedAt) {
+        const current = getState().evalRuns.get(id);
+        if (!current) {
+          throw new Error(`eval run ${id} not found`);
+        }
+        const next = { ...current, ...patch, updatedAt };
+        getState().evalRuns.set(id, next);
+        return next;
+      }
+    },
+    evalExampleResultRepo: {
+      async create(input) {
+        if (!getState().evalRuns.has(input.evalRunId)) {
+          throw new Error(`eval run ${input.evalRunId} not found`);
+        }
+        if (!getState().datasetExamples.has(input.datasetExampleId)) {
+          throw new Error(`dataset example ${input.datasetExampleId} not found`);
+        }
+        const createdAt = new Date();
+        const result = { ...input, createdAt, updatedAt: createdAt };
+        getState().evalExampleResults.set(result.id, result);
+        return result;
+      },
+      async createMany(inputs) {
+        const results: EvalExampleResult[] = [];
+        for (const input of inputs) {
+          results.push(await this.create(input));
+        }
+        return results;
+      },
+      async findById(id) {
+        return getState().evalExampleResults.get(id) ?? null;
+      },
+      async listByEvalRun(evalRunId) {
+        return [...getState().evalExampleResults.values()]
+          .filter((result) => result.evalRunId === evalRunId)
+          .sort((left, right) => left.exampleOrdinal - right.exampleOrdinal || left.createdAt.getTime() - right.createdAt.getTime());
+      },
+      async update(id, patch, updatedAt) {
+        const current = getState().evalExampleResults.get(id);
+        if (!current) {
+          throw new Error(`eval example result ${id} not found`);
+        }
+        const next = { ...current, ...patch, updatedAt };
+        getState().evalExampleResults.set(id, next);
+        return next;
+      }
     }
   };
 }
@@ -485,7 +560,9 @@ function createDependencies(runtime: AgentInfraRuntimePort) {
       answerSelections: new Map<string, AnswerSelection>(),
       runFeedback: new Map<string, RunFeedback>(),
       datasets: new Map<string, Dataset>(),
-      datasetExamples: new Map<string, DatasetExample>()
+      datasetExamples: new Map<string, DatasetExample>(),
+      evalRuns: new Map<string, EvalRun>(),
+      evalExampleResults: new Map<string, EvalExampleResult>()
     }
   };
 
@@ -628,6 +705,51 @@ async function persistAssistantAnswer(repositories: AgentInfraAppRepositories, i
 
   return message;
 }
+
+async function createDatasetExampleFixture(
+  repositories: AgentInfraAppRepositories,
+  input: {
+    id: string;
+    datasetId: string;
+    expectedOutputJson?: Record<string, unknown> | null;
+    metadataJson?: Record<string, unknown> | null;
+    triggerMessageId?: string | null;
+  }
+) {
+  const triggerMessageId = input.triggerMessageId ?? `trigger-${input.id}`;
+  return repositories.datasetExampleRepo.create({
+    id: input.id,
+    datasetId: input.datasetId,
+    sourceRunId: `source-run-${input.id}`,
+    sourceThreadId: `source-thread-${input.id}`,
+    triggerMessageId,
+    inputJson: {
+      schemaVersion: 1,
+      kind: 'chat_turn',
+      triggerMessageId,
+      messages: []
+    },
+    baselineOutputJson: null,
+    expectedOutputJson: input.expectedOutputJson ?? null,
+    metadataJson: input.metadataJson ?? null,
+    contextSnapshotJson: null,
+    toolInvocationsSnapshotJson: null,
+    createdByActorId: 'actor-1'
+  });
+}
+
+const APPROVED_DEFAULT_EVAL_METADATA = {
+  schemaVersion: 1,
+  evaluation: { defaultEligible: true },
+  review: {
+    status: 'approved',
+    evalEligibility: 'default',
+    exclusionReason: null,
+    reviewerNote: null,
+    reviewedByActorId: 'actor-1',
+    reviewedAt: '2026-04-10T00:00:00.000Z'
+  }
+};
 
 describe('createAgentInfraApp', () => {
   it('creates threads, lists them, and returns thread messages through the app boundary', async () => {
@@ -1525,6 +1647,343 @@ describe('createAgentInfraApp', () => {
         reviewedAt: '2026-05-17T00:00:00.000Z'
       } as Parameters<typeof app.datasets.updateExampleReview>[0])
     ).rejects.toBeInstanceOf(InvalidDatasetInputError);
+    expect(prepare).not.toHaveBeenCalled();
+    expect(runTextTurn).not.toHaveBeenCalled();
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it('creates eval runs with eligible result rows and immutable expected snapshots', async () => {
+    const runtime = createHappyRuntime();
+    const prepare = vi.spyOn(runtime, 'prepare');
+    const runTextTurn = vi.spyOn(runtime, 'runTextTurn');
+    const generateText = vi.spyOn(runtime, 'generateText');
+    const { app, repositories } = createDependencies(runtime);
+    const privateDataset = await app.datasets.create({
+      appId: 'playground-runtime-pi',
+      name: 'Private evals',
+      createdByActorId: 'actor-1'
+    });
+    const appDataset = await app.datasets.create({
+      appId: 'playground-runtime-pi',
+      name: 'App evals',
+      visibility: 'app',
+      createdByActorId: 'actor-1'
+    });
+
+    const eligible = await createDatasetExampleFixture(repositories, {
+      id: 'eligible-example',
+      datasetId: privateDataset.id,
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: '  Expected answer  ' },
+      metadataJson: structuredClone(APPROVED_DEFAULT_EVAL_METADATA)
+    });
+    await createDatasetExampleFixture(repositories, {
+      id: 'unreviewed-example',
+      datasetId: privateDataset.id,
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected but unreviewed' },
+      metadataJson: { schemaVersion: 1, evaluation: { defaultEligible: true } }
+    });
+    await createDatasetExampleFixture(repositories, {
+      id: 'excluded-example',
+      datasetId: privateDataset.id,
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Excluded expected' },
+      metadataJson: {
+        schemaVersion: 1,
+        evaluation: { defaultEligible: true },
+        review: { status: 'excluded', evalEligibility: 'default' }
+      }
+    });
+    await createDatasetExampleFixture(repositories, {
+      id: 'missing-expected-example',
+      datasetId: privateDataset.id,
+      expectedOutputJson: null,
+      metadataJson: {
+        schemaVersion: 1,
+        evaluation: { defaultEligible: true },
+        review: { status: 'approved', evalEligibility: 'default' }
+      }
+    });
+
+    const evalRun = await app.evals.create({
+      appId: 'playground-runtime-pi',
+      datasetId: privateDataset.id,
+      actorId: 'actor-1',
+      name: '  Nightly eval  ',
+      provider: 'openai',
+      model: 'gpt-test',
+      runtimeOptions: { temperature: 0 },
+      createdByActorId: 'actor-1'
+    });
+    const results = await app.evals.listResults({
+      appId: 'playground-runtime-pi',
+      evalRunId: evalRun.id,
+      actorId: 'actor-1'
+    });
+
+    expect(evalRun).toMatchObject({
+      appId: 'playground-runtime-pi',
+      datasetId: privateDataset.id,
+      status: 'queued',
+      name: 'Nightly eval',
+      createdByActorId: 'actor-1',
+      finishedAt: null
+    });
+    expect(evalRun.configJson).toMatchObject({
+      schemaVersion: 1,
+      kind: 'eval_run_config',
+      selection: { policy: 'effective_eligible_v1' },
+      execution: { mode: 'current_runtime', strategy: 'isolated_eval_thread', concurrency: 'serial' },
+      runtime: { provider: 'openai', model: 'gpt-test', options: { temperature: 0 } }
+    });
+    expect(evalRun.summaryJson).toMatchObject({
+      schemaVersion: 1,
+      kind: 'eval_run_summary',
+      selection: {
+        eligibleCount: 1,
+        ineligibleCount: 3,
+        selectedCount: 1,
+        ineligibleReasonCounts: {
+          ineligible_unreviewed: 1,
+          ineligible_excluded_by_review: 1,
+          ineligible_missing_expected_output: 1
+        }
+      },
+      results: {
+        statusCounts: { queued: 1, running: 0, completed: 0, failed: 0, skipped: 0 },
+        reviewStatusCounts: { unreviewed: 1, pass: 0, fail: 0, needs_review: 0, not_applicable: 0 }
+      }
+    });
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({
+      evalRunId: evalRun.id,
+      datasetExampleId: eligible.id,
+      exampleOrdinal: 1,
+      status: 'queued',
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected answer', notes: null },
+      actualOutputJson: null,
+      usageJson: null,
+      error: null,
+      metadataJson: {
+        selection: {
+          policy: 'effective_eligible_v1',
+          eligibilityReason: 'eligible_default',
+          selectedAt: evalRun.createdAt.toISOString(),
+          datasetExampleCreatedAt: eligible.createdAt.toISOString(),
+          datasetExampleUpdatedAt: eligible.updatedAt.toISOString()
+        }
+      }
+    });
+
+    await repositories.datasetExampleRepo.updateExpectedOutput(
+      eligible.id,
+      { expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Changed later' } },
+      new Date('2026-04-10T02:00:00.000Z')
+    );
+    await expect(app.evals.listResults({
+      appId: 'playground-runtime-pi',
+      evalRunId: evalRun.id,
+      actorId: 'actor-1'
+    })).resolves.toMatchObject([
+      {
+        id: results[0]!.id,
+        expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected answer', notes: null }
+      }
+    ]);
+
+    await expect(app.evals.get({
+      appId: 'playground-runtime-pi',
+      evalRunId: evalRun.id,
+      actorId: 'actor-2'
+    })).rejects.toBeInstanceOf(DatasetNotFoundError);
+    await expect(app.evals.get({
+      appId: 'playground-runtime-pi',
+      evalRunId: 'missing-eval-run',
+      actorId: 'actor-1'
+    })).rejects.toBeInstanceOf(EvalRunNotFoundError);
+
+    const appExample = await createDatasetExampleFixture(repositories, {
+      id: 'app-visible-eligible-example',
+      datasetId: appDataset.id,
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'App visible expected' },
+      metadataJson: structuredClone(APPROVED_DEFAULT_EVAL_METADATA)
+    });
+    const appEvalRun = await app.evals.create({
+      appId: 'playground-runtime-pi',
+      datasetId: appDataset.id,
+      actorId: 'actor-2'
+    });
+    expect(await app.evals.get({
+      appId: 'playground-runtime-pi',
+      evalRunId: appEvalRun.id,
+      actorId: 'actor-2'
+    })).toMatchObject({ id: appEvalRun.id });
+    expect(await app.evals.listByDataset({
+      appId: 'playground-runtime-pi',
+      datasetId: appDataset.id,
+      actorId: 'actor-2'
+    })).toMatchObject([{ id: appEvalRun.id }]);
+    expect(await app.evals.listResults({
+      appId: 'playground-runtime-pi',
+      evalRunId: appEvalRun.id,
+      actorId: 'actor-2'
+    })).toMatchObject([{ datasetExampleId: appExample.id }]);
+
+    expect(prepare).not.toHaveBeenCalled();
+    expect(runTextTurn).not.toHaveBeenCalled();
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it('creates completed empty eval runs when no examples are eligible', async () => {
+    const runtime = createHappyRuntime();
+    const prepare = vi.spyOn(runtime, 'prepare');
+    const runTextTurn = vi.spyOn(runtime, 'runTextTurn');
+    const generateText = vi.spyOn(runtime, 'generateText');
+    const { app, repositories } = createDependencies(runtime);
+    const dataset = await app.datasets.create({
+      appId: 'playground-runtime-pi',
+      name: 'No eligible evals',
+      createdByActorId: 'actor-1'
+    });
+    await createDatasetExampleFixture(repositories, {
+      id: 'no-expected-example',
+      datasetId: dataset.id,
+      expectedOutputJson: null,
+      metadataJson: { schemaVersion: 1, evaluation: { defaultEligible: true } }
+    });
+
+    const evalRun = await app.evals.create({
+      appId: 'playground-runtime-pi',
+      datasetId: dataset.id,
+      actorId: 'actor-1'
+    });
+
+    expect(evalRun).toMatchObject({
+      status: 'completed',
+      startedAt: null,
+      finishedAt: new Date('2026-04-10T00:00:00.000Z')
+    });
+    expect(evalRun.summaryJson).toMatchObject({
+      selection: {
+        eligibleCount: 0,
+        ineligibleCount: 1,
+        selectedCount: 0,
+        ineligibleReasonCounts: { ineligible_unreviewed: 1 }
+      },
+      results: {
+        statusCounts: { queued: 0, running: 0, completed: 0, failed: 0, skipped: 0 },
+        reviewStatusCounts: { unreviewed: 0, pass: 0, fail: 0, needs_review: 0, not_applicable: 0 }
+      }
+    });
+    await expect(app.evals.listResults({
+      appId: 'playground-runtime-pi',
+      evalRunId: evalRun.id,
+      actorId: 'actor-1'
+    })).resolves.toEqual([]);
+    expect(prepare).not.toHaveBeenCalled();
+    expect(runTextTurn).not.toHaveBeenCalled();
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it('updates eval result review metadata and summary review counts', async () => {
+    const runtime = createHappyRuntime();
+    const prepare = vi.spyOn(runtime, 'prepare');
+    const runTextTurn = vi.spyOn(runtime, 'runTextTurn');
+    const generateText = vi.spyOn(runtime, 'generateText');
+    const { app, repositories } = createDependencies(runtime);
+    const dataset = await app.datasets.create({
+      appId: 'playground-runtime-pi',
+      name: 'Review evals',
+      createdByActorId: 'actor-1'
+    });
+    await createDatasetExampleFixture(repositories, {
+      id: 'reviewable-example',
+      datasetId: dataset.id,
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected review answer' },
+      metadataJson: structuredClone(APPROVED_DEFAULT_EVAL_METADATA)
+    });
+    const evalRun = await app.evals.create({
+      appId: 'playground-runtime-pi',
+      datasetId: dataset.id,
+      actorId: 'actor-1'
+    });
+    const result = (await app.evals.listResults({
+      appId: 'playground-runtime-pi',
+      evalRunId: evalRun.id,
+      actorId: 'actor-1'
+    }))[0]!;
+
+    const reviewed = await app.evals.updateResultReview({
+      appId: 'playground-runtime-pi',
+      evalRunId: evalRun.id,
+      resultId: result.id,
+      actorId: 'actor-1',
+      review: { status: 'pass', reviewerNote: '  Good output  ' }
+    });
+
+    expect(reviewed.metadataJson).toMatchObject({
+      selection: { policy: 'effective_eligible_v1' },
+      review: {
+        status: 'pass',
+        reviewerNote: 'Good output',
+        reviewedByActorId: 'actor-1',
+        reviewedAt: '2026-04-10T00:00:00.000Z'
+      }
+    });
+    await expect(app.evals.get({
+      appId: 'playground-runtime-pi',
+      evalRunId: evalRun.id,
+      actorId: 'actor-1'
+    })).resolves.toMatchObject({
+      summaryJson: {
+        results: {
+          statusCounts: { queued: 1, running: 0, completed: 0, failed: 0, skipped: 0 },
+          reviewStatusCounts: { unreviewed: 0, pass: 1, fail: 0, needs_review: 0, not_applicable: 0 }
+        }
+      }
+    });
+
+    await expect(app.evals.updateResultReview({
+      appId: 'playground-runtime-pi',
+      evalRunId: evalRun.id,
+      resultId: result.id,
+      actorId: 'actor-1',
+      review: { status: 'bad-status' }
+    } as Parameters<typeof app.evals.updateResultReview>[0])).rejects.toBeInstanceOf(InvalidEvalInputError);
+    await expect(app.evals.updateResultReview({
+      appId: 'playground-runtime-pi',
+      evalRunId: evalRun.id,
+      resultId: result.id,
+      actorId: 'actor-1',
+      review: { status: 'fail', extra: true }
+    } as Parameters<typeof app.evals.updateResultReview>[0])).rejects.toBeInstanceOf(InvalidEvalInputError);
+    await expect(app.evals.updateResultReview({
+      appId: 'playground-runtime-pi',
+      evalRunId: evalRun.id,
+      resultId: result.id,
+      actorId: 'actor-1',
+      review: { status: 'fail', reviewedByActorId: 'spoofed-actor' }
+    } as Parameters<typeof app.evals.updateResultReview>[0])).rejects.toBeInstanceOf(InvalidEvalInputError);
+    await expect(app.evals.updateResultReview({
+      appId: 'playground-runtime-pi',
+      evalRunId: evalRun.id,
+      resultId: result.id,
+      actorId: 'actor-1',
+      review: { status: 'fail' },
+      reviewedAt: '2026-05-17T00:00:00.000Z'
+    } as Parameters<typeof app.evals.updateResultReview>[0])).rejects.toBeInstanceOf(InvalidEvalInputError);
+
+    const otherEvalRun = await app.evals.create({
+      appId: 'playground-runtime-pi',
+      datasetId: dataset.id,
+      actorId: 'actor-1'
+    });
+    await expect(app.evals.updateResultReview({
+      appId: 'playground-runtime-pi',
+      evalRunId: otherEvalRun.id,
+      resultId: result.id,
+      actorId: 'actor-1',
+      review: { status: 'fail' }
+    })).rejects.toBeInstanceOf(EvalExampleResultNotFoundError);
+
     expect(prepare).not.toHaveBeenCalled();
     expect(runTextTurn).not.toHaveBeenCalled();
     expect(generateText).not.toHaveBeenCalled();

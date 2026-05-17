@@ -17,8 +17,8 @@
 - [x] Playground is a validation consumer, not the product boundary.
 
 ### 0.2 Goals
-- [ ] Add `EvalRun` as a durable dataset regression batch model.
-- [ ] Add `EvalExampleResult` as a durable per-example regression execution result model.
+- [x] Add `EvalRun` as a durable dataset regression batch model.
+- [x] Add `EvalExampleResult` as a durable per-example regression execution result model.
 - [ ] Run only dataset examples whose effective eligibility is `eligible = true`.
 - [ ] Execute eligible examples against the current runtime using captured canonical context.
 - [ ] Do not mutate or append to the original source thread during eval execution.
@@ -173,16 +173,16 @@
 - [x] Add core `EvalExampleResult` type.
 - [x] Add core `EvalRunRepository` interface.
 - [x] Add core `EvalExampleResultRepository` interface.
-- [ ] Add app-layer eval run input/result types.
-- [ ] Add app-layer eval result review types.
-- [ ] Add app-layer `EvalRunConfigV1` envelope, parser, and builder helpers.
-- [ ] Add app-layer `EvalRunSummaryV1` envelope, parser, and builder helpers.
-- [ ] Add parse/normalize helpers for eval result review metadata.
-- [ ] Add helper for selecting eligible examples from dataset examples.
-- [ ] Add helper for summarizing eval run results.
-- [ ] Add helper for calculating selection summary and eligibility reason histogram.
+- [x] Add app-layer eval run input/result types.
+- [x] Add app-layer eval result review types.
+- [x] Add app-layer `EvalRunConfigV1` envelope, parser, and builder helpers.
+- [x] Add app-layer `EvalRunSummaryV1` envelope, parser, and builder helpers.
+- [x] Add parse/normalize helpers for eval result review metadata.
+- [x] Add helper for selecting eligible examples from dataset examples.
+- [x] Add helper for summarizing eval run results.
+- [x] Add helper for calculating selection summary and eligibility reason histogram.
 - [ ] Add helper for building actual-output snapshot from a runtime output run.
-- [ ] Add helper for building expected-output snapshot from a dataset example.
+- [x] Add helper for building expected-output snapshot from a dataset example.
 - [ ] Add helper for input materialization from dataset input snapshots.
 - [ ] Keep DTOs wire-compatible and versioned where JSON envelopes are introduced.
 
@@ -213,36 +213,36 @@
 - [x] Ensure eval-only thread metadata JSON round-trips if stored in thread metadata.
 
 ### 2.3 App Use Cases
-- [ ] Add `app.evals.create`.
-- [ ] Add `app.evals.listByDataset`.
-- [ ] Add `app.evals.get`.
-- [ ] Add `app.evals.listResults`.
+- [x] Add `app.evals.create`.
+- [x] Add `app.evals.listByDataset`.
+- [x] Add `app.evals.get`.
+- [x] Add `app.evals.listResults`.
 - [ ] Add `app.evals.run`.
-- [ ] Add `app.evals.updateResultReview`.
-- [ ] Ensure eval use cases enforce dataset app boundary.
-- [ ] Ensure private datasets remain accessible only to the creating actor.
-- [ ] Ensure app-visible datasets remain accessible within the app boundary.
+- [x] Add `app.evals.updateResultReview`.
+- [x] Ensure eval use cases enforce dataset app boundary.
+- [x] Ensure private datasets remain accessible only to the creating actor.
+- [x] Ensure app-visible datasets remain accessible within the app boundary.
 - [ ] Ensure eval execution uses effective eligibility and excludes ineligible examples.
-- [ ] Ensure no result rows are created for ineligible examples in v1.
-- [ ] Ensure `app.evals.create` transactionally creates the `EvalRun` and all selected eligible examples' queued `EvalExampleResult` rows.
-- [ ] Ensure `app.evals.create` snapshots expected output, example ordinal, selection metadata, and relevant dataset example timestamps.
+- [x] Ensure no result rows are created for ineligible examples in v1.
+- [x] Ensure `app.evals.create` transactionally creates the `EvalRun` and all selected eligible examples' queued `EvalExampleResult` rows.
+- [x] Ensure `app.evals.create` snapshots expected output, example ordinal, selection metadata, and relevant dataset example timestamps.
 - [ ] Ensure `app.evals.run` executes only existing queued result rows and does not create replacement rows.
-- [ ] Ensure eval run summary records eligible, ineligible, and eligibility reason counts.
+- [x] Ensure eval run summary records eligible, ineligible, and eligibility reason counts.
 - [ ] Ensure no source run/thread access is required for eval execution.
 - [ ] Ensure eval execution does not mutate the original source thread.
 - [ ] Ensure eval execution materializes only pre-trigger history and creates a fresh trigger message.
 - [ ] Ensure expected output is not re-snapshotted during `app.evals.run`.
-- [ ] Ensure expected output snapshots remain immutable when the source dataset example is edited later.
+- [x] Ensure expected output snapshots remain immutable when the source dataset example is edited later.
 - [ ] Ensure result errors are persisted per example.
 - [ ] Ensure invalid triggers update selected result rows to `failed` with no eval thread, no output run, no actual output, and no usage.
 - [ ] Ensure outputless completed runtime runs persist an actual-output snapshot but mark the result `failed`.
 - [ ] Ensure eval run status and summary update after execution.
-- [ ] Ensure eval run summary refreshes transactionally after result review updates, or explicitly recomputes on read.
+- [x] Ensure eval run summary refreshes transactionally after result review updates, or explicitly recomputes on read.
 - [ ] Ensure `completed` eval runs can contain failed example results.
 - [ ] Ensure batch-level failures use `EvalRun.status = 'failed'`.
 - [ ] Ensure the same eval run cannot be executed concurrently or rerun after a terminal state.
 - [ ] Ensure normal thread listing use cases hide eval-only threads by default while explicit eval lineage reads still work.
-- [ ] Ensure runtime ports are called only by execution use cases, not by create/list/read/review use cases.
+- [x] Ensure runtime ports are called only by execution use cases, not by create/list/read/review use cases.
 
 ### 2.4 Execution Implementation
 - [ ] Implement isolated eval thread creation as the v1 execution strategy.
@@ -322,18 +322,18 @@
 ### 4.1 Source / Type Tests
 - [ ] Add tests for eval run status validation if helpers are introduced.
 - [ ] Add tests for eval result status validation if helpers are introduced.
-- [ ] Add tests for result review metadata defaults.
-- [ ] Add tests rejecting invalid result review statuses.
-- [ ] Add tests rejecting unknown result review request keys.
-- [ ] Add tests rejecting caller-supplied review actor/time.
-- [ ] Add tests for expected output snapshot construction.
-- [ ] Add tests proving expected output snapshots are immutable after the dataset example expected output changes.
+- [x] Add tests for result review metadata defaults.
+- [x] Add tests rejecting invalid result review statuses.
+- [x] Add tests rejecting unknown result review request keys.
+- [x] Add tests rejecting caller-supplied review actor/time.
+- [x] Add tests for expected output snapshot construction.
+- [x] Add tests proving expected output snapshots are immutable after the dataset example expected output changes.
 - [ ] Add tests for actual output snapshot construction.
 - [ ] Add tests for actual output edge cases: no assistant message, multiple assistant messages, runtime failed output, and usage without message.
-- [ ] Add tests for eval run summary calculation.
-- [ ] Add tests for selection summary and eligibility reason histogram calculation.
-- [ ] Add tests for typed eval run config envelope parsing/building.
-- [ ] Add tests for typed eval run summary envelope parsing/building.
+- [x] Add tests for eval run summary calculation.
+- [x] Add tests for selection summary and eligibility reason histogram calculation.
+- [x] Add tests for typed eval run config envelope parsing/building.
+- [x] Add tests for typed eval run summary envelope parsing/building.
 
 ### 4.2 DB Tests
 - [x] Add SQLite repository tests for eval run create/find/list/update.
@@ -347,12 +347,12 @@
 - [x] Add migration generation and schema checks.
 
 ### 4.3 App Tests
-- [ ] Add app tests for creating eval runs with dataset access boundaries.
-- [ ] Add app tests proving private dataset evals are not readable by another actor.
-- [ ] Add app tests proving app-visible dataset evals are readable by same-app actors.
-- [ ] Add app tests for selecting only eligible dataset examples.
-- [ ] Add app tests proving `app.evals.create` creates queued result rows and create-time expected output snapshots.
-- [ ] Add app tests for no eligible examples.
+- [x] Add app tests for creating eval runs with dataset access boundaries.
+- [x] Add app tests proving private dataset evals are not readable by another actor.
+- [x] Add app tests proving app-visible dataset evals are readable by same-app actors.
+- [x] Add app tests for selecting only eligible dataset examples.
+- [x] Add app tests proving `app.evals.create` creates queued result rows and create-time expected output snapshots.
+- [x] Add app tests for no eligible examples.
 - [ ] Add app tests proving source run access is not required for eval execution.
 - [ ] Add app tests proving source thread is not mutated.
 - [ ] Add app tests proving eval creates isolated execution state.
@@ -362,8 +362,8 @@
 - [ ] Add app tests proving source message ids are not reused for eval messages.
 - [ ] Add app tests for invalid trigger behavior: missing trigger, trigger not user, trigger without executable text, and unsupported non-text or multi-part trigger.
 - [ ] Add app tests proving invalid triggers create failed selected result rows, not skipped rows and not selection exclusions.
-- [ ] Add app tests proving expected output is snapshotted.
-- [ ] Add app tests proving editing dataset example expected output after eval creation but before eval run does not change result expected snapshot.
+- [x] Add app tests proving expected output is snapshotted.
+- [x] Add app tests proving editing dataset example expected output after eval creation but before eval run does not change result expected snapshot.
 - [ ] Add app tests proving actual output is persisted.
 - [ ] Add app tests for actual output edge cases: outputless completed run fails the result while preserving snapshot, runtime throws after writing failed run, usage with no message, and multiple assistant messages.
 - [ ] Add app tests proving usage and duration are persisted.
@@ -372,11 +372,11 @@
 - [ ] Add app tests proving `completed` eval runs can include failed result rows.
 - [ ] Add app tests proving batch-level failures use `EvalRun.status = 'failed'`.
 - [ ] Add app tests proving the same eval run cannot run concurrently or rerun after terminal status.
-- [ ] Add app tests for eval run summary updates.
-- [ ] Add app tests for summary correctness: eligible/ineligible counts, eligibility reason counts, result status counts, review status counts, aggregate usage, and duration.
-- [ ] Add app tests proving no eligible examples creates a completed empty eval run with no result rows.
-- [ ] Add app tests for result review updates and actor/time assignment.
-- [ ] Add app tests proving result review updates refresh summary review counts.
+- [x] Add app tests for eval run summary updates.
+- [x] Add app tests for summary correctness: eligible/ineligible counts, eligibility reason counts, result status counts, review status counts, aggregate usage, and duration.
+- [x] Add app tests proving no eligible examples creates a completed empty eval run with no result rows.
+- [x] Add app tests for result review updates and actor/time assignment.
+- [x] Add app tests proving result review updates refresh summary review counts.
 - [ ] Add app tests proving normal thread listing excludes eval-only threads by default.
 - [ ] Add app tests proving runtime receives or reads eval-thread messages rather than source-thread messages.
 - [ ] Add app tests proving non-execution use cases do not call runtime ports.
@@ -415,7 +415,7 @@
 ### 4.7 Targeted Verification
 - [x] Run `pnpm --filter @agent-infra/core typecheck` after core type changes.
 - [x] Run `pnpm --filter @agent-infra/db test` after DB slice.
-- [ ] Run `pnpm --filter @agent-infra/app test` after app slice.
+- [x] Run `pnpm --filter @agent-infra/app test` after app slice.
 - [ ] Run `pnpm --filter @agent-infra/contracts typecheck` after contract slice.
 - [ ] Run `pnpm --filter @agent-infra/durable-chat-server test` after server helper slice.
 - [ ] Run `pnpm --filter @agent-infra/durable-chat-client test` after client helper slice.
@@ -460,17 +460,17 @@
 - [x] Commit Loop 1.
 
 ### Loop 2: App Eval Records and Review Semantics
-- [ ] Add app-layer eval types and helpers.
-- [ ] Add app eval create/list/get/listResults use cases.
-- [ ] Make app eval create create queued result rows and expected snapshots transactionally.
-- [ ] Add app result review update use case.
-- [ ] Make result review updates refresh summary review counts or use an explicit read-time recompute path.
-- [ ] Add helpers for eligible example selection, expected output snapshots, typed eval config/summary envelopes, result review metadata, and summary calculation.
-- [ ] Add focused app tests for access, eligibility, no-eligible behavior, create-time result rows, expected snapshots, summaries, and result review.
-- [ ] Run `pnpm --filter @agent-infra/app test`.
-- [ ] Run package typechecks for affected shared packages if needed.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 2.
+- [x] Add app-layer eval types and helpers.
+- [x] Add app eval create/list/get/listResults use cases.
+- [x] Make app eval create create queued result rows and expected snapshots transactionally.
+- [x] Add app result review update use case.
+- [x] Make result review updates refresh summary review counts or use an explicit read-time recompute path.
+- [x] Add helpers for eligible example selection, expected output snapshots, typed eval config/summary envelopes, result review metadata, and summary calculation.
+- [x] Add focused app tests for access, eligibility, no-eligible behavior, create-time result rows, expected snapshots, summaries, and result review.
+- [x] Run `pnpm --filter @agent-infra/app test`.
+- [x] Run package typechecks for affected shared packages if needed.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit Loop 2.
 
 ### Loop 3: App Eval Execution
 - [ ] Add app eval run execution use case.

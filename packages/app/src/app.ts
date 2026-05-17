@@ -3,6 +3,8 @@ import crypto from 'node:crypto';
 import {
   projectCanonicalTranscript,
   type Dataset,
+  type EvalExampleResult,
+  type EvalRun,
   type Message,
   type MessagePart,
   type Run,
@@ -19,7 +21,10 @@ import {
   DatasetNotFoundError,
   InvalidDatasetCaptureError,
   InvalidDatasetInputError,
+  InvalidEvalInputError,
   InvalidThreadTitleError,
+  EvalExampleResultNotFoundError,
+  EvalRunNotFoundError,
   InvalidAnswerCandidateSelectionError,
   InvalidRunFeedbackError,
   InvalidTurnTextError,
@@ -38,6 +43,15 @@ import {
   parseDatasetExampleReviewUpdateV1,
   parseDatasetExpectedOutputV1
 } from './dataset-review.js';
+import {
+  buildEvalRunConfigV1,
+  buildEvalRunSummaryV1,
+  buildExpectedOutputSnapshotFromDatasetExample,
+  mergeEvalExampleResultReviewMetadataV1,
+  parseEvalExampleResultReviewUpdateV1,
+  parseEvalRunSummaryV1,
+  selectEligibleDatasetExamplesV1
+} from './eval-run.js';
 import { buildTraceSpanProjection } from './trace-span-projection.js';
 import type {
   AgentInfraApp,
@@ -51,6 +65,7 @@ import type {
   DatasetMessagePartSnapshotV1,
   DatasetMessageSnapshotV1,
   DatasetToolInvocationsSnapshotV1,
+  EvalRunSummaryV1,
   PublicChatShareResult,
   RunTraceResult,
   RunTextTurnInput,
@@ -146,6 +161,36 @@ async function loadDatasetExampleForDatasetOrThrow(
   }
 
   return example;
+}
+
+async function loadEvalRunForAppOrThrow(
+  repositories: AgentInfraAppRepositories,
+  input: { appId: string; evalRunId: string; actorId?: string | null }
+): Promise<EvalRun> {
+  const evalRun = await repositories.evalRunRepo.findById(input.evalRunId);
+  if (!evalRun) {
+    throw new EvalRunNotFoundError(input.evalRunId);
+  }
+
+  await loadDatasetForAppOrThrow(repositories, {
+    appId: input.appId,
+    datasetId: evalRun.datasetId,
+    actorId: input.actorId ?? null
+  });
+
+  return evalRun;
+}
+
+async function loadEvalExampleResultForRunOrThrow(
+  repositories: AgentInfraAppRepositories,
+  input: { evalRunId: string; resultId: string }
+): Promise<EvalExampleResult> {
+  const result = await repositories.evalExampleResultRepo.findById(input.resultId);
+  if (!result || result.evalRunId !== input.evalRunId) {
+    throw new EvalExampleResultNotFoundError(input.resultId);
+  }
+
+  return result;
 }
 
 async function buildCanonicalThreadMessages(repositories: AgentInfraAppRepositories, threadId: string, cutoffMessageId?: string | null) {
@@ -1306,6 +1351,113 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
           dataset,
           example
         };
+      }
+    },
+    evals: {
+      async create(input) {
+        return dependencies.transaction(async (repositories) => {
+          const dataset = await loadDatasetForAppOrThrow(repositories, input);
+          const examples = await repositories.datasetExampleRepo.listByDataset(dataset.id);
+          const selection = selectEligibleDatasetExamplesV1(examples);
+          const configJson = buildEvalRunConfigV1({
+            provider: input.provider ?? null,
+            model: input.model ?? null,
+            runtimeOptions: input.runtimeOptions ?? null
+          });
+          const summaryJson = buildEvalRunSummaryV1({ selection: selection.summary });
+          const evalRun = await repositories.evalRunRepo.create({
+            id: generateId(),
+            appId: dataset.appId,
+            datasetId: dataset.id,
+            status: selection.selected.length === 0 ? 'completed' : 'queued',
+            name: input.name?.trim() ? input.name.trim() : null,
+            configJson: configJson as unknown as Record<string, unknown>,
+            summaryJson: summaryJson as unknown as Record<string, unknown>,
+            error: null,
+            createdByActorId: input.createdByActorId ?? input.actorId ?? null,
+            startedAt: null,
+            finishedAt: selection.selected.length === 0 ? now() : null
+          });
+
+          await repositories.evalExampleResultRepo.createMany(
+            selection.selected.map((item, index) => ({
+              id: generateId(),
+              evalRunId: evalRun.id,
+              datasetExampleId: item.example.id,
+              exampleOrdinal: index + 1,
+              status: 'queued',
+              evalThreadId: null,
+              outputRunId: null,
+              expectedOutputJson: buildExpectedOutputSnapshotFromDatasetExample(item.example) as unknown as Record<string, unknown>,
+              actualOutputJson: null,
+              inputJson: null,
+              usageJson: null,
+              metadataJson: {
+                selection: {
+                  policy: 'effective_eligible_v1',
+                  eligibilityReason: item.eligibilityReason,
+                  selectedAt: evalRun.createdAt.toISOString(),
+                  datasetExampleCreatedAt: item.example.createdAt.toISOString(),
+                  datasetExampleUpdatedAt: item.example.updatedAt.toISOString()
+                }
+              },
+              error: null,
+              startedAt: null,
+              finishedAt: null
+            }))
+          );
+
+          return evalRun;
+        });
+      },
+      async listByDataset(input) {
+        await loadDatasetForAppOrThrow(dependencies.repositories, input);
+        return dependencies.repositories.evalRunRepo.listByDataset(input.datasetId);
+      },
+      async get(input) {
+        return loadEvalRunForAppOrThrow(dependencies.repositories, input);
+      },
+      async listResults(input) {
+        const evalRun = await loadEvalRunForAppOrThrow(dependencies.repositories, input);
+        return dependencies.repositories.evalExampleResultRepo.listByEvalRun(evalRun.id);
+      },
+      async updateResultReview(input) {
+        const rawInput = input as unknown as Record<string, unknown>;
+        if (Object.hasOwn(rawInput, 'reviewedByActorId')) {
+          throw new InvalidEvalInputError('reviewedByActorId is assigned from actor context');
+        }
+        if (Object.hasOwn(rawInput, 'reviewedAt')) {
+          throw new InvalidEvalInputError('reviewedAt is assigned from app time');
+        }
+
+        return dependencies.transaction(async (repositories) => {
+          const evalRun = await loadEvalRunForAppOrThrow(repositories, input);
+          const result = await loadEvalExampleResultForRunOrThrow(repositories, {
+            evalRunId: evalRun.id,
+            resultId: input.resultId
+          });
+          const update = parseEvalExampleResultReviewUpdateV1(input.review);
+          const metadataJson = mergeEvalExampleResultReviewMetadataV1({
+            metadataJson: result.metadataJson ?? null,
+            update,
+            reviewedByActorId: input.actorId ?? null,
+            reviewedAt: now()
+          });
+          const updated = await repositories.evalExampleResultRepo.update(result.id, { metadataJson }, now());
+          const results = await repositories.evalExampleResultRepo.listByEvalRun(evalRun.id);
+          const previousSummary = parseEvalRunSummaryV1(evalRun.summaryJson);
+          const nextSummary: EvalRunSummaryV1 = buildEvalRunSummaryV1({
+            selection: previousSummary.selection,
+            results
+          });
+          await repositories.evalRunRepo.update(
+            evalRun.id,
+            { summaryJson: nextSummary as unknown as Record<string, unknown> },
+            now()
+          );
+
+          return updated;
+        });
       }
     },
     shares: {

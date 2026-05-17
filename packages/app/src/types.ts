@@ -12,6 +12,11 @@ import type {
   DatasetExample,
   DatasetExampleRepository,
   DatasetRepository,
+  EvalExampleResult,
+  EvalExampleResultRepository,
+  EvalExampleResultStatus,
+  EvalRun,
+  EvalRunRepository,
   Message,
   MessagePageResult,
   MessagePart,
@@ -42,6 +47,8 @@ export interface AgentInfraAppRepositories {
   runFeedbackRepo: RunFeedbackRepository;
   datasetRepo: DatasetRepository;
   datasetExampleRepo: DatasetExampleRepository;
+  evalRunRepo: EvalRunRepository;
+  evalExampleResultRepo: EvalExampleResultRepository;
 }
 
 export interface RuntimeSelection {
@@ -255,6 +262,80 @@ export interface CaptureDatasetExampleFromRunInput extends GetDatasetInput {
 export interface CaptureDatasetExampleFromRunResult {
   dataset: Dataset;
   example: DatasetExample;
+}
+
+export interface CreateEvalRunInput extends GetDatasetInput {
+  name?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  runtimeOptions?: Record<string, unknown> | null;
+  createdByActorId?: string | null;
+}
+
+export interface ListEvalRunsByDatasetInput extends GetDatasetInput {}
+
+export interface GetEvalRunInput {
+  appId: string;
+  evalRunId: string;
+  actorId?: string | null;
+}
+
+export interface ListEvalExampleResultsInput extends GetEvalRunInput {}
+
+export interface UpdateEvalExampleResultReviewInput extends GetEvalRunInput {
+  resultId: string;
+  review: EvalExampleResultReviewUpdateV1;
+}
+
+export type EvalRunSelectionPolicyV1 = 'effective_eligible_v1';
+
+export interface EvalRunConfigV1 {
+  schemaVersion: 1;
+  kind: 'eval_run_config';
+  selection: {
+    policy: EvalRunSelectionPolicyV1;
+  };
+  execution: {
+    mode: 'current_runtime';
+    strategy: 'isolated_eval_thread';
+    concurrency: 'serial';
+  };
+  runtime?: {
+    provider?: string | null;
+    model?: string | null;
+    options?: Record<string, unknown> | null;
+  } | null;
+}
+
+export type EvalExampleResultReviewStatusV1 = 'unreviewed' | 'pass' | 'fail' | 'needs_review' | 'not_applicable';
+
+export interface EvalExampleResultReviewV1 {
+  status: EvalExampleResultReviewStatusV1;
+  reviewerNote?: string | null;
+  reviewedByActorId?: string | null;
+  reviewedAt?: string | null;
+}
+
+export interface EvalExampleResultReviewUpdateV1 {
+  status?: EvalExampleResultReviewStatusV1;
+  reviewerNote?: string | null;
+}
+
+export interface EvalRunSummaryV1 {
+  schemaVersion: 1;
+  kind: 'eval_run_summary';
+  selection: {
+    eligibleCount: number;
+    ineligibleCount: number;
+    ineligibleReasonCounts: Record<string, number>;
+    selectedCount: number;
+  };
+  results: {
+    statusCounts: Record<EvalExampleResultStatus, number>;
+    reviewStatusCounts: Record<EvalExampleResultReviewStatusV1, number>;
+    aggregateUsage?: Run['usage'] | null;
+    durationMs?: number | null;
+  };
 }
 
 export interface RunTimelineResult {
@@ -701,6 +782,13 @@ export interface AgentInfraApp {
     updateExampleExpectedOutput(input: UpdateDatasetExampleExpectedOutputInput): Promise<DatasetExample>;
     updateExampleReview(input: UpdateDatasetExampleReviewInput): Promise<DatasetExample>;
     captureExampleFromRun(input: CaptureDatasetExampleFromRunInput): Promise<CaptureDatasetExampleFromRunResult>;
+  };
+  evals: {
+    create(input: CreateEvalRunInput): Promise<EvalRun>;
+    listByDataset(input: ListEvalRunsByDatasetInput): Promise<EvalRun[]>;
+    get(input: GetEvalRunInput): Promise<EvalRun>;
+    listResults(input: ListEvalExampleResultsInput): Promise<EvalExampleResult[]>;
+    updateResultReview(input: UpdateEvalExampleResultReviewInput): Promise<EvalExampleResult>;
   };
   shares: {
     createThreadSnapshot(input: CreateThreadSnapshotShareInput): Promise<CreateThreadSnapshotShareResult>;
