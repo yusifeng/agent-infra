@@ -12,6 +12,7 @@ export const MessageActions = memo(function MessageActions({
     active?: boolean;
     disabled?: boolean;
     icon: ComponentType<{ className?: string }>;
+    activeIcon?: ComponentType<{ className?: string }>;
     key: string;
     label: string;
   }>;
@@ -31,28 +32,30 @@ export const MessageActions = memo(function MessageActions({
       data-message-actions-available={available ? 'true' : 'false'}
     >
       <div className="flex items-center gap-1">
-        {items.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            disabled={!available || item.disabled}
-            title={item.label}
-            aria-label={item.label}
-            onClick={() => {
-              if (available && !item.disabled) {
-                onActionClick(item.key);
-              }
-            }}
-            className={clsx(
-              'flex h-7 w-7 items-center justify-center rounded-md transition hover:bg-[var(--chat-hover)] hover:text-[color:var(--chat-text)] disabled:cursor-not-allowed disabled:opacity-40',
-              item.active
-                ? 'bg-[var(--chat-accent)] text-white hover:bg-[var(--chat-accent)] hover:text-white'
-                : 'text-[color:var(--chat-icon-muted)]'
-            )}
-          >
-            <item.icon className="h-[15px] w-[15px]" />
-          </button>
-        ))}
+        {items.map((item) => {
+          const Icon = item.active && item.activeIcon ? item.activeIcon : item.icon;
+
+          return (
+            <button
+              key={item.key}
+              type="button"
+              disabled={!available || item.disabled}
+              title={item.label}
+              aria-label={item.label}
+              onClick={() => {
+                if (available && !item.disabled) {
+                  onActionClick(item.key);
+                }
+              }}
+              className={clsx(
+                'flex h-7 w-7 items-center justify-center rounded-md transition hover:bg-[var(--chat-hover)] hover:text-[color:var(--chat-text)] disabled:cursor-not-allowed disabled:opacity-40',
+                item.active ? 'text-[color:var(--chat-text-secondary)]' : 'text-[color:var(--chat-icon-muted)]'
+              )}
+            >
+              <Icon className="h-[15px] w-[15px]" />
+            </button>
+          );
+        })}
       </div>
     </div>
   );
