@@ -320,7 +320,7 @@ export interface SelectAnswerCandidateRequestDto {
 }
 
 export interface SetRunFeedbackRequestDto {
-  triggerMessageId: string;
+  triggerMessageId?: string | null;
   value: RunFeedbackValue;
 }
 

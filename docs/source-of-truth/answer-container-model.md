@@ -80,7 +80,7 @@
 候选选择和反馈是两条独立信号：
 
 - `answer_selection` 决定哪个候选成为 canonical answer
-- `run_feedback` 记录用户对某个回答/run 的显式点赞或点踩
+- `run_feedback` 记录用户对某个回答/run 的显式点赞或点踩；它绑定 `AnswerContainer` 的 operation target，不要求该 run 必须是 dual-answer candidate
 - 点击“选择这个”不自动写入 `run_feedback`
 - 点赞/点踩属于 `AnswerContainer` 的普通 operation，不属于 `AnswerCandidateGroup` 自己的额外 footer 操作
 

@@ -153,14 +153,13 @@ export async function selectAnswerCandidate(threadId: string, runId: string, tri
 export async function setRunFeedback(
   threadId: string,
   runId: string,
-  triggerMessageId: string,
   value: RunFeedbackDto['value'],
   signal?: AbortSignal
 ) {
   return fetchJson<RunFeedbackResponseDto>(`/api/threads/${threadId}/runs/${runId}/feedback`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ triggerMessageId, value }),
+    body: JSON.stringify({ value }),
     signal
   });
 }

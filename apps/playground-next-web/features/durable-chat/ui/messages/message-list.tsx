@@ -36,6 +36,7 @@ type ChatMessageListProps = {
   messages: MessageDto[];
   answerContainers?: AnswerContainer[];
   answerCandidateGroups?: AnswerCandidateGroup[];
+  runFeedback?: RunFeedbackDto[];
   transcriptBlocks: TranscriptBlock[];
   liveAssistantDraft: LiveAssistantDraft | null;
   liveAssistantActionsAvailable?: boolean;
@@ -47,7 +48,7 @@ type ChatMessageListProps = {
   candidateMutationRunIds?: Set<string>;
   onLoadOlderMessages: () => void;
   onChooseAnswerCandidate?: (runId: string, triggerMessageId: string) => void;
-  onSetRunFeedback?: (runId: string, triggerMessageId: string, value: RunFeedbackDto['value'] | null) => void;
+  onSetRunFeedback?: (runId: string, value: RunFeedbackDto['value'] | null) => void;
   onOpenSearchResult: (runId: string, toolCallIds: string[]) => void;
   getLiveSearchPanelData?: (runId: string, toolCallIds: string[]) => ActiveSearchPanelData | null;
 };
@@ -63,6 +64,7 @@ export const ChatMessageList = memo(function ChatMessageList({
   messages,
   answerContainers = [],
   answerCandidateGroups = [],
+  runFeedback = [],
   transcriptBlocks,
   liveAssistantDraft,
   liveAssistantActionsAvailable = false,
@@ -91,6 +93,7 @@ export const ChatMessageList = memo(function ChatMessageList({
         loadingMessages,
         messages,
         meta,
+        runFeedback,
         showLoadingText,
         transcriptBlocks
       }),
@@ -103,6 +106,7 @@ export const ChatMessageList = memo(function ChatMessageList({
       loadingMessages,
       messages,
       meta,
+      runFeedback,
       showLoadingText,
       transcriptBlocks
     ]
@@ -186,7 +190,6 @@ export const ChatMessageList = memo(function ChatMessageList({
                     container={item.container}
                     feedback={item.feedbackContext?.feedback}
                     feedbackPending={item.container.runId ? candidateMutationRunIds.has(item.container.runId) : false}
-                    feedbackTriggerMessageId={item.feedbackContext?.triggerMessageId}
                     onOpenSearchResult={onOpenSearchResult}
                     onSetRunFeedback={onSetRunFeedback}
                     showPersistedResearchStatus={showPersistedResearchStatus}

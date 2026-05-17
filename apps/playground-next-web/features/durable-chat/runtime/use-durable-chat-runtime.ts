@@ -951,7 +951,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     }
   }
 
-  async function updateRunFeedback(runId: string, triggerMessageId: string, value: 'thumbs_up' | 'thumbs_down' | null) {
+  async function updateRunFeedback(runId: string, value: 'thumbs_up' | 'thumbs_down' | null) {
     const threadId = activeThreadIdRef.current;
     if (!threadId || candidateMutationRunIds.has(runId)) {
       return;
@@ -960,7 +960,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     setCandidateMutationRunIds((current) => new Set(current).add(runId));
     try {
       const result = value
-        ? await setRunFeedbackRequest(threadId, runId, triggerMessageId, value)
+        ? await setRunFeedbackRequest(threadId, runId, value)
         : await clearRunFeedbackRequest(threadId, runId);
       if (!result.ok) {
         throw new Error(result.error ?? `Failed to update run feedback (${result.status})`);
@@ -1135,6 +1135,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     loadingCurrentShare,
     messagesViewportRef,
     meta,
+    runFeedback,
     onArchiveThread: () => {
       onArchiveActiveThread();
     },
@@ -1158,8 +1159,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     onOpenThreadShareDialog: (threadId: string) => {
       void onOpenShareDialogForThread(threadId);
     },
-    onSetRunFeedback: (runId: string, triggerMessageId: string, value: 'thumbs_up' | 'thumbs_down' | null) => {
-      void updateRunFeedback(runId, triggerMessageId, value);
+    onSetRunFeedback: (runId: string, value: 'thumbs_up' | 'thumbs_down' | null) => {
+      void updateRunFeedback(runId, value);
     },
     onLoadOlderMessages: () => {
       void loadOlderMessages();

@@ -100,6 +100,29 @@ describe('Sqlite answer candidate repositories', () => {
     return { userMessage, primaryRun, alternativeRun };
   }
 
+  async function createAssistantAnswer(runId: string, seq: number) {
+    const message = await messageRepo.create({
+      id: `message-assistant-${runId}`,
+      threadId: 'thread-1',
+      runId,
+      role: 'assistant',
+      seq,
+      status: 'completed',
+      metadata: null
+    });
+
+    await messageRepo.createPart({
+      id: `part-${runId}`,
+      messageId: message.id,
+      partIndex: 0,
+      type: 'text',
+      textValue: 'Answer',
+      jsonValue: null
+    });
+
+    return message;
+  }
+
   it('creates answer candidates and lists them by trigger message, run ids, and thread', async () => {
     const { userMessage, primaryRun, alternativeRun } = await createTurn();
 
@@ -232,6 +255,8 @@ describe('Sqlite answer candidate repositories', () => {
 
   it('sets, replaces, filters, and clears feedback by run and actor', async () => {
     const { userMessage, primaryRun, alternativeRun } = await createTurn();
+    await createAssistantAnswer(primaryRun.id, 2);
+    await createAssistantAnswer(alternativeRun.id, 3);
     await candidateRepo.create({
       id: 'candidate-1',
       threadId: 'thread-1',
@@ -284,5 +309,62 @@ describe('Sqlite answer candidate repositories', () => {
 
     await feedbackRepo.clear({ runId: primaryRun.id, feedbackActorId: 'user:user-1' });
     expect((await feedbackRepo.listByRunIds([primaryRun.id, alternativeRun.id])).map((feedback) => feedback.id)).toEqual(['feedback-3']);
+  });
+
+  it('sets feedback for non-candidate assistant answer runs', async () => {
+    const { userMessage, primaryRun } = await createTurn();
+    await createAssistantAnswer(primaryRun.id, 2);
+
+    const feedback = await feedbackRepo.set({
+      id: 'feedback-normal',
+      threadId: 'thread-1',
+      triggerMessageId: userMessage.id,
+      runId: primaryRun.id,
+      feedbackActorId: 'user:user-1',
+      value: 'thumbs_up'
+    });
+
+    expect(feedback).toMatchObject({
+      runId: primaryRun.id,
+      feedbackActorId: 'user:user-1',
+      value: 'thumbs_up'
+    });
+  });
+
+  it('rejects feedback when run trigger or assistant output is missing', async () => {
+    const { userMessage, primaryRun } = await createTurn();
+    const otherMessage = await messageRepo.create({
+      id: 'message-user-2',
+      threadId: 'thread-1',
+      runId: null,
+      role: 'user',
+      seq: 2,
+      status: 'completed',
+      metadata: null
+    });
+
+    await expect(
+      feedbackRepo.set({
+        id: 'feedback-no-output',
+        threadId: 'thread-1',
+        triggerMessageId: userMessage.id,
+        runId: primaryRun.id,
+        feedbackActorId: 'user:user-1',
+        value: 'thumbs_up'
+      })
+    ).rejects.toThrow(/no assistant output/);
+
+    await createAssistantAnswer(primaryRun.id, 3);
+
+    await expect(
+      feedbackRepo.set({
+        id: 'feedback-wrong-trigger',
+        threadId: 'thread-1',
+        triggerMessageId: otherMessage.id,
+        runId: primaryRun.id,
+        feedbackActorId: 'user:user-1',
+        value: 'thumbs_up'
+      })
+    ).rejects.toThrow(/not a feedback target/);
   });
 });

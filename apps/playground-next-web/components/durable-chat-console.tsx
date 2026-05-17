@@ -143,6 +143,7 @@ export function DurableChatConsole({ currentUser = null, initialThreadId = null,
                     answerCandidateGroups={runtime.displayedAnswerCandidateGroups}
                     answerContainers={runtime.displayedAnswerContainers}
                     candidateMutationRunIds={runtime.candidateMutationRunIds}
+                    runFeedback={runtime.runFeedback}
                     transcriptBlocks={runtime.displayedTranscriptBlocks}
                     liveAssistantDraft={runtime.liveAssistantDraft}
                     liveAssistantActionsAvailable={runtime.liveAssistantActionsAvailable}

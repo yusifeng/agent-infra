@@ -277,19 +277,22 @@ export class SqliteRunFeedbackRepository implements RunFeedbackRepository {
   constructor(private readonly db: any) {}
 
   private async validateFeedbackTarget(input: Pick<RunFeedback, 'threadId' | 'triggerMessageId' | 'runId'>) {
-    const [candidate] = await this.db
+    const [run] = await this.db
       .select()
-      .from(answerCandidates)
-      .where(
-        and(
-          eq(answerCandidates.threadId, input.threadId),
-          eq(answerCandidates.triggerMessageId, input.triggerMessageId),
-          eq(answerCandidates.runId, input.runId)
-        )
-      )
+      .from(runs)
+      .where(and(eq(runs.id, input.runId), eq(runs.threadId, input.threadId), eq(runs.triggerMessageId, input.triggerMessageId)))
       .limit(1);
-    if (!candidate) {
-      throw new Error(`run ${input.runId} is not a candidate for trigger message ${input.triggerMessageId}`);
+    if (!run) {
+      throw new Error(`run ${input.runId} is not a feedback target for trigger message ${input.triggerMessageId}`);
+    }
+
+    const [assistantMessage] = await this.db
+      .select()
+      .from(messages)
+      .where(and(eq(messages.threadId, input.threadId), eq(messages.runId, input.runId), eq(messages.role, 'assistant')))
+      .limit(1);
+    if (!assistantMessage) {
+      throw new Error(`run ${input.runId} has no assistant output`);
     }
   }
 

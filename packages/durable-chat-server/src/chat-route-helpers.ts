@@ -317,7 +317,9 @@ export function parseSetRunFeedbackInput(body: unknown): SetRunFeedbackRequestDt
   }
 
   return {
-    triggerMessageId: typeof record.triggerMessageId === 'string' ? record.triggerMessageId.trim() : '',
+    triggerMessageId: typeof record.triggerMessageId === 'string' && record.triggerMessageId.trim()
+      ? record.triggerMessageId.trim()
+      : null,
     value: record.value
   };
 }

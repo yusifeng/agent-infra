@@ -735,7 +735,6 @@ export const AnswerContainerCard = memo(function AnswerContainerCard({
   actionContext,
   feedback = null,
   feedbackPending = false,
-  feedbackTriggerMessageId = null,
   showPersistedResearchStatus = false,
   activeReplayBlockId = null,
   variant = 'standalone',
@@ -749,12 +748,11 @@ export const AnswerContainerCard = memo(function AnswerContainerCard({
   };
   feedback?: RunFeedbackDto | null;
   feedbackPending?: boolean;
-  feedbackTriggerMessageId?: string | null;
   showPersistedResearchStatus?: boolean;
   activeReplayBlockId?: string | null;
   variant?: 'standalone' | 'candidate';
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
-  onSetRunFeedback?: (runId: string, triggerMessageId: string, value: RunFeedbackDto['value'] | null) => void;
+  onSetRunFeedback?: (runId: string, value: RunFeedbackDto['value'] | null) => void;
 }) {
   const sections = useMemo(
     () => buildAnswerContainerContentSections(container.blocks, showPersistedResearchStatus),
@@ -768,7 +766,7 @@ export const AnswerContainerCard = memo(function AnswerContainerCard({
     container.blocks.flatMap((block) => block.items.map((item) => [item.id, block.id] as const))
   );
   const getReplayBlockIdForItemId = (itemId: string) => blockIdByItemId.get(itemId) ?? null;
-  const feedbackEnabled = Boolean(container.runId && feedbackTriggerMessageId && onSetRunFeedback);
+  const feedbackEnabled = Boolean(container.runId && onSetRunFeedback);
   const actionsAvailable = actionContext.hasVisibleOperation || feedbackEnabled;
   const actionItems = buildAnswerContainerActions({
     copyAvailable: actionContext.hasVisibleOperation,
@@ -875,10 +873,9 @@ export const AnswerContainerCard = memo(function AnswerContainerCard({
             return;
           }
 
-          if ((key === 'thumbs_up' || key === 'thumbs_down') && container.runId && feedbackTriggerMessageId) {
+          if ((key === 'thumbs_up' || key === 'thumbs_down') && container.runId) {
             onSetRunFeedback?.(
               container.runId,
-              feedbackTriggerMessageId,
               feedback?.value === key ? null : key
             );
           }
@@ -993,7 +990,7 @@ export const AnswerCandidateGroupCard = memo(function AnswerCandidateGroupCard({
   group: AnswerCandidateGroup;
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
   onChooseAnswerCandidate?: (runId: string, triggerMessageId: string) => void;
-  onSetRunFeedback?: (runId: string, triggerMessageId: string, value: RunFeedbackDto['value'] | null) => void;
+  onSetRunFeedback?: (runId: string, value: RunFeedbackDto['value'] | null) => void;
   pendingRunIds?: Set<string>;
   showPersistedResearchStatus?: boolean;
 }) {
@@ -1045,7 +1042,6 @@ export const AnswerCandidateGroupCard = memo(function AnswerCandidateGroupCard({
                   container={candidate.answerContainer}
                   feedback={candidate.feedback}
                   feedbackPending={pendingRunIds.has(candidate.candidate.runId)}
-                  feedbackTriggerMessageId={candidate.candidate.triggerMessageId}
                   onOpenSearchResult={onOpenSearchResult}
                   onSetRunFeedback={onSetRunFeedback}
                   showPersistedResearchStatus={showPersistedResearchStatus}

@@ -1,4 +1,4 @@
-import type { MessageDto } from '@agent-infra/contracts';
+import type { MessageDto, RunFeedbackDto } from '@agent-infra/contracts';
 import { describe, expect, it } from 'vitest';
 
 import { buildMessageListRenderPlan, buildTranscriptRenderItems } from './message-list-presentation';
@@ -54,6 +54,19 @@ function createAnswerContainerForRun(id: string, runId: string, transcriptBlockI
     ...createAnswerContainer(id, transcriptBlockIds),
     runId,
     blocks: transcriptBlockIds.map((blockId) => createAssistantBlock(blockId, runId))
+  };
+}
+
+function createFeedback(runId: string): RunFeedbackDto {
+  return {
+    id: `feedback-${runId}`,
+    threadId: 'thread-1',
+    triggerMessageId: 'user-block-1:message',
+    runId,
+    feedbackActorId: 'user-1',
+    value: 'thumbs_up',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z'
   };
 }
 
@@ -150,10 +163,66 @@ describe('message list presentation', () => {
       {
         type: 'answer-container',
         key: firstAssistant.id,
-        container
+        container,
+        feedbackContext: {
+          feedback: null
+        }
       }
     ]);
   });
+
+  it('attaches feedback context to normal answer containers by run id', () => {
+    const userBlock = createUserBlock('user-block-1');
+    const assistantBlock = createAssistantBlock('assistant-block-1', 'run-1');
+    const container = createAnswerContainerForRun('answer-container-1', 'run-1', [assistantBlock.id]);
+    const feedback = createFeedback('run-1');
+
+    const items = buildTranscriptRenderItems({
+      answerContainers: [container],
+      runFeedback: [feedback],
+      transcriptBlocks: [userBlock, assistantBlock]
+    });
+
+    expect(items).toEqual([
+      {
+        type: 'transcript-block',
+        key: userBlock.id,
+        block: userBlock
+      },
+      {
+        type: 'answer-container',
+        key: assistantBlock.id,
+        container,
+        feedbackContext: {
+          feedback
+        }
+      }
+    ]);
+  });
+
+  it('attaches feedback context to answer containers even when the slice starts with an assistant block', () => {
+    const assistantBlock = createAssistantBlock('assistant-block-1', 'run-1');
+    const container = createAnswerContainerForRun('answer-container-1', 'run-1', [assistantBlock.id]);
+    const feedback = createFeedback('run-1');
+
+    const items = buildTranscriptRenderItems({
+      answerContainers: [container],
+      runFeedback: [feedback],
+      transcriptBlocks: [assistantBlock]
+    });
+
+    expect(items).toEqual([
+      {
+        type: 'answer-container',
+        key: assistantBlock.id,
+        container,
+        feedbackContext: {
+          feedback
+        }
+      }
+    ]);
+  });
+
 
   it('renders a candidate group after its user message and suppresses grouped answer containers', () => {
     const userBlock = createUserBlock('user-block-1');
@@ -296,7 +365,7 @@ describe('message list presentation', () => {
         key: 'group-1:selected',
         container: runBContainer,
         feedbackContext: {
-          triggerMessageId: userBlock.message.id
+          feedback: null
         }
       }
     ]);

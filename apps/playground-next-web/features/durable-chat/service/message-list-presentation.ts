@@ -1,4 +1,4 @@
-import type { MessageDto, RuntimePiMetaDto } from '@agent-infra/contracts';
+import type { MessageDto, RunFeedbackDto, RuntimePiMetaDto } from '@agent-infra/contracts';
 
 import type { AnswerContainer } from '@/features/durable-chat/types/answer-containers';
 import type { AnswerCandidateGroup } from '@/features/durable-chat/types/answer-candidate-groups';
@@ -12,8 +12,7 @@ export type TranscriptRenderItem =
       key: string;
       container: AnswerContainer;
       feedbackContext?: {
-        feedback: AnswerCandidateGroup['candidates'][number]['feedback'];
-        triggerMessageId: string;
+        feedback: RunFeedbackDto | null;
       };
     }
   | {
@@ -45,10 +44,12 @@ export type MessageListRenderPlan = {
 export function buildTranscriptRenderItems({
   answerContainers,
   answerCandidateGroups = [],
+  runFeedback = [],
   transcriptBlocks
 }: {
   answerContainers: AnswerContainer[];
   answerCandidateGroups?: AnswerCandidateGroup[];
+  runFeedback?: RunFeedbackDto[];
   transcriptBlocks: TranscriptBlock[];
 }): TranscriptRenderItem[] {
   const answerContainerStartByBlockId = new Map(
@@ -59,6 +60,7 @@ export function buildTranscriptRenderItems({
   const answerContainerBlockIds = new Set(answerContainers.flatMap((container) => container.transcriptBlockIds));
   const candidateGroupsByTriggerMessageId = new Map(answerCandidateGroups.map((group) => [group.triggerMessageId, group] as const));
   const groupedCandidateRunIds = new Set(answerCandidateGroups.flatMap((group) => group.candidates.map((candidate) => candidate.candidate.runId)));
+  const feedbackByRunId = new Map(runFeedback.map((feedback) => [feedback.runId, feedback] as const));
 
   return transcriptBlocks.flatMap((block): TranscriptRenderItem[] => {
     if (block.type === 'user-message') {
@@ -86,8 +88,7 @@ export function buildTranscriptRenderItems({
             key: `${group.id}:selected`,
             container: userSelectedCandidate.answerContainer,
             feedbackContext: {
-              feedback: userSelectedCandidate.feedback,
-              triggerMessageId: group.triggerMessageId
+              feedback: userSelectedCandidate.feedback
             }
           }
         ];
@@ -114,7 +115,13 @@ export function buildTranscriptRenderItems({
             {
               type: 'answer-container',
               key: block.id,
-              container
+              container,
+              feedbackContext:
+                container.runId
+                  ? {
+                      feedback: feedbackByRunId.get(container.runId) ?? null
+                    }
+                  : undefined
             }
           ]
         : [];
@@ -140,6 +147,7 @@ export function buildMessageListRenderPlan({
   messages,
   meta,
   showLoadingText,
+  runFeedback,
   transcriptBlocks
 }: {
   activeThreadId: string | null;
@@ -150,6 +158,7 @@ export function buildMessageListRenderPlan({
   loadingMessages: boolean;
   messages: MessageDto[];
   meta: RuntimePiMetaDto | null;
+  runFeedback?: RunFeedbackDto[];
   showLoadingText: boolean;
   transcriptBlocks: TranscriptBlock[];
 }): MessageListRenderPlan {
@@ -177,6 +186,6 @@ export function buildMessageListRenderPlan({
     showLiveAssistant: showTranscriptContent && liveAssistantDraft !== null && !liveDraftIsInCandidateGroup,
     showEmptyThinkingIndicator: showEmptyState && showLoadingText,
     showTrailingThinkingIndicator: showTranscriptContent && showLoadingText,
-    transcriptRenderItems: buildTranscriptRenderItems({ answerCandidateGroups, answerContainers, transcriptBlocks })
+    transcriptRenderItems: buildTranscriptRenderItems({ answerCandidateGroups, answerContainers, runFeedback, transcriptBlocks })
   };
 }

@@ -172,6 +172,28 @@ async function ensureSelectionIsMutable(repositories: AgentInfraAppRepositories,
   }
 }
 
+async function ensureRunIsFeedbackTarget(
+  repositories: AgentInfraAppRepositories,
+  input: { threadId: string; triggerMessageId?: string | null; runId: string }
+): Promise<string> {
+  const run = await repositories.runRepo.findById(input.runId);
+  if (!run || run.threadId !== input.threadId || !run.triggerMessageId) {
+    throw new InvalidRunFeedbackError('feedback run is not part of the requested turn', { ...input });
+  }
+
+  if (input.triggerMessageId && run.triggerMessageId !== input.triggerMessageId) {
+    throw new InvalidRunFeedbackError('feedback run is not part of the requested turn', { ...input });
+  }
+
+  const messages = await repositories.messageRepo.listByThread(input.threadId);
+  const hasAssistantOutput = messages.some((message) => message.role === 'assistant' && message.runId === input.runId);
+  if (!hasAssistantOutput) {
+    throw new InvalidRunFeedbackError('feedback run has no assistant output', { ...input });
+  }
+
+  return run.triggerMessageId;
+}
+
 async function loadShareByPublicIdOrThrow(repositories: AgentInfraAppRepositories, publicId: string) {
   const share = await repositories.chatShareRepo.findByPublicId(publicId);
   if (!share) {
@@ -774,7 +796,12 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
         const relevantSelections = hasPagination
           ? answerSelections.filter((selection) => relevantTriggerIds.has(selection.triggerMessageId))
           : answerSelections;
-        const runIds = [...new Set(relevantCandidates.map((candidate) => candidate.runId))];
+        const runIds = [
+          ...new Set([
+            ...relevantCandidates.map((candidate) => candidate.runId),
+            ...visibleRunIds
+          ])
+        ];
         const feedbackActorId = input.feedbackActorId?.trim() || null;
         const runFeedback = runIds.length > 0 && feedbackActorId
           ? await dependencies.repositories.runFeedbackRepo.listByRunIds(runIds, feedbackActorId)
@@ -819,15 +846,12 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
       },
       async setRunFeedback(input) {
         await loadThreadOrThrow(dependencies.repositories, input.threadId);
-        const candidate = await dependencies.repositories.answerCandidateRepo.findByRunId(input.runId);
-        if (!candidate || candidate.threadId !== input.threadId || candidate.triggerMessageId !== input.triggerMessageId) {
-          throw new InvalidRunFeedbackError('feedback run is not a candidate for this turn', { ...input });
-        }
+        const triggerMessageId = await ensureRunIsFeedbackTarget(dependencies.repositories, input);
 
         return dependencies.repositories.runFeedbackRepo.set({
           id: generateId(),
           threadId: input.threadId,
-          triggerMessageId: input.triggerMessageId,
+          triggerMessageId,
           runId: input.runId,
           feedbackActorId: input.feedbackActorId,
           value: input.value

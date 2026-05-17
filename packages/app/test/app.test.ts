@@ -904,7 +904,7 @@ describe('createAgentInfraApp', () => {
   });
 
   it('sets, replaces, clears, and validates run feedback for answer candidates', async () => {
-    const { app } = createDependencies(createHappyRuntime());
+    const { app, repositories } = createDependencies(createHappyRuntime());
     const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Feedback path' });
     const started = await app.turns.startTextCandidates({
       threadId: thread.id,
@@ -912,6 +912,7 @@ describe('createAgentInfraApp', () => {
       candidateCount: 2
     });
     const candidateRunId = started.candidates[0]!.run.id;
+    await persistAssistantAnswer(repositories, { threadId: thread.id, runId: candidateRunId, text: 'Candidate answer' });
 
     const positive = await app.turns.setRunFeedback({
       threadId: thread.id,
@@ -954,6 +955,66 @@ describe('createAgentInfraApp', () => {
         threadId: thread.id,
         triggerMessageId: started.triggerMessageId,
         runId: 'missing-run',
+        feedbackActorId: 'actor-1',
+        value: 'thumbs_up'
+      })
+    ).rejects.toBeInstanceOf(InvalidRunFeedbackError);
+  });
+
+  it('sets run feedback for a normal assistant answer run', async () => {
+    const { app, repositories } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Normal feedback path' });
+    const started = await app.turns.startText({
+      threadId: thread.id,
+      text: 'Normal feedback target'
+    });
+    await persistAssistantAnswer(repositories, { threadId: thread.id, runId: started.run.id, text: 'Normal answer' });
+
+    const feedback = await app.turns.setRunFeedback({
+      threadId: thread.id,
+      runId: started.run.id,
+      feedbackActorId: 'actor-1',
+      value: 'thumbs_up'
+    });
+    const hydrated = await app.threads.getMessagesWithAnswerCandidates({ threadId: thread.id, feedbackActorId: 'actor-1' });
+
+    expect(feedback).toMatchObject({
+      threadId: thread.id,
+      triggerMessageId: started.userMessage.id,
+      runId: started.run.id,
+      feedbackActorId: 'actor-1',
+      value: 'thumbs_up'
+    });
+    expect(hydrated.runFeedback).toMatchObject([{ runId: started.run.id, value: 'thumbs_up' }]);
+  });
+
+  it('rejects run feedback when the run has no assistant output or mismatched trigger', async () => {
+    const { app } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Invalid feedback path' });
+    const started = await app.turns.startText({
+      threadId: thread.id,
+      text: 'No answer yet'
+    });
+    const next = await app.turns.startText({
+      threadId: thread.id,
+      text: 'Another question'
+    });
+
+    await expect(
+      app.turns.setRunFeedback({
+        threadId: thread.id,
+        triggerMessageId: started.userMessage.id,
+        runId: started.run.id,
+        feedbackActorId: 'actor-1',
+        value: 'thumbs_up'
+      })
+    ).rejects.toBeInstanceOf(InvalidRunFeedbackError);
+
+    await expect(
+      app.turns.setRunFeedback({
+        threadId: thread.id,
+        triggerMessageId: next.userMessage.id,
+        runId: started.run.id,
         feedbackActorId: 'actor-1',
         value: 'thumbs_up'
       })

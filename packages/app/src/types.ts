@@ -146,7 +146,7 @@ export interface SelectAnswerCandidateInput {
 
 export interface SetRunFeedbackInput {
   threadId: string;
-  triggerMessageId: string;
+  triggerMessageId?: string | null;
   runId: string;
   feedbackActorId: string;
   value: RunFeedbackValue;
