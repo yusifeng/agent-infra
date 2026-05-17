@@ -8,6 +8,10 @@ import {
   buildDatasetExamplesResponse,
   buildDatasetResponse,
   buildDatasetsResponse,
+  buildEvalExampleResultResponse,
+  buildEvalExampleResultsResponse,
+  buildEvalRunResponse,
+  buildEvalRunsResponse,
   buildRunTextTurnResponse,
   buildRunTraceErrorResponse,
   buildRunTraceResponse,
@@ -22,7 +26,9 @@ import {
   parseCreateThreadTitle,
   parseCaptureDatasetExampleFromRunInput,
   parseCreateDatasetInput,
+  parseCreateEvalRunInput,
   parseRenameThreadTitle,
+  parseUpdateEvalExampleResultReviewInput,
   parseUpdateDatasetExampleExpectedOutputInput,
   parseUpdateDatasetExampleReviewInput,
   parseThreadMessagesQuery,
@@ -224,6 +230,139 @@ describe('durable chat server route helpers', () => {
       dataset: { id: dataset.id },
       example: { id: example.id, expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected answer' } }
     });
+  });
+
+  it('parses and serializes eval route payloads', () => {
+    const createdAt = new Date('2026-01-01T00:00:00.000Z');
+    const updatedAt = new Date('2026-01-01T00:05:00.000Z');
+    const configJson = {
+      schemaVersion: 1,
+      kind: 'eval_run_config',
+      selection: { policy: 'effective_eligible_v1' },
+      execution: { mode: 'current_runtime', strategy: 'isolated_eval_thread', concurrency: 'serial' },
+      runtime: { provider: 'openai', model: 'gpt-4o-mini', options: { webSearchEnabled: true } }
+    };
+    const summaryJson = {
+      schemaVersion: 1,
+      kind: 'eval_run_summary',
+      selection: { eligibleCount: 1, ineligibleCount: 0, ineligibleReasonCounts: {}, selectedCount: 1 },
+      results: {
+        statusCounts: { queued: 0, running: 0, completed: 1, failed: 0, skipped: 0 },
+        reviewStatusCounts: { unreviewed: 0, pass: 1, fail: 0, needs_review: 0, not_applicable: 0 },
+        aggregateUsage: null,
+        durationMs: 1200
+      }
+    };
+    const evalRun = {
+      id: 'eval-run-1',
+      appId: 'app-1',
+      datasetId: 'dataset-1',
+      status: 'completed' as const,
+      name: 'nightly',
+      configJson,
+      summaryJson,
+      error: null,
+      createdByActorId: 'actor-1',
+      startedAt: createdAt,
+      finishedAt: updatedAt,
+      createdAt,
+      updatedAt
+    };
+    const result = {
+      id: 'result-1',
+      evalRunId: evalRun.id,
+      datasetExampleId: 'example-1',
+      exampleOrdinal: 0,
+      status: 'completed' as const,
+      evalThreadId: 'eval-thread-1',
+      outputRunId: 'output-run-1',
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected answer' },
+      actualOutputJson: {
+        schemaVersion: 1,
+        kind: 'eval_run_output',
+        outputRunId: 'output-run-1',
+        evalThreadId: 'eval-thread-1',
+        status: 'completed',
+        error: null,
+        assistantMessages: [
+          {
+            id: 'message-1',
+            threadId: 'eval-thread-1',
+            runId: 'output-run-1',
+            role: 'assistant',
+            seq: 2,
+            status: 'completed',
+            metadata: null,
+            createdAt: createdAt.toISOString(),
+            parts: []
+          }
+        ]
+      },
+      inputJson: { schemaVersion: 1, kind: 'chat_turn' },
+      usageJson: { totalTokens: 42 },
+      metadataJson: {
+        review: {
+          status: 'pass',
+          reviewerNote: 'ok',
+          reviewedByActorId: 'actor-1',
+          reviewedAt: updatedAt.toISOString()
+        }
+      },
+      error: null,
+      startedAt: createdAt,
+      finishedAt: updatedAt,
+      createdAt,
+      updatedAt
+    };
+
+    expect(
+      parseCreateEvalRunInput({
+        name: ' nightly ',
+        provider: ' openai ',
+        model: ' gpt-4o-mini ',
+        runtimeOptions: { webSearchEnabled: true }
+      })
+    ).toEqual({
+      name: 'nightly',
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+      runtimeOptions: { webSearchEnabled: true }
+    });
+    expect(parseCreateEvalRunInput({ name: '   ', provider: null, model: null, runtimeOptions: null })).toEqual({
+      name: null,
+      provider: null,
+      model: null,
+      runtimeOptions: null
+    });
+    expect(() => parseCreateEvalRunInput({ runtimeOptions: 'bad' })).toThrow(InvalidRouteBodyError);
+    expect(parseUpdateEvalExampleResultReviewInput({ status: 'needs_review', reviewerNote: ' inspect ' })).toEqual({
+      status: 'needs_review',
+      reviewerNote: 'inspect'
+    });
+    expect(() => parseUpdateEvalExampleResultReviewInput({ status: 'pass', reviewedByActorId: 'actor-1' })).toThrow(
+      InvalidRouteBodyError
+    );
+
+    expect(buildEvalRunsResponse([evalRun])).toMatchObject({
+      evalRuns: [
+        {
+          id: evalRun.id,
+          config: { schemaVersion: 1, kind: 'eval_run_config' },
+          summary: { schemaVersion: 1, kind: 'eval_run_summary' }
+        }
+      ]
+    });
+    expect(buildEvalRunResponse(evalRun)).toMatchObject({ evalRun: { id: evalRun.id, status: 'completed' } });
+    expect(buildEvalExampleResultsResponse([result])).toMatchObject({
+      results: [
+        {
+          id: result.id,
+          actualOutput: { outputRunId: 'output-run-1', assistantMessages: [{ id: 'message-1' }] },
+          review: { status: 'pass', reviewerNote: 'ok' }
+        }
+      ]
+    });
+    expect(buildEvalExampleResultResponse(result)).toMatchObject({ result: { id: result.id, usageJson: { totalTokens: 42 } } });
   });
 
   it('builds thread and message dto responses', () => {

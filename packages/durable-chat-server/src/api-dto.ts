@@ -5,6 +5,8 @@ import type {
   ChatShareSnapshot,
   Dataset,
   DatasetExample,
+  EvalExampleResult,
+  EvalRun,
   Message,
   MessagePart,
   Run,
@@ -21,6 +23,9 @@ import type {
   DatasetDto,
   DatasetExampleDto,
   DatasetExpectedOutputNormalizationDto,
+  EvalActualOutputSnapshotV1Dto,
+  EvalExampleResultDto,
+  EvalRunDto,
   MessageDto,
   MessagePartDto,
   PublicChatShareDto,
@@ -39,7 +44,10 @@ import type {
 import {
   computeDatasetExampleEffectiveEligibilityV1,
   normalizeDatasetExampleReviewMetadataV1,
-  normalizeDatasetExpectedOutputV1
+  normalizeDatasetExpectedOutputV1,
+  normalizeEvalExampleResultReviewV1,
+  parseEvalRunConfigV1,
+  parseEvalRunSummaryV1
 } from '@agent-infra/app';
 import type { PublicChatShareResult, SharedThreadSnapshotPayload } from '@agent-infra/app';
 
@@ -282,6 +290,86 @@ export function toDatasetExampleDto(example: DatasetExample): DatasetExampleDto 
     createdByActorId: example.createdByActorId ?? null,
     createdAt: example.createdAt.toISOString(),
     updatedAt: example.updatedAt.toISOString()
+  };
+}
+
+function parseEvalRunConfigDto(value: Record<string, unknown>): EvalRunDto['config'] {
+  try {
+    return parseEvalRunConfigV1(value);
+  } catch {
+    return null;
+  }
+}
+
+function parseEvalRunSummaryDto(value: Record<string, unknown>): EvalRunDto['summary'] {
+  try {
+    return parseEvalRunSummaryV1(value);
+  } catch {
+    return null;
+  }
+}
+
+function toEvalActualOutputSnapshotDto(value: Record<string, unknown> | null | undefined): EvalActualOutputSnapshotV1Dto | null {
+  if (!value || value.schemaVersion !== 1 || value.kind !== 'eval_run_output') {
+    return null;
+  }
+
+  if (typeof value.outputRunId !== 'string' || typeof value.evalThreadId !== 'string' || typeof value.status !== 'string') {
+    return null;
+  }
+
+  return {
+    schemaVersion: 1,
+    kind: 'eval_run_output',
+    outputRunId: value.outputRunId,
+    evalThreadId: value.evalThreadId,
+    status: value.status as EvalActualOutputSnapshotV1Dto['status'],
+    error: typeof value.error === 'string' ? value.error : null,
+    assistantMessages: Array.isArray(value.assistantMessages) ? (value.assistantMessages as MessageDto[]) : []
+  };
+}
+
+export function toEvalRunDto(evalRun: EvalRun): EvalRunDto {
+  return {
+    id: evalRun.id,
+    appId: evalRun.appId,
+    datasetId: evalRun.datasetId,
+    status: evalRun.status,
+    name: evalRun.name ?? null,
+    configJson: evalRun.configJson,
+    config: parseEvalRunConfigDto(evalRun.configJson),
+    summaryJson: evalRun.summaryJson,
+    summary: parseEvalRunSummaryDto(evalRun.summaryJson),
+    error: evalRun.error ?? null,
+    createdByActorId: evalRun.createdByActorId ?? null,
+    startedAt: serializeDate(evalRun.startedAt),
+    finishedAt: serializeDate(evalRun.finishedAt),
+    createdAt: evalRun.createdAt.toISOString(),
+    updatedAt: evalRun.updatedAt.toISOString()
+  };
+}
+
+export function toEvalExampleResultDto(result: EvalExampleResult): EvalExampleResultDto {
+  return {
+    id: result.id,
+    evalRunId: result.evalRunId,
+    datasetExampleId: result.datasetExampleId,
+    exampleOrdinal: result.exampleOrdinal,
+    status: result.status,
+    evalThreadId: result.evalThreadId ?? null,
+    outputRunId: result.outputRunId ?? null,
+    expectedOutputJson: result.expectedOutputJson,
+    actualOutputJson: result.actualOutputJson ?? null,
+    actualOutput: toEvalActualOutputSnapshotDto(result.actualOutputJson),
+    inputJson: result.inputJson ?? null,
+    usageJson: result.usageJson ?? null,
+    metadataJson: result.metadataJson ?? null,
+    review: normalizeEvalExampleResultReviewV1(result.metadataJson ?? null),
+    error: result.error ?? null,
+    startedAt: serializeDate(result.startedAt),
+    finishedAt: serializeDate(result.finishedAt),
+    createdAt: result.createdAt.toISOString(),
+    updatedAt: result.updatedAt.toISOString()
   };
 }
 

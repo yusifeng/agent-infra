@@ -13,6 +13,16 @@ import type {
   DatasetExamplesResponseDto,
   DatasetResponseDto,
   DatasetsResponseDto,
+  EvalActualOutputSnapshotV1Dto,
+  EvalExampleResultDto,
+  EvalExampleResultResponseDto,
+  EvalExampleResultsResponseDto,
+  EvalExampleResultReviewDto,
+  EvalRunConfigV1Dto,
+  EvalRunDto,
+  EvalRunResponseDto,
+  EvalRunsResponseDto,
+  EvalRunSummaryV1Dto,
   MessageDto,
   MessagePartDto,
   RunFeedbackDto,
@@ -462,6 +472,213 @@ function normalizeDatasetExample(value: unknown): DatasetExampleDto | null {
     contextSnapshotJson: asJsonRecordOrNull(record.contextSnapshotJson),
     toolInvocationsSnapshotJson: asJsonRecordOrNull(record.toolInvocationsSnapshotJson),
     createdByActorId: asNullableString(record.createdByActorId),
+    createdAt,
+    updatedAt
+  };
+}
+
+function normalizeEvalExampleResultReview(value: unknown): EvalExampleResultReviewDto {
+  const record = asRecord(value);
+  const status = record?.status;
+
+  return {
+    status:
+      status === 'pass' || status === 'fail' || status === 'needs_review' || status === 'not_applicable'
+        ? status
+        : 'unreviewed',
+    reviewerNote: asNullableString(record?.reviewerNote),
+    reviewedByActorId: asNullableString(record?.reviewedByActorId),
+    reviewedAt: asNullableString(record?.reviewedAt)
+  };
+}
+
+function normalizeEvalRunConfig(value: unknown): EvalRunConfigV1Dto | null {
+  const record = asRecord(value);
+  const selection = asRecord(record?.selection);
+  const execution = asRecord(record?.execution);
+  const runtime = asRecord(record?.runtime);
+  if (
+    !record ||
+    record.schemaVersion !== 1 ||
+    record.kind !== 'eval_run_config' ||
+    selection?.policy !== 'effective_eligible_v1' ||
+    execution?.mode !== 'current_runtime' ||
+    execution.strategy !== 'isolated_eval_thread' ||
+    execution.concurrency !== 'serial'
+  ) {
+    return null;
+  }
+
+  return {
+    schemaVersion: 1,
+    kind: 'eval_run_config',
+    selection: {
+      policy: 'effective_eligible_v1'
+    },
+    execution: {
+      mode: 'current_runtime',
+      strategy: 'isolated_eval_thread',
+      concurrency: 'serial'
+    },
+    runtime: runtime
+      ? {
+          provider: asNullableString(runtime.provider),
+          model: asNullableString(runtime.model),
+          options: asJsonRecordOrNull(runtime.options)
+        }
+      : null
+  };
+}
+
+function normalizeNumberRecord(value: unknown): Record<string, number> {
+  const record = asRecord(value);
+  if (!record) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(record).filter((entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1]))
+  );
+}
+
+function normalizeEvalRunSummary(value: unknown): EvalRunSummaryV1Dto | null {
+  const record = asRecord(value);
+  const selection = asRecord(record?.selection);
+  const results = asRecord(record?.results);
+  const eligibleCount = asNumber(selection?.eligibleCount);
+  const ineligibleCount = asNumber(selection?.ineligibleCount);
+  const selectedCount = asNumber(selection?.selectedCount);
+  if (
+    !record ||
+    record.schemaVersion !== 1 ||
+    record.kind !== 'eval_run_summary' ||
+    !selection ||
+    !results ||
+    eligibleCount === null ||
+    ineligibleCount === null ||
+    selectedCount === null ||
+    !isNullableNumber(results.durationMs)
+  ) {
+    return null;
+  }
+
+  return {
+    schemaVersion: 1,
+    kind: 'eval_run_summary',
+    selection: {
+      eligibleCount,
+      ineligibleCount,
+      ineligibleReasonCounts: normalizeNumberRecord(selection.ineligibleReasonCounts),
+      selectedCount
+    },
+    results: {
+      statusCounts: normalizeNumberRecord(results.statusCounts) as EvalRunSummaryV1Dto['results']['statusCounts'],
+      reviewStatusCounts: normalizeNumberRecord(results.reviewStatusCounts) as EvalRunSummaryV1Dto['results']['reviewStatusCounts'],
+      aggregateUsage: asJsonRecordOrNull(results.aggregateUsage),
+      durationMs: asNullableNumber(results.durationMs)
+    }
+  };
+}
+
+function normalizeEvalActualOutput(value: unknown): EvalActualOutputSnapshotV1Dto | null {
+  const record = asRecord(value);
+  if (!record || record.schemaVersion !== 1 || record.kind !== 'eval_run_output') {
+    return null;
+  }
+
+  const outputRunId = asString(record.outputRunId);
+  const evalThreadId = asString(record.evalThreadId);
+  const status = asString(record.status) as EvalActualOutputSnapshotV1Dto['status'] | null;
+  if (!outputRunId || !evalThreadId || !status) {
+    return null;
+  }
+
+  return {
+    schemaVersion: 1,
+    kind: 'eval_run_output',
+    outputRunId,
+    evalThreadId,
+    status,
+    error: asNullableString(record.error),
+    assistantMessages: Array.isArray(record.assistantMessages)
+      ? record.assistantMessages.map(normalizeMessage).filter((message): message is MessageDto => message !== null)
+      : []
+  };
+}
+
+function normalizeEvalRun(value: unknown): EvalRunDto | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const id = asString(record.id);
+  const appId = asString(record.appId);
+  const datasetId = asString(record.datasetId);
+  const status = asString(record.status) as EvalRunDto['status'] | null;
+  const configJson = asRecord(record.configJson);
+  const summaryJson = asRecord(record.summaryJson);
+  const createdAt = asString(record.createdAt);
+  const updatedAt = asString(record.updatedAt);
+  if (!id || !appId || !datasetId || !status || !configJson || !summaryJson || !createdAt || !updatedAt) {
+    return null;
+  }
+
+  return {
+    id,
+    appId,
+    datasetId,
+    status,
+    name: asNullableString(record.name),
+    configJson,
+    config: Object.hasOwn(record, 'config') ? normalizeEvalRunConfig(record.config) : normalizeEvalRunConfig(configJson),
+    summaryJson,
+    summary: Object.hasOwn(record, 'summary') ? normalizeEvalRunSummary(record.summary) : normalizeEvalRunSummary(summaryJson),
+    error: asNullableString(record.error),
+    createdByActorId: asNullableString(record.createdByActorId),
+    startedAt: asNullableString(record.startedAt),
+    finishedAt: asNullableString(record.finishedAt),
+    createdAt,
+    updatedAt
+  };
+}
+
+function normalizeEvalExampleResult(value: unknown): EvalExampleResultDto | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const id = asString(record.id);
+  const evalRunId = asString(record.evalRunId);
+  const datasetExampleId = asString(record.datasetExampleId);
+  const exampleOrdinal = asNumber(record.exampleOrdinal);
+  const status = asString(record.status) as EvalExampleResultDto['status'] | null;
+  const expectedOutputJson = asRecord(record.expectedOutputJson);
+  const createdAt = asString(record.createdAt);
+  const updatedAt = asString(record.updatedAt);
+  if (!id || !evalRunId || !datasetExampleId || exampleOrdinal === null || !status || !expectedOutputJson || !createdAt || !updatedAt) {
+    return null;
+  }
+
+  return {
+    id,
+    evalRunId,
+    datasetExampleId,
+    exampleOrdinal,
+    status,
+    evalThreadId: asNullableString(record.evalThreadId),
+    outputRunId: asNullableString(record.outputRunId),
+    expectedOutputJson,
+    actualOutputJson: asJsonRecordOrNull(record.actualOutputJson),
+    actualOutput: Object.hasOwn(record, 'actualOutput') ? normalizeEvalActualOutput(record.actualOutput) : normalizeEvalActualOutput(record.actualOutputJson),
+    inputJson: asJsonRecordOrNull(record.inputJson),
+    usageJson: asJsonRecordOrNull(record.usageJson),
+    metadataJson: asJsonRecordOrNull(record.metadataJson),
+    review: normalizeEvalExampleResultReview(record.review),
+    error: asNullableString(record.error),
+    startedAt: asNullableString(record.startedAt),
+    finishedAt: asNullableString(record.finishedAt),
     createdAt,
     updatedAt
   };
@@ -1039,6 +1256,42 @@ export function normalizeCaptureDatasetExampleResponse(value: unknown): CaptureD
   };
 }
 
+export function normalizeEvalRunsResponse(value: unknown): EvalRunsResponseDto {
+  const record = asRecord(value) ?? {};
+  return {
+    evalRuns: Array.isArray(record.evalRuns)
+      ? record.evalRuns.map(normalizeEvalRun).filter((evalRun): evalRun is EvalRunDto => evalRun !== null)
+      : [],
+    error: readApiError(record) ?? undefined
+  };
+}
+
+export function normalizeEvalRunResponse(value: unknown): EvalRunResponseDto {
+  const record = asRecord(value) ?? {};
+  return {
+    evalRun: normalizeEvalRun(record.evalRun) ?? undefined,
+    error: readApiError(record) ?? undefined
+  };
+}
+
+export function normalizeEvalExampleResultsResponse(value: unknown): EvalExampleResultsResponseDto {
+  const record = asRecord(value) ?? {};
+  return {
+    results: Array.isArray(record.results)
+      ? record.results.map(normalizeEvalExampleResult).filter((result): result is EvalExampleResultDto => result !== null)
+      : [],
+    error: readApiError(record) ?? undefined
+  };
+}
+
+export function normalizeEvalExampleResultResponse(value: unknown): EvalExampleResultResponseDto {
+  const record = asRecord(value) ?? {};
+  return {
+    result: normalizeEvalExampleResult(record.result) ?? undefined,
+    error: readApiError(record) ?? undefined
+  };
+}
+
 export function normalizeThreadMessagesResponse(value: unknown): ThreadMessagesResponseDto {
   const record = asRecord(value) ?? {};
   const legacyActiveRun = normalizeRun(record.activeRun);
@@ -1123,6 +1376,12 @@ export {
   normalizeDatasetExampleEffectiveEligibility,
   normalizeDatasetExampleReview,
   normalizeDatasetExpectedOutput,
+  normalizeEvalActualOutput,
+  normalizeEvalExampleResult,
+  normalizeEvalExampleResultReview,
+  normalizeEvalRun,
+  normalizeEvalRunConfig,
+  normalizeEvalRunSummary,
   normalizeMessage,
   normalizeRun,
   normalizeThread

@@ -2,11 +2,16 @@ import type {
   CaptureDatasetExampleFromRunRequestDto,
   CaptureDatasetExampleResponseDto,
   CreateDatasetRequestDto,
+  CreateEvalRunRequestDto,
   CreateThreadResponseDto,
   DatasetExampleResponseDto,
   DatasetExamplesResponseDto,
   DatasetResponseDto,
   DatasetsResponseDto,
+  EvalExampleResultResponseDto,
+  EvalExampleResultsResponseDto,
+  EvalRunResponseDto,
+  EvalRunsResponseDto,
   RunTraceResponseDto,
   RunTextTurnRequestDto,
   RunTimelineResponseDto,
@@ -15,7 +20,8 @@ import type {
   ThreadRunsResponseDto,
   ThreadsResponseDto,
   UpdateDatasetExampleExpectedOutputRequestDto,
-  UpdateDatasetExampleReviewRequestDto
+  UpdateDatasetExampleReviewRequestDto,
+  UpdateEvalExampleResultReviewRequestDto
 } from '@agent-infra/contracts';
 
 import {
@@ -25,6 +31,10 @@ import {
   normalizeDatasetExamplesResponse,
   normalizeDatasetResponse,
   normalizeDatasetsResponse,
+  normalizeEvalExampleResultResponse,
+  normalizeEvalExampleResultsResponse,
+  normalizeEvalRunResponse,
+  normalizeEvalRunsResponse,
   normalizeRunTraceResponse,
   normalizeRunTimelineResponse,
   normalizeRuntimeMetaResponse,
@@ -160,6 +170,52 @@ export async function updateDatasetExampleReviewResponse(
     body: JSON.stringify(body),
     signal
   });
+}
+
+export async function fetchDatasetEvalRunsResponse(datasetId: string, signal?: AbortSignal) {
+  return fetchJson<EvalRunsResponseDto>(`/api/datasets/${datasetId}/eval-runs`, normalizeEvalRunsResponse, { signal });
+}
+
+export async function createEvalRunResponse(datasetId: string, body: CreateEvalRunRequestDto, signal?: AbortSignal) {
+  return fetchJson<EvalRunResponseDto>(`/api/datasets/${datasetId}/eval-runs`, normalizeEvalRunResponse, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+    signal
+  });
+}
+
+export async function runEvalRunResponse(evalRunId: string, signal?: AbortSignal) {
+  return fetchJson<EvalRunResponseDto>(`/api/eval-runs/${evalRunId}/run`, normalizeEvalRunResponse, {
+    method: 'POST',
+    signal
+  });
+}
+
+export async function fetchEvalRunResponse(evalRunId: string, signal?: AbortSignal) {
+  return fetchJson<EvalRunResponseDto>(`/api/eval-runs/${evalRunId}`, normalizeEvalRunResponse, { signal });
+}
+
+export async function fetchEvalExampleResultsResponse(evalRunId: string, signal?: AbortSignal) {
+  return fetchJson<EvalExampleResultsResponseDto>(`/api/eval-runs/${evalRunId}/results`, normalizeEvalExampleResultsResponse, { signal });
+}
+
+export async function updateEvalExampleResultReviewResponse(
+  evalRunId: string,
+  resultId: string,
+  body: UpdateEvalExampleResultReviewRequestDto,
+  signal?: AbortSignal
+) {
+  return fetchJson<EvalExampleResultResponseDto>(
+    `/api/eval-runs/${evalRunId}/results/${resultId}/review`,
+    normalizeEvalExampleResultResponse,
+    {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal
+    }
+  );
 }
 
 export async function fetchRunTimelineResponse(runId: string, signal?: AbortSignal) {

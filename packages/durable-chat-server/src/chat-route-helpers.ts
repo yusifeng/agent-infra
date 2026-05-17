@@ -1,6 +1,7 @@
 import {
   parseDatasetExampleReviewUpdateV1,
-  parseDatasetExpectedOutputV1
+  parseDatasetExpectedOutputV1,
+  parseEvalExampleResultReviewUpdateV1
 } from '@agent-infra/app';
 import type {
   CreateThreadSnapshotShareResult,
@@ -11,12 +12,26 @@ import type {
   RunTraceResult,
   StartTextTurnResult
 } from '@agent-infra/app';
-import type { AnswerCandidate, AnswerSelection, Dataset, DatasetExample, Message, MessagePageResult, MessagePart, Run, RunFeedback, Thread } from '@agent-infra/core';
+import type {
+  AnswerCandidate,
+  AnswerSelection,
+  Dataset,
+  DatasetExample,
+  EvalExampleResult,
+  EvalRun,
+  Message,
+  MessagePageResult,
+  MessagePart,
+  Run,
+  RunFeedback,
+  Thread
+} from '@agent-infra/core';
 import type {
   AnswerSelectionResponseDto,
   CaptureDatasetExampleFromRunRequestDto,
   CaptureDatasetExampleResponseDto,
   CreateDatasetRequestDto,
+  CreateEvalRunRequestDto,
   CreateThreadShareResponseDto,
   PublicChatShareResponseDto,
   RevokeChatShareResponseDto,
@@ -25,6 +40,10 @@ import type {
   DatasetExamplesResponseDto,
   DatasetResponseDto,
   DatasetsResponseDto,
+  EvalExampleResultResponseDto,
+  EvalExampleResultsResponseDto,
+  EvalRunResponseDto,
+  EvalRunsResponseDto,
   RenameThreadRequestDto,
   RunFeedbackResponseDto,
   RunStreamAssistantEventDto,
@@ -44,6 +63,7 @@ import type {
   ThreadMessagesResponseDto,
   ThreadMessagesPageInfoDto,
   ThreadRunsResponseDto,
+  UpdateEvalExampleResultReviewRequestDto,
   UpdateThreadResponseDto,
   UpdateDatasetExampleExpectedOutputRequestDto,
   UpdateDatasetExampleReviewRequestDto,
@@ -56,6 +76,8 @@ import {
   toChatShareDto,
   toDatasetDto,
   toDatasetExampleDto,
+  toEvalExampleResultDto,
+  toEvalRunDto,
   toMessageDto,
   toPublicChatShareDto,
   toRunFeedbackDto,
@@ -192,6 +214,24 @@ export function parseUpdateDatasetExampleReviewInput(body: unknown): UpdateDatas
   }
 }
 
+export function parseCreateEvalRunInput(body: unknown): CreateEvalRunRequestDto {
+  const record = asObject(body);
+  return {
+    name: typeof record.name === 'string' ? record.name.trim() || null : record.name === null ? null : undefined,
+    provider: typeof record.provider === 'string' ? record.provider.trim() || null : record.provider === null ? null : undefined,
+    model: typeof record.model === 'string' ? record.model.trim() || null : record.model === null ? null : undefined,
+    runtimeOptions: readOptionalRecordOrNull(record, 'runtimeOptions')
+  };
+}
+
+export function parseUpdateEvalExampleResultReviewInput(body: unknown): UpdateEvalExampleResultReviewRequestDto {
+  try {
+    return parseEvalExampleResultReviewUpdateV1(body);
+  } catch (error) {
+    throw new InvalidRouteBodyError(error instanceof Error && error.message ? error.message : 'invalid eval result review update');
+  }
+}
+
 export function buildDatasetsResponse(datasets: Dataset[]): DatasetsResponseDto {
   return {
     datasets: datasets.map(toDatasetDto)
@@ -250,6 +290,56 @@ export function buildCaptureDatasetExampleResponse(result: CaptureDatasetExample
 }
 
 export function buildCaptureDatasetExampleErrorResponse(error: unknown, fallbackMessage: string): CaptureDatasetExampleResponseDto {
+  return {
+    error: getRouteErrorMessage(error, fallbackMessage)
+  };
+}
+
+export function buildEvalRunsResponse(evalRuns: EvalRun[]): EvalRunsResponseDto {
+  return {
+    evalRuns: evalRuns.map(toEvalRunDto)
+  };
+}
+
+export function buildEvalRunsErrorResponse(error: unknown, fallbackMessage: string): EvalRunsResponseDto {
+  return {
+    evalRuns: [],
+    error: getRouteErrorMessage(error, fallbackMessage)
+  };
+}
+
+export function buildEvalRunResponse(evalRun: EvalRun): EvalRunResponseDto {
+  return {
+    evalRun: toEvalRunDto(evalRun)
+  };
+}
+
+export function buildEvalRunErrorResponse(error: unknown, fallbackMessage: string): EvalRunResponseDto {
+  return {
+    error: getRouteErrorMessage(error, fallbackMessage)
+  };
+}
+
+export function buildEvalExampleResultsResponse(results: EvalExampleResult[]): EvalExampleResultsResponseDto {
+  return {
+    results: results.map(toEvalExampleResultDto)
+  };
+}
+
+export function buildEvalExampleResultsErrorResponse(error: unknown, fallbackMessage: string): EvalExampleResultsResponseDto {
+  return {
+    results: [],
+    error: getRouteErrorMessage(error, fallbackMessage)
+  };
+}
+
+export function buildEvalExampleResultResponse(result: EvalExampleResult): EvalExampleResultResponseDto {
+  return {
+    result: toEvalExampleResultDto(result)
+  };
+}
+
+export function buildEvalExampleResultErrorResponse(error: unknown, fallbackMessage: string): EvalExampleResultResponseDto {
   return {
     error: getRouteErrorMessage(error, fallbackMessage)
   };

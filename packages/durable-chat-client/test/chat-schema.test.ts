@@ -4,6 +4,10 @@ import {
   normalizeCaptureDatasetExampleResponse,
   normalizeDatasetExamplesResponse,
   normalizeDatasetsResponse,
+  normalizeEvalExampleResultResponse,
+  normalizeEvalExampleResultsResponse,
+  normalizeEvalRunResponse,
+  normalizeEvalRunsResponse,
   normalizeRunTraceResponse,
   normalizeRunTimelineResponse,
   normalizeRuntimeMetaResponse,
@@ -291,6 +295,148 @@ describe('durable-chat-client schema', () => {
     expect(legacyExamples.examples[0]?.effectiveEligibility).toEqual({
       eligible: false,
       reason: 'ineligible_unreviewed'
+    });
+  });
+
+  it('normalizes eval run and eval result responses', () => {
+    const evalRun = {
+      id: 'eval-run-1',
+      appId: 'app-1',
+      datasetId: 'dataset-1',
+      status: 'completed',
+      name: 'nightly',
+      configJson: {
+        schemaVersion: 1,
+        kind: 'eval_run_config',
+        selection: { policy: 'effective_eligible_v1' },
+        execution: { mode: 'current_runtime', strategy: 'isolated_eval_thread', concurrency: 'serial' },
+        runtime: { provider: 'openai', model: 'gpt-4o-mini', options: { webSearchEnabled: true } }
+      },
+      config: {
+        schemaVersion: 1,
+        kind: 'eval_run_config',
+        selection: { policy: 'effective_eligible_v1' },
+        execution: { mode: 'current_runtime', strategy: 'isolated_eval_thread', concurrency: 'serial' },
+        runtime: { provider: 'openai', model: 'gpt-4o-mini', options: { webSearchEnabled: true } }
+      },
+      summaryJson: {
+        schemaVersion: 1,
+        kind: 'eval_run_summary',
+        selection: { eligibleCount: 1, ineligibleCount: 0, ineligibleReasonCounts: {}, selectedCount: 1 },
+        results: {
+          statusCounts: { queued: 0, running: 0, completed: 1, failed: 0, skipped: 0 },
+          reviewStatusCounts: { unreviewed: 0, pass: 1, fail: 0, needs_review: 0, not_applicable: 0 },
+          aggregateUsage: null,
+          durationMs: 1200
+        }
+      },
+      summary: {
+        schemaVersion: 1,
+        kind: 'eval_run_summary',
+        selection: { eligibleCount: 1, ineligibleCount: 0, ineligibleReasonCounts: {}, selectedCount: 1 },
+        results: {
+          statusCounts: { queued: 0, running: 0, completed: 1, failed: 0, skipped: 0 },
+          reviewStatusCounts: { unreviewed: 0, pass: 1, fail: 0, needs_review: 0, not_applicable: 0 },
+          aggregateUsage: null,
+          durationMs: 1200
+        }
+      },
+      error: null,
+      createdByActorId: 'actor-1',
+      startedAt: '2026-01-01T00:00:00.000Z',
+      finishedAt: '2026-01-01T00:00:01.200Z',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:01.200Z'
+    };
+    const result = {
+      id: 'result-1',
+      evalRunId: 'eval-run-1',
+      datasetExampleId: 'example-1',
+      exampleOrdinal: 0,
+      status: 'completed',
+      evalThreadId: 'eval-thread-1',
+      outputRunId: 'output-run-1',
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected answer' },
+      actualOutputJson: {
+        schemaVersion: 1,
+        kind: 'eval_run_output',
+        outputRunId: 'output-run-1',
+        evalThreadId: 'eval-thread-1',
+        status: 'completed',
+        error: null,
+        assistantMessages: [
+          {
+            id: 'message-1',
+            threadId: 'eval-thread-1',
+            runId: 'output-run-1',
+            role: 'assistant',
+            seq: 2,
+            status: 'completed',
+            metadata: null,
+            createdAt: '2026-01-01T00:00:01.000Z',
+            parts: []
+          },
+          { id: 'broken-message' }
+        ]
+      },
+      actualOutput: {
+        schemaVersion: 1,
+        kind: 'eval_run_output',
+        outputRunId: 'output-run-1',
+        evalThreadId: 'eval-thread-1',
+        status: 'completed',
+        error: null,
+        assistantMessages: [
+          {
+            id: 'message-1',
+            threadId: 'eval-thread-1',
+            runId: 'output-run-1',
+            role: 'assistant',
+            seq: 2,
+            status: 'completed',
+            metadata: null,
+            createdAt: '2026-01-01T00:00:01.000Z',
+            parts: []
+          },
+          { id: 'broken-message' }
+        ]
+      },
+      inputJson: { schemaVersion: 1, kind: 'chat_turn' },
+      usageJson: { totalTokens: 42 },
+      metadataJson: { review: { status: 'pass' } },
+      review: {
+        status: 'pass',
+        reviewerNote: 'ok',
+        reviewedByActorId: 'actor-1',
+        reviewedAt: '2026-01-01T00:00:02.000Z'
+      },
+      error: null,
+      startedAt: '2026-01-01T00:00:00.000Z',
+      finishedAt: '2026-01-01T00:00:01.200Z',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:01.200Z'
+    };
+
+    expect(normalizeEvalRunsResponse({ evalRuns: [evalRun, { id: 'broken' }] }).evalRuns).toHaveLength(1);
+    expect(normalizeEvalRunResponse({ evalRun }).evalRun).toMatchObject({
+      id: 'eval-run-1',
+      config: { runtime: { provider: 'openai', model: 'gpt-4o-mini', options: { webSearchEnabled: true } } },
+      summary: { results: { durationMs: 1200 } }
+    });
+    expect(normalizeEvalExampleResultsResponse({ results: [result, { id: 'broken' }] }).results).toHaveLength(1);
+    expect(normalizeEvalExampleResultResponse({ result }).result).toMatchObject({
+      id: 'result-1',
+      actualOutput: { assistantMessages: [{ id: 'message-1' }] },
+      review: { status: 'pass', reviewerNote: 'ok' },
+      usageJson: { totalTokens: 42 }
+    });
+
+    const legacyResult = { ...result };
+    delete (legacyResult as Partial<typeof result>).actualOutput;
+    delete (legacyResult as Partial<typeof result>).review;
+    expect(normalizeEvalExampleResultResponse({ result: legacyResult }).result).toMatchObject({
+      actualOutput: { outputRunId: 'output-run-1', assistantMessages: [{ id: 'message-1' }] },
+      review: { status: 'unreviewed' }
     });
   });
 

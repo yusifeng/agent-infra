@@ -24,8 +24,8 @@
 - [x] Do not mutate or append to the original source thread during eval execution.
 - [x] Persist actual output, expected output snapshot, runtime status, runtime run refs, usage, duration, and errors for each result.
 - [x] Let each example fail independently without losing the whole eval run.
-- [ ] Add manual result review with `pass`, `fail`, `needs_review`, and `not_applicable`.
-- [ ] Add shared contracts/server/client helpers for eval runs and eval results.
+- [x] Add manual result review with `pass`, `fail`, `needs_review`, and `not_applicable`.
+- [x] Add shared contracts/server/client helpers for eval runs and eval results.
 - [ ] Add authenticated playground routes for creating, running, listing, reading, and reviewing eval runs.
 - [ ] Add an independent eval validation surface, preferably `/observability/evals`, linked from dataset review.
 - [ ] Keep v1 useful as a regression foundation without implementing LangSmith-scale evaluation products.
@@ -260,21 +260,21 @@
 - [x] Keep v1 serial execution unless source-of-truth explicitly chooses parallel execution.
 
 ### 2.5 Contracts / Server / Client
-- [ ] Add `EvalRunDto`.
-- [ ] Add `EvalExampleResultDto`.
-- [ ] Add `EvalRunStatusDto`.
-- [ ] Add `EvalExampleResultStatusDto`.
-- [ ] Add `EvalExampleResultReviewDto`.
-- [ ] Add `EvalActualOutputSnapshotV1Dto`.
-- [ ] Add versioned eval run config and summary DTOs if they cross the wire.
-- [ ] Add `CreateEvalRunRequestDto`.
-- [ ] Add `UpdateEvalExampleResultReviewRequestDto`.
-- [ ] Add eval run list/detail/result response DTOs.
-- [ ] Add durable-chat-server parsers for create eval run and result review requests.
-- [ ] Add durable-chat-server response builders.
-- [ ] Add durable-chat-client normalizers.
-- [ ] Add durable-chat-client API helpers.
-- [ ] Keep contracts independent of playground-only UI state.
+- [x] Add `EvalRunDto`.
+- [x] Add `EvalExampleResultDto`.
+- [x] Add `EvalRunStatusDto`.
+- [x] Add `EvalExampleResultStatusDto`.
+- [x] Add `EvalExampleResultReviewDto`.
+- [x] Add `EvalActualOutputSnapshotV1Dto`.
+- [x] Add versioned eval run config and summary DTOs if they cross the wire.
+- [x] Add `CreateEvalRunRequestDto`.
+- [x] Add `UpdateEvalExampleResultReviewRequestDto`.
+- [x] Add eval run list/detail/result response DTOs.
+- [x] Add durable-chat-server parsers for create eval run and result review requests.
+- [x] Add durable-chat-server response builders.
+- [x] Add durable-chat-client normalizers.
+- [x] Add durable-chat-client API helpers.
+- [x] Keep contracts independent of playground-only UI state.
 
 ## 3. Playground Validation Boundary
 
@@ -382,12 +382,12 @@
 - [x] Add app tests proving non-execution use cases do not call runtime ports.
 
 ### 4.4 Contracts / Server / Client Tests
-- [ ] Add contract typecheck coverage for new DTOs.
-- [ ] Add durable-chat-server parser tests for create eval run requests.
-- [ ] Add durable-chat-server parser tests for result review requests.
-- [ ] Add durable-chat-server response helper tests for eval run/result normalization.
-- [ ] Add durable-chat-client normalizer tests.
-- [ ] Add durable-chat-client API helper tests if the package test style supports them.
+- [x] Add contract typecheck coverage for new DTOs.
+- [x] Add durable-chat-server parser tests for create eval run requests.
+- [x] Add durable-chat-server parser tests for result review requests.
+- [x] Add durable-chat-server response helper tests for eval run/result normalization.
+- [x] Add durable-chat-client normalizer tests.
+- [x] Add durable-chat-client API helper tests if the package test style supports them.
 
 ### 4.5 Playground Route Tests
 - [ ] Add route tests for eval create auth.
@@ -489,16 +489,16 @@
 - [x] Commit Loop 3.
 
 ### Loop 4: Contracts, Server Helpers, and Client Helpers
-- [ ] Add eval run/result DTOs.
-- [ ] Add request/response DTOs.
-- [ ] Add durable-chat-server parsers and response builders.
-- [ ] Add durable-chat-client normalizers and API helpers.
-- [ ] Add focused server/client tests.
-- [ ] Run `pnpm --filter @agent-infra/contracts typecheck`.
-- [ ] Run `pnpm --filter @agent-infra/durable-chat-server test`.
-- [ ] Run `pnpm --filter @agent-infra/durable-chat-client test`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 4.
+- [x] Add eval run/result DTOs.
+- [x] Add request/response DTOs.
+- [x] Add durable-chat-server parsers and response builders.
+- [x] Add durable-chat-client normalizers and API helpers.
+- [x] Add focused server/client tests.
+- [x] Run `pnpm --filter @agent-infra/contracts typecheck`.
+- [x] Run `pnpm --filter @agent-infra/durable-chat-server test`.
+- [x] Run `pnpm --filter @agent-infra/durable-chat-client test`.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit Loop 4.
 
 ### Loop 5: Playground Eval Routes
 - [ ] Add eval create/list/detail/result/review routes.

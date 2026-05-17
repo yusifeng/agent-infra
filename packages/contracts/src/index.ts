@@ -3,6 +3,8 @@ import type {
   ChatShareSnapshotPayloadFormat,
   ChatShareStatus,
   DatasetVisibility,
+  EvalExampleResultStatus,
+  EvalRunStatus,
   AnswerCandidateKind,
   AnswerSelectionSource,
   MessagePartType,
@@ -192,6 +194,104 @@ export type DatasetExampleEffectiveEligibilityReasonDto =
 export interface DatasetExampleEffectiveEligibilityDto {
   eligible: boolean;
   reason: DatasetExampleEffectiveEligibilityReasonDto;
+}
+
+export type EvalRunStatusDto = EvalRunStatus;
+
+export type EvalExampleResultStatusDto = EvalExampleResultStatus;
+
+export interface EvalRunConfigV1Dto {
+  schemaVersion: 1;
+  kind: 'eval_run_config';
+  selection: {
+    policy: 'effective_eligible_v1';
+  };
+  execution: {
+    mode: 'current_runtime';
+    strategy: 'isolated_eval_thread';
+    concurrency: 'serial';
+  };
+  runtime?: {
+    provider?: string | null;
+    model?: string | null;
+    options?: Record<string, unknown> | null;
+  } | null;
+}
+
+export type EvalExampleResultReviewStatusDto = 'unreviewed' | 'pass' | 'fail' | 'needs_review' | 'not_applicable';
+
+export interface EvalExampleResultReviewDto {
+  status: EvalExampleResultReviewStatusDto;
+  reviewerNote?: string | null;
+  reviewedByActorId?: string | null;
+  reviewedAt?: IsoDateString | null;
+}
+
+export interface EvalRunSummaryV1Dto {
+  schemaVersion: 1;
+  kind: 'eval_run_summary';
+  selection: {
+    eligibleCount: number;
+    ineligibleCount: number;
+    ineligibleReasonCounts: Record<string, number>;
+    selectedCount: number;
+  };
+  results: {
+    statusCounts: Record<EvalExampleResultStatus, number>;
+    reviewStatusCounts: Record<EvalExampleResultReviewStatusDto, number>;
+    aggregateUsage?: RunUsageDto | null;
+    durationMs?: number | null;
+  };
+}
+
+export interface EvalActualOutputSnapshotV1Dto {
+  schemaVersion: 1;
+  kind: 'eval_run_output';
+  outputRunId: string;
+  evalThreadId: string;
+  status: RunStatus;
+  error?: string | null;
+  assistantMessages: MessageDto[];
+}
+
+export interface EvalRunDto {
+  id: string;
+  appId: string;
+  datasetId: string;
+  status: EvalRunStatusDto;
+  name?: string | null;
+  configJson: Record<string, unknown>;
+  config?: EvalRunConfigV1Dto | null;
+  summaryJson: Record<string, unknown>;
+  summary?: EvalRunSummaryV1Dto | null;
+  error?: string | null;
+  createdByActorId?: string | null;
+  startedAt?: IsoDateString | null;
+  finishedAt?: IsoDateString | null;
+  createdAt: IsoDateString;
+  updatedAt: IsoDateString;
+}
+
+export interface EvalExampleResultDto {
+  id: string;
+  evalRunId: string;
+  datasetExampleId: string;
+  exampleOrdinal: number;
+  status: EvalExampleResultStatusDto;
+  evalThreadId?: string | null;
+  outputRunId?: string | null;
+  expectedOutputJson: Record<string, unknown>;
+  actualOutputJson?: Record<string, unknown> | null;
+  actualOutput?: EvalActualOutputSnapshotV1Dto | null;
+  inputJson?: Record<string, unknown> | null;
+  usageJson?: Record<string, unknown> | null;
+  metadataJson?: Record<string, unknown> | null;
+  review?: EvalExampleResultReviewDto;
+  error?: string | null;
+  startedAt?: IsoDateString | null;
+  finishedAt?: IsoDateString | null;
+  createdAt: IsoDateString;
+  updatedAt: IsoDateString;
 }
 
 export interface RunEventDto {
@@ -433,6 +533,18 @@ export interface UpdateDatasetExampleReviewRequestDto {
   reviewerNote?: string | null;
 }
 
+export interface CreateEvalRunRequestDto {
+  name?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  runtimeOptions?: Record<string, unknown> | null;
+}
+
+export interface UpdateEvalExampleResultReviewRequestDto {
+  status?: EvalExampleResultReviewStatusDto;
+  reviewerNote?: string | null;
+}
+
 export interface AnswerSelectionResponseDto {
   answerSelection?: AnswerSelectionDto;
   error?: string;
@@ -461,6 +573,26 @@ export interface DatasetExampleResponseDto {
 export interface CaptureDatasetExampleResponseDto {
   dataset?: DatasetDto;
   example?: DatasetExampleDto;
+  error?: string;
+}
+
+export interface EvalRunsResponseDto {
+  evalRuns: EvalRunDto[];
+  error?: string;
+}
+
+export interface EvalRunResponseDto {
+  evalRun?: EvalRunDto;
+  error?: string;
+}
+
+export interface EvalExampleResultsResponseDto {
+  results: EvalExampleResultDto[];
+  error?: string;
+}
+
+export interface EvalExampleResultResponseDto {
+  result?: EvalExampleResultDto;
   error?: string;
 }
 
