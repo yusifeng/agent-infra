@@ -527,4 +527,4 @@
 - [x] Promote stable long-lived model facts into `docs/source-of-truth`.
 - [x] Keep `docs/todolist.md` as the completed execution record instead of deleting it, because the user asked for all items to be marked `[x]`.
 - [x] Run final `codex review`.
-- [ ] Commit final hardening/docs cleanup after review and verification pass.
+- [x] Commit final hardening/docs cleanup after review and verification pass.
