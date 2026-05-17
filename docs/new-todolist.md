@@ -27,8 +27,8 @@
 - [x] Add manual result review with `pass`, `fail`, `needs_review`, and `not_applicable`.
 - [x] Add shared contracts/server/client helpers for eval runs and eval results.
 - [x] Add authenticated playground routes for creating, running, listing, reading, and reviewing eval runs.
-- [ ] Add an independent eval validation surface, preferably `/observability/evals`, linked from dataset review.
-- [ ] Keep v1 useful as a regression foundation without implementing LangSmith-scale evaluation products.
+- [x] Add an independent eval validation surface, preferably `/observability/evals`, linked from dataset review.
+- [x] Keep v1 useful as a regression foundation without implementing LangSmith-scale evaluation products.
 
 ### 0.3 Non-goals
 - [x] Do not implement deterministic replay in this track.
@@ -184,7 +184,7 @@
 - [x] Add helper for building actual-output snapshot from a runtime output run.
 - [x] Add helper for building expected-output snapshot from a dataset example.
 - [x] Add helper for input materialization from dataset input snapshots.
-- [ ] Keep DTOs wire-compatible and versioned where JSON envelopes are introduced.
+- [x] Keep DTOs wire-compatible and versioned where JSON envelopes are introduced.
 
 ## 2. Backend / Platform
 
@@ -293,35 +293,35 @@
 - [x] Add explicit route behavior for unavailable runtime configuration.
 
 ### 3.2 Eval UI
-- [ ] Add an eval-centric validation surface, preferably `/observability/evals`.
-- [ ] Link to eval runs from `/observability/datasets` dataset detail.
-- [ ] Add create/run eval action for the selected dataset.
-- [ ] Show eval run list with dataset, status, created actor, created date, started/finished, and summary counts.
-- [ ] Show eval result list with example id, status, review state, expected-output presence, actual-output presence, error state, usage, and duration.
-- [ ] Show eval result detail with expected output snapshot.
-- [ ] Show eval result detail with actual output snapshot.
-- [ ] Show baseline output snapshot for context without treating it as expected output.
-- [ ] Show source dataset example link.
-- [ ] Show output run lineage link when available.
-- [ ] Add manual result review controls: pass/fail/needs_review/not_applicable and reviewer note.
-- [ ] Avoid LLM judge controls in v1.
-- [ ] Avoid report/dashboard UI in v1.
-- [ ] Keep `/chat` unchanged.
-- [ ] Keep `/observability` selected-run panel focused on run inspection and capture.
+- [x] Add an eval-centric validation surface, preferably `/observability/evals`.
+- [x] Link to eval runs from `/observability/datasets` dataset detail.
+- [x] Add create/run eval action for the selected dataset.
+- [x] Show eval run list with dataset, status, created actor, created date, started/finished, and summary counts.
+- [x] Show eval result list with example id, status, review state, expected-output presence, actual-output presence, error state, usage, and duration.
+- [x] Show eval result detail with expected output snapshot.
+- [x] Show eval result detail with actual output snapshot.
+- [x] Show baseline output snapshot for context without treating it as expected output.
+- [x] Show source dataset example link.
+- [x] Show output run lineage link when available.
+- [x] Add manual result review controls: pass/fail/needs_review/not_applicable and reviewer note.
+- [x] Avoid LLM judge controls in v1.
+- [x] Avoid report/dashboard UI in v1.
+- [x] Keep `/chat` unchanged.
+- [x] Keep `/observability` selected-run panel focused on run inspection and capture.
 
 ### 3.3 UI Implementation Boundaries
-- [ ] Create a dedicated feature layer for eval UI instead of burying logic in route pages.
-- [ ] Keep pages as thin composition roots.
-- [ ] Reuse shared client helpers for API calls.
-- [ ] Keep page-local logic limited to selection, display state, and form drafts.
-- [ ] Do not compute durable eval semantics in UI code.
-- [ ] Avoid batch operations beyond a single create/run action in v1.
+- [x] Create a dedicated feature layer for eval UI instead of burying logic in route pages.
+- [x] Keep pages as thin composition roots.
+- [x] Reuse shared client helpers for API calls.
+- [x] Keep page-local logic limited to selection, display state, and form drafts.
+- [x] Do not compute durable eval semantics in UI code.
+- [x] Avoid batch operations beyond a single create/run action in v1.
 
 ## 4. Tests
 
 ### 4.1 Source / Type Tests
-- [ ] Add tests for eval run status validation if helpers are introduced.
-- [ ] Add tests for eval result status validation if helpers are introduced.
+- [x] No separate eval run status validation helpers were introduced; DTOs stay typed and wire-compatible.
+- [x] No separate eval result status validation helpers were introduced; DTOs stay typed and wire-compatible.
 - [x] Add tests for result review metadata defaults.
 - [x] Add tests rejecting invalid result review statuses.
 - [x] Add tests rejecting unknown result review request keys.
@@ -404,25 +404,25 @@
 - [x] Add route tests proving read/list/detail/review routes do not require configured runtime services.
 
 ### 4.6 Playground UI Tests
-- [ ] Add UI tests for opening eval run list.
-- [ ] Add UI tests for starting an eval from a dataset.
-- [ ] Add UI tests for opening eval result detail.
-- [ ] Add UI tests for expected vs actual display.
-- [ ] Add UI tests for marking result pass/fail/needs_review/not_applicable.
-- [ ] Add UI tests proving eval UI does not require `threadId` or `runId`.
-- [ ] Add UI tests proving `/chat` is not part of this workflow.
+- [x] Add UI tests for opening eval run list.
+- [x] Add UI tests for starting an eval from a dataset.
+- [x] Add UI tests for opening eval result detail.
+- [x] Add UI tests for expected vs actual display.
+- [x] Add UI tests for marking result pass/fail/needs_review/not_applicable.
+- [x] Add UI tests proving eval UI does not require `threadId` or `runId`.
+- [x] Add UI tests proving `/chat` is not part of this workflow.
 
 ### 4.7 Targeted Verification
 - [x] Run `pnpm --filter @agent-infra/core typecheck` after core type changes.
 - [x] Run `pnpm --filter @agent-infra/db test` after DB slice.
 - [x] Run `pnpm --filter @agent-infra/app test` after app slice.
-- [ ] Run `pnpm --filter @agent-infra/contracts typecheck` after contract slice.
-- [ ] Run `pnpm --filter @agent-infra/durable-chat-server test` after server helper slice.
-- [ ] Run `pnpm --filter @agent-infra/durable-chat-client test` after client helper slice.
-- [ ] Run `pnpm --filter playground-next-web test` after route/UI slices.
-- [ ] Run `pnpm --filter playground-next-web typecheck` after route/UI slices.
-- [ ] Run broader workspace typecheck only if targeted checks leave cross-package uncertainty.
-- [ ] Run browser smoke test after UI implementation.
+- [x] Run `pnpm --filter @agent-infra/contracts typecheck` after contract slice.
+- [x] Run `pnpm --filter @agent-infra/durable-chat-server test` after server helper slice.
+- [x] Run `pnpm --filter @agent-infra/durable-chat-client test` after client helper slice.
+- [x] Run `pnpm --filter playground-next-web test` after route/UI slices.
+- [x] Run `pnpm --filter playground-next-web typecheck` after route/UI slices.
+- [x] Skip broader workspace typecheck because targeted cross-package checks covered the touched contracts, server/client helpers, app routes, and UI.
+- [x] Run browser smoke test after UI implementation.
 
 ## 5. Recommended Execution Order
 
@@ -513,17 +513,17 @@
 - [x] Commit Loop 5.
 
 ### Loop 6: Eval Validation UI
-- [ ] Add `/observability/evals` eval validation surface or final agreed route.
-- [ ] Add dataset-to-eval entry point from `/observability/datasets`.
-- [ ] Add eval run list and detail views.
-- [ ] Add result list and result detail views.
-- [ ] Add expected vs actual display.
-- [ ] Add manual result review controls.
-- [ ] Add focused UI tests.
-- [ ] Run targeted playground UI tests.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run browser smoke test.
-- [ ] Run `codex review` for this loop after targeted verification passes.
+- [x] Add `/observability/evals` eval validation surface or final agreed route.
+- [x] Add dataset-to-eval entry point from `/observability/datasets`.
+- [x] Add eval run list and detail views.
+- [x] Add result list and result detail views.
+- [x] Add expected vs actual display.
+- [x] Add manual result review controls.
+- [x] Add focused UI tests.
+- [x] Run targeted playground UI tests.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run browser smoke test.
+- [x] Run `codex review` for this loop after targeted verification passes.
 - [ ] Commit Loop 6.
 
 ### Loop 7: Closeout

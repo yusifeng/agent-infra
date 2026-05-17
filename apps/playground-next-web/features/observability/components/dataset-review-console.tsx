@@ -370,6 +370,12 @@ export function DatasetReviewConsole({ currentUser }: { currentUser: AuthUserDto
               Runs
             </a>
           </Button>
+          <Button asChild variant="outline" size="sm">
+            <a href={state.selectedDatasetId ? `/observability/evals?datasetId=${encodeURIComponent(state.selectedDatasetId)}` : '/observability/evals'}>
+              <Database className="size-4" />
+              Evals
+            </a>
+          </Button>
           <div className="hidden min-w-0 max-w-[260px] truncate rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] px-3 py-1.5 text-xs text-[var(--chat-muted)] md:block">
             {currentUser.email}
           </div>
