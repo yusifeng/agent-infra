@@ -20,6 +20,7 @@ Create a clean handoff package for another AI with:
 - Template references: `references/prompt-templates.md`
 
 > Required hygiene: each new pack run must clear previous files in `repomix-output/` first, so users can upload that folder as-is without manual file picking.
+> Before writing new artifacts, move existing `repomix-output/` contents into `repomix-output-history/<timestamp>-<topic>/` rather than deleting them. Keep `repomix-output/` containing only current-round artifacts after the archive step.
 
 ## Pack tiers (default taxonomy)
 Use exactly one tier label in bundle filename:
@@ -64,7 +65,7 @@ bash .codex/skills/formax-repomix-handoff-workflow/scripts/build-repomix.sh \
 ```
 The helper script will:
 - create `repomix-output/` if missing
-- delete previous files under `repomix-output/` (except `.gitkeep`)
+- archive previous files under `repomix-output/` into `repomix-output-history/<timestamp>-<topic>/` (except `.gitkeep`)
 - write the new bundle into `repomix-output/`
 
 5. Write prompt + file manifest with naming convention
@@ -92,6 +93,7 @@ This check enforces:
 
 8. Sanity-check before handoff
 - `repomix-output/` only contains current-round artifacts.
+- Previous handoff artifacts, if any, were moved under `repomix-output-history/` with a topic-oriented folder name.
 - Bundle exists and includes the expected files.
 - Prompt has no impossible instructions for the target runtime.
 - Prompt does not ask static consumers to run commands.

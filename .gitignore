@@ -70,3 +70,4 @@ local.db
 chatgpt-response/
 .vercel
 repomix-output/
+repomix-output-history/
