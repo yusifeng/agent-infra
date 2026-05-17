@@ -68,6 +68,10 @@ import { isDefaultThreadTitle } from '@/features/thread-title/default-thread-tit
 
 const PENDING_NEW_THREAD_LOADING_ID = '__pending-new-thread__';
 
+function isClientDualAnswerEnabled() {
+  return process.env.NEXT_PUBLIC_PLAYGROUND_DUAL_ANSWER_ENABLED?.trim().toLowerCase() === 'true';
+}
+
 export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRuntimeOptions) {
   const router = useRouter();
   const {
@@ -811,7 +815,9 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         selectedWebSearchEnabled,
         selectedThinkingEnabled,
         selectedReasoningEffort,
-        selectedModelOption
+        selectedModelOption,
+        answerMode: isClientDualAnswerEnabled() ? 'dual' : 'single',
+        candidateCount: isClientDualAnswerEnabled() ? 2 : 1
       },
       refs: {
         activeThreadIdRef,

@@ -8,7 +8,8 @@ This document captures the durable streaming contract for the first dual-answer 
 
 - Single-answer start is the default path.
 - Dual-answer start is requested with `answerMode: "dual"` or `candidateCount: 2`.
-- Dual-answer start is disabled unless `PLAYGROUND_DUAL_ANSWER_ENABLED` is enabled on the server.
+- The Next `/chat` client requests dual answers only when `NEXT_PUBLIC_PLAYGROUND_DUAL_ANSWER_ENABLED=true`.
+- Dual-answer start is rejected unless `PLAYGROUND_DUAL_ANSWER_ENABLED=true` is enabled on the server.
 - The POST stream start request is not idempotent in v1 and must not be retried automatically by clients. Retrying can create another user turn.
 
 ## Candidate Identity
@@ -29,6 +30,33 @@ The v1 multiplex stream reuses existing run-scoped events.
 - Per-run stream hub sessions keep independent version counters.
 - A terminal event for one candidate does not close the sibling candidate stream.
 - The HTTP stream closes after all candidate runtimes are terminal or the client disconnects.
+
+## Canonical History
+
+Dual candidates share one pre-answer model context.
+
+- The route persists the user message and candidate run rows first.
+- Before either candidate runtime starts, the route captures one canonical transcript snapshot with a cutoff at the trigger user message.
+- Both sibling candidate runs receive that same immutable `historyMessages` snapshot.
+- Candidate A's persisted assistant/tool output must never enter candidate B's model input for the same user turn.
+
+## Canonical Selection
+
+Canonical projection is explicit and deterministic.
+
+- The selected/default candidate is the canonical answer when its run is completed.
+- If the selected/default candidate is failed or empty and another candidate completed, projection falls back to a completed candidate.
+- Fallback selection is projection-level in v1; it does not mutate the persisted `answer_selections` row to `source="system_fallback"`.
+- Future user turns, share snapshots, and replay input use canonical projection, so unselected sibling candidates do not pollute model context or public snapshots.
+
+## Chat Presentation
+
+Normal `/chat` can show non-canonical candidates for comparison.
+
+- One assistant answer remains represented by one `AnswerContainer`.
+- A dual-answer turn is represented by an `AnswerCandidateGroup` that contains multiple `AnswerContainer` instances.
+- Inspector and per-run operations continue to use the underlying run id for the specific candidate answer.
+- Canonical-only consumers should request/project selected/default answers, not candidate comparison groups.
 
 ## Disconnect Behavior
 

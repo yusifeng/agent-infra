@@ -34,6 +34,8 @@ type SendMessageFlowArgs = {
     selectedThinkingEnabled: boolean;
     selectedReasoningEffort: 'high' | 'max';
     selectedModelOption: RuntimePiMetaDto['modelOptions'][number] | null;
+    answerMode?: 'single' | 'dual';
+    candidateCount?: 1 | 2;
   };
   refs: {
     activeThreadIdRef: RefLike<string | null>;
@@ -313,19 +315,21 @@ export async function runSendMessageFlow({ state, refs, actions, operations, str
       operations.replaceCurrentPath(`/chat/${threadId}`);
     }
 
-      const streamResult = await openThreadRunStream(
-        threadId,
-        {
-          text,
-          provider: state.selectedModelOption.provider,
-          model: state.selectedModelOption.model,
-          thinkingEnabled: state.selectedModelOption.provider === 'deepseek' ? state.selectedThinkingEnabled : undefined,
-          reasoningEffort:
-            state.selectedModelOption.provider === 'deepseek' && state.selectedThinkingEnabled ? state.selectedReasoningEffort : undefined,
-          webSearchEnabled: state.selectedWebSearchEnabled
-        },
-        controller.signal
-      );
+    const streamResult = await openThreadRunStream(
+      threadId,
+      {
+        text,
+        provider: state.selectedModelOption.provider,
+        model: state.selectedModelOption.model,
+        thinkingEnabled: state.selectedModelOption.provider === 'deepseek' ? state.selectedThinkingEnabled : undefined,
+        reasoningEffort:
+          state.selectedModelOption.provider === 'deepseek' && state.selectedThinkingEnabled ? state.selectedReasoningEffort : undefined,
+        webSearchEnabled: state.selectedWebSearchEnabled,
+        answerMode: state.answerMode,
+        candidateCount: state.candidateCount
+      },
+      controller.signal
+    );
 
     if (!streamResult.ok) {
       throw new Error(streamResult.error ?? `request failed (${streamResult.status})`);

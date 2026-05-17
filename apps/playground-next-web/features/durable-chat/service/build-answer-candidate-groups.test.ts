@@ -28,6 +28,19 @@ function createContainer(runId: string): AnswerContainer {
 }
 
 describe('buildAnswerCandidateGroups', () => {
+  it('does not create comparison groups for legacy single-answer turns without candidate rows', () => {
+    const groups = buildAnswerCandidateGroups({
+      activeResponseRuns: [],
+      answerCandidates: [],
+      answerContainers: [createContainer('run-a'), createContainer('run-b')],
+      answerSelections: [],
+      liveAssistantDraftsByRunId: {},
+      runFeedback: []
+    });
+
+    expect(groups).toEqual([]);
+  });
+
   it('builds selected candidate groups from candidate hydration data', () => {
     const selection: AnswerSelectionDto = {
       threadId: 'thread-1',

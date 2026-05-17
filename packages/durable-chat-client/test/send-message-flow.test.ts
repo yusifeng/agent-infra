@@ -358,6 +358,64 @@ describe('runSendMessageFlow', () => {
     expect(reconcileCompletedTurn).toHaveBeenCalledWith('thread-existing', 'run-1', 1);
   });
 
+  it('passes explicit dual-answer request flags to the stream endpoint', async () => {
+    const refs = createRefs();
+    refs.activeThreadIdRef.current = 'thread-existing';
+    const actions = createActions();
+
+    openThreadRunStreamMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      requestId: 'req-1',
+      body: createTextStream([
+        {
+          type: 'run.ready',
+          runId: 'run-1',
+          run: createRun('run-1', 'queued'),
+          userMessage: createUserMessage('message-user-1', 2)
+        },
+        {
+          type: 'run.completed',
+          runId: 'run-1',
+          run: createRun('run-1', 'completed')
+        }
+      ])
+    });
+
+    await runSendMessageFlow({
+      state: {
+        activeThreadId: 'thread-existing',
+        draft: '你好',
+        isChatResponding: false,
+        messages: [createMessage('message-1', 1)],
+        selectedWebSearchEnabled: false,
+        selectedThinkingEnabled: false,
+        selectedReasoningEffort: 'high',
+        selectedModelOption: createSelectedModelOption(),
+        answerMode: 'dual',
+        candidateCount: 2
+      },
+      refs,
+      actions,
+      operations: {
+        createThreadRecord: vi.fn(),
+        pendingNewThreadLoadingId: 'pending-new-thread',
+        reconcileCompletedTurn: vi.fn().mockResolvedValue(undefined),
+        replaceCurrentPath: vi.fn()
+      }
+    });
+
+    expect(openThreadRunStreamMock).toHaveBeenCalledWith(
+      'thread-existing',
+      expect.objectContaining({
+        answerMode: 'dual',
+        candidateCount: 2
+      }),
+      expect.any(AbortSignal)
+    );
+  });
+
   it('forwards custom stream events through the optional stream handler', async () => {
     const refs = createRefs();
     refs.activeThreadIdRef.current = 'thread-existing';

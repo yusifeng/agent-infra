@@ -274,9 +274,15 @@ function mockRuntimeServices(overrides: {
     status: 'completed',
     triggerMessageId: 'message-1'
   }));
+  const getCanonicalMessages = vi.fn().mockResolvedValue({
+    messages: [createUserMessage()],
+    canonicalRunIds: [],
+    diagnostics: []
+  });
   const services = {
     app: {
       threads: {
+        getCanonicalMessages,
         rename
       },
       turns: {
@@ -317,6 +323,7 @@ function mockRuntimeServices(overrides: {
     findRunById,
     findThreadById,
     generateText,
+    getCanonicalMessages,
     isPlaygroundWebSearchConfigured,
     listMessagesByThread,
     prepare,
@@ -475,7 +482,7 @@ describe('playground run stream route', () => {
     mockThreadAccess();
     const completedRun1 = createRun({ id: 'run-1', status: 'completed', finishedAt: now(), triggerMessageId: 'message-1' });
     const completedRun2 = createRun({ id: 'run-2', status: 'completed', finishedAt: now(), triggerMessageId: 'message-1' });
-    const { runTurn, startText, startTextCandidates } = mockRuntimeServices();
+    const { getCanonicalMessages, runTurn, startText, startTextCandidates } = mockRuntimeServices();
     runTurn.mockImplementation(async (
       _repos: unknown,
       input: { runId: string },
@@ -502,6 +509,14 @@ describe('playground run stream route', () => {
     }));
     expect(runTurn).toHaveBeenCalledTimes(2);
     expect(runTurn.mock.calls.map((call) => (call[1] as { runId: string }).runId)).toEqual(['run-1', 'run-2']);
+    expect(getCanonicalMessages).toHaveBeenCalledWith({
+      threadId: 'thread-1',
+      cutoffMessageId: 'message-1'
+    });
+    expect(runTurn.mock.calls.map((call) => (call[1] as { historyMessages?: unknown[] }).historyMessages)).toEqual([
+      [expect.objectContaining({ id: 'message-1' })],
+      [expect.objectContaining({ id: 'message-1' })]
+    ]);
     expect(readyEvents).toHaveLength(2);
     expect(readyEvents[0]?.data).toMatchObject({
       type: 'run.ready',
@@ -519,6 +534,37 @@ describe('playground run stream route', () => {
       ordinal: 1,
       kind: 'alternative'
     });
+  });
+
+  it('continues dual runtime execution when canonical history lookup fails after candidate rows are created', async () => {
+    process.env.PLAYGROUND_DUAL_ANSWER_ENABLED = 'true';
+    mockThreadAccess();
+    const { getCanonicalMessages, runTurn } = mockRuntimeServices();
+    getCanonicalMessages.mockRejectedValueOnce(new Error('canonical history unavailable'));
+    runTurn.mockImplementation(async (
+      _repos: unknown,
+      input: { runId: string },
+      callbacks: { onPersistedUpdate(update: { run: Run }): void }
+    ) => {
+      callbacks.onPersistedUpdate({ run: createRun({ id: input.runId, status: 'completed', finishedAt: now(), triggerMessageId: 'message-1' }) });
+    });
+    const { POST } = await importStreamRoute();
+
+    const response = await POST(new Request('http://localhost/api/threads/thread-1/runs/stream', {
+      method: 'POST',
+      body: JSON.stringify({ text: 'hello', candidateCount: 2 })
+    }), {
+      params: Promise.resolve({ threadId: 'thread-1' })
+    });
+
+    const events = await readSseEvents(response);
+    expect(response.status).toBe(200);
+    expect(runTurn).toHaveBeenCalledTimes(2);
+    expect(runTurn.mock.calls.map((call) => (call[1] as { historyMessages?: unknown[] }).historyMessages)).toEqual([
+      [expect.objectContaining({ id: 'message-1' })],
+      [expect.objectContaining({ id: 'message-1' })]
+    ]);
+    expect(events.filter((event) => event.type === 'run.ready')).toHaveLength(2);
   });
 
   it('keeps the dual stream open when one candidate fails before the sibling completes', async () => {
@@ -614,6 +660,13 @@ describe('playground run stream route', () => {
     mockRuntimeServices({
       getPlaygroundRuntimeServices: vi.fn().mockResolvedValue({
         app: {
+          threads: {
+            getCanonicalMessages: vi.fn().mockResolvedValue({
+              messages: [createUserMessage()],
+              canonicalRunIds: [],
+              diagnostics: []
+            })
+          },
           turns: {
             startText: vi.fn(),
             startTextCandidates: vi.fn().mockResolvedValue({

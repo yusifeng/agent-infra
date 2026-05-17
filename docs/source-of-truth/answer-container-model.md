@@ -43,6 +43,16 @@
 - 用于承载一整条用户感知上的 assistant 回答
 - operation 挂在这个层级，而不是直接挂在单个 `TranscriptBlock`
 
+### `AnswerCandidateGroup`
+
+前端“候选回答组”概念。
+
+- 表示同一条用户消息触发的多个候选回答
+- 通过 `answer_candidates.trigger_message_id` 绑定用户消息
+- 组内每个候选仍然是独立的 `AnswerContainer`
+- 用于 normal `/chat` 的对比展示、选择最佳回答、点赞/点踩
+- 不改变 canonical transcript：canonical-only consumers 仍只读取 selected/default candidate
+
 ## UI 解释
 
 `AnswerContainer` 是用户感知上的回答容器，`TranscriptBlock` 是前端内部的内容组织单元。
@@ -62,23 +72,24 @@
 
 为目标。
 
+`AnswerCandidateGroup` 是更外层的对比容器。它不替代 `AnswerContainer`，也不让两个候选回答共享一个 operation host。
+每个候选的 copy、反馈、选择、inspect/run trace 都应该绑定到自己的 `runId` 和 `AnswerContainer`。
+
 ## 关系
 
 ```text
 Thread
 ├─ User message block
-├─ AnswerContainer (run-1)
+├─ AnswerContainer (legacy run-1)
 │  ├─ TranscriptBlock
-│  │  ├─ text
-│  │  ├─ reasoning
-│  │  ├─ search-summary
-│  │  └─ text
 │  └─ Operation Bar
-└─ AnswerContainer (run-2)
-   ├─ TranscriptBlock
-   │  ├─ text
-   │  └─ search-summary
-   └─ Operation Bar
+└─ AnswerCandidateGroup (trigger user message)
+   ├─ AnswerContainer (candidate run-a)
+   │  ├─ TranscriptBlock
+   │  └─ Operation Bar
+   └─ AnswerContainer (candidate run-b)
+      ├─ TranscriptBlock
+      └─ Operation Bar
 ```
 
 ## 关键约束

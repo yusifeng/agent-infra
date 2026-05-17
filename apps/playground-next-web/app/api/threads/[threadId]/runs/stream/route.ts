@@ -6,6 +6,7 @@ import type {
   RunTextTurnRequestDto
 } from '@agent-infra/contracts';
 import type {
+  CanonicalThreadMessagesResult,
   StartTextCandidatesResult,
   StartTextTurnResult
 } from '@agent-infra/app';
@@ -46,6 +47,7 @@ type StreamWritableEventDto = RunStreamEventDto | ThreadTitleUpdatedEventDto;
 
 type StartedStreamRun = {
   candidate?: StartTextCandidatesResult['candidates'][number]['candidate'];
+  historyMessages?: CanonicalThreadMessagesResult['messages'];
   run: StartTextTurnResult['run'];
   runtimeSelection: StartTextTurnResult['runtimeSelection'];
   userMessage: StartTextTurnResult['userMessage'];
@@ -178,6 +180,24 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
           ...turnStartInput,
           candidateCount: 2
         });
+        let canonicalHistory: CanonicalThreadMessagesResult = {
+          messages: [queued.userMessage],
+          canonicalRunIds: [],
+          diagnostics: []
+        };
+        try {
+          canonicalHistory = await services.app.threads.getCanonicalMessages({
+            threadId,
+            cutoffMessageId: queued.triggerMessageId
+          });
+        } catch (error) {
+          console.warn('failed to load canonical history after successful startTextCandidates', {
+            error,
+            threadId,
+            triggerMessageId: queued.triggerMessageId,
+            runIds: queued.candidates.map((item) => item.run.id)
+          });
+        }
 
         try {
           await bindRuntimeIfUnset(services, threadId, queued.runtimeSelection);
@@ -193,6 +213,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
           runtimeSelection: queued.runtimeSelection,
           runs: queued.candidates.map((item) => ({
             candidate: item.candidate,
+            historyMessages: canonicalHistory.messages,
             run: item.run,
             runtimeSelection: queued.runtimeSelection,
             userMessage: queued.userMessage
@@ -311,7 +332,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
       model: startedRun.runtimeSelection.model,
       thinkingEnabled: turnInput.thinkingEnabled,
       reasoningEffort: turnInput.reasoningEffort,
-      webSearchEnabled: turnInput.webSearchEnabled
+      webSearchEnabled: turnInput.webSearchEnabled,
+      historyMessages: startedRun.historyMessages
     };
 
     try {
