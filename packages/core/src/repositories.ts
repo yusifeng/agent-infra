@@ -4,6 +4,8 @@ import type {
   Artifact,
   ChatShare,
   ChatShareSnapshot,
+  Dataset,
+  DatasetExample,
   Message,
   MessagePart,
   RunFeedback,
@@ -61,6 +63,35 @@ export interface RunFeedbackRepository {
   clear(input: { runId: string; feedbackActorId: string }): Promise<void>;
   listByRunIds(runIds: string[], feedbackActorId?: string): Promise<RunFeedback[]>;
   set(input: Omit<RunFeedback, 'createdAt' | 'updatedAt'>): Promise<RunFeedback>;
+}
+
+export interface DatasetRepository {
+  create(input: Omit<Dataset, 'createdAt' | 'updatedAt'>): Promise<Dataset>;
+  findById(id: string): Promise<Dataset | null>;
+  listByApp(input: {
+    appId: string;
+    actorId?: string | null;
+    includeAppVisible?: boolean;
+  }): Promise<Dataset[]>;
+  update(
+    id: string,
+    patch: Partial<Pick<Dataset, 'name' | 'description' | 'visibility' | 'metadata'>>,
+    updatedAt: Date
+  ): Promise<Dataset>;
+}
+
+export interface DatasetExampleRepository {
+  create(input: Omit<DatasetExample, 'createdAt' | 'updatedAt'>): Promise<DatasetExample>;
+  findById(id: string): Promise<DatasetExample | null>;
+  listByDataset(datasetId: string): Promise<DatasetExample[]>;
+  updateExpectedOutput(
+    id: string,
+    patch: {
+      expectedOutputJson?: Record<string, unknown> | null;
+      metadataJson?: Record<string, unknown> | null;
+    },
+    updatedAt: Date
+  ): Promise<DatasetExample>;
 }
 
 export interface RunEventRepository {

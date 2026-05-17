@@ -50,36 +50,36 @@
 - [ ] Ensure the final source-of-truth doc states that v1 does not implement eval runner, live replay, frozen replay, or experiment comparison.
 
 ### 1.2 Data Model
-- [ ] Define `Dataset` with `id`, `appId`, `name`, `description`, `visibility`, `metadata`, `createdByActorId`, `createdAt`, and `updatedAt`.
-- [ ] Define `Dataset.visibility = 'private' | 'app'`, defaulting to `private` for playground-created datasets in v1.
-- [ ] Define `DatasetExample` with `id`, `datasetId`, nullable `sourceRunId`, nullable `sourceThreadId`, nullable `triggerMessageId`, `inputJson`, nullable `baselineOutputJson`, nullable `expectedOutputJson`, nullable `metadataJson`, nullable `contextSnapshotJson`, nullable `toolInvocationsSnapshotJson`, nullable `createdByActorId`, `createdAt`, and `updatedAt`.
-- [ ] Treat `datasetId` as the required owning relationship for examples.
-- [ ] Treat `sourceRunId`, `sourceThreadId`, and `triggerMessageId` as nullable indexed soft lineage refs rather than required truth sources.
+- [x] Define `Dataset` with `id`, `appId`, `name`, `description`, `visibility`, `metadata`, `createdByActorId`, `createdAt`, and `updatedAt`.
+- [x] Define `Dataset.visibility = 'private' | 'app'`, defaulting to `private` for playground-created datasets in v1.
+- [x] Define `DatasetExample` with `id`, `datasetId`, nullable `sourceRunId`, nullable `sourceThreadId`, nullable `triggerMessageId`, `inputJson`, nullable `baselineOutputJson`, nullable `expectedOutputJson`, nullable `metadataJson`, nullable `contextSnapshotJson`, nullable `toolInvocationsSnapshotJson`, nullable `createdByActorId`, `createdAt`, and `updatedAt`.
+- [x] Treat `datasetId` as the required owning relationship for examples.
+- [x] Treat `sourceRunId`, `sourceThreadId`, and `triggerMessageId` as nullable indexed soft lineage refs rather than required truth sources.
 - [ ] Do not add foreign-key constraints for `sourceRunId`, `sourceThreadId`, or `triggerMessageId` in v1.
 - [ ] Validate source run/thread/message existence and app boundary at capture time, not through long-lived source-ref FK constraints.
-- [ ] Keep `expectedOutputJson` nullable by default.
-- [ ] Store snapshot fields as structured JSON objects, not ad hoc strings.
-- [ ] Define `inputJson` v1 as an envelope with `schemaVersion: 1`, `kind: 'chat_turn'`, `contextSource: 'current_canonical_at_capture'`, `triggerMessageId`, `triggerMessage`, `messages`, optional `canonicalRunIds`, and optional `diagnostics`.
+- [x] Keep `expectedOutputJson` nullable by default.
+- [x] Store snapshot fields as structured JSON objects, not ad hoc strings.
+- [x] Define `inputJson` v1 as an envelope with `schemaVersion: 1`, `kind: 'chat_turn'`, `contextSource: 'current_canonical_at_capture'`, `triggerMessageId`, `triggerMessage`, `messages`, optional `canonicalRunIds`, and optional `diagnostics`.
 - [ ] Capture canonical messages up to and including the trigger message in `inputJson.messages`.
 - [ ] Do not claim `inputJson` is the exact runtime prompt or deterministic replay input in v1.
-- [ ] Define `baselineOutputJson` v1 as a run output envelope with `schemaVersion: 1`, `runId`, assistant messages for the run, status, and error.
-- [ ] Define `contextSnapshotJson` v1 as a snapshot of thread/run attribution, provider/model, usage, timing, and optional trace diagnostics.
-- [ ] Define `toolInvocationsSnapshotJson` v1 as a snapshot of durable tool invocations for the source run.
+- [x] Define `baselineOutputJson` v1 as a run output envelope with `schemaVersion: 1`, `runId`, assistant messages for the run, status, and error.
+- [x] Define `contextSnapshotJson` v1 as a snapshot of thread/run attribution, provider/model, usage, timing, and optional trace diagnostics.
+- [x] Define `toolInvocationsSnapshotJson` v1 as a snapshot of durable tool invocations for the source run.
 - [ ] Write a non-null empty `toolInvocationsSnapshotJson` envelope for capture-from-run when the source run has no tool invocations.
 - [ ] Reserve `toolInvocationsSnapshotJson: null` for manual/import examples or host policy omission.
 - [ ] Do not silently truncate tool invocation snapshot JSON in v1.
 - [ ] Allow hosts to explicitly omit tool invocation payloads by policy and represent the omission in the snapshot envelope.
 - [ ] Defer redaction/transformation hooks for sensitive tool payloads; v1 either captures the snapshot or explicitly omits it.
-- [ ] Define `metadataJson` v1 as a generic envelope with `schemaVersion`, `capture`, optional `feedback`, optional `host`, and optional `evaluation` namespaces.
-- [ ] Store shared run feedback under `metadataJson.feedback.sharedRunFeedback`.
-- [ ] Store playground feedback details under `metadataJson.host.playground.runFeedbackDetails`.
-- [ ] Store capture classification under `metadataJson.capture.kind = 'normal_example' | 'failure_case' | 'debug_case'`.
-- [ ] Store future eval default inclusion under `metadataJson.evaluation.defaultEligible`.
+- [x] Define `metadataJson` v1 as a generic envelope with `schemaVersion`, `capture`, optional `feedback`, optional `host`, and optional `evaluation` namespaces.
+- [x] Store shared run feedback under `metadataJson.feedback.sharedRunFeedback`.
+- [x] Store playground feedback details under `metadataJson.host.playground.runFeedbackDetails`.
+- [x] Store capture classification under `metadataJson.capture.kind = 'normal_example' | 'failure_case' | 'debug_case'`.
+- [x] Store future eval default inclusion under `metadataJson.evaluation.defaultEligible`.
 - [ ] Ensure playground feedback details, when copied, are not parsed by shared core/app code.
 
 ### 1.3 Types / Interfaces
-- [ ] Add `Dataset` and `DatasetExample` to `packages/core/src/types.ts`.
-- [ ] Add `DatasetRepository` and `DatasetExampleRepository` to `packages/core/src/repositories.ts`.
+- [x] Add `Dataset` and `DatasetExample` to `packages/core/src/types.ts`.
+- [x] Add `DatasetRepository` and `DatasetExampleRepository` to `packages/core/src/repositories.ts`.
 - [ ] Add dataset repositories to `AgentInfraAppRepositories`.
 - [ ] Add dataset use-case inputs/results to `packages/app/src/types.ts`.
 - [ ] Add `app.datasets` namespace to `AgentInfraApp`.
@@ -87,7 +87,7 @@
 - [ ] Include `appId` in dataset list/create boundaries so datasets remain app-scoped.
 - [ ] Include `visibility` in dataset create/list boundaries so private and app-visible datasets have explicit semantics.
 - [ ] Include optional `createdByActorId` / `capturedByActorId` without introducing a shared business `user_id` requirement.
-- [ ] Keep core dataset/example JSON fields generic, and define capture-generated snapshot envelope types in `packages/app`.
+- [x] Keep core dataset/example JSON fields generic, and define capture-generated snapshot envelope types in `packages/app`.
 - [ ] Define DTOs in `packages/contracts` for datasets, examples, create/list/read/capture requests, and responses.
 - [ ] Keep DTO JSON fields generic `Record<string, unknown>` and nullable where appropriate.
 - [ ] Add durable-chat-server DTO projector/helper functions for dataset and example responses.
@@ -96,10 +96,10 @@
 ## 2. Backend / Platform
 
 ### 2.1 Shared Core
-- [ ] Add dataset/example domain types.
-- [ ] Add dataset/example repository interfaces.
-- [ ] Export new types and interfaces from the package entrypoint if needed.
-- [ ] Keep feedback details out of shared core dataset-specific types; only generic metadata is shared.
+- [x] Add dataset/example domain types.
+- [x] Add dataset/example repository interfaces.
+- [x] Export new types and interfaces from the package entrypoint if needed.
+- [x] Keep feedback details out of shared core dataset-specific types; only generic metadata is shared.
 
 ### 2.2 Shared DB
 - [ ] Add Postgres `datasets` table.
@@ -266,11 +266,11 @@
 - [x] Commit Loop 0 if this todo is materially changed before implementation starts.
 
 ### Loop 1a: Shared Dataset Model and Interfaces
-- [ ] Implement shared `Dataset` and `DatasetExample` types.
-- [ ] Implement shared repository interfaces.
-- [ ] Define app-level snapshot envelope types.
-- [ ] Run package typecheck for affected shared packages if needed.
-- [ ] Run `codex review` for this loop after targeted verification passes.
+- [x] Implement shared `Dataset` and `DatasetExample` types.
+- [x] Implement shared repository interfaces.
+- [x] Define app-level snapshot envelope types.
+- [x] Run package typecheck for affected shared packages if needed.
+- [x] Run `codex review` for this loop after targeted verification passes.
 - [ ] Commit Loop 1a.
 
 ### Loop 1b: Shared Dataset DB

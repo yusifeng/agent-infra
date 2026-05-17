@@ -352,6 +352,118 @@ export interface TraceSpanProjectionV1 {
   diagnostics: TraceSpanProjectionDiagnosticsV1;
 }
 
+export interface DatasetMessagePartSnapshotV1 {
+  id: string;
+  messageId: string;
+  partIndex: number;
+  type: MessagePart['type'];
+  textValue?: string | null;
+  jsonValue?: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface DatasetMessageSnapshotV1 {
+  id: string;
+  threadId: string;
+  runId?: string | null;
+  role: Message['role'];
+  seq: number;
+  status: Message['status'];
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+  parts: DatasetMessagePartSnapshotV1[];
+}
+
+export interface DatasetInputSnapshotV1 {
+  schemaVersion: 1;
+  kind: 'chat_turn';
+  contextSource: 'current_canonical_at_capture';
+  triggerMessageId?: string | null;
+  triggerMessage?: DatasetMessageSnapshotV1 | null;
+  messages: DatasetMessageSnapshotV1[];
+  canonicalRunIds?: string[];
+  diagnostics?: CanonicalTranscriptDiagnostic[];
+}
+
+export interface DatasetBaselineOutputSnapshotV1 {
+  schemaVersion: 1;
+  kind: 'run_output';
+  runId: string;
+  status: Run['status'];
+  error?: string | null;
+  assistantMessages: DatasetMessageSnapshotV1[];
+}
+
+export interface DatasetContextSnapshotV1 {
+  schemaVersion: 1;
+  kind: 'run_context';
+  appId: string;
+  threadId: string;
+  runId: string;
+  triggerMessageId?: string | null;
+  provider?: string | null;
+  model?: string | null;
+  status: Run['status'];
+  usage?: Run['usage'] | null;
+  error?: string | null;
+  runCreatedAt: string;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  traceDiagnostics?: TraceProjectionDiagnosticV1[];
+}
+
+export type DatasetToolInvocationSnapshotStateV1 = 'captured' | 'omitted_by_policy';
+
+export interface DatasetToolInvocationSnapshotV1 {
+  id: string;
+  threadId: string;
+  runId: string;
+  messageId: string;
+  toolName: string;
+  toolCallId: string;
+  status: ToolInvocation['status'];
+  input?: Record<string, unknown> | null;
+  output?: Record<string, unknown> | null;
+  error?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  createdAt: string;
+}
+
+export interface DatasetToolInvocationsSnapshotV1 {
+  schemaVersion: 1;
+  kind: 'tool_invocations';
+  sourceRunId: string;
+  state: DatasetToolInvocationSnapshotStateV1;
+  omissionReason?: string | null;
+  toolInvocations: DatasetToolInvocationSnapshotV1[];
+}
+
+export type DatasetCaptureKindV1 = 'normal_example' | 'failure_case' | 'debug_case';
+
+export interface DatasetExampleMetadataSnapshotV1 {
+  schemaVersion: 1;
+  capture: {
+    kind: DatasetCaptureKindV1;
+    capturedAt: string;
+    capturedByActorId?: string | null;
+    sourceRunId?: string | null;
+    sourceThreadId?: string | null;
+    triggerMessageId?: string | null;
+  };
+  feedback?: {
+    sharedRunFeedback?: Record<string, unknown> | null;
+  };
+  host?: {
+    playground?: {
+      runFeedbackDetails?: Record<string, unknown> | null;
+    };
+  };
+  evaluation?: {
+    defaultEligible: boolean;
+  };
+}
+
 export interface GetThreadRunsInput {
   threadId: string;
   limit?: number;

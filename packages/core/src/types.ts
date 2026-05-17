@@ -20,6 +20,8 @@ export type RunFeedbackValue = 'thumbs_up' | 'thumbs_down';
 
 export type RunUsageNormalizationStatus = 'complete' | 'partial' | 'missing' | 'malformed';
 
+export type DatasetVisibility = 'private' | 'app';
+
 export interface RunUsageTokensV1 {
   input?: number;
   output?: number;
@@ -101,6 +103,35 @@ export interface RunFeedback {
   runId: string;
   feedbackActorId: string;
   value: RunFeedbackValue;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Dataset {
+  id: string;
+  appId: string;
+  name: string;
+  description?: string | null;
+  visibility: DatasetVisibility;
+  metadata?: Record<string, unknown> | null;
+  createdByActorId?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface DatasetExample {
+  id: string;
+  datasetId: string;
+  sourceRunId?: string | null;
+  sourceThreadId?: string | null;
+  triggerMessageId?: string | null;
+  inputJson: Record<string, unknown>;
+  baselineOutputJson?: Record<string, unknown> | null;
+  expectedOutputJson?: Record<string, unknown> | null;
+  metadataJson?: Record<string, unknown> | null;
+  contextSnapshotJson?: Record<string, unknown> | null;
+  toolInvocationsSnapshotJson?: Record<string, unknown> | null;
+  createdByActorId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
