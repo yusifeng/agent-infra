@@ -6,9 +6,53 @@ The completed `v0` scope and closeout rationale live in [`v0-closeout.md`](./v0-
 
 The roadmap after `v0` should be read as a set of candidate tracks, not as a promise to build every item in order.
 
-## Selected Next Infra Track: Dataset Review And Expected Output Foundation v1
+## Selected Next Infra Track: Dataset Regression Runner v1
 
-The next infra track is `Dataset Review And Expected Output Foundation v1`.
+The next infra track is `Dataset Regression Runner v1`.
+
+This track turns curated eligible dataset examples into durable current-runtime
+regression batches. It adds `EvalRun` and `EvalExampleResult`, create-time
+expected-output snapshots, isolated eval-thread execution, actual-output
+snapshots, per-result errors, usage/duration capture, summary updates, and
+manual result review.
+
+The source of truth lives in
+[`source-of-truth/eval-run-model.md`](./source-of-truth/eval-run-model.md).
+
+In scope:
+
+- `EvalRun` as one dataset regression batch
+- `EvalExampleResult` as one selected dataset example execution
+- create/run split where create builds queued result rows and run executes
+  existing rows
+- current-runtime execution using captured canonical context
+- isolated eval threads that do not mutate the original source thread
+- expected-output snapshots copied at eval-run creation
+- actual-output snapshots using a versioned `eval_run_output` envelope
+- per-result runtime/materialization failure isolation
+- usage and duration snapshots for eval output runs
+- manual result review with `pass`, `fail`, `needs_review`, and
+  `not_applicable`
+- shared core, db, app, contract, server, and client support
+- authenticated playground validation routes and an eval-centric surface under
+  `/observability/evals`
+
+Deferred:
+
+- deterministic replay or frozen tool-output replay
+- LLM-as-judge scoring
+- automatic comparison or grading
+- experiment comparison
+- prompt hub or prompt version management
+- CI gates
+- reports, pass-rate dashboards, alerting, or cost analytics
+- OpenTelemetry, LangSmith, or exporter sinks
+- dataset search, bulk operations, assignments, or multi-reviewer workflow
+- shared user, org, tenant, billing, or account models
+
+## Completed Infra Track: Dataset Review And Expected Output Foundation v1
+
+`Dataset Review And Expected Output Foundation v1` is complete.
 
 This track turns captured dataset examples into curated future-eval candidates
 without implementing eval execution. It adds typed expected-output and review

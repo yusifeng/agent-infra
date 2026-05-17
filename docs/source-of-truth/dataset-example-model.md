@@ -5,8 +5,12 @@ This document is the source of truth for `Dataset` and `DatasetExample` v1.
 Dataset Capture v1 turns a durable run into a durable example candidate.
 Dataset Review and Expected Output Foundation v1 turns that candidate into a
 curated future-eval candidate by adding typed expected-output and review
-metadata. These tracks are a foundation for future quality loops, evaluation,
-and regression testing, but they are not themselves an evaluation runner, replay
+metadata.
+
+Dataset Regression Runner v1 consumes eligible curated examples and defines its
+own execution contract in
+[`eval-run-model.md`](./eval-run-model.md). Dataset examples remain durable
+captured snapshots; they are not themselves an evaluation runner, replay
 runtime, experiment system, prompt hub, or annotation product.
 
 ## Scope
@@ -23,7 +27,6 @@ Dataset Capture v1 stabilizes:
 
 It intentionally does not add:
 
-- an evaluation runner
 - live replay or frozen replay runtime
 - experiment comparison
 - LLM-as-judge scoring
@@ -33,6 +36,10 @@ It intentionally does not add:
 - automatic batch import of historical runs
 - a full dataset management UI
 - evaluation execution, eval result persistence, or eval reports
+
+Dataset Regression Runner v1 is defined separately in
+[`eval-run-model.md`](./eval-run-model.md). That track may create eval runs and
+results from eligible examples without changing the dataset example truth model.
 
 ## Product Boundary
 
@@ -449,6 +456,8 @@ for dataset capture. They are not complete deterministic replay logs.
 snapshots may include message and part content, but they do not redefine normal
 chat projection, `AnswerContainer`, `ContentNode`, or replay runtime behavior.
 
-Future eval/replay work may consume `DatasetExample` records, but it must define
-its own execution contract instead of assuming captured snapshots are sufficient
-to deterministically reproduce a run.
+Eval runner work may consume `DatasetExample` records only through an explicit
+execution contract. Dataset Regression Runner v1 defines that contract in
+[`eval-run-model.md`](./eval-run-model.md). Captured snapshots remain canonical
+context for current-runtime regression execution, not enough information to
+deterministically reproduce a run.

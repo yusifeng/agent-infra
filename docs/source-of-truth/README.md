@@ -49,6 +49,11 @@
   - Run Trace & Usage Contract v1 的 durable raw trace、typed timeline projection、
     versioned usage summary、`message_update` live-only 边界、app/thread/run
     attribution 规则，以及 usage records、cancel、replay/eval 的后续进入条件
+- `eval-run-model.md`
+  - Dataset Regression Runner v1 的 `EvalRun` / `EvalExampleResult` 模型、
+    create/run split、isolated eval thread 执行策略、input materialization、
+    actual/expected output snapshot、result review、summary 更新和 deferred
+    scope 边界
 - `message-pagination-model.md`
   - durable transcript pagination 的 `threadId + seq` cursor 基础、
     `limit/before/after` 查询语义、`pageInfo` 边界、分层职责，
