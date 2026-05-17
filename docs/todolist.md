@@ -55,7 +55,7 @@
 - [x] Define `DatasetExample` with `id`, `datasetId`, nullable `sourceRunId`, nullable `sourceThreadId`, nullable `triggerMessageId`, `inputJson`, nullable `baselineOutputJson`, nullable `expectedOutputJson`, nullable `metadataJson`, nullable `contextSnapshotJson`, nullable `toolInvocationsSnapshotJson`, nullable `createdByActorId`, `createdAt`, and `updatedAt`.
 - [x] Treat `datasetId` as the required owning relationship for examples.
 - [x] Treat `sourceRunId`, `sourceThreadId`, and `triggerMessageId` as nullable indexed soft lineage refs rather than required truth sources.
-- [ ] Do not add foreign-key constraints for `sourceRunId`, `sourceThreadId`, or `triggerMessageId` in v1.
+- [x] Do not add foreign-key constraints for `sourceRunId`, `sourceThreadId`, or `triggerMessageId` in v1.
 - [ ] Validate source run/thread/message existence and app boundary at capture time, not through long-lived source-ref FK constraints.
 - [x] Keep `expectedOutputJson` nullable by default.
 - [x] Store snapshot fields as structured JSON objects, not ad hoc strings.
@@ -80,7 +80,7 @@
 ### 1.3 Types / Interfaces
 - [x] Add `Dataset` and `DatasetExample` to `packages/core/src/types.ts`.
 - [x] Add `DatasetRepository` and `DatasetExampleRepository` to `packages/core/src/repositories.ts`.
-- [ ] Add dataset repositories to `AgentInfraAppRepositories`.
+- [x] Add dataset repositories to `AgentInfraAppRepositories`.
 - [ ] Add dataset use-case inputs/results to `packages/app/src/types.ts`.
 - [ ] Add `app.datasets` namespace to `AgentInfraApp`.
 - [ ] Define `CreateDatasetInput`, `ListDatasetsInput`, `GetDatasetInput`, `ListDatasetExamplesInput`, `UpdateDatasetExampleExpectedOutputInput`, and `CaptureDatasetExampleFromRunInput`.
@@ -102,20 +102,20 @@
 - [x] Keep feedback details out of shared core dataset-specific types; only generic metadata is shared.
 
 ### 2.2 Shared DB
-- [ ] Add Postgres `datasets` table.
-- [ ] Add Postgres `dataset_examples` table.
-- [ ] Add SQLite/Turso `datasets` table.
-- [ ] Add SQLite/Turso `dataset_examples` table.
-- [ ] Add indexes for `datasets.app_id`, `dataset_examples.dataset_id`, `dataset_examples.source_run_id`, `dataset_examples.source_thread_id`, and `dataset_examples.trigger_message_id`.
-- [ ] Add a foreign key from `dataset_examples.dataset_id` to `datasets.id`.
-- [ ] Do not add foreign-key constraints from `dataset_examples.source_run_id`, `source_thread_id`, or `trigger_message_id` to source records in v1.
-- [ ] Add `DrizzleDatasetRepository` and `DrizzleDatasetExampleRepository`.
-- [ ] Add `SqliteDatasetRepository` and `SqliteDatasetExampleRepository`.
-- [ ] Add repositories to `createAgentInfraRepositories`.
-- [ ] Add repositories to `AgentInfraRepositoryBundle`.
-- [ ] Add bootstrap schema statements for SQLite/Turso.
-- [ ] Ensure schema bootstrapping remains idempotent.
-- [ ] Generate or update Drizzle migration artifacts if the repo workflow requires them for shared schema changes.
+- [x] Add Postgres `datasets` table.
+- [x] Add Postgres `dataset_examples` table.
+- [x] Add SQLite/Turso `datasets` table.
+- [x] Add SQLite/Turso `dataset_examples` table.
+- [x] Add indexes for `datasets.app_id`, `dataset_examples.dataset_id`, `dataset_examples.source_run_id`, `dataset_examples.source_thread_id`, and `dataset_examples.trigger_message_id`.
+- [x] Add a foreign key from `dataset_examples.dataset_id` to `datasets.id`.
+- [x] Do not add foreign-key constraints from `dataset_examples.source_run_id`, `source_thread_id`, or `trigger_message_id` to source records in v1.
+- [x] Add `DrizzleDatasetRepository` and `DrizzleDatasetExampleRepository`.
+- [x] Add `SqliteDatasetRepository` and `SqliteDatasetExampleRepository`.
+- [x] Add repositories to `createAgentInfraRepositories`.
+- [x] Add repositories to `AgentInfraRepositoryBundle`.
+- [x] Add bootstrap schema statements for SQLite/Turso.
+- [x] Ensure schema bootstrapping remains idempotent.
+- [x] Generate or update Drizzle migration artifacts if the repo workflow requires them for shared schema changes.
 
 ### 2.3 App Use Cases
 - [ ] Add `app.datasets.create`.
@@ -188,13 +188,13 @@
 ## 4. Tests
 
 ### 4.1 DB Tests
-- [ ] Add repository tests for dataset create/get/list by app.
-- [ ] Add repository tests for dataset example create/get/list/update expected output.
-- [ ] Add JSON snapshot roundtrip tests for input, baseline output, expected output, context, metadata, and tool invocation snapshots.
-- [ ] Add tests for nullable source refs.
-- [ ] Add tests proving source refs can point to missing source run/thread/message ids.
-- [ ] Add tests proving source refs are indexed soft refs and examples do not require source FK constraints.
-- [ ] Add bootstrap/idempotency coverage for SQLite/Turso statements where practical.
+- [x] Add repository tests for dataset create/get/list by app.
+- [x] Add repository tests for dataset example create/get/list/update expected output.
+- [x] Add JSON snapshot roundtrip tests for input, baseline output, expected output, context, metadata, and tool invocation snapshots.
+- [x] Add tests for nullable source refs.
+- [x] Add tests proving source refs can point to missing source run/thread/message ids.
+- [x] Add tests proving source refs are indexed soft refs and examples do not require source FK constraints.
+- [x] Add bootstrap/idempotency coverage for SQLite/Turso statements where practical.
 
 ### 4.2 App Tests
 - [ ] Add app tests for creating and listing datasets.
@@ -238,14 +238,14 @@
 - [ ] Add observability UI/runtime tests for capture error state.
 
 ### 4.5 Targeted Verification
-- [ ] Run `pnpm --filter @agent-infra/db test` after DB slice.
+- [x] Run `pnpm --filter @agent-infra/db test` after DB slice.
 - [ ] Run `pnpm --filter @agent-infra/app test` after app slice.
 - [ ] Run `pnpm --filter @agent-infra/contracts typecheck` after contracts slice if available.
 - [ ] Run `pnpm --filter @agent-infra/durable-chat-server test` after server helper slice.
 - [ ] Run `pnpm --filter @agent-infra/durable-chat-client test` after client helper slice.
 - [ ] Run `pnpm --filter playground-next-web test` after playground route/UI slice.
 - [ ] Run `pnpm --filter playground-next-web typecheck` after playground route/UI slice.
-- [ ] Run broader package typecheck only if targeted verification leaves cross-package uncertainty.
+- [x] Confirm broader package typecheck is not needed when targeted verification leaves no cross-package uncertainty.
 
 ## 5. Recommended Execution Order
 
@@ -271,17 +271,17 @@
 - [x] Define app-level snapshot envelope types.
 - [x] Run package typecheck for affected shared packages if needed.
 - [x] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 1a.
+- [x] Commit Loop 1a.
 
 ### Loop 1b: Shared Dataset DB
-- [ ] Implement Postgres and SQLite/Turso schema definitions.
-- [ ] Implement Postgres and SQLite/Turso repositories.
-- [ ] Wire dataset repositories into repository bundle creation and transactions.
-- [ ] Add DB repository and JSON roundtrip tests.
-- [ ] Run targeted DB tests.
-- [ ] Run package typecheck for affected shared packages if needed.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 1b.
+- [x] Implement Postgres and SQLite/Turso schema definitions.
+- [x] Implement Postgres and SQLite/Turso repositories.
+- [x] Wire dataset repositories into repository bundle creation and transactions.
+- [x] Add DB repository and JSON roundtrip tests.
+- [x] Run targeted DB tests.
+- [x] Run package typecheck for affected shared packages if needed.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit Loop 1b.
 
 ### Loop 2: App Dataset Use Cases
 - [ ] Add dataset use-case types to `packages/app`.

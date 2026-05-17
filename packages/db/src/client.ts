@@ -10,6 +10,8 @@ import type {
   AnswerSelectionRepository,
   ChatShareRepository,
   ChatShareSnapshotRepository,
+  DatasetExampleRepository,
+  DatasetRepository,
   MessageRepository,
   RunFeedbackRepository,
   RunEventRepository,
@@ -23,6 +25,8 @@ import {
   DrizzleAnswerSelectionRepository,
   DrizzleChatShareRepository,
   DrizzleChatShareSnapshotRepository,
+  DrizzleDatasetExampleRepository,
+  DrizzleDatasetRepository,
   DrizzleMessageRepository,
   DrizzleRunFeedbackRepository,
   DrizzleRunEventRepository,
@@ -35,6 +39,8 @@ import {
   SqliteAnswerSelectionRepository,
   SqliteChatShareRepository,
   SqliteChatShareSnapshotRepository,
+  SqliteDatasetExampleRepository,
+  SqliteDatasetRepository,
   SqliteMessageRepository,
   SqliteRunFeedbackRepository,
   SqliteRunEventRepository,
@@ -65,6 +71,8 @@ export interface AgentInfraRepositoryBundle {
   answerCandidateRepo: AnswerCandidateRepository;
   answerSelectionRepo: AnswerSelectionRepository;
   runFeedbackRepo: RunFeedbackRepository;
+  datasetRepo: DatasetRepository;
+  datasetExampleRepo: DatasetExampleRepository;
 }
 
 const sqliteTransactionQueues = new Map<string, Promise<void>>();
@@ -133,7 +141,9 @@ export function createAgentInfraRepositories(mode: DbMode, db: any): AgentInfraR
       chatShareSnapshotRepo: new SqliteChatShareSnapshotRepository(db),
       answerCandidateRepo: new SqliteAnswerCandidateRepository(db),
       answerSelectionRepo: new SqliteAnswerSelectionRepository(db),
-      runFeedbackRepo: new SqliteRunFeedbackRepository(db)
+      runFeedbackRepo: new SqliteRunFeedbackRepository(db),
+      datasetRepo: new SqliteDatasetRepository(db),
+      datasetExampleRepo: new SqliteDatasetExampleRepository(db)
     };
   }
 
@@ -147,7 +157,9 @@ export function createAgentInfraRepositories(mode: DbMode, db: any): AgentInfraR
     chatShareSnapshotRepo: new DrizzleChatShareSnapshotRepository(db),
     answerCandidateRepo: new DrizzleAnswerCandidateRepository(db),
     answerSelectionRepo: new DrizzleAnswerSelectionRepository(db),
-    runFeedbackRepo: new DrizzleRunFeedbackRepository(db)
+    runFeedbackRepo: new DrizzleRunFeedbackRepository(db),
+    datasetRepo: new DrizzleDatasetRepository(db),
+    datasetExampleRepo: new DrizzleDatasetExampleRepository(db)
   };
 }
 

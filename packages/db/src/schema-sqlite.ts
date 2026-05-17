@@ -149,6 +149,52 @@ export const runFeedback = sqliteTable(
   })
 );
 
+export const datasets = sqliteTable(
+  'datasets',
+  {
+    id: text('id').primaryKey(),
+    appId: text('app_id').notNull(),
+    name: text('name').notNull(),
+    description: text('description'),
+    visibility: text('visibility').notNull(),
+    metadata: text('metadata', { mode: 'json' }),
+    createdByActorId: text('created_by_actor_id'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
+  },
+  (table) => ({
+    appIdIdx: index('datasets_app_id_idx').on(table.appId)
+  })
+);
+
+export const datasetExamples = sqliteTable(
+  'dataset_examples',
+  {
+    id: text('id').primaryKey(),
+    datasetId: text('dataset_id')
+      .notNull()
+      .references(() => datasets.id),
+    sourceRunId: text('source_run_id'),
+    sourceThreadId: text('source_thread_id'),
+    triggerMessageId: text('trigger_message_id'),
+    inputJson: text('input_json', { mode: 'json' }).notNull(),
+    baselineOutputJson: text('baseline_output_json', { mode: 'json' }),
+    expectedOutputJson: text('expected_output_json', { mode: 'json' }),
+    metadataJson: text('metadata_json', { mode: 'json' }),
+    contextSnapshotJson: text('context_snapshot_json', { mode: 'json' }),
+    toolInvocationsSnapshotJson: text('tool_invocations_snapshot_json', { mode: 'json' }),
+    createdByActorId: text('created_by_actor_id'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
+  },
+  (table) => ({
+    datasetIdIdx: index('dataset_examples_dataset_id_idx').on(table.datasetId),
+    sourceRunIdIdx: index('dataset_examples_source_run_id_idx').on(table.sourceRunId),
+    sourceThreadIdIdx: index('dataset_examples_source_thread_id_idx').on(table.sourceThreadId),
+    triggerMessageIdIdx: index('dataset_examples_trigger_message_id_idx').on(table.triggerMessageId)
+  })
+);
+
 export const toolInvocations = sqliteTable(
   'tool_invocations',
   {
@@ -328,6 +374,38 @@ export const SQLITE_SCHEMA_STATEMENTS = [
   )`,
   'CREATE UNIQUE INDEX IF NOT EXISTS run_feedback_run_actor_unique ON run_feedback(run_id, feedback_actor_id)',
   'CREATE INDEX IF NOT EXISTS run_feedback_thread_trigger_idx ON run_feedback(thread_id, trigger_message_id)',
+  `CREATE TABLE IF NOT EXISTS datasets (
+    id TEXT PRIMARY KEY,
+    app_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    visibility TEXT NOT NULL,
+    metadata TEXT,
+    created_by_actor_id TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  'CREATE INDEX IF NOT EXISTS datasets_app_id_idx ON datasets(app_id)',
+  `CREATE TABLE IF NOT EXISTS dataset_examples (
+    id TEXT PRIMARY KEY,
+    dataset_id TEXT NOT NULL REFERENCES datasets(id),
+    source_run_id TEXT,
+    source_thread_id TEXT,
+    trigger_message_id TEXT,
+    input_json TEXT NOT NULL,
+    baseline_output_json TEXT,
+    expected_output_json TEXT,
+    metadata_json TEXT,
+    context_snapshot_json TEXT,
+    tool_invocations_snapshot_json TEXT,
+    created_by_actor_id TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  'CREATE INDEX IF NOT EXISTS dataset_examples_dataset_id_idx ON dataset_examples(dataset_id)',
+  'CREATE INDEX IF NOT EXISTS dataset_examples_source_run_id_idx ON dataset_examples(source_run_id)',
+  'CREATE INDEX IF NOT EXISTS dataset_examples_source_thread_id_idx ON dataset_examples(source_thread_id)',
+  'CREATE INDEX IF NOT EXISTS dataset_examples_trigger_message_id_idx ON dataset_examples(trigger_message_id)',
   `CREATE TABLE IF NOT EXISTS message_parts (
     id TEXT PRIMARY KEY,
     message_id TEXT NOT NULL REFERENCES messages(id),

@@ -5,7 +5,11 @@ import type {
   AnswerSelectionRepository,
   CanonicalTranscriptDiagnostic,
   ChatShare,
+  ChatShareRepository,
   ChatShareSnapshot,
+  ChatShareSnapshotRepository,
+  DatasetExampleRepository,
+  DatasetRepository,
   Message,
   MessagePageResult,
   MessagePart,
@@ -20,9 +24,7 @@ import type {
   Thread,
   ThreadRepository,
   ToolInvocation,
-  ToolInvocationRepository,
-  ChatShareRepository,
-  ChatShareSnapshotRepository
+  ToolInvocationRepository
 } from '@agent-infra/core';
 
 export interface AgentInfraAppRepositories {
@@ -36,6 +38,8 @@ export interface AgentInfraAppRepositories {
   answerCandidateRepo: AnswerCandidateRepository;
   answerSelectionRepo: AnswerSelectionRepository;
   runFeedbackRepo: RunFeedbackRepository;
+  datasetRepo: DatasetRepository;
+  datasetExampleRepo: DatasetExampleRepository;
 }
 
 export interface RuntimeSelection {

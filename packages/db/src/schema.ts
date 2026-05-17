@@ -149,6 +149,52 @@ export const runFeedback = pgTable(
   })
 );
 
+export const datasets = pgTable(
+  'datasets',
+  {
+    id: text('id').primaryKey(),
+    appId: text('app_id').notNull(),
+    name: text('name').notNull(),
+    description: text('description'),
+    visibility: text('visibility').notNull(),
+    metadata: jsonb('metadata'),
+    createdByActorId: text('created_by_actor_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull()
+  },
+  (table) => ({
+    appIdIdx: index('datasets_app_id_idx').on(table.appId)
+  })
+);
+
+export const datasetExamples = pgTable(
+  'dataset_examples',
+  {
+    id: text('id').primaryKey(),
+    datasetId: text('dataset_id')
+      .notNull()
+      .references(() => datasets.id),
+    sourceRunId: text('source_run_id'),
+    sourceThreadId: text('source_thread_id'),
+    triggerMessageId: text('trigger_message_id'),
+    inputJson: jsonb('input_json').notNull(),
+    baselineOutputJson: jsonb('baseline_output_json'),
+    expectedOutputJson: jsonb('expected_output_json'),
+    metadataJson: jsonb('metadata_json'),
+    contextSnapshotJson: jsonb('context_snapshot_json'),
+    toolInvocationsSnapshotJson: jsonb('tool_invocations_snapshot_json'),
+    createdByActorId: text('created_by_actor_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull()
+  },
+  (table) => ({
+    datasetIdIdx: index('dataset_examples_dataset_id_idx').on(table.datasetId),
+    sourceRunIdIdx: index('dataset_examples_source_run_id_idx').on(table.sourceRunId),
+    sourceThreadIdIdx: index('dataset_examples_source_thread_id_idx').on(table.sourceThreadId),
+    triggerMessageIdIdx: index('dataset_examples_trigger_message_id_idx').on(table.triggerMessageId)
+  })
+);
+
 export const toolInvocations = pgTable(
   'tool_invocations',
   {

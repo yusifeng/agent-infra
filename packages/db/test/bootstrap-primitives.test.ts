@@ -10,6 +10,8 @@ import {
   createDbConfigFromEnv
 } from '../src/client';
 import {
+  DrizzleDatasetExampleRepository,
+  DrizzleDatasetRepository,
   DrizzleMessageRepository,
   DrizzleRunEventRepository,
   DrizzleRunRepository,
@@ -17,6 +19,8 @@ import {
   DrizzleToolInvocationRepository
 } from '../src/repositories';
 import {
+  SqliteDatasetExampleRepository,
+  SqliteDatasetRepository,
   SqliteMessageRepository,
   SqliteRunEventRepository,
   SqliteRunRepository,
@@ -32,6 +36,8 @@ describe('db bootstrap primitives', () => {
     expect(sqliteRepos.messageRepo).toBeInstanceOf(SqliteMessageRepository);
     expect(sqliteRepos.toolRepo).toBeInstanceOf(SqliteToolInvocationRepository);
     expect(sqliteRepos.runEventRepo).toBeInstanceOf(SqliteRunEventRepository);
+    expect(sqliteRepos.datasetRepo).toBeInstanceOf(SqliteDatasetRepository);
+    expect(sqliteRepos.datasetExampleRepo).toBeInstanceOf(SqliteDatasetExampleRepository);
 
     const tursoRepos = createAgentInfraRepositories('turso', {});
     expect(tursoRepos.threadRepo).toBeInstanceOf(SqliteThreadRepository);
@@ -39,6 +45,8 @@ describe('db bootstrap primitives', () => {
     expect(tursoRepos.messageRepo).toBeInstanceOf(SqliteMessageRepository);
     expect(tursoRepos.toolRepo).toBeInstanceOf(SqliteToolInvocationRepository);
     expect(tursoRepos.runEventRepo).toBeInstanceOf(SqliteRunEventRepository);
+    expect(tursoRepos.datasetRepo).toBeInstanceOf(SqliteDatasetRepository);
+    expect(tursoRepos.datasetExampleRepo).toBeInstanceOf(SqliteDatasetExampleRepository);
   });
 
   it('creates drizzle-backed repositories for postgres mode', () => {
@@ -48,6 +56,8 @@ describe('db bootstrap primitives', () => {
     expect(repos.messageRepo).toBeInstanceOf(DrizzleMessageRepository);
     expect(repos.toolRepo).toBeInstanceOf(DrizzleToolInvocationRepository);
     expect(repos.runEventRepo).toBeInstanceOf(DrizzleRunEventRepository);
+    expect(repos.datasetRepo).toBeInstanceOf(DrizzleDatasetRepository);
+    expect(repos.datasetExampleRepo).toBeInstanceOf(DrizzleDatasetExampleRepository);
   });
 
   describe('createAgentInfraTransaction', () => {

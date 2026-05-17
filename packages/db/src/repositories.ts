@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, lt, max } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, lt, max, or } from 'drizzle-orm';
 import type {
   AnswerCandidate,
   AnswerCandidateRepository,
@@ -10,6 +10,10 @@ import type {
   ChatShareRepository,
   ChatShareSnapshot,
   ChatShareSnapshotRepository,
+  Dataset,
+  DatasetExample,
+  DatasetExampleRepository,
+  DatasetRepository,
   Message,
   MessagePart,
   MessageRepository,
@@ -30,6 +34,8 @@ import {
   artifacts,
   chatShareSnapshots,
   chatShares,
+  datasetExamples,
+  datasets,
   messageParts,
   messages,
   runEvents,
@@ -347,6 +353,102 @@ export class DrizzleRunFeedbackRepository implements RunFeedbackRepository {
     const created = { ...input, createdAt: now, updatedAt: now };
     await this.db.insert(runFeedback).values(created);
     return created;
+  }
+}
+
+export class DrizzleDatasetRepository implements DatasetRepository {
+  constructor(private readonly db: any) {}
+
+  async create(input: Omit<Dataset, 'createdAt' | 'updatedAt'>): Promise<Dataset> {
+    const now = new Date();
+    await this.db.insert(datasets).values({ ...input, createdAt: now, updatedAt: now });
+    return { ...input, createdAt: now, updatedAt: now };
+  }
+
+  async findById(id: string): Promise<Dataset | null> {
+    const [row] = await this.db.select().from(datasets).where(eq(datasets.id, id)).limit(1);
+    return row ?? null;
+  }
+
+  async listByApp(input: { appId: string; actorId?: string | null; includeAppVisible?: boolean }): Promise<Dataset[]> {
+    const predicates = [eq(datasets.appId, input.appId)];
+    if (typeof input.actorId === 'string') {
+      const ownershipPredicate =
+        input.includeAppVisible === false
+          ? eq(datasets.createdByActorId, input.actorId)
+          : or(eq(datasets.createdByActorId, input.actorId), eq(datasets.visibility, 'app'));
+      if (ownershipPredicate) {
+        predicates.push(ownershipPredicate);
+      }
+    } else if (input.actorId === null) {
+      predicates.push(eq(datasets.visibility, 'app'));
+    }
+
+    return this.db
+      .select()
+      .from(datasets)
+      .where(predicates.length === 1 ? predicates[0] : and(...predicates))
+      .orderBy(asc(datasets.createdAt), asc(datasets.name));
+  }
+
+  async update(
+    id: string,
+    patch: Partial<Pick<Dataset, 'name' | 'description' | 'visibility' | 'metadata'>>,
+    updatedAt: Date
+  ): Promise<Dataset> {
+    await this.db.update(datasets).set({ ...patch, updatedAt }).where(eq(datasets.id, id));
+    const row = await this.findById(id);
+    if (!row) throw new Error(`dataset ${id} not found`);
+    return row;
+  }
+}
+
+export class DrizzleDatasetExampleRepository implements DatasetExampleRepository {
+  constructor(private readonly db: any) {}
+
+  async create(input: Omit<DatasetExample, 'createdAt' | 'updatedAt'>): Promise<DatasetExample> {
+    const now = new Date();
+    await this.db.insert(datasetExamples).values({ ...input, createdAt: now, updatedAt: now });
+    return { ...input, createdAt: now, updatedAt: now };
+  }
+
+  async findById(id: string): Promise<DatasetExample | null> {
+    const [row] = await this.db.select().from(datasetExamples).where(eq(datasetExamples.id, id)).limit(1);
+    return row ?? null;
+  }
+
+  async listByDataset(datasetId: string): Promise<DatasetExample[]> {
+    return this.db
+      .select()
+      .from(datasetExamples)
+      .where(eq(datasetExamples.datasetId, datasetId))
+      .orderBy(asc(datasetExamples.createdAt));
+  }
+
+  async updateExpectedOutput(
+    id: string,
+    patch: {
+      expectedOutputJson?: Record<string, unknown> | null;
+      metadataJson?: Record<string, unknown> | null;
+    },
+    updatedAt: Date
+  ): Promise<DatasetExample> {
+    const update: {
+      expectedOutputJson?: Record<string, unknown> | null;
+      metadataJson?: Record<string, unknown> | null;
+      updatedAt: Date;
+    } = { updatedAt };
+    if (Object.hasOwn(patch, 'expectedOutputJson')) {
+      update.expectedOutputJson = patch.expectedOutputJson;
+    }
+    if (Object.hasOwn(patch, 'metadataJson')) {
+      update.metadataJson = patch.metadataJson;
+    }
+
+    await this.db.update(datasetExamples).set(update).where(eq(datasetExamples.id, id));
+    const row = await this.findById(id);
+    if (!row) throw new Error(`dataset example ${id} not found`);
+    return row;
   }
 }
 
