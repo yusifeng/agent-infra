@@ -383,6 +383,53 @@ const assistantActions = [
   }
 ];
 
+function buildAnswerContainerActions({
+  copyAvailable,
+  feedback,
+  feedbackEnabled,
+  feedbackPending
+}: {
+  copyAvailable: boolean;
+  feedback?: RunFeedbackDto | null;
+  feedbackEnabled: boolean;
+  feedbackPending: boolean;
+}) {
+  return [
+    {
+      disabled: !copyAvailable,
+      icon: Copy,
+      key: 'copy',
+      label: 'Copy'
+    },
+    {
+      disabled: true,
+      icon: RotateCw,
+      key: 'regenerate',
+      label: 'Regenerate'
+    },
+    {
+      disabled: true,
+      icon: Trash2,
+      key: 'delete',
+      label: 'Delete'
+    },
+    {
+      active: feedback?.value === 'thumbs_up',
+      disabled: !feedbackEnabled || feedbackPending,
+      icon: ThumbsUp,
+      key: 'thumbs_up',
+      label: '点赞这个回答'
+    },
+    {
+      active: feedback?.value === 'thumbs_down',
+      disabled: !feedbackEnabled || feedbackPending,
+      icon: ThumbsDown,
+      key: 'thumbs_down',
+      label: '点踩这个回答'
+    }
+  ];
+}
+
 const AssistantTurnContent = memo(function AssistantTurnContent({
   items,
   runId,
@@ -686,20 +733,28 @@ function resolveAnswerContainerSectionReplayBlockId(
 export const AnswerContainerCard = memo(function AnswerContainerCard({
   container,
   actionContext,
+  feedback = null,
+  feedbackPending = false,
+  feedbackTriggerMessageId = null,
   showPersistedResearchStatus = false,
   activeReplayBlockId = null,
   variant = 'standalone',
-  onOpenSearchResult
+  onOpenSearchResult,
+  onSetRunFeedback
 }: {
   container: AnswerContainer;
   actionContext: {
     copyText: string;
     hasVisibleOperation: boolean;
   };
+  feedback?: RunFeedbackDto | null;
+  feedbackPending?: boolean;
+  feedbackTriggerMessageId?: string | null;
   showPersistedResearchStatus?: boolean;
   activeReplayBlockId?: string | null;
   variant?: 'standalone' | 'candidate';
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
+  onSetRunFeedback?: (runId: string, triggerMessageId: string, value: RunFeedbackDto['value'] | null) => void;
 }) {
   const sections = useMemo(
     () => buildAnswerContainerContentSections(container.blocks, showPersistedResearchStatus),
@@ -713,13 +768,21 @@ export const AnswerContainerCard = memo(function AnswerContainerCard({
     container.blocks.flatMap((block) => block.items.map((item) => [item.id, block.id] as const))
   );
   const getReplayBlockIdForItemId = (itemId: string) => blockIdByItemId.get(itemId) ?? null;
+  const feedbackEnabled = Boolean(container.runId && feedbackTriggerMessageId && onSetRunFeedback);
+  const actionsAvailable = actionContext.hasVisibleOperation || feedbackEnabled;
+  const actionItems = buildAnswerContainerActions({
+    copyAvailable: actionContext.hasVisibleOperation,
+    feedback,
+    feedbackEnabled,
+    feedbackPending
+  });
 
   return (
     <div
       className={clsx(
         'group relative max-w-screen',
         variant === 'candidate' ? 'w-full px-0' : 'w-[90%] px-4',
-        actionContext.hasVisibleOperation ? 'pb-8' : 'pb-2'
+        actionsAvailable ? 'pb-8' : 'pb-2'
       )}
       data-answer-container-id={container.id}
       data-message-role="assistant"
@@ -804,11 +867,20 @@ export const AnswerContainerCard = memo(function AnswerContainerCard({
         })}
       </div>
       <MessageActions
-        available={actionContext.hasVisibleOperation}
-        items={assistantActions}
+        available={actionsAvailable}
+        items={actionItems}
         onActionClick={(key) => {
           if (key === 'copy') {
             void copyTextToClipboard(actionContext.copyText);
+            return;
+          }
+
+          if ((key === 'thumbs_up' || key === 'thumbs_down') && container.runId && feedbackTriggerMessageId) {
+            onSetRunFeedback?.(
+              container.runId,
+              feedbackTriggerMessageId,
+              feedback?.value === key ? null : key
+            );
           }
         }}
       />
@@ -925,6 +997,8 @@ export const AnswerCandidateGroupCard = memo(function AnswerCandidateGroupCard({
   pendingRunIds?: Set<string>;
   showPersistedResearchStatus?: boolean;
 }) {
+  const hasUserSelection = group.selection?.source === 'user';
+
   return (
     <div
       className="w-full px-4 py-3"
@@ -943,7 +1017,7 @@ export const AnswerCandidateGroupCard = memo(function AnswerCandidateGroupCard({
               key={candidate.id}
               className={clsx(
                 'min-w-0 rounded-[28px] border bg-[color:var(--chat-surface)] p-4 shadow-sm transition',
-                candidate.selected
+                hasUserSelection && candidate.selected
                   ? 'border-[color:var(--chat-accent)] ring-1 ring-[color:var(--chat-accent)]'
                   : 'border-[color:var(--chat-border)]'
               )}
@@ -954,15 +1028,10 @@ export const AnswerCandidateGroupCard = memo(function AnswerCandidateGroupCard({
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-sm font-semibold text-[color:var(--chat-text)]">
                     <span>{formatCandidateLabel(candidate)}</span>
-                    {candidate.isDefault ? (
-                      <span className="rounded-full bg-[var(--chat-surface-muted)] px-2 py-0.5 text-[11px] font-medium text-[color:var(--chat-text-tertiary)]">
-                        默认
-                      </span>
-                    ) : null}
                   </div>
                   <div className="mt-0.5 text-xs text-[color:var(--chat-text-tertiary)]">{formatCandidateStatus(candidate)}</div>
                 </div>
-                {candidate.selected ? (
+                {hasUserSelection && candidate.selected ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-[var(--chat-accent)] px-2.5 py-1 text-xs font-semibold text-white">
                     <Check className="h-3.5 w-3.5" />
                     已选择
@@ -974,7 +1043,11 @@ export const AnswerCandidateGroupCard = memo(function AnswerCandidateGroupCard({
                 <AnswerContainerCard
                   actionContext={actionContext}
                   container={candidate.answerContainer}
+                  feedback={candidate.feedback}
+                  feedbackPending={pendingRunIds.has(candidate.candidate.runId)}
+                  feedbackTriggerMessageId={candidate.candidate.triggerMessageId}
                   onOpenSearchResult={onOpenSearchResult}
+                  onSetRunFeedback={onSetRunFeedback}
                   showPersistedResearchStatus={showPersistedResearchStatus}
                   variant="candidate"
                 />
@@ -994,49 +1067,17 @@ export const AnswerCandidateGroupCard = memo(function AnswerCandidateGroupCard({
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[color:var(--chat-border)] pt-3">
                 <button
                   type="button"
-                  disabled={candidate.selected || candidate.status === 'failed' || candidate.status === 'empty' || pendingRunIds.has(candidate.candidate.runId)}
+                  disabled={candidate.status !== 'completed' || pendingRunIds.has(candidate.candidate.runId)}
                   onClick={() => onChooseAnswerCandidate?.(candidate.candidate.runId, candidate.candidate.triggerMessageId)}
                   className={clsx(
                     'rounded-full px-3 py-1.5 text-xs font-semibold transition',
-                    candidate.selected
-                      ? 'bg-[var(--chat-accent)] text-white'
-                      : 'bg-[var(--chat-surface-muted)] text-[color:var(--chat-text-secondary)] hover:text-[color:var(--chat-text)]',
-                    (candidate.selected || candidate.status === 'failed' || candidate.status === 'empty' || pendingRunIds.has(candidate.candidate.runId)) &&
+                    'bg-[var(--chat-surface-muted)] text-[color:var(--chat-text-secondary)] hover:text-[color:var(--chat-text)]',
+                    (candidate.status !== 'completed' || pendingRunIds.has(candidate.candidate.runId)) &&
                       'cursor-default opacity-60'
                   )}
                 >
-                  {candidate.selected ? '当前最佳' : '选择这个'}
+                  选择这个
                 </button>
-                <div className="flex items-center gap-1">
-                  {(['thumbs_up', 'thumbs_down'] as const).map((value) => {
-                    const active = candidate.feedback?.value === value;
-                    const Icon = value === 'thumbs_up' ? ThumbsUp : ThumbsDown;
-                    return (
-                      <button
-                        key={value}
-                        type="button"
-                        disabled={pendingRunIds.has(candidate.candidate.runId)}
-                        onClick={() =>
-                          onSetRunFeedback?.(
-                            candidate.candidate.runId,
-                            candidate.candidate.triggerMessageId,
-                            active ? null : value
-                          )
-                        }
-                        className={clsx(
-                          'inline-flex h-8 w-8 items-center justify-center rounded-full border transition',
-                          active
-                            ? 'border-[color:var(--chat-accent)] bg-[var(--chat-accent)] text-white'
-                            : 'border-[color:var(--chat-border)] text-[color:var(--chat-text-tertiary)] hover:text-[color:var(--chat-text)]',
-                          pendingRunIds.has(candidate.candidate.runId) && 'cursor-wait opacity-60'
-                        )}
-                        aria-label={value === 'thumbs_up' ? '点赞这个回答' : '点踩这个回答'}
-                      >
-                        <Icon className="h-4 w-4" />
-                      </button>
-                    );
-                  })}
-                </div>
               </div>
             </section>
           );

@@ -9,6 +9,7 @@ export const MessageActions = memo(function MessageActions({
 }: {
   available?: boolean;
   items: Array<{
+    active?: boolean;
     disabled?: boolean;
     icon: ComponentType<{ className?: string }>;
     key: string;
@@ -42,7 +43,12 @@ export const MessageActions = memo(function MessageActions({
                 onActionClick(item.key);
               }
             }}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-[color:var(--chat-icon-muted)] transition hover:bg-[var(--chat-hover)] hover:text-[color:var(--chat-text)] disabled:cursor-not-allowed disabled:opacity-40"
+            className={clsx(
+              'flex h-7 w-7 items-center justify-center rounded-md transition hover:bg-[var(--chat-hover)] hover:text-[color:var(--chat-text)] disabled:cursor-not-allowed disabled:opacity-40',
+              item.active
+                ? 'bg-[var(--chat-accent)] text-white hover:bg-[var(--chat-accent)] hover:text-white'
+                : 'text-[color:var(--chat-icon-muted)]'
+            )}
           >
             <item.icon className="h-[15px] w-[15px]" />
           </button>

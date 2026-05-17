@@ -57,6 +57,9 @@ Normal `/chat` can show non-canonical candidates for comparison.
 - A dual-answer turn is represented by an `AnswerCandidateGroup` that contains multiple `AnswerContainer` instances.
 - Inspector and per-run operations continue to use the underlying run id for the specific candidate answer.
 - Canonical-only consumers should request/project selected/default answers, not candidate comparison groups.
+- A default selection is internal canonical state only; the UI should not present it as a user choice.
+- When the user explicitly selects a candidate (`source="user"`), normal `/chat` can render only that selected `AnswerContainer` as a standard single-answer view.
+- Feedback operations remain run-scoped `AnswerContainer` operations. Selection does not imply thumbs up/down, and feedback does not imply selection.
 
 ## Disconnect Behavior
 

@@ -11,6 +11,10 @@ export type TranscriptRenderItem =
       type: 'answer-container';
       key: string;
       container: AnswerContainer;
+      feedbackContext?: {
+        feedback: AnswerCandidateGroup['candidates'][number]['feedback'];
+        triggerMessageId: string;
+      };
     }
   | {
       type: 'answer-candidate-group';
@@ -59,26 +63,44 @@ export function buildTranscriptRenderItems({
   return transcriptBlocks.flatMap((block): TranscriptRenderItem[] => {
     if (block.type === 'user-message') {
       const group = candidateGroupsByTriggerMessageId.get(block.message.id);
-      return group
-        ? [
-            {
-              type: 'transcript-block',
-              key: block.id,
-              block
-            },
-            {
-              type: 'answer-candidate-group',
-              key: group.id,
-              group
+      const userMessageItem: TranscriptRenderItem = {
+        type: 'transcript-block',
+        key: block.id,
+        block
+      };
+
+      if (!group) {
+        return [userMessageItem];
+      }
+
+      const userSelectedCandidate =
+        group.selection?.source === 'user'
+          ? group.candidates.find((candidate) => candidate.candidate.runId === group.selection?.selectedRunId)
+          : null;
+
+      if (userSelectedCandidate?.answerContainer) {
+        return [
+          userMessageItem,
+          {
+            type: 'answer-container',
+            key: `${group.id}:selected`,
+            container: userSelectedCandidate.answerContainer,
+            feedbackContext: {
+              feedback: userSelectedCandidate.feedback,
+              triggerMessageId: group.triggerMessageId
             }
-          ]
-        : [
-            {
-              type: 'transcript-block',
-              key: block.id,
-              block
-            }
-          ];
+          }
+        ];
+      }
+
+      return [
+        userMessageItem,
+        {
+          type: 'answer-candidate-group',
+          key: group.id,
+          group
+        }
+      ];
     }
 
     if (block.type === 'assistant-turn' && block.runId && groupedCandidateRunIds.has(block.runId)) {

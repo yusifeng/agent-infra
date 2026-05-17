@@ -184,7 +184,11 @@ export const ChatMessageList = memo(function ChatMessageList({
                       }
                     }
                     container={item.container}
+                    feedback={item.feedbackContext?.feedback}
+                    feedbackPending={item.container.runId ? candidateMutationRunIds.has(item.container.runId) : false}
+                    feedbackTriggerMessageId={item.feedbackContext?.triggerMessageId}
                     onOpenSearchResult={onOpenSearchResult}
+                    onSetRunFeedback={onSetRunFeedback}
                     showPersistedResearchStatus={showPersistedResearchStatus}
                   />
               ) : item.type === 'answer-candidate-group' ? (

@@ -218,6 +218,90 @@ describe('message list presentation', () => {
     expect(items.map((item) => item.type)).toEqual(['transcript-block', 'answer-candidate-group']);
   });
 
+  it('folds a user-selected candidate group into the selected answer container', () => {
+    const userBlock = createUserBlock('user-block-1');
+    const runABlock = createAssistantBlock('assistant-a', 'run-a');
+    const runBBlock = createAssistantBlock('assistant-b', 'run-b');
+    const runAContainer = createAnswerContainerForRun('container-a', 'run-a', [runABlock.id]);
+    const runBContainer = createAnswerContainerForRun('container-b', 'run-b', [runBBlock.id]);
+
+    const items = buildTranscriptRenderItems({
+      answerContainers: [runAContainer, runBContainer],
+      answerCandidateGroups: [
+        {
+          id: 'group-1',
+          threadId: 'thread-1',
+          triggerMessageId: userBlock.message.id,
+          selection: {
+            threadId: 'thread-1',
+            triggerMessageId: userBlock.message.id,
+            selectedRunId: 'run-b',
+            source: 'user',
+            selectedByUserId: 'user-1',
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z'
+          },
+          candidates: [
+            {
+              id: 'candidate-a',
+              candidate: {
+                id: 'candidate-a',
+                threadId: 'thread-1',
+                triggerMessageId: userBlock.message.id,
+                runId: 'run-a',
+                ordinal: 0,
+                kind: 'primary',
+                createdAt: '2026-01-01T00:00:00.000Z'
+              },
+              answerContainer: runAContainer,
+              liveAssistantDraft: null,
+              run: null,
+              status: 'completed',
+              selected: false,
+              isDefault: true,
+              feedback: null
+            },
+            {
+              id: 'candidate-b',
+              candidate: {
+                id: 'candidate-b',
+                threadId: 'thread-1',
+                triggerMessageId: userBlock.message.id,
+                runId: 'run-b',
+                ordinal: 1,
+                kind: 'alternative',
+                createdAt: '2026-01-01T00:00:00.000Z'
+              },
+              answerContainer: runBContainer,
+              liveAssistantDraft: null,
+              run: null,
+              status: 'completed',
+              selected: true,
+              isDefault: false,
+              feedback: null
+            }
+          ]
+        }
+      ],
+      transcriptBlocks: [userBlock, runABlock, runBBlock]
+    });
+
+    expect(items).toMatchObject([
+      {
+        type: 'transcript-block',
+        key: userBlock.id
+      },
+      {
+        type: 'answer-container',
+        key: 'group-1:selected',
+        container: runBContainer,
+        feedbackContext: {
+          triggerMessageId: userBlock.message.id
+        }
+      }
+    ]);
+  });
+
   it('exposes runtime warning and recovery notice decisions without UI details', () => {
     const plan = buildMessageListRenderPlan({
       activeThreadId: 'thread-1',

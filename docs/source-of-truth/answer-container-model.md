@@ -52,6 +52,8 @@
 - 组内每个候选仍然是独立的 `AnswerContainer`
 - 用于 normal `/chat` 的对比展示、选择最佳回答、点赞/点踩
 - 不改变 canonical transcript：canonical-only consumers 仍只读取 selected/default candidate
+- `answer_selections.source="default"` 是内部 canonical 默认，不代表用户已选择，不应该在 UI 上表现成“已选择”
+- `answer_selections.source="user"` 表示用户显式点击了“选择这个”，normal `/chat` 可以把该候选折叠回普通单回答视图
 
 ## UI 解释
 
@@ -74,6 +76,13 @@
 
 `AnswerCandidateGroup` 是更外层的对比容器。它不替代 `AnswerContainer`，也不让两个候选回答共享一个 operation host。
 每个候选的 copy、反馈、选择、inspect/run trace 都应该绑定到自己的 `runId` 和 `AnswerContainer`。
+
+候选选择和反馈是两条独立信号：
+
+- `answer_selection` 决定哪个候选成为 canonical answer
+- `run_feedback` 记录用户对某个回答/run 的显式点赞或点踩
+- 点击“选择这个”不自动写入 `run_feedback`
+- 点赞/点踩属于 `AnswerContainer` 的普通 operation，不属于 `AnswerCandidateGroup` 自己的额外 footer 操作
 
 ## 关系
 
