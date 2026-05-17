@@ -26,7 +26,7 @@
 - [x] Let each example fail independently without losing the whole eval run.
 - [x] Add manual result review with `pass`, `fail`, `needs_review`, and `not_applicable`.
 - [x] Add shared contracts/server/client helpers for eval runs and eval results.
-- [ ] Add authenticated playground routes for creating, running, listing, reading, and reviewing eval runs.
+- [x] Add authenticated playground routes for creating, running, listing, reading, and reviewing eval runs.
 - [ ] Add an independent eval validation surface, preferably `/observability/evals`, linked from dataset review.
 - [ ] Keep v1 useful as a regression foundation without implementing LangSmith-scale evaluation products.
 
@@ -279,18 +279,18 @@
 ## 3. Playground Validation Boundary
 
 ### 3.1 Routes / Services
-- [ ] Add authenticated `POST /api/datasets/[datasetId]/eval-runs` route for creating eval runs.
-- [ ] Add authenticated `GET /api/datasets/[datasetId]/eval-runs` route for listing eval runs by dataset.
-- [ ] Add authenticated `POST /api/eval-runs/[evalRunId]/run` route for executing already-created queued results.
-- [ ] Add authenticated `GET /api/eval-runs/[evalRunId]` route for eval detail.
-- [ ] Add authenticated `GET /api/eval-runs/[evalRunId]/results` route for result list/detail data.
-- [ ] Add authenticated `PATCH /api/eval-runs/[evalRunId]/results/[resultId]/review` route.
-- [ ] Ensure routes use shared app use cases and shared server parsers.
-- [ ] Ensure eval execution routes use playground services with a configured runtime port.
-- [ ] Ensure read/list/detail/review routes do not require a configured runtime port.
-- [ ] Preserve playground auth and actor identity boundaries.
-- [ ] Ensure routes do not duplicate eval state transitions in Next route handlers.
-- [ ] Add explicit route behavior for unavailable runtime configuration.
+- [x] Add authenticated `POST /api/datasets/[datasetId]/eval-runs` route for creating eval runs.
+- [x] Add authenticated `GET /api/datasets/[datasetId]/eval-runs` route for listing eval runs by dataset.
+- [x] Add authenticated `POST /api/eval-runs/[evalRunId]/run` route for executing already-created queued results.
+- [x] Add authenticated `GET /api/eval-runs/[evalRunId]` route for eval detail.
+- [x] Add authenticated `GET /api/eval-runs/[evalRunId]/results` route for result list/detail data.
+- [x] Add authenticated `PATCH /api/eval-runs/[evalRunId]/results/[resultId]/review` route.
+- [x] Ensure routes use shared app use cases and shared server parsers.
+- [x] Ensure eval execution routes use playground services with a configured runtime port.
+- [x] Ensure read/list/detail/review routes do not require a configured runtime port.
+- [x] Preserve playground auth and actor identity boundaries.
+- [x] Ensure routes do not duplicate eval state transitions in Next route handlers.
+- [x] Add explicit route behavior for unavailable runtime configuration.
 
 ### 3.2 Eval UI
 - [ ] Add an eval-centric validation surface, preferably `/observability/evals`.
@@ -390,18 +390,18 @@
 - [x] Add durable-chat-client API helper tests if the package test style supports them.
 
 ### 4.5 Playground Route Tests
-- [ ] Add route tests for eval create auth.
-- [ ] Add route tests for eval create dataset access.
-- [ ] Add route tests for eval run execution route auth/access.
-- [ ] Add route tests proving eval execution uses configured runtime services rather than unavailable app services.
-- [ ] Add route tests for unavailable runtime configuration behavior.
-- [ ] Add route tests for eval run detail auth/access.
-- [ ] Add route tests for result list auth/access.
-- [ ] Add route tests for result review patch validation.
-- [ ] Add route tests proving review patches cannot reference a result from another eval run.
-- [ ] Add route tests proving review patch cannot spoof actor/time.
-- [ ] Add route tests proving source run inaccessibility does not block eval result reads.
-- [ ] Add route tests proving read/list/detail/review routes do not require configured runtime services.
+- [x] Add route tests for eval create auth.
+- [x] Add route tests for eval create dataset access.
+- [x] Add route tests for eval run execution route auth/access.
+- [x] Add route tests proving eval execution uses configured runtime services rather than unavailable app services.
+- [x] Add route tests for unavailable runtime configuration behavior.
+- [x] Add route tests for eval run detail auth/access.
+- [x] Add route tests for result list auth/access.
+- [x] Add route tests for result review patch validation.
+- [x] Add route tests proving review patches cannot reference a result from another eval run.
+- [x] Add route tests proving review patch cannot spoof actor/time.
+- [x] Add route tests proving source run inaccessibility does not block eval result reads.
+- [x] Add route tests proving read/list/detail/review routes do not require configured runtime services.
 
 ### 4.6 Playground UI Tests
 - [ ] Add UI tests for opening eval run list.
@@ -501,16 +501,16 @@
 - [x] Commit Loop 4.
 
 ### Loop 5: Playground Eval Routes
-- [ ] Add eval create/list/detail/result/review routes.
-- [ ] Ensure eval execution route uses configured runtime services.
-- [ ] Ensure read/list/detail/review routes work without configured runtime services.
-- [ ] Route all eval logic through shared app use cases.
-- [ ] Preserve playground auth and actor boundaries.
-- [ ] Add route tests for auth, access, validation, runtime wiring, source-unavailable behavior, and review actor/time assignment.
-- [ ] Run targeted playground route tests.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 5.
+- [x] Add eval create/list/detail/result/review routes.
+- [x] Ensure eval execution route uses configured runtime services.
+- [x] Ensure read/list/detail/review routes work without configured runtime services.
+- [x] Route all eval logic through shared app use cases.
+- [x] Preserve playground auth and actor boundaries.
+- [x] Add route tests for auth, access, validation, runtime wiring, source-unavailable behavior, and review actor/time assignment.
+- [x] Run targeted playground route tests.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit Loop 5.
 
 ### Loop 6: Eval Validation UI
 - [ ] Add `/observability/evals` eval validation surface or final agreed route.

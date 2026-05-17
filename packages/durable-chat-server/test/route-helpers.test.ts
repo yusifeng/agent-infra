@@ -44,6 +44,7 @@ describe('durable chat server route helpers', () => {
     expect(getRouteErrorStatus(error)).toBe(400);
     expect(getRouteErrorMessage(error, 'fallback')).toBe(error.message);
     expect(getRouteErrorStatus(new InvalidRouteBodyError('bad body'))).toBe(400);
+    expect(getRouteErrorStatus({ statusCode: 503 })).toBe(503);
     expect(getRouteErrorStatus(new Error('boom'))).toBe(500);
     expect(getRouteErrorMessage(null, 'fallback')).toBe('fallback');
   });
