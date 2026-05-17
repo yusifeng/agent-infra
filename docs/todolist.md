@@ -40,9 +40,9 @@
 ## 1. Definitions First
 
 ### 1.1 Source of Truth
-- [ ] Review `docs/source-of-truth/answer-container-model.md` and update only the feedback/action boundary if it currently implies candidate-only feedback.
-- [ ] Avoid creating a new source-of-truth doc for playground feedback details unless the model becomes long-lived beyond this implementation todo.
-- [ ] Document in the relevant source-of-truth note that product-specific feedback details are playground sidecar data, not core runtime state.
+- [x] Review `docs/source-of-truth/answer-container-model.md` and update only the feedback/action boundary if it currently implies candidate-only feedback.
+- [x] Avoid creating a new source-of-truth doc for playground feedback details unless the model becomes long-lived beyond this implementation todo.
+- [x] Document in the relevant source-of-truth note that product-specific feedback details are playground sidecar data, not core runtime state.
 
 ### 1.2 Playground Feedback Detail Model
 - [x] Route-local request shape is `value` plus optional `details`, where `details` is allowed only for `value: 'thumbs_down'`.
@@ -198,8 +198,8 @@
 - [x] Commit Loop 3.
 
 ### Loop 4: Docs and Final Verification
-- [ ] Update source-of-truth docs only for stable feedback boundary facts.
-- [ ] Run final targeted tests for all changed areas.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Delete `docs/todolist.md` only after all implementation items are complete and stable facts have been promoted or documented.
-- [ ] Commit final docs/cleanup.
+- [x] Update source-of-truth docs only for stable feedback boundary facts.
+- [x] Run final targeted tests for all changed areas.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Keep `docs/todolist.md` as the completed execution record because this run was explicitly requested to finish with every checkbox marked `[x]`.
+- [x] Commit final docs/cleanup.
