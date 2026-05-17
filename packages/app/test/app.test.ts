@@ -3,6 +3,8 @@ import type {
   AnswerSelection,
   ChatShare,
   ChatShareSnapshot,
+  Dataset,
+  DatasetExample,
   Message,
   MessagePart,
   Run,
@@ -17,7 +19,10 @@ import { createAgentInfraApp } from '../src/app';
 import {
   ActiveChatShareExistsError,
   ChatShareRevokedError,
+  DatasetNotFoundError,
   InvalidAnswerCandidateSelectionError,
+  InvalidDatasetCaptureError,
+  InvalidDatasetInputError,
   InvalidRunFeedbackError,
   InvalidThreadTitleError,
   InvalidTurnTextError,
@@ -40,6 +45,8 @@ type InMemoryState = {
   answerCandidates: Map<string, AnswerCandidate>;
   answerSelections: Map<string, AnswerSelection>;
   runFeedback: Map<string, RunFeedback>;
+  datasets: Map<string, Dataset>;
+  datasetExamples: Map<string, DatasetExample>;
 };
 
 function cloneState(state: InMemoryState): InMemoryState {
@@ -61,7 +68,9 @@ function cloneState(state: InMemoryState): InMemoryState {
     chatShareSnapshots: new Map([...state.chatShareSnapshots.entries()].map(([id, snapshot]) => [id, structuredClone(snapshot)])),
     answerCandidates: new Map([...state.answerCandidates.entries()].map(([id, candidate]) => [id, { ...candidate }])),
     answerSelections: new Map([...state.answerSelections.entries()].map(([id, selection]) => [id, { ...selection }])),
-    runFeedback: new Map([...state.runFeedback.entries()].map(([id, feedback]) => [id, { ...feedback }]))
+    runFeedback: new Map([...state.runFeedback.entries()].map(([id, feedback]) => [id, { ...feedback }])),
+    datasets: new Map([...state.datasets.entries()].map(([id, dataset]) => [id, structuredClone(dataset)])),
+    datasetExamples: new Map([...state.datasetExamples.entries()].map(([id, example]) => [id, structuredClone(example)]))
   };
 }
 
@@ -391,6 +400,73 @@ function createRepositories(stateRef: { current: InMemoryState }, snapshot?: InM
         getState().runFeedback.set(`${input.runId}:${input.feedbackActorId}`, feedback);
         return feedback;
       }
+    },
+    datasetRepo: {
+      async create(input) {
+        const createdAt = new Date();
+        const dataset = { ...input, createdAt, updatedAt: createdAt };
+        getState().datasets.set(dataset.id, dataset);
+        return dataset;
+      },
+      async findById(id) {
+        return getState().datasets.get(id) ?? null;
+      },
+      async listByApp(input) {
+        return [...getState().datasets.values()]
+          .filter((dataset) => {
+            if (dataset.appId !== input.appId) return false;
+            if (typeof input.actorId === 'string') {
+              return dataset.createdByActorId === input.actorId || (input.includeAppVisible !== false && dataset.visibility === 'app');
+            }
+            if (input.actorId === null) {
+              return dataset.visibility === 'app';
+            }
+            return true;
+          })
+          .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
+      },
+      async update(id, patch, updatedAt) {
+        const current = getState().datasets.get(id);
+        if (!current) {
+          throw new Error(`dataset ${id} not found`);
+        }
+        const next = { ...current, ...patch, updatedAt };
+        getState().datasets.set(id, next);
+        return next;
+      }
+    },
+    datasetExampleRepo: {
+      async create(input) {
+        if (!getState().datasets.has(input.datasetId)) {
+          throw new Error(`dataset ${input.datasetId} not found`);
+        }
+        const createdAt = new Date();
+        const example = { ...input, createdAt, updatedAt: createdAt };
+        getState().datasetExamples.set(example.id, example);
+        return example;
+      },
+      async findById(id) {
+        return getState().datasetExamples.get(id) ?? null;
+      },
+      async listByDataset(datasetId) {
+        return [...getState().datasetExamples.values()]
+          .filter((example) => example.datasetId === datasetId)
+          .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
+      },
+      async updateExpectedOutput(id, patch, updatedAt) {
+        const current = getState().datasetExamples.get(id);
+        if (!current) {
+          throw new Error(`dataset example ${id} not found`);
+        }
+        const next = {
+          ...current,
+          ...(Object.hasOwn(patch, 'expectedOutputJson') ? { expectedOutputJson: patch.expectedOutputJson } : {}),
+          ...(Object.hasOwn(patch, 'metadataJson') ? { metadataJson: patch.metadataJson } : {}),
+          updatedAt
+        };
+        getState().datasetExamples.set(id, next);
+        return next;
+      }
     }
   };
 }
@@ -407,7 +483,9 @@ function createDependencies(runtime: AgentInfraRuntimePort) {
       chatShareSnapshots: new Map<string, ChatShareSnapshot>(),
       answerCandidates: new Map<string, AnswerCandidate>(),
       answerSelections: new Map<string, AnswerSelection>(),
-      runFeedback: new Map<string, RunFeedback>()
+      runFeedback: new Map<string, RunFeedback>(),
+      datasets: new Map<string, Dataset>(),
+      datasetExamples: new Map<string, DatasetExample>()
     }
   };
 
@@ -986,6 +1064,322 @@ describe('createAgentInfraApp', () => {
       value: 'thumbs_up'
     });
     expect(hydrated.runFeedback).toMatchObject([{ runId: started.run.id, value: 'thumbs_up' }]);
+  });
+
+  it('creates and lists datasets by app and actor visibility', async () => {
+    const { app } = createDependencies(createHappyRuntime());
+
+    const privateDataset = await app.datasets.create({
+      appId: 'playground-runtime-pi',
+      name: '  Private captures  ',
+      createdByActorId: 'actor-1'
+    });
+    const appDataset = await app.datasets.create({
+      appId: 'playground-runtime-pi',
+      name: 'Shared captures',
+      visibility: 'app',
+      createdByActorId: 'actor-2'
+    });
+    await app.datasets.create({
+      appId: 'other-app',
+      name: 'Other app captures',
+      visibility: 'app',
+      createdByActorId: 'actor-1'
+    });
+
+    expect(privateDataset).toMatchObject({
+      name: 'Private captures',
+      visibility: 'private',
+      createdByActorId: 'actor-1'
+    });
+    expect(await app.datasets.list({ appId: 'playground-runtime-pi', actorId: 'actor-1' })).toMatchObject([
+      { id: privateDataset.id },
+      { id: appDataset.id }
+    ]);
+    expect(await app.datasets.list({ appId: 'playground-runtime-pi', actorId: 'actor-1', includeAppVisible: false })).toMatchObject([
+      { id: privateDataset.id }
+    ]);
+    expect(await app.datasets.list({ appId: 'playground-runtime-pi' })).toMatchObject([{ id: appDataset.id }]);
+    await expect(app.datasets.get({ appId: 'playground-runtime-pi', datasetId: privateDataset.id })).rejects.toBeInstanceOf(DatasetNotFoundError);
+    await expect(
+      app.datasets.create({
+        appId: 'playground-runtime-pi',
+        name: 'Ownerless private'
+      })
+    ).rejects.toBeInstanceOf(InvalidDatasetInputError);
+  });
+
+  it('captures a completed run into a dataset example snapshot', async () => {
+    const { app, repositories } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Capture completed run' });
+    const dataset = await app.datasets.create({
+      appId: 'playground-runtime-pi',
+      name: 'Completed captures',
+      createdByActorId: 'actor-1'
+    });
+    const started = await app.turns.startText({
+      threadId: thread.id,
+      text: 'Capture me',
+      provider: 'openai',
+      model: 'gpt-test'
+    });
+    const assistantMessage = await persistAssistantAnswer(repositories, {
+      threadId: thread.id,
+      runId: started.run.id,
+      text: 'Captured answer'
+    });
+    await repositories.runRepo.updateStatus(started.run.id, 'completed', {
+      usage: {
+        schemaVersion: 1,
+        provider: 'openai',
+        model: 'gpt-test',
+        normalizationStatus: 'complete',
+        tokens: { input: 10, output: 5, total: 15 }
+      },
+      startedAt: new Date('2026-04-10T01:00:00.000Z'),
+      finishedAt: new Date('2026-04-10T01:00:05.000Z')
+    });
+    await repositories.toolRepo.create({
+      id: 'tool-1',
+      threadId: thread.id,
+      runId: started.run.id,
+      messageId: assistantMessage.id,
+      toolName: 'searchWeb',
+      toolCallId: 'call-1',
+      status: 'completed',
+      input: { q: 'Capture me' },
+      output: { answer: 'result' },
+      error: null,
+      startedAt: new Date('2026-04-10T01:00:01.000Z'),
+      finishedAt: new Date('2026-04-10T01:00:02.000Z')
+    });
+
+    const result = await app.datasets.captureExampleFromRun({
+      appId: 'playground-runtime-pi',
+      datasetId: dataset.id,
+      sourceRunId: started.run.id,
+      actorId: 'actor-1',
+      metadataJson: {
+        feedback: {
+          sharedRunFeedback: { value: 'thumbs_up' }
+        },
+        host: {
+          playground: {
+            runFeedbackDetails: { reasonTags: ['quality'] }
+          }
+        }
+      }
+    });
+
+    expect(result.example).toMatchObject({
+      datasetId: dataset.id,
+      sourceRunId: started.run.id,
+      sourceThreadId: thread.id,
+      triggerMessageId: started.userMessage.id,
+      expectedOutputJson: null
+    });
+    expect(result.example.inputJson).toMatchObject({
+      schemaVersion: 1,
+      kind: 'chat_turn',
+      contextSource: 'current_canonical_at_capture',
+      triggerMessageId: started.userMessage.id,
+      triggerMessage: expect.objectContaining({ id: started.userMessage.id }),
+      messages: [expect.objectContaining({ id: started.userMessage.id, role: 'user' })]
+    });
+    expect(result.example.baselineOutputJson).toMatchObject({
+      kind: 'run_output',
+      runId: started.run.id,
+      assistantMessages: [expect.objectContaining({ id: assistantMessage.id })]
+    });
+    expect(result.example.toolInvocationsSnapshotJson).toMatchObject({
+      kind: 'tool_invocations',
+      state: 'captured',
+      toolInvocations: [expect.objectContaining({ id: 'tool-1', input: { q: 'Capture me' }, output: { answer: 'result' } })]
+    });
+    expect(result.example.contextSnapshotJson).toMatchObject({
+      provider: 'openai',
+      model: 'gpt-test',
+      status: 'completed',
+      usage: expect.objectContaining({ tokens: { input: 10, output: 5, total: 15 } })
+    });
+    expect(result.example.metadataJson).toMatchObject({
+      capture: {
+        kind: 'normal_example',
+        sourceRunId: started.run.id,
+        sourceThreadId: thread.id,
+        triggerMessageId: started.userMessage.id
+      },
+      feedback: {
+        sharedRunFeedback: { value: 'thumbs_up' }
+      },
+      host: {
+        playground: {
+          runFeedbackDetails: { reasonTags: ['quality'] }
+        }
+      },
+      evaluation: {
+        defaultEligible: true
+      }
+    });
+    await expect(app.datasets.listExamples({ appId: 'playground-runtime-pi', datasetId: dataset.id, actorId: 'actor-1' })).resolves.toHaveLength(1);
+  });
+
+  it('captures failed and cancelled runs as non-default eval examples', async () => {
+    const { app, repositories } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Capture terminal failures' });
+    const dataset = await app.datasets.create({
+      appId: 'playground-runtime-pi',
+      name: 'Failure captures',
+      createdByActorId: 'actor-1'
+    });
+
+    const failed = await app.turns.startText({ threadId: thread.id, text: 'Fail me' });
+    await repositories.runRepo.updateStatus(failed.run.id, 'failed', {
+      error: 'provider failed',
+      startedAt: new Date('2026-04-10T01:00:00.000Z'),
+      finishedAt: new Date('2026-04-10T01:00:02.000Z')
+    });
+    const failedCapture = await app.datasets.captureExampleFromRun({
+      appId: 'playground-runtime-pi',
+      datasetId: dataset.id,
+      sourceRunId: failed.run.id,
+      actorId: 'actor-1'
+    });
+    expect(failedCapture.example.baselineOutputJson).toBeNull();
+    expect(failedCapture.example.metadataJson).toMatchObject({
+      capture: { kind: 'failure_case' },
+      evaluation: { defaultEligible: false }
+    });
+
+    const cancelled = await app.turns.startText({ threadId: thread.id, text: 'Cancel me' });
+    await repositories.runRepo.updateStatus(cancelled.run.id, 'cancelled', {
+      finishedAt: new Date('2026-04-10T01:00:03.000Z')
+    });
+    const cancelledCapture = await app.datasets.captureExampleFromRun({
+      appId: 'playground-runtime-pi',
+      datasetId: dataset.id,
+      sourceRunId: cancelled.run.id,
+      actorId: 'actor-1',
+      omitToolInvocations: true,
+      toolInvocationOmissionReason: 'test_policy'
+    });
+    expect(cancelledCapture.example.metadataJson).toMatchObject({
+      capture: { kind: 'debug_case' },
+      evaluation: { defaultEligible: false }
+    });
+    expect(cancelledCapture.example.toolInvocationsSnapshotJson).toMatchObject({
+      state: 'omitted_by_policy',
+      omissionReason: 'test_policy',
+      toolInvocations: []
+    });
+  });
+
+  it('captures candidate context without unselected assistant outputs', async () => {
+    const { app, repositories } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Candidate capture context' });
+    const dataset = await app.datasets.create({
+      appId: 'playground-runtime-pi',
+      name: 'Candidate captures',
+      createdByActorId: 'actor-1'
+    });
+    const started = await app.turns.startTextCandidates({
+      threadId: thread.id,
+      text: 'Choose one',
+      candidateCount: 2
+    });
+    const primary = started.candidates[0]!;
+    const alternative = started.candidates[1]!;
+    await persistAssistantAnswer(repositories, { threadId: thread.id, runId: primary.run.id, text: 'Primary output' });
+    await persistAssistantAnswer(repositories, { threadId: thread.id, runId: alternative.run.id, text: 'Alternative output' });
+    await app.turns.selectAnswerCandidate({
+      threadId: thread.id,
+      triggerMessageId: started.triggerMessageId,
+      runId: alternative.run.id,
+      selectedByUserId: 'actor-1'
+    });
+
+    const capture = await app.datasets.captureExampleFromRun({
+      appId: 'playground-runtime-pi',
+      datasetId: dataset.id,
+      sourceRunId: alternative.run.id,
+      actorId: 'actor-1'
+    });
+    const inputMessages = (capture.example.inputJson.messages as Array<{ parts: Array<{ textValue?: string | null }> }>)
+      .flatMap((message) => message.parts.map((part) => part.textValue));
+
+    expect(inputMessages).toEqual(['Choose one']);
+    expect(capture.example.baselineOutputJson).toMatchObject({
+      assistantMessages: [expect.objectContaining({ id: `assistant-${alternative.run.id}` })]
+    });
+  });
+
+  it('updates dataset example expected output without exposing manual example creation', async () => {
+    const { app, repositories } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Expected output patch' });
+    const dataset = await app.datasets.create({
+      appId: 'playground-runtime-pi',
+      name: 'Patch captures',
+      createdByActorId: 'actor-1'
+    });
+    const started = await app.turns.startText({ threadId: thread.id, text: 'Patch me' });
+    await persistAssistantAnswer(repositories, { threadId: thread.id, runId: started.run.id, text: 'Patch answer' });
+    const capture = await app.datasets.captureExampleFromRun({
+      appId: 'playground-runtime-pi',
+      datasetId: dataset.id,
+      sourceRunId: started.run.id,
+      actorId: 'actor-1'
+    });
+
+    const updated = await app.datasets.updateExampleExpectedOutput({
+      appId: 'playground-runtime-pi',
+      datasetId: dataset.id,
+      actorId: 'actor-1',
+      exampleId: capture.example.id,
+      expectedOutputJson: { rubric: 'answer should be concise' },
+      metadataJson: { annotation: { reviewer: 'actor-2' } }
+    });
+
+    expect(updated.expectedOutputJson).toEqual({ rubric: 'answer should be concise' });
+    expect(updated.metadataJson).toEqual({ annotation: { reviewer: 'actor-2' } });
+  });
+
+  it('rejects missing runs and dataset/run app boundary mismatches during capture', async () => {
+    const { app } = createDependencies(createHappyRuntime());
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Capture rejection' });
+    const otherThread = await app.threads.create({ appId: 'other-app', title: 'Other app run' });
+    const dataset = await app.datasets.create({
+      appId: 'playground-runtime-pi',
+      name: 'Reject captures',
+      createdByActorId: 'actor-1'
+    });
+    const otherRun = await app.turns.startText({ threadId: otherThread.id, text: 'Other app' });
+
+    await expect(
+      app.datasets.captureExampleFromRun({
+        appId: 'playground-runtime-pi',
+        datasetId: dataset.id,
+        sourceRunId: 'missing-run',
+        actorId: 'actor-1'
+      })
+    ).rejects.toBeInstanceOf(RunNotFoundError);
+
+    await expect(
+      app.datasets.captureExampleFromRun({
+        appId: 'playground-runtime-pi',
+        datasetId: dataset.id,
+        sourceRunId: otherRun.run.id,
+        actorId: 'actor-1'
+      })
+    ).rejects.toBeInstanceOf(InvalidDatasetCaptureError);
+
+    await expect(
+      app.datasets.get({
+        appId: 'playground-runtime-pi',
+        datasetId: dataset.id,
+        actorId: 'other-actor'
+      })
+    ).rejects.toBeInstanceOf(DatasetNotFoundError);
+    expect(thread.appId).toBe('playground-runtime-pi');
   });
 
   it('rejects run feedback when the run has no assistant output or mismatched trigger', async () => {

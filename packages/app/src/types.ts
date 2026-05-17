@@ -8,6 +8,8 @@ import type {
   ChatShareRepository,
   ChatShareSnapshot,
   ChatShareSnapshotRepository,
+  Dataset,
+  DatasetExample,
   DatasetExampleRepository,
   DatasetRepository,
   Message,
@@ -204,6 +206,49 @@ export interface GetRunTimelineInput {
 
 export interface GetRunTraceInput {
   runId: string;
+}
+
+export interface CreateDatasetInput {
+  appId: string;
+  name: string;
+  description?: string | null;
+  visibility?: Dataset['visibility'];
+  metadata?: Record<string, unknown> | null;
+  createdByActorId?: string | null;
+}
+
+export interface ListDatasetsInput {
+  appId: string;
+  actorId?: string | null;
+  includeAppVisible?: boolean;
+}
+
+export interface GetDatasetInput {
+  appId: string;
+  datasetId: string;
+  actorId?: string | null;
+}
+
+export interface ListDatasetExamplesInput extends GetDatasetInput {}
+
+export interface UpdateDatasetExampleExpectedOutputInput extends GetDatasetInput {
+  exampleId: string;
+  expectedOutputJson?: Record<string, unknown> | null;
+  metadataJson?: Record<string, unknown> | null;
+}
+
+export interface CaptureDatasetExampleFromRunInput extends GetDatasetInput {
+  sourceRunId: string;
+  expectedOutputJson?: Record<string, unknown> | null;
+  metadataJson?: Partial<DatasetExampleMetadataSnapshotV1> & Record<string, unknown>;
+  capturedByActorId?: string | null;
+  omitToolInvocations?: boolean;
+  toolInvocationOmissionReason?: string | null;
+}
+
+export interface CaptureDatasetExampleFromRunResult {
+  dataset: Dataset;
+  example: DatasetExample;
 }
 
 export interface RunTimelineResult {
@@ -576,6 +621,14 @@ export interface AgentInfraApp {
     listByThread(input: GetThreadRunsInput): Promise<Run[]>;
     getActiveByThread(input: GetActiveThreadRunInput): Promise<Run | null>;
     listActiveByThread(input: GetActiveThreadRunInput): Promise<Run[]>;
+  };
+  datasets: {
+    create(input: CreateDatasetInput): Promise<Dataset>;
+    list(input: ListDatasetsInput): Promise<Dataset[]>;
+    get(input: GetDatasetInput): Promise<Dataset>;
+    listExamples(input: ListDatasetExamplesInput): Promise<DatasetExample[]>;
+    updateExampleExpectedOutput(input: UpdateDatasetExampleExpectedOutputInput): Promise<DatasetExample>;
+    captureExampleFromRun(input: CaptureDatasetExampleFromRunInput): Promise<CaptureDatasetExampleFromRunResult>;
   };
   shares: {
     createThreadSnapshot(input: CreateThreadSnapshotShareInput): Promise<CreateThreadSnapshotShareResult>;

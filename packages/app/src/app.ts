@@ -1,12 +1,24 @@
 import crypto from 'node:crypto';
 
-import { projectCanonicalTranscript, type Message, type MessagePart, type Run, type RunEvent, type ToolInvocation } from '@agent-infra/core';
+import {
+  projectCanonicalTranscript,
+  type Dataset,
+  type Message,
+  type MessagePart,
+  type Run,
+  type RunEvent,
+  type Thread,
+  type ToolInvocation
+} from '@agent-infra/core';
 
 import {
   ActiveChatShareExistsError,
   AgentInfraAppError,
   ChatShareNotFoundError,
   ChatShareRevokedError,
+  DatasetNotFoundError,
+  InvalidDatasetCaptureError,
+  InvalidDatasetInputError,
   InvalidThreadTitleError,
   InvalidAnswerCandidateSelectionError,
   InvalidRunFeedbackError,
@@ -27,6 +39,13 @@ import type {
   AgentInfraAppDependencies,
   AgentInfraAppRepositories,
   CreateThreadInput,
+  DatasetBaselineOutputSnapshotV1,
+  DatasetContextSnapshotV1,
+  DatasetExampleMetadataSnapshotV1,
+  DatasetInputSnapshotV1,
+  DatasetMessagePartSnapshotV1,
+  DatasetMessageSnapshotV1,
+  DatasetToolInvocationsSnapshotV1,
   PublicChatShareResult,
   RunTraceResult,
   RunTextTurnInput,
@@ -94,6 +113,22 @@ async function loadRunOrThrow(repositories: AgentInfraAppRepositories, runId: st
   }
 
   return run;
+}
+
+async function loadDatasetForAppOrThrow(
+  repositories: AgentInfraAppRepositories,
+  input: { appId: string; datasetId: string; actorId?: string | null }
+): Promise<Dataset> {
+  const dataset = await repositories.datasetRepo.findById(input.datasetId);
+  if (!dataset || dataset.appId !== input.appId) {
+    throw new DatasetNotFoundError(input.datasetId);
+  }
+
+  if (dataset.visibility === 'private' && (typeof input.actorId !== 'string' || dataset.createdByActorId !== input.actorId)) {
+    throw new DatasetNotFoundError(input.datasetId);
+  }
+
+  return dataset;
 }
 
 async function buildCanonicalThreadMessages(repositories: AgentInfraAppRepositories, threadId: string, cutoffMessageId?: string | null) {
@@ -235,6 +270,186 @@ async function readProjectedTurnOutcome(repositories: AgentInfraAppRepositories,
 
 function toIsoString(value: Date | null | undefined) {
   return value ? value.toISOString() : null;
+}
+
+function trimDatasetName(name: string) {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    throw new InvalidDatasetInputError('dataset name is required');
+  }
+
+  return trimmed;
+}
+
+function toDatasetMessagePartSnapshot(part: MessagePart): DatasetMessagePartSnapshotV1 {
+  return {
+    id: part.id,
+    messageId: part.messageId,
+    partIndex: part.partIndex,
+    type: part.type,
+    textValue: part.textValue ?? null,
+    jsonValue: part.jsonValue ?? null,
+    createdAt: part.createdAt.toISOString()
+  };
+}
+
+function toDatasetMessageSnapshot(message: Message & { parts: MessagePart[] }): DatasetMessageSnapshotV1 {
+  return {
+    id: message.id,
+    threadId: message.threadId,
+    runId: message.runId ?? null,
+    role: message.role,
+    seq: message.seq,
+    status: message.status,
+    metadata: message.metadata ?? null,
+    createdAt: message.createdAt.toISOString(),
+    parts: [...message.parts].sort((left, right) => left.partIndex - right.partIndex).map(toDatasetMessagePartSnapshot)
+  };
+}
+
+function buildDatasetInputSnapshot(
+  triggerMessageId: string | null | undefined,
+  projection: Awaited<ReturnType<typeof buildCanonicalThreadMessages>>
+): DatasetInputSnapshotV1 {
+  const messages = projection.messages.map(toDatasetMessageSnapshot);
+  return {
+    schemaVersion: 1,
+    kind: 'chat_turn',
+    contextSource: 'current_canonical_at_capture',
+    triggerMessageId: triggerMessageId ?? null,
+    triggerMessage: triggerMessageId ? messages.find((message) => message.id === triggerMessageId) ?? null : null,
+    messages,
+    canonicalRunIds: projection.canonicalRunIds,
+    diagnostics: projection.diagnostics
+  };
+}
+
+function buildDatasetBaselineOutputSnapshot(run: Run, messages: Array<Message & { parts: MessagePart[] }>): DatasetBaselineOutputSnapshotV1 | null {
+  const assistantMessages = messages
+    .filter((message) => message.runId === run.id && message.role === 'assistant')
+    .sort((left, right) => left.seq - right.seq)
+    .map(toDatasetMessageSnapshot);
+
+  if (assistantMessages.length === 0) {
+    return null;
+  }
+
+  return {
+    schemaVersion: 1,
+    kind: 'run_output',
+    runId: run.id,
+    status: run.status,
+    error: run.error ?? null,
+    assistantMessages
+  };
+}
+
+function buildDatasetContextSnapshot(
+  thread: Thread,
+  run: Run,
+  traceDiagnostics: DatasetContextSnapshotV1['traceDiagnostics']
+): DatasetContextSnapshotV1 {
+  return {
+    schemaVersion: 1,
+    kind: 'run_context',
+    appId: thread.appId,
+    threadId: thread.id,
+    runId: run.id,
+    triggerMessageId: run.triggerMessageId ?? null,
+    provider: run.provider ?? null,
+    model: run.model ?? null,
+    status: run.status,
+    usage: run.usage ?? null,
+    error: run.error ?? null,
+    runCreatedAt: run.createdAt.toISOString(),
+    startedAt: toIsoString(run.startedAt),
+    finishedAt: toIsoString(run.finishedAt),
+    traceDiagnostics
+  };
+}
+
+function buildDatasetToolInvocationsSnapshot(
+  run: Run,
+  toolInvocations: ToolInvocation[],
+  input: { omitToolInvocations?: boolean; toolInvocationOmissionReason?: string | null }
+): DatasetToolInvocationsSnapshotV1 {
+  if (input.omitToolInvocations) {
+    return {
+      schemaVersion: 1,
+      kind: 'tool_invocations',
+      sourceRunId: run.id,
+      state: 'omitted_by_policy',
+      omissionReason: input.toolInvocationOmissionReason ?? 'omitted_by_policy',
+      toolInvocations: []
+    };
+  }
+
+  return {
+    schemaVersion: 1,
+    kind: 'tool_invocations',
+    sourceRunId: run.id,
+    state: 'captured',
+    omissionReason: null,
+    toolInvocations: toolInvocations.map((invocation) => ({
+      id: invocation.id,
+      threadId: invocation.threadId,
+      runId: invocation.runId,
+      messageId: invocation.messageId,
+      toolName: invocation.toolName,
+      toolCallId: invocation.toolCallId,
+      status: invocation.status,
+      input: invocation.input ?? null,
+      output: invocation.output ?? null,
+      error: invocation.error ?? null,
+      startedAt: toIsoString(invocation.startedAt),
+      finishedAt: toIsoString(invocation.finishedAt),
+      createdAt: invocation.createdAt.toISOString()
+    }))
+  };
+}
+
+function classifyCapturedExample(run: Run, baselineOutputJson: DatasetBaselineOutputSnapshotV1 | null) {
+  if (run.status === 'failed') {
+    return { kind: 'failure_case' as const, defaultEligible: false };
+  }
+
+  if (run.status === 'cancelled' || !baselineOutputJson) {
+    return { kind: 'debug_case' as const, defaultEligible: false };
+  }
+
+  return { kind: 'normal_example' as const, defaultEligible: true };
+}
+
+function buildDatasetExampleMetadata(
+  input: {
+    run: Run;
+    thread: Thread;
+    capturedAt: Date;
+    capturedByActorId?: string | null;
+    callerMetadata?: Partial<DatasetExampleMetadataSnapshotV1> & Record<string, unknown>;
+    classification: ReturnType<typeof classifyCapturedExample>;
+  }
+): DatasetExampleMetadataSnapshotV1 {
+  const caller = input.callerMetadata ?? {};
+  return {
+    ...caller,
+    schemaVersion: 1,
+    capture: {
+      ...caller.capture,
+      kind: input.classification.kind,
+      capturedAt: input.capturedAt.toISOString(),
+      capturedByActorId: input.capturedByActorId ?? null,
+      sourceRunId: input.run.id,
+      sourceThreadId: input.thread.id,
+      triggerMessageId: input.run.triggerMessageId ?? null
+    },
+    feedback: caller.feedback,
+    host: caller.host,
+    evaluation: {
+      ...caller.evaluation,
+      defaultEligible: input.classification.defaultEligible
+    }
+  };
 }
 
 function toSnapshotPayloadJson(payload: SharedThreadSnapshotPayload): Record<string, unknown> {
@@ -938,6 +1153,124 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
       async listActiveByThread(input) {
         await loadThreadOrThrow(dependencies.repositories, input.threadId);
         return dependencies.repositories.runRepo.listActiveByThread(input.threadId);
+      }
+    },
+    datasets: {
+      async create(input) {
+        const visibility = input.visibility ?? 'private';
+        if (visibility === 'private' && !input.createdByActorId) {
+          throw new InvalidDatasetInputError('private dataset requires createdByActorId', {
+            appId: input.appId
+          });
+        }
+
+        return dependencies.repositories.datasetRepo.create({
+          id: generateId(),
+          appId: input.appId,
+          name: trimDatasetName(input.name),
+          description: input.description?.trim() ? input.description.trim() : null,
+          visibility,
+          metadata: input.metadata ?? null,
+          createdByActorId: input.createdByActorId ?? null
+        });
+      },
+      async list(input) {
+        return dependencies.repositories.datasetRepo.listByApp({
+          appId: input.appId,
+          actorId: input.actorId ?? null,
+          includeAppVisible: input.includeAppVisible
+        });
+      },
+      async get(input) {
+        return loadDatasetForAppOrThrow(dependencies.repositories, input);
+      },
+      async listExamples(input) {
+        await loadDatasetForAppOrThrow(dependencies.repositories, input);
+        return dependencies.repositories.datasetExampleRepo.listByDataset(input.datasetId);
+      },
+      async updateExampleExpectedOutput(input) {
+        await loadDatasetForAppOrThrow(dependencies.repositories, input);
+        const example = await dependencies.repositories.datasetExampleRepo.findById(input.exampleId);
+        if (!example || example.datasetId !== input.datasetId) {
+          throw new DatasetNotFoundError(input.datasetId);
+        }
+
+        const patch: {
+          expectedOutputJson?: Record<string, unknown> | null;
+          metadataJson?: Record<string, unknown> | null;
+        } = {};
+        if (Object.hasOwn(input, 'expectedOutputJson')) {
+          patch.expectedOutputJson = input.expectedOutputJson;
+        }
+        if (Object.hasOwn(input, 'metadataJson')) {
+          patch.metadataJson = input.metadataJson;
+        }
+
+        return dependencies.repositories.datasetExampleRepo.updateExpectedOutput(input.exampleId, patch, now());
+      },
+      async captureExampleFromRun(input) {
+        const dataset = await loadDatasetForAppOrThrow(dependencies.repositories, input);
+        const run = await loadRunOrThrow(dependencies.repositories, input.sourceRunId);
+        const thread = await loadThreadOrThrow(dependencies.repositories, run.threadId);
+        if (thread.appId !== input.appId || dataset.appId !== thread.appId) {
+          throw new InvalidDatasetCaptureError('source run is outside the dataset app boundary', {
+            appId: input.appId,
+            datasetId: dataset.id,
+            sourceRunId: run.id,
+            sourceThreadId: thread.id
+          });
+        }
+        if (run.status !== 'completed' && run.status !== 'failed' && run.status !== 'cancelled') {
+          throw new InvalidDatasetCaptureError('only completed, failed, or cancelled runs can be captured', {
+            datasetId: dataset.id,
+            sourceRunId: run.id,
+            status: run.status
+          });
+        }
+
+        const [canonicalProjection, allMessages, runEvents, toolInvocations] = await Promise.all([
+          buildCanonicalThreadMessages(dependencies.repositories, thread.id, run.triggerMessageId),
+          dependencies.repositories.messageRepo.listByThread(thread.id),
+          dependencies.repositories.runEventRepo.listByRun(run.id),
+          dependencies.repositories.toolRepo.listByRun(run.id)
+        ]);
+        const traceProjection = buildTraceSpanProjection({ run, thread, runEvents, toolInvocations });
+        const inputJson = buildDatasetInputSnapshot(run.triggerMessageId, canonicalProjection);
+        const baselineOutputJson = buildDatasetBaselineOutputSnapshot(run, allMessages);
+        const contextSnapshotJson = buildDatasetContextSnapshot(thread, run, traceProjection.diagnostics.warnings);
+        const toolInvocationsSnapshotJson = buildDatasetToolInvocationsSnapshot(run, toolInvocations, input);
+        const classification = classifyCapturedExample(run, baselineOutputJson);
+        const capturedAt = now();
+        const metadataJson = buildDatasetExampleMetadata({
+          run,
+          thread,
+          capturedAt,
+          capturedByActorId: input.capturedByActorId ?? input.actorId ?? null,
+          callerMetadata: input.metadataJson,
+          classification
+        });
+
+        const example = await dependencies.transaction(async (repositories) =>
+          repositories.datasetExampleRepo.create({
+            id: generateId(),
+            datasetId: dataset.id,
+            sourceRunId: run.id,
+            sourceThreadId: thread.id,
+            triggerMessageId: run.triggerMessageId ?? null,
+            inputJson: inputJson as unknown as Record<string, unknown>,
+            baselineOutputJson: baselineOutputJson as unknown as Record<string, unknown> | null,
+            expectedOutputJson: input.expectedOutputJson ?? null,
+            metadataJson: metadataJson as unknown as Record<string, unknown>,
+            contextSnapshotJson: contextSnapshotJson as unknown as Record<string, unknown>,
+            toolInvocationsSnapshotJson: toolInvocationsSnapshotJson as unknown as Record<string, unknown>,
+            createdByActorId: input.capturedByActorId ?? input.actorId ?? null
+          })
+        );
+
+        return {
+          dataset,
+          example
+        };
       }
     },
     shares: {

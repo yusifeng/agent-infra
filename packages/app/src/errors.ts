@@ -39,6 +39,16 @@ export class RunNotFoundError extends AgentInfraAppError {
   }
 }
 
+export class DatasetNotFoundError extends AgentInfraAppError {
+  constructor(datasetId: string) {
+    super(`dataset ${datasetId} not found`, {
+      statusCode: 404,
+      code: 'dataset_not_found',
+      context: { datasetId }
+    });
+  }
+}
+
 export class ChatShareNotFoundError extends AgentInfraAppError {
   constructor(publicId: string) {
     super(`chat share ${publicId} not found`, {
@@ -85,6 +95,27 @@ export class ChatShareRevokedError extends AgentInfraAppError {
       statusCode: 410,
       code: 'chat_share_revoked',
       context: { publicId }
+    });
+  }
+}
+
+export class InvalidDatasetInputError extends AgentInfraAppError {
+  constructor(message: string, context: Record<string, unknown> = {}) {
+    super(message, {
+      statusCode: 400,
+      code: 'invalid_dataset_input',
+      context
+    });
+  }
+}
+
+export class InvalidDatasetCaptureError extends AgentInfraAppError {
+  constructor(message: string, context: Record<string, unknown>, cause?: unknown) {
+    super(message, {
+      statusCode: 409,
+      code: 'invalid_dataset_capture',
+      context,
+      cause
     });
   }
 }

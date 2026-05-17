@@ -14,11 +14,11 @@
 - [x] Dataset capture should preserve capture-time snapshots; source ids are lineage references, not the only source of truth.
 
 ### 0.2 Goals
-- [ ] Add shared `Dataset` and `DatasetExample` domain types and repository interfaces.
-- [ ] Add shared SQLite/Postgres persistence for datasets and dataset examples.
-- [ ] Add app-layer dataset use cases, including `captureExampleFromRun`.
-- [ ] Capture an existing run into a dataset example with source refs, input snapshot, baseline output snapshot, context snapshot, tool invocation snapshot, and metadata.
-- [ ] Allow `expectedOutputJson` to be `null` in v1 so examples can be captured before human annotation.
+- [x] Add shared `Dataset` and `DatasetExample` domain types and repository interfaces.
+- [x] Add shared SQLite/Postgres persistence for datasets and dataset examples.
+- [x] Add app-layer dataset use cases, including `captureExampleFromRun`.
+- [x] Capture an existing run into a dataset example with source refs, input snapshot, baseline output snapshot, context snapshot, tool invocation snapshot, and metadata.
+- [x] Allow `expectedOutputJson` to be `null` in v1 so examples can be captured before human annotation.
 - [ ] Expose minimal contracts/server/client helpers for dataset create/list/read/capture flows.
 - [ ] Add a minimal `/observability` capture path that validates the shared package capability.
 - [ ] Copy shared run feedback and playground feedback details into dataset example metadata only as a capture-time snapshot.
@@ -60,33 +60,33 @@
 - [x] Keep `expectedOutputJson` nullable by default.
 - [x] Store snapshot fields as structured JSON objects, not ad hoc strings.
 - [x] Define `inputJson` v1 as an envelope with `schemaVersion: 1`, `kind: 'chat_turn'`, `contextSource: 'current_canonical_at_capture'`, `triggerMessageId`, `triggerMessage`, `messages`, optional `canonicalRunIds`, and optional `diagnostics`.
-- [ ] Capture canonical messages up to and including the trigger message in `inputJson.messages`.
-- [ ] Do not claim `inputJson` is the exact runtime prompt or deterministic replay input in v1.
+- [x] Capture canonical messages up to and including the trigger message in `inputJson.messages`.
+- [x] Do not claim `inputJson` is the exact runtime prompt or deterministic replay input in v1.
 - [x] Define `baselineOutputJson` v1 as a run output envelope with `schemaVersion: 1`, `runId`, assistant messages for the run, status, and error.
 - [x] Define `contextSnapshotJson` v1 as a snapshot of thread/run attribution, provider/model, usage, timing, and optional trace diagnostics.
 - [x] Define `toolInvocationsSnapshotJson` v1 as a snapshot of durable tool invocations for the source run.
-- [ ] Write a non-null empty `toolInvocationsSnapshotJson` envelope for capture-from-run when the source run has no tool invocations.
+- [x] Write a non-null empty `toolInvocationsSnapshotJson` envelope for capture-from-run when the source run has no tool invocations.
 - [ ] Reserve `toolInvocationsSnapshotJson: null` for manual/import examples or host policy omission.
 - [ ] Do not silently truncate tool invocation snapshot JSON in v1.
-- [ ] Allow hosts to explicitly omit tool invocation payloads by policy and represent the omission in the snapshot envelope.
+- [x] Allow hosts to explicitly omit tool invocation payloads by policy and represent the omission in the snapshot envelope.
 - [ ] Defer redaction/transformation hooks for sensitive tool payloads; v1 either captures the snapshot or explicitly omits it.
 - [x] Define `metadataJson` v1 as a generic envelope with `schemaVersion`, `capture`, optional `feedback`, optional `host`, and optional `evaluation` namespaces.
 - [x] Store shared run feedback under `metadataJson.feedback.sharedRunFeedback`.
 - [x] Store playground feedback details under `metadataJson.host.playground.runFeedbackDetails`.
 - [x] Store capture classification under `metadataJson.capture.kind = 'normal_example' | 'failure_case' | 'debug_case'`.
 - [x] Store future eval default inclusion under `metadataJson.evaluation.defaultEligible`.
-- [ ] Ensure playground feedback details, when copied, are not parsed by shared core/app code.
+- [x] Ensure playground feedback details, when copied, are not parsed by shared core/app code.
 
 ### 1.3 Types / Interfaces
 - [x] Add `Dataset` and `DatasetExample` to `packages/core/src/types.ts`.
 - [x] Add `DatasetRepository` and `DatasetExampleRepository` to `packages/core/src/repositories.ts`.
 - [x] Add dataset repositories to `AgentInfraAppRepositories`.
-- [ ] Add dataset use-case inputs/results to `packages/app/src/types.ts`.
-- [ ] Add `app.datasets` namespace to `AgentInfraApp`.
-- [ ] Define `CreateDatasetInput`, `ListDatasetsInput`, `GetDatasetInput`, `ListDatasetExamplesInput`, `UpdateDatasetExampleExpectedOutputInput`, and `CaptureDatasetExampleFromRunInput`.
-- [ ] Include `appId` in dataset list/create boundaries so datasets remain app-scoped.
-- [ ] Include `visibility` in dataset create/list boundaries so private and app-visible datasets have explicit semantics.
-- [ ] Include optional `createdByActorId` / `capturedByActorId` without introducing a shared business `user_id` requirement.
+- [x] Add dataset use-case inputs/results to `packages/app/src/types.ts`.
+- [x] Add `app.datasets` namespace to `AgentInfraApp`.
+- [x] Define `CreateDatasetInput`, `ListDatasetsInput`, `GetDatasetInput`, `ListDatasetExamplesInput`, `UpdateDatasetExampleExpectedOutputInput`, and `CaptureDatasetExampleFromRunInput`.
+- [x] Include `appId` in dataset list/create boundaries so datasets remain app-scoped.
+- [x] Include `visibility` in dataset create/list boundaries so private and app-visible datasets have explicit semantics.
+- [x] Include optional `createdByActorId` / `capturedByActorId` without introducing a shared business `user_id` requirement.
 - [x] Keep core dataset/example JSON fields generic, and define capture-generated snapshot envelope types in `packages/app`.
 - [ ] Define DTOs in `packages/contracts` for datasets, examples, create/list/read/capture requests, and responses.
 - [ ] Keep DTO JSON fields generic `Record<string, unknown>` and nullable where appropriate.
@@ -118,28 +118,28 @@
 - [x] Generate or update Drizzle migration artifacts if the repo workflow requires them for shared schema changes.
 
 ### 2.3 App Use Cases
-- [ ] Add `app.datasets.create`.
-- [ ] Add `app.datasets.list`.
-- [ ] Add `app.datasets.get`.
-- [ ] Add `app.datasets.listExamples`.
-- [ ] Keep repository-level example creation for capture internals without exposing a generic public `createExample` API in v1.
-- [ ] Add `app.datasets.updateExampleExpectedOutput`.
-- [ ] Add `app.datasets.captureExampleFromRun`.
-- [ ] In `captureExampleFromRun`, load the source run and source thread.
-- [ ] In `captureExampleFromRun`, reject capture when the requested dataset does not exist or is not in the same app boundary.
-- [ ] In `captureExampleFromRun`, allow completed, failed, and cancelled source runs to be captured.
-- [ ] In `captureExampleFromRun`, build `inputJson` from canonical messages up to and including `run.triggerMessageId`.
-- [ ] In `captureExampleFromRun`, build `baselineOutputJson` from assistant messages attached to the source run, or `null` when no assistant output exists.
-- [ ] In `captureExampleFromRun`, build `toolInvocationsSnapshotJson` from `toolRepo.listByRun(sourceRunId)`.
-- [ ] In `captureExampleFromRun`, support explicit tool invocation snapshot omission by policy.
-- [ ] In `captureExampleFromRun`, build `contextSnapshotJson` from thread/run attribution, provider/model, status, usage, error, timing, and optional trace diagnostics.
-- [ ] In `captureExampleFromRun`, classify completed examples with assistant output as `normal_example` and `evaluation.defaultEligible = true`.
-- [ ] In `captureExampleFromRun`, classify failed runs as `failure_case` and `evaluation.defaultEligible = false`.
-- [ ] In `captureExampleFromRun`, classify cancelled or outputless runs as `debug_case` and `evaluation.defaultEligible = false`.
-- [ ] In `captureExampleFromRun`, accept optional caller-supplied metadata and merge it under a capture metadata boundary without overriding required source refs.
-- [ ] In `captureExampleFromRun`, keep `expectedOutputJson` nullable unless explicitly provided.
-- [ ] Make capture persistence transactional where multiple writes are involved.
-- [ ] Do not call runtime ports from dataset capture use cases.
+- [x] Add `app.datasets.create`.
+- [x] Add `app.datasets.list`.
+- [x] Add `app.datasets.get`.
+- [x] Add `app.datasets.listExamples`.
+- [x] Keep repository-level example creation for capture internals without exposing a generic public `createExample` API in v1.
+- [x] Add `app.datasets.updateExampleExpectedOutput`.
+- [x] Add `app.datasets.captureExampleFromRun`.
+- [x] In `captureExampleFromRun`, load the source run and source thread.
+- [x] In `captureExampleFromRun`, reject capture when the requested dataset does not exist or is not in the same app boundary.
+- [x] In `captureExampleFromRun`, allow completed, failed, and cancelled source runs to be captured.
+- [x] In `captureExampleFromRun`, build `inputJson` from canonical messages up to and including `run.triggerMessageId`.
+- [x] In `captureExampleFromRun`, build `baselineOutputJson` from assistant messages attached to the source run, or `null` when no assistant output exists.
+- [x] In `captureExampleFromRun`, build `toolInvocationsSnapshotJson` from `toolRepo.listByRun(sourceRunId)`.
+- [x] In `captureExampleFromRun`, support explicit tool invocation snapshot omission by policy.
+- [x] In `captureExampleFromRun`, build `contextSnapshotJson` from thread/run attribution, provider/model, status, usage, error, timing, and optional trace diagnostics.
+- [x] In `captureExampleFromRun`, classify completed examples with assistant output as `normal_example` and `evaluation.defaultEligible = true`.
+- [x] In `captureExampleFromRun`, classify failed runs as `failure_case` and `evaluation.defaultEligible = false`.
+- [x] In `captureExampleFromRun`, classify cancelled or outputless runs as `debug_case` and `evaluation.defaultEligible = false`.
+- [x] In `captureExampleFromRun`, accept optional caller-supplied metadata and merge it under a capture metadata boundary without overriding required source refs.
+- [x] In `captureExampleFromRun`, keep `expectedOutputJson` nullable unless explicitly provided.
+- [x] Make capture persistence transactional where multiple writes are involved.
+- [x] Do not call runtime ports from dataset capture use cases.
 
 ### 2.4 Contracts / Server / Client
 - [ ] Add `DatasetDto` and `DatasetExampleDto`.
@@ -197,24 +197,24 @@
 - [x] Add bootstrap/idempotency coverage for SQLite/Turso statements where practical.
 
 ### 4.2 App Tests
-- [ ] Add app tests for creating and listing datasets.
-- [ ] Add app tests for repository-level example creation through capture internals without exposing public manual example creation.
-- [ ] Add app tests for capturing a completed run.
-- [ ] Add app tests for capturing a failed run.
-- [ ] Add app tests for capturing a cancelled run if cancelled run fixtures are available.
-- [ ] Add app tests proving `inputJson` contains canonical messages up to the trigger message.
-- [ ] Add app tests proving `inputJson.triggerMessage` is present when the run has a trigger message.
-- [ ] Add app tests proving `inputJson.contextSource` is `current_canonical_at_capture`.
-- [ ] Add app tests proving dual-answer capture excludes unselected prior/candidate outputs from `inputJson.messages`.
-- [ ] Add app tests proving `baselineOutputJson` contains assistant messages for the source run.
-- [ ] Add app tests proving `baselineOutputJson` can be `null` for a failed run with no assistant output.
-- [ ] Add app tests proving `toolInvocationsSnapshotJson` captures durable tool invocation input/output/error.
-- [ ] Add app tests proving `toolInvocationsSnapshotJson` writes an empty envelope for no-tool runs.
-- [ ] Add app tests proving tool invocation snapshots can be omitted by policy.
-- [ ] Add app tests proving `contextSnapshotJson` captures provider/model/status/usage/timing/error.
-- [ ] Add app tests proving failed/cancelled captures set `metadataJson.capture.kind` and `metadataJson.evaluation.defaultEligible`.
-- [ ] Add app tests proving capture rejects missing run.
-- [ ] Add app tests proving capture rejects dataset/run app boundary mismatch.
+- [x] Add app tests for creating and listing datasets.
+- [x] Add app tests for repository-level example creation through capture internals without exposing public manual example creation.
+- [x] Add app tests for capturing a completed run.
+- [x] Add app tests for capturing a failed run.
+- [x] Add app tests for capturing a cancelled run if cancelled run fixtures are available.
+- [x] Add app tests proving `inputJson` contains canonical messages up to the trigger message.
+- [x] Add app tests proving `inputJson.triggerMessage` is present when the run has a trigger message.
+- [x] Add app tests proving `inputJson.contextSource` is `current_canonical_at_capture`.
+- [x] Add app tests proving dual-answer capture excludes unselected prior/candidate outputs from `inputJson.messages`.
+- [x] Add app tests proving `baselineOutputJson` contains assistant messages for the source run.
+- [x] Add app tests proving `baselineOutputJson` can be `null` for a failed run with no assistant output.
+- [x] Add app tests proving `toolInvocationsSnapshotJson` captures durable tool invocation input/output/error.
+- [x] Add app tests proving `toolInvocationsSnapshotJson` writes an empty envelope for no-tool runs.
+- [x] Add app tests proving tool invocation snapshots can be omitted by policy.
+- [x] Add app tests proving `contextSnapshotJson` captures provider/model/status/usage/timing/error.
+- [x] Add app tests proving failed/cancelled captures set `metadataJson.capture.kind` and `metadataJson.evaluation.defaultEligible`.
+- [x] Add app tests proving capture rejects missing run.
+- [x] Add app tests proving capture rejects dataset/run app boundary mismatch.
 
 ### 4.3 Contracts / Server / Client Tests
 - [ ] Add contracts compile coverage for dataset/example DTOs.
@@ -239,7 +239,7 @@
 
 ### 4.5 Targeted Verification
 - [x] Run `pnpm --filter @agent-infra/db test` after DB slice.
-- [ ] Run `pnpm --filter @agent-infra/app test` after app slice.
+- [x] Run `pnpm --filter @agent-infra/app test` after app slice.
 - [ ] Run `pnpm --filter @agent-infra/contracts typecheck` after contracts slice if available.
 - [ ] Run `pnpm --filter @agent-infra/durable-chat-server test` after server helper slice.
 - [ ] Run `pnpm --filter @agent-infra/durable-chat-client test` after client helper slice.
@@ -284,16 +284,16 @@
 - [x] Commit Loop 1b.
 
 ### Loop 2: App Dataset Use Cases
-- [ ] Add dataset use-case types to `packages/app`.
-- [ ] Add `app.datasets` namespace.
-- [ ] Implement create/list/get/listExamples/updateExampleExpectedOutput.
-- [ ] Implement `captureExampleFromRun`.
-- [ ] Build snapshot helpers for messages, baseline output, context, tool invocations, and metadata.
-- [ ] Add app tests for dataset create/list, expected-output patching, and capture-from-run.
-- [ ] Run targeted app tests.
-- [ ] Run package typecheck for affected shared packages if needed.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 2.
+- [x] Add dataset use-case types to `packages/app`.
+- [x] Add `app.datasets` namespace.
+- [x] Implement create/list/get/listExamples/updateExampleExpectedOutput.
+- [x] Implement `captureExampleFromRun`.
+- [x] Build snapshot helpers for messages, baseline output, context, tool invocations, and metadata.
+- [x] Add app tests for dataset create/list, expected-output patching, and capture-from-run.
+- [x] Run targeted app tests.
+- [x] Run package typecheck for affected shared packages if needed.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit Loop 2.
 
 ### Loop 3: Contracts, Server Helpers, and Client Helpers
 - [ ] Add dataset/example DTOs and request/response contracts.
