@@ -34,6 +34,16 @@ This repository is a `pnpm` workspace with consumer apps, durable backend packag
 - If a change would lose most of its value when a playground app is removed, treat it as lower priority than core/runtime/contracts/db/client/server work.
 - Page work should follow the platform, not define it: consumers may help discover the right interfaces, but web-demo needs must not drive the system goal.
 
+### Observability Console Boundary
+
+The observability surface may currently live under `apps/playground-next-web`, but it should be treated as an independent management/debug application surface rather than a chat-page accessory or playground-only product feature.
+
+- Treat `/observability` as the first validation surface for agent-infra management workflows: run inspection, timeline/trace review, usage review, feedback review, dataset capture, and future evaluation/experiment views.
+- Keep `/chat` focused on end-user conversation and lightweight immediate feedback; do not make it the primary home for run curation, dataset management, evaluation, or observability workflows.
+- Reusable observability, dataset, evaluation, experiment, usage, and trace capabilities should live in `packages/*` when they represent platform behavior. The Next.js observability UI should consume those package APIs rather than define the durable model locally.
+- Host-specific details, such as playground-only feedback reason labels or local auth/session behavior, may remain app-owned sidecar state, but they must not become shared runtime facts unless a cross-consumer contract is intentionally designed.
+- When adding management UI under `apps/playground-next-web`, design it so the surface could later move to a dedicated app without changing the shared core/app/contracts/db/client/server model.
+
 ## Engineering Working Style
 
 Bias toward cautious, minimal, verifiable changes, especially for non-trivial tasks.
