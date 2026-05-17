@@ -3,6 +3,7 @@
 import type { LoadThreadMessagesResult } from '@agent-infra/durable-chat-client';
 import type {
   MessageDto,
+  RunFeedbackDto,
   RunDto,
   RuntimePiMetaDto,
   ThreadDto
@@ -57,8 +58,10 @@ import {
   resolveThreadRouteDecision
 } from '@/features/durable-chat/runtime/controllers/runtime-controller-seams';
 import {
+  applyOptimisticRunFeedback,
   type RunFeedbackDialogTarget,
   canSubmitRunFeedbackDialog,
+  replaceRunFeedbackForRun,
   resolveRunFeedbackAction
 } from '@/features/durable-chat/runtime/controllers/run-feedback-controller';
 import { buildChatRuntimeViewModel } from '@/features/durable-chat/runtime/chat-runtime-view-model';
@@ -189,6 +192,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const sendAbortControllerRef = useRef<AbortController | null>(null);
   const reconcileRequestIdRef = useRef(0);
   const activeResponseRunsRef = useRef<RunDto[]>([]);
+  const runFeedbackRef = useRef<RunFeedbackDto[]>([]);
   const candidateSelectionRequestIdsByTriggerRef = useRef(new Map<string, number>());
 
   const {
@@ -378,6 +382,10 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   useEffect(() => {
     activeResponseRunsRef.current = activeResponseRuns;
   }, [activeResponseRuns]);
+
+  useEffect(() => {
+    runFeedbackRef.current = runFeedback;
+  }, [runFeedback]);
 
   useEffect(() => {
     selectedRunIdRef.current = selectedRunId;
@@ -958,6 +966,33 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     }
   }
 
+  function resolveFeedbackTriggerMessageId(runId: string) {
+    const existingFeedback = runFeedbackRef.current.find((feedback) => feedback.runId === runId);
+    if (existingFeedback) {
+      return existingFeedback.triggerMessageId;
+    }
+
+    const candidate = answerCandidates.find((item) => item.runId === runId);
+    if (candidate) {
+      return candidate.triggerMessageId;
+    }
+
+    const run = activeResponseRunsRef.current.find((item) => item.id === runId);
+    if (run?.triggerMessageId) {
+      return run.triggerMessageId;
+    }
+
+    const firstRunMessage = messagesRef.current.find((message) => message.runId === runId);
+    if (!firstRunMessage) {
+      return null;
+    }
+
+    const previousUserMessage = [...messagesRef.current]
+      .filter((message) => message.role === 'user' && message.seq < firstRunMessage.seq)
+      .sort((left, right) => right.seq - left.seq)[0];
+    return previousUserMessage?.id ?? null;
+  }
+
   async function updateRunFeedback(
     threadId: string,
     runId: string,
@@ -966,6 +1001,22 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   ) {
     if (candidateMutationRunIds.has(runId)) {
       return false;
+    }
+
+    const previousFeedbackForRun = runFeedbackRef.current.find((feedback) => feedback.runId === runId) ?? null;
+    const shouldApplyOptimisticState = activeThreadIdRef.current === threadId;
+    if (shouldApplyOptimisticState) {
+      const triggerMessageId = resolveFeedbackTriggerMessageId(runId);
+      setRunFeedback((current) =>
+        applyOptimisticRunFeedback({
+          current,
+          threadId,
+          runId,
+          triggerMessageId,
+          value,
+          nowIso: new Date().toISOString()
+        })
+      );
     }
 
     setCandidateMutationRunIds((current) => new Set(current).add(runId));
@@ -977,13 +1028,15 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         throw new Error(result.error ?? `Failed to update run feedback (${result.status})`);
       }
 
-      setRunFeedback((current) => {
-        const withoutRun = current.filter((feedback) => feedback.runId !== runId);
-        return result.data.runFeedback ? [...withoutRun, result.data.runFeedback] : withoutRun;
-      });
+      if (activeThreadIdRef.current === threadId) {
+        setRunFeedback((current) => replaceRunFeedbackForRun(current, runId, result.data.runFeedback ?? null));
+      }
       setError(null);
       return true;
     } catch (feedbackError) {
+      if (activeThreadIdRef.current === threadId) {
+        setRunFeedback((current) => replaceRunFeedbackForRun(current, runId, previousFeedbackForRun));
+      }
       setError(feedbackError instanceof Error ? feedbackError.message : 'Failed to update run feedback');
       return false;
     } finally {
