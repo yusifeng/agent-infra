@@ -60,6 +60,7 @@ function createState(overrides: Partial<ChatSessionState>): ChatSessionState {
     meta: null,
     selectedModelKey: '',
     selectedWebSearchEnabled: false,
+    selectedDualAnswerEnabled: false,
     selectedThinkingEnabled: false,
     selectedReasoningEffort: 'high',
     chatPhase: 'streaming',

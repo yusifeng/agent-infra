@@ -45,6 +45,7 @@ export function DurableChatConsole({ currentUser = null, initialThreadId = null,
   const handleSelectedModelKeyChange = useStableCallback(runtime.onSelectedModelKeyChange);
   const handleDraftChange = useStableCallback(runtime.onDraftChange);
   const handleSelectedWebSearchEnabledChange = useStableCallback(runtime.onSelectedWebSearchEnabledChange);
+  const handleSelectedDualAnswerEnabledChange = useStableCallback(runtime.onSelectedDualAnswerEnabledChange);
   const handleSelectedThinkingEnabledChange = useStableCallback(runtime.onSelectedThinkingEnabledChange);
   const handleSend = useStableCallback(runtime.onSend);
   const handleStop = useStableCallback(runtime.onStop);
@@ -68,6 +69,7 @@ export function DurableChatConsole({ currentUser = null, initialThreadId = null,
       sendDisabled={runtime.sendDisabled}
       inputLocked={runtime.inputLocked}
       selectedWebSearchEnabled={runtime.selectedWebSearchEnabled}
+      selectedDualAnswerEnabled={runtime.selectedDualAnswerEnabled}
       selectedThinkingEnabled={runtime.selectedThinkingEnabled}
       selectedModelOption={runtime.selectedModelOption}
       deepseekModePresentation={runtime.deepseekModePresentation}
@@ -79,6 +81,7 @@ export function DurableChatConsole({ currentUser = null, initialThreadId = null,
       sendAbortControllerRef={runtime.sendAbortControllerRef}
       onDraftChange={handleDraftChange}
       onSelectedWebSearchEnabledChange={handleSelectedWebSearchEnabledChange}
+      onSelectedDualAnswerEnabledChange={handleSelectedDualAnswerEnabledChange}
       onSelectedThinkingEnabledChange={handleSelectedThinkingEnabledChange}
       onSend={handleSend}
       onStop={handleStop}

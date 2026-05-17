@@ -24,6 +24,10 @@ function resolveNext<T>(current: T, next: Updater<T>) {
   return typeof next === 'function' ? (next as (value: T) => T)(current) : next;
 }
 
+function isInitialDualAnswerEnabled() {
+  return process.env.NEXT_PUBLIC_PLAYGROUND_DUAL_ANSWER_ENABLED?.trim().toLowerCase() === 'true';
+}
+
 export function selectPrimaryLiveAssistantDraft(
   state: ChatSessionState,
   liveAssistantDraftsByRunId: LiveAssistantDraftsByRunId
@@ -74,6 +78,7 @@ function createInitialChatSessionState(): ChatSessionState {
     meta: null,
     selectedModelKey: '',
     selectedWebSearchEnabled: false,
+    selectedDualAnswerEnabled: isInitialDualAnswerEnabled(),
     selectedThinkingEnabled: false,
     selectedReasoningEffort: 'high',
     chatPhase: 'idle',
@@ -130,6 +135,9 @@ export function useChatSessionController() {
     },
     setSelectedWebSearchEnabled: (next: Updater<boolean>) => {
       dispatch((current) => ({ ...current, selectedWebSearchEnabled: resolveNext(current.selectedWebSearchEnabled, next) }));
+    },
+    setSelectedDualAnswerEnabled: (next: Updater<boolean>) => {
+      dispatch((current) => ({ ...current, selectedDualAnswerEnabled: resolveNext(current.selectedDualAnswerEnabled, next) }));
     },
     setSelectedThinkingEnabled: (next: Updater<boolean>) => {
       dispatch((current) => ({ ...current, selectedThinkingEnabled: resolveNext(current.selectedThinkingEnabled, next) }));

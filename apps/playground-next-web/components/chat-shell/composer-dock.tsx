@@ -19,6 +19,7 @@ type ComposerDockProps = {
   sendDisabled: boolean;
   inputLocked: boolean;
   selectedWebSearchEnabled: boolean;
+  selectedDualAnswerEnabled: boolean;
   selectedThinkingEnabled: boolean;
   selectedModelOption: RuntimePiMetaDto['modelOptions'][number] | null;
   deepseekModePresentation: DeepseekModePresentation;
@@ -30,6 +31,7 @@ type ComposerDockProps = {
   sendAbortControllerRef: MutableRefObject<AbortController | null>;
   onDraftChange: (value: string) => void;
   onSelectedWebSearchEnabledChange: (value: boolean) => void;
+  onSelectedDualAnswerEnabledChange: (value: boolean) => void;
   onSelectedThinkingEnabledChange: (value: boolean) => void;
   onSend: () => void;
   onStop: () => void;
@@ -42,6 +44,7 @@ export const ComposerDock = memo(function ComposerDock({
   sendDisabled,
   inputLocked,
   selectedWebSearchEnabled,
+  selectedDualAnswerEnabled,
   selectedThinkingEnabled,
   selectedModelOption,
   deepseekModePresentation,
@@ -53,6 +56,7 @@ export const ComposerDock = memo(function ComposerDock({
   sendAbortControllerRef,
   onDraftChange,
   onSelectedWebSearchEnabledChange,
+  onSelectedDualAnswerEnabledChange,
   onSelectedThinkingEnabledChange,
   onSend,
   onStop,
@@ -240,6 +244,28 @@ export const ComposerDock = memo(function ComposerDock({
                     className="rounded-[12px] bg-[#2b2b2b] px-3 py-1.5 text-[13px] leading-5 text-white"
                   >
                     按需搜索网页
+                  </TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => onSelectedDualAnswerEnabledChange(!selectedDualAnswerEnabled)}
+                      disabled={composerState.dualAnswerToggleDisabled}
+                      className={modeToggleClassName(selectedDualAnswerEnabled)}
+                      aria-pressed={selectedDualAnswerEnabled}
+                    >
+                      <span>双回答</span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    hideArrow
+                    side="top"
+                    sideOffset={8}
+                    className="rounded-[12px] bg-[#2b2b2b] px-3 py-1.5 text-[13px] leading-5 text-white"
+                  >
+                    同时生成两个回答用于对比
                   </TooltipContent>
                 </Tooltip>
               </div>

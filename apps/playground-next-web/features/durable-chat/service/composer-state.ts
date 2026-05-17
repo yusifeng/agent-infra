@@ -15,6 +15,7 @@ type BuildComposerStateArgs = {
 export type ComposerState = {
   hasDraftValue: boolean;
   isDeepseekModel: boolean;
+  dualAnswerToggleDisabled: boolean;
   searchToggleDisabled: boolean;
   thinkingToggleDisabled: boolean;
   reasoningSelectDisabled: boolean;
@@ -28,6 +29,7 @@ export function buildComposerState(args: BuildComposerStateArgs): ComposerState 
   const hasSelectedModel = Boolean(selectedModelOption);
   const hasDraftValue = Boolean(draft.trim());
   const isDeepseekModel = selectedModelOption?.provider === 'deepseek';
+  const dualAnswerToggleDisabled = inputLocked || !runtimeReady || !hasSelectedModel;
   const searchToggleDisabled = inputLocked || !runtimeReady || !hasSelectedModel;
   const thinkingToggleDisabled = inputLocked || !runtimeReady;
   const reasoningSelectDisabled = thinkingToggleDisabled || !selectedThinkingEnabled;
@@ -37,6 +39,7 @@ export function buildComposerState(args: BuildComposerStateArgs): ComposerState 
   return {
     hasDraftValue,
     isDeepseekModel,
+    dualAnswerToggleDisabled,
     searchToggleDisabled,
     thinkingToggleDisabled,
     reasoningSelectDisabled,

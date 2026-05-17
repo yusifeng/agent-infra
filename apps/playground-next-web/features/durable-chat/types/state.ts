@@ -23,6 +23,7 @@ export type ChatSessionState = {
   meta: RuntimePiMetaDto | null;
   selectedModelKey: string;
   selectedWebSearchEnabled: boolean;
+  selectedDualAnswerEnabled: boolean;
   selectedThinkingEnabled: boolean;
   selectedReasoningEffort: 'high' | 'max';
   chatPhase: ChatPhase;

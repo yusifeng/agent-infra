@@ -44,6 +44,7 @@ describe('buildComposerState', () => {
     ).toEqual({
       hasDraftValue: true,
       isDeepseekModel: true,
+      dualAnswerToggleDisabled: false,
       searchToggleDisabled: false,
       thinkingToggleDisabled: false,
       reasoningSelectDisabled: false,
@@ -66,6 +67,7 @@ describe('buildComposerState', () => {
     ).toEqual({
       hasDraftValue: true,
       isDeepseekModel: false,
+      dualAnswerToggleDisabled: true,
       searchToggleDisabled: true,
       thinkingToggleDisabled: true,
       reasoningSelectDisabled: true,
@@ -88,6 +90,7 @@ describe('buildComposerState', () => {
     ).toEqual({
       hasDraftValue: false,
       isDeepseekModel: false,
+      dualAnswerToggleDisabled: true,
       searchToggleDisabled: true,
       thinkingToggleDisabled: true,
       reasoningSelectDisabled: true,
