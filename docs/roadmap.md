@@ -6,9 +6,48 @@ The completed `v0` scope and closeout rationale live in [`v0-closeout.md`](./v0-
 
 The roadmap after `v0` should be read as a set of candidate tracks, not as a promise to build every item in order.
 
-## Selected Next Infra Track: Run Trace And Usage Contract v1
+## Selected Next Infra Track: Dataset Review And Expected Output Foundation v1
 
-The next infra track is `Run Trace And Usage Contract v1`.
+The next infra track is `Dataset Review And Expected Output Foundation v1`.
+
+This track turns captured dataset examples into curated future-eval candidates
+without implementing eval execution. It adds typed expected-output and review
+metadata, safe app-layer metadata merge semantics, detail/review routes, and an
+independent `/observability/datasets` validation surface.
+
+The source of truth lives in
+[`source-of-truth/dataset-example-model.md`](./source-of-truth/dataset-example-model.md).
+
+In scope:
+
+- `DatasetExpectedOutputV1` as a nullable assistant-text target envelope
+- `metadataJson.review` as strict post-capture curation metadata
+- effective eligibility as a computed future-eval readiness signal
+- app-layer safe merge helpers that preserve capture, feedback, host, and
+  evaluation metadata namespaces
+- app use cases for dataset example detail, expected-output update, and review
+  update
+- shared DTO/parser/normalizer support for expected output, review metadata, and
+  effective eligibility
+- authenticated playground routes and a dataset-centric review surface under
+  `/observability/datasets`
+
+Deferred:
+
+- `EvalRun` or `EvalExampleResult`
+- evaluation runner, eval reports, pass-rate dashboards, or experiment
+  comparison
+- LLM-as-judge scoring
+- prompt hub or prompt version manager
+- OpenTelemetry, LangSmith, or exporter sinks
+- cost analytics dashboard or usage ledger
+- automatic historical-run import
+- full dataset analytics, search, bulk operations, assignments, or
+  multi-reviewer workflow
+
+## Completed Infra Track: Run Trace And Usage Contract v1
+
+`Run Trace And Usage Contract v1` is complete.
 
 This track combines the most valuable parts of observability hardening and usage
 tracking without turning shared infra into a billing or user-management product.

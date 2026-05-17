@@ -2,10 +2,12 @@
 
 This document is the source of truth for `Dataset` and `DatasetExample` v1.
 
-Dataset Capture v1 turns a durable run into a durable example candidate. It is a
-foundation for future quality loops, evaluation, and regression testing, but it
-is not itself an evaluation runner, replay runtime, experiment system, prompt
-hub, or annotation product.
+Dataset Capture v1 turns a durable run into a durable example candidate.
+Dataset Review and Expected Output Foundation v1 turns that candidate into a
+curated future-eval candidate by adding typed expected-output and review
+metadata. These tracks are a foundation for future quality loops, evaluation,
+and regression testing, but they are not themselves an evaluation runner, replay
+runtime, experiment system, prompt hub, or annotation product.
 
 ## Scope
 
@@ -30,6 +32,7 @@ It intentionally does not add:
 - a cost analytics dashboard or usage ledger
 - automatic batch import of historical runs
 - a full dataset management UI
+- evaluation execution, eval result persistence, or eval reports
 
 ## Product Boundary
 
@@ -166,6 +169,37 @@ Failed, cancelled, or outputless runs may write `baselineOutputJson: null`.
 expected answer. Human or evaluator-provided target output belongs in
 `expectedOutputJson`, which remains nullable in v1.
 
+## Expected Output
+
+`expectedOutputJson` v1 is a nullable human/evaluator target envelope:
+
+```ts
+interface DatasetExpectedOutputV1 {
+  schemaVersion: 1;
+  kind: 'assistant_text';
+  text: string;
+  notes?: string | null;
+}
+```
+
+Rules:
+
+- `text` is required and must be a trimmed non-empty string.
+- `notes` is optional reviewer context only. It is not evaluator input.
+- Hosts must define conservative maximum lengths for `text` and `notes` at the
+  app/server boundary before accepting writes.
+- Clearing expected output writes `expectedOutputJson: null`.
+- New writes reject invalid envelope shapes.
+- Read-model normalizers must tolerate legacy arbitrary stored
+  `expectedOutputJson` values so old examples do not crash list or detail
+  responses.
+- `expectedOutputJson` must not store actor ids, timestamps, or edit history in
+  v1.
+
+Expected output v1 intentionally supports only one assistant-text target. It
+does not add multi-message expected output, structured JSON assertions,
+tool-call assertions, rubric schemas, or LLM-as-judge scoring.
+
 ## Context Snapshot
 
 `contextSnapshotJson` v1 records run/thread attribution and diagnostics:
@@ -247,6 +281,7 @@ interface DatasetExampleMetadataSnapshotV1 {
   evaluation?: {
     defaultEligible: boolean;
   };
+  review?: DatasetExampleReviewMetadataV1;
 }
 ```
 
@@ -266,6 +301,113 @@ Playground thumbs-down reason tags and comment text may be copied into
 details must not be promoted into shared runtime state or parsed by shared
 core/app code.
 
+### Review Metadata
+
+`metadataJson.review` is post-capture curation metadata. It may be added or
+updated after capture. It does not rewrite `metadataJson.capture`,
+`metadataJson.feedback`, `metadataJson.host`, or source lineage facts.
+
+```ts
+interface DatasetExampleReviewMetadataV1 {
+  status: 'unreviewed' | 'needs_expected_output' | 'approved' | 'excluded';
+  evalEligibility: 'default' | 'include' | 'exclude';
+  exclusionReason?:
+    | 'failure_case'
+    | 'debug_case'
+    | 'missing_expected_output'
+    | 'not_representative'
+    | 'sensitive_or_unsafe'
+    | 'other'
+    | null;
+  reviewerNote?: string | null;
+  reviewedByActorId?: string | null;
+  reviewedAt?: string | null;
+}
+```
+
+Missing review metadata normalizes to:
+
+```ts
+{
+  status: 'unreviewed',
+  evalEligibility: 'default',
+  exclusionReason: null,
+  reviewerNote: null,
+  reviewedByActorId: null,
+  reviewedAt: null
+}
+```
+
+Review writes are strict app-layer operations:
+
+- callers may update only whitelisted review fields
+- request bodies must not include unknown review keys
+- request bodies must not include protected metadata namespaces such as
+  `capture`, `feedback`, `host`, `evaluation`, or full `metadataJson`
+- `reviewedByActorId` and `reviewedAt` are assigned by app use cases, not by
+  request bodies
+- review metadata updates must preserve `metadataJson.schemaVersion`,
+  `metadataJson.evaluation.defaultEligible`, unknown metadata namespaces, and
+  all capture-time facts
+
+Invalid combinations are rejected at app write boundaries:
+
+- `status = 'excluded'` with `evalEligibility = 'include'`
+- `status = 'approved'` without valid expected output
+- `evalEligibility = 'include'` without valid expected output
+
+### Effective Eligibility
+
+Effective eligibility is a computed future-eval readiness signal. It is not an
+evaluation execution contract and must not be stored as a second truth.
+
+The computation reads `expectedOutputJson`, normalized `metadataJson.review`,
+and `metadataJson.evaluation.defaultEligible`.
+
+Rules:
+
+- `review.evalEligibility = 'exclude'` is always ineligible.
+- `review.evalEligibility = 'include'` is eligible only when the example has a
+  valid expected output and the review state is compatible with inclusion.
+- `review.evalEligibility = 'default'` is eligible only when
+  `evaluation.defaultEligible === true`, `review.status = 'approved'`, and the
+  example has a valid expected output.
+- `review.status = 'unreviewed'` is not eligible.
+- `review.status = 'needs_expected_output'` is not eligible.
+- contradictory stored states normalize to an ineligible read model instead of
+  crashing reads, but new writes must reject them.
+
+Reason codes returned by read models:
+
+- `eligible_default`
+- `eligible_included_by_review`
+- `ineligible_unreviewed`
+- `ineligible_needs_expected_output`
+- `ineligible_missing_expected_output`
+- `ineligible_invalid_expected_output`
+- `ineligible_excluded_by_review`
+- `ineligible_capture_default`
+- `ineligible_contradictory_review_state`
+
+### Source Access During Review
+
+Dataset access controls whether an example can be reviewed. Source run/thread
+access controls only lineage navigation. A user with access to a dataset example
+must be able to inspect captured snapshots and edit review metadata even if the
+source run is unavailable or no longer accessible.
+
+Routes and UI may attempt to build a lineage link back to
+`/observability?threadId=...&runId=...`, but failure to load the source must
+render an unavailable state without leaking source-run existence outside the
+actor boundary.
+
+### Tool Snapshot Safety
+
+Tool invocation snapshots may contain captured tool input and output from run
+time. V1 has no redaction guarantee. UI must distinguish captured payloads from
+`omitted_by_policy` snapshots truthfully and must not add copy, export, or
+download actions for full tool payloads in this track.
+
 ## Public V1 Surface
 
 The public app/contract surface is intentionally narrow:
@@ -274,15 +416,21 @@ The public app/contract surface is intentionally narrow:
 - list datasets
 - get dataset
 - list dataset examples
+- get dataset example
 - update example expected output
+- update example review metadata
 - capture example from run
 
 There is no generic public `createExample` API in v1. Manual/import examples may
 be added later after their source, validation, privacy, and snapshot semantics
 are explicitly designed.
 
-API responses are enough for v1 example verification. A `/datasets` management
-page, filtering/search, analytics, and dataset dashboards are deferred.
+The playground may expose `/observability/datasets` as an independent validation
+surface for dataset review. It must not depend on `/chat`, `threadId`, `runId`,
+or the selected-run state from `/observability`.
+
+Filtering/search, analytics, bulk operations, assignments, multi-reviewer
+workflow, eval reports, and dataset dashboards remain deferred.
 
 ## Relationship To Trace, Content, And Replay
 
