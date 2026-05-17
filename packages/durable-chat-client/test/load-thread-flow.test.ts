@@ -335,6 +335,52 @@ describe('runLoadThreadMessages', () => {
     expect(setLoadingMessages).toHaveBeenCalledWith(true);
     expect(setLoadingMessages).not.toHaveBeenCalledWith(false);
   });
+
+  it('clears hydrated candidate state when thread load fails', async () => {
+    const setAnswerCandidates = createSetterSpy<any[]>();
+    const setAnswerSelections = createSetterSpy<any[]>();
+    const setRunFeedback = createSetterSpy<any[]>();
+
+    const result = await runLoadThreadMessages({
+      threadId: 'thread-1',
+      refs: {
+        activeThreadIdRef: { current: 'thread-1' },
+        logOpenRef: { current: false },
+        messagesAbortControllerRef: { current: null },
+        messagesRequestIdRef: { current: 0 }
+      },
+      actions: {
+        setActiveResponseRun: createSetterSpy<RunDto | null>(),
+        setActiveResponseRuns: createSetterSpy<RunDto[]>(),
+        setAnswerCandidates,
+        setAnswerSelections,
+        setError: createSetterSpy<string | null>(),
+        setHistoryLoading: createSetterSpy<boolean>(),
+        setLiveAssistantDraft: createSetterSpy<any>(),
+        setLiveAssistantDraftsByRunId: createSetterSpy<Record<string, any>>(),
+        setLoadingMessages: createSetterSpy<boolean>(),
+        setMessagePageInfo: createSetterSpy<ThreadMessagesPageInfoDto | null>(),
+        setOptimisticUserMessage: createSetterSpy<MessageDto | null>(),
+        setRecentRunsError: createSetterSpy<string | null>(),
+        setRecentRunsLoading: createSetterSpy<boolean>(),
+        setRunFeedback
+      },
+      operations: {
+        applyHydratedTranscript: vi.fn(),
+        hydrateTranscript: vi.fn().mockRejectedValue(new Error('load failed')),
+        loadLogInspector: vi.fn(),
+        resetLogInspectorState: vi.fn()
+      }
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      restoredRunId: null
+    });
+    expect(setAnswerCandidates).toHaveBeenCalledWith([]);
+    expect(setAnswerSelections).toHaveBeenCalledWith([]);
+    expect(setRunFeedback).toHaveBeenCalledWith([]);
+  });
 });
 
 describe('applyHydratedTranscriptState', () => {

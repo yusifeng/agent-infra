@@ -1,6 +1,6 @@
 'use client';
 
-import type { MessageDto, RuntimePiMetaDto } from '@agent-infra/contracts';
+import type { MessageDto, RunFeedbackDto, RuntimePiMetaDto } from '@agent-infra/contracts';
 import clsx from 'clsx';
 import { Loader2 } from 'lucide-react';
 import { memo, useMemo } from 'react';
@@ -9,11 +9,13 @@ import { buildAnswerContainerActionContexts } from '@/features/durable-chat/serv
 import { buildAssistantTurnActionContexts } from '@/features/durable-chat/service/assistant-turn-actions';
 import { buildMessageListRenderPlan } from '@/features/durable-chat/service/message-list-presentation';
 import type { AnswerContainer } from '@/features/durable-chat/types/answer-containers';
+import type { AnswerCandidateGroup } from '@/features/durable-chat/types/answer-candidate-groups';
 import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
 import type { DurableRecoveryState } from '@/features/durable-chat/types/runtime';
 import type { ActiveSearchPanelData } from '@/features/durable-chat/types/search';
 import type { TranscriptBlock } from '@/features/durable-chat/types/transcript-blocks';
 import {
+  AnswerCandidateGroupCard,
   AnswerContainerCard,
   LiveAssistantCard,
   TranscriptBlockCard
@@ -33,6 +35,7 @@ type ChatMessageListProps = {
   activeThreadId: string | null;
   messages: MessageDto[];
   answerContainers?: AnswerContainer[];
+  answerCandidateGroups?: AnswerCandidateGroup[];
   transcriptBlocks: TranscriptBlock[];
   liveAssistantDraft: LiveAssistantDraft | null;
   liveAssistantActionsAvailable?: boolean;
@@ -41,7 +44,10 @@ type ChatMessageListProps = {
   showPersistedResearchStatus?: boolean;
   showWelcomeWhenEmpty?: boolean;
   activeReplayBlockId?: string | null;
+  candidateMutationRunIds?: Set<string>;
   onLoadOlderMessages: () => void;
+  onChooseAnswerCandidate?: (runId: string, triggerMessageId: string) => void;
+  onSetRunFeedback?: (runId: string, triggerMessageId: string, value: RunFeedbackDto['value'] | null) => void;
   onOpenSearchResult: (runId: string, toolCallIds: string[]) => void;
   getLiveSearchPanelData?: (runId: string, toolCallIds: string[]) => ActiveSearchPanelData | null;
 };
@@ -56,6 +62,7 @@ export const ChatMessageList = memo(function ChatMessageList({
   activeThreadId,
   messages,
   answerContainers = [],
+  answerCandidateGroups = [],
   transcriptBlocks,
   liveAssistantDraft,
   liveAssistantActionsAvailable = false,
@@ -64,7 +71,10 @@ export const ChatMessageList = memo(function ChatMessageList({
   showPersistedResearchStatus = false,
   showWelcomeWhenEmpty = true,
   activeReplayBlockId = null,
+  candidateMutationRunIds = new Set(),
   onLoadOlderMessages,
+  onChooseAnswerCandidate,
+  onSetRunFeedback,
   onOpenSearchResult,
   getLiveSearchPanelData
 }: ChatMessageListProps) {
@@ -74,6 +84,7 @@ export const ChatMessageList = memo(function ChatMessageList({
     () =>
       buildMessageListRenderPlan({
         activeThreadId,
+        answerCandidateGroups,
         answerContainers,
         durableRecoveryState,
         liveAssistantDraft,
@@ -86,6 +97,7 @@ export const ChatMessageList = memo(function ChatMessageList({
     [
       activeThreadId,
       answerContainers,
+      answerCandidateGroups,
       durableRecoveryState,
       liveAssistantDraft,
       loadingMessages,
@@ -173,6 +185,18 @@ export const ChatMessageList = memo(function ChatMessageList({
                     }
                     container={item.container}
                     onOpenSearchResult={onOpenSearchResult}
+                    showPersistedResearchStatus={showPersistedResearchStatus}
+                  />
+              ) : item.type === 'answer-candidate-group' ? (
+                  <AnswerCandidateGroupCard
+                    key={item.key}
+                    actionContexts={answerContainerActionContexts}
+                    group={item.group}
+                    getLiveSearchPanelData={getLiveSearchPanelData}
+                    onOpenSearchResult={onOpenSearchResult}
+                    onChooseAnswerCandidate={onChooseAnswerCandidate}
+                    onSetRunFeedback={onSetRunFeedback}
+                    pendingRunIds={candidateMutationRunIds}
                     showPersistedResearchStatus={showPersistedResearchStatus}
                   />
               ) : (

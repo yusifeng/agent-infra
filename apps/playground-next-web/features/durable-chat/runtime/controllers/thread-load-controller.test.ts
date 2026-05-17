@@ -139,6 +139,8 @@ describe('thread load controller', () => {
         setActiveResponseRuns: vi.fn((next: Updater<RunDto[]>) => {
           state.activeResponseRuns = resolveUpdater(next, state.activeResponseRuns);
         }),
+        setAnswerCandidates: vi.fn(),
+        setAnswerSelections: vi.fn(),
         setChatPhase: vi.fn((next: Updater<ChatPhase>) => {
           state.chatPhase = resolveUpdater(next, state.chatPhase);
         }),
@@ -161,6 +163,7 @@ describe('thread load controller', () => {
         setRecentRuns: vi.fn(),
         setRecentRunsError: vi.fn(),
         setRecentRunsLoading: vi.fn(),
+        setRunFeedback: vi.fn(),
         setSelectedRunId: vi.fn((next: Updater<string | null>) => {
           state.selectedRunId = resolveUpdater(next, state.selectedRunId);
         })

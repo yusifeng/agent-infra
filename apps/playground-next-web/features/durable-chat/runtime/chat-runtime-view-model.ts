@@ -1,6 +1,9 @@
 import type {
+  AnswerCandidateDto,
+  AnswerSelectionDto,
   MessageDto,
   RunDto,
+  RunFeedbackDto,
   RunTimelineResponseDto,
   RuntimePiMetaDto,
   ThreadMessagesPageInfoDto
@@ -8,6 +11,7 @@ import type {
 
 import type { PlaygroundThreadDto } from '@/features/durable-chat/repo/chat-api';
 import { buildAnswerContainers } from '@/features/durable-chat/service/build-answer-containers';
+import { buildAnswerCandidateGroups } from '@/features/durable-chat/service/build-answer-candidate-groups';
 import {
   deriveMainChatResponseStatus,
   shouldShowMainChatLoading
@@ -15,15 +19,18 @@ import {
 import { buildDeepseekModePresentation } from '@/features/durable-chat/service/deepseek-mode-presentation';
 import { buildTranscriptPresentation } from '@/features/durable-chat/service/transcript-presentation';
 import type { ChatPhase } from '@/features/durable-chat/types/runtime';
-import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
+import type { LiveAssistantDraft, LiveAssistantDraftsByRunId } from '@/features/durable-chat/types/live-assistant-draft';
 
 export type ChatRuntimeViewModelInput = {
   activeResponseRun: RunTimelineResponseDto['run'];
   activeResponseRuns?: RunDto[];
   activeThreadId: string | null;
+  answerCandidates?: AnswerCandidateDto[];
+  answerSelections?: AnswerSelectionDto[];
   chatPhase: ChatPhase;
   draft: string;
   liveAssistantDraft: LiveAssistantDraft | null;
+  liveAssistantDraftsByRunId?: LiveAssistantDraftsByRunId;
   loadingThreadId: string | null;
   messagePageInfo: ThreadMessagesPageInfoDto | null;
   messages: MessageDto[];
@@ -32,6 +39,7 @@ export type ChatRuntimeViewModelInput = {
   pendingNavigationTitle: { threadId: string; title: string } | null;
   pendingNewThreadLoadingId: string;
   persistingTurn: boolean;
+  runFeedback?: RunFeedbackDto[];
   selectedModelKey: string;
   threads: PlaygroundThreadDto[];
   timeline: RunTimelineResponseDto | null;
@@ -69,13 +77,23 @@ export function buildChatRuntimeViewModel(input: ChatRuntimeViewModelInput) {
     optimisticUserMessage: input.optimisticUserMessage,
     liveAssistantDraft: input.liveAssistantDraft
   });
+  const displayedAnswerContainers = buildAnswerContainers(displayedTranscriptBlocks);
+  const displayedAnswerCandidateGroups = buildAnswerCandidateGroups({
+    activeResponseRuns: input.activeResponseRuns ?? (input.activeResponseRun ? [input.activeResponseRun] : []),
+    answerCandidates: input.answerCandidates ?? [],
+    answerContainers: displayedAnswerContainers,
+    answerSelections: input.answerSelections ?? [],
+    liveAssistantDraftsByRunId: input.liveAssistantDraftsByRunId ?? {},
+    runFeedback: input.runFeedback ?? []
+  });
 
   return {
     activeThread,
     currentThreadPinned,
     currentThreadTitle,
     deepseekModePresentation,
-    displayedAnswerContainers: buildAnswerContainers(displayedTranscriptBlocks),
+    displayedAnswerCandidateGroups,
+    displayedAnswerContainers,
     displayedMessages,
     displayedTranscriptBlocks,
     hasOlderMessages: input.messagePageInfo?.hasOlder === true,

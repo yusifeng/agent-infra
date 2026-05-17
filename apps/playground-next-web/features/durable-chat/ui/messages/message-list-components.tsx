@@ -1,9 +1,9 @@
 'use client';
 
-import type { MessageDto, MessagePartDto } from '@agent-infra/contracts';
+import type { MessageDto, MessagePartDto, RunFeedbackDto } from '@agent-infra/contracts';
 import { getMessageRenderKey } from '@agent-infra/durable-chat-client';
 import clsx from 'clsx';
-import { Atom, ChevronDown, ChevronRight, Copy, FileText, Loader2, RotateCw, Search, Trash2 } from 'lucide-react';
+import { Atom, Check, ChevronDown, ChevronRight, Copy, FileText, Loader2, RotateCw, Search, ThumbsDown, ThumbsUp, Trash2 } from 'lucide-react';
 import { memo, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 
 import {
@@ -21,6 +21,7 @@ import {
   type ReasoningToken
 } from '@/features/durable-chat/service/thinking-flow';
 import type { AnswerContainer } from '@/features/durable-chat/types/answer-containers';
+import type { AnswerCandidateGroup } from '@/features/durable-chat/types/answer-candidate-groups';
 import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
 import type { ActiveSearchPanelData } from '@/features/durable-chat/types/search';
 import type { AssistantTurnItem, TranscriptBlock } from '@/features/durable-chat/types/transcript-blocks';
@@ -542,6 +543,7 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
         copyText: string;
         showActions: boolean;
       };
+      variant?: 'standalone' | 'candidate';
       activeReplayBlockId?: string | null;
       onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
       }
@@ -549,6 +551,7 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
         type: 'live';
         liveAssistantDraft: LiveAssistantDraft;
         actionsAvailable?: boolean;
+        variant?: 'standalone' | 'candidate';
         getLiveSearchPanelData?: (runId: string, toolCallIds: string[]) => ActiveSearchPanelData | null;
         onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
       }
@@ -614,7 +617,11 @@ const AssistantTranscriptCard = memo(function AssistantTranscriptCard(
 
   return (
     <div
-      className={clsx('group relative w-[90%] max-w-screen px-4', showActions ? 'pb-8' : 'pb-2')}
+      className={clsx(
+        'group relative max-w-screen',
+        props.variant === 'candidate' ? 'w-full px-0' : 'w-[90%] px-4',
+        showActions ? 'pb-8' : 'pb-2'
+      )}
       data-message-role="assistant"
       data-message-id={props.type === 'persisted-turn' ? props.block.id : props.liveAssistantDraft.messageId}
       data-replay-active={replayActive ? 'true' : undefined}
@@ -681,6 +688,7 @@ export const AnswerContainerCard = memo(function AnswerContainerCard({
   actionContext,
   showPersistedResearchStatus = false,
   activeReplayBlockId = null,
+  variant = 'standalone',
   onOpenSearchResult
 }: {
   container: AnswerContainer;
@@ -690,6 +698,7 @@ export const AnswerContainerCard = memo(function AnswerContainerCard({
   };
   showPersistedResearchStatus?: boolean;
   activeReplayBlockId?: string | null;
+  variant?: 'standalone' | 'candidate';
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
 }) {
   const sections = useMemo(
@@ -707,7 +716,11 @@ export const AnswerContainerCard = memo(function AnswerContainerCard({
 
   return (
     <div
-      className={clsx('group relative w-[90%] max-w-screen px-4', actionContext.hasVisibleOperation ? 'pb-8' : 'pb-2')}
+      className={clsx(
+        'group relative max-w-screen',
+        variant === 'candidate' ? 'w-full px-0' : 'w-[90%] px-4',
+        actionContext.hasVisibleOperation ? 'pb-8' : 'pb-2'
+      )}
       data-answer-container-id={container.id}
       data-message-role="assistant"
       data-replay-container-active={replayActive ? 'true' : undefined}
@@ -869,6 +882,170 @@ const UserMessageBlockCard = memo(function UserMessageBlockCard({
   );
 });
 
+function formatCandidateLabel(candidate: AnswerCandidateGroup['candidates'][number]) {
+  return candidate.candidate.ordinal === 0 ? '回答 A' : `回答 ${String.fromCharCode(65 + candidate.candidate.ordinal)}`;
+}
+
+function formatCandidateStatus(candidate: AnswerCandidateGroup['candidates'][number]) {
+  if (candidate.status === 'queued') {
+    return '排队中';
+  }
+
+  if (candidate.status === 'running') {
+    return '生成中';
+  }
+
+  if (candidate.status === 'failed') {
+    return '失败';
+  }
+
+  if (candidate.status === 'empty') {
+    return '暂无内容';
+  }
+
+  return '已完成';
+}
+
+export const AnswerCandidateGroupCard = memo(function AnswerCandidateGroupCard({
+  actionContexts,
+  getLiveSearchPanelData,
+  group,
+  onOpenSearchResult,
+  onChooseAnswerCandidate,
+  onSetRunFeedback,
+  pendingRunIds = new Set(),
+  showPersistedResearchStatus = false
+}: {
+  actionContexts: Map<string, { copyText: string; hasVisibleOperation: boolean }>;
+  getLiveSearchPanelData?: (runId: string, toolCallIds: string[]) => ActiveSearchPanelData | null;
+  group: AnswerCandidateGroup;
+  onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
+  onChooseAnswerCandidate?: (runId: string, triggerMessageId: string) => void;
+  onSetRunFeedback?: (runId: string, triggerMessageId: string, value: RunFeedbackDto['value'] | null) => void;
+  pendingRunIds?: Set<string>;
+  showPersistedResearchStatus?: boolean;
+}) {
+  return (
+    <div
+      className="w-full px-4 py-3"
+      data-answer-candidate-group-id={group.id}
+      data-trigger-message-id={group.triggerMessageId}
+      style={transcriptRowPerformanceStyle}
+    >
+      <div className="grid gap-3 lg:grid-cols-2">
+        {group.candidates.map((candidate) => {
+          const actionContext = candidate.answerContainer
+            ? actionContexts.get(candidate.answerContainer.actionHostId) ?? { copyText: '', hasVisibleOperation: false }
+            : { copyText: '', hasVisibleOperation: false };
+
+          return (
+            <section
+              key={candidate.id}
+              className={clsx(
+                'min-w-0 rounded-[28px] border bg-[color:var(--chat-surface)] p-4 shadow-sm transition',
+                candidate.selected
+                  ? 'border-[color:var(--chat-accent)] ring-1 ring-[color:var(--chat-accent)]'
+                  : 'border-[color:var(--chat-border)]'
+              )}
+              data-answer-candidate-run-id={candidate.candidate.runId}
+              data-answer-candidate-selected={candidate.selected ? 'true' : undefined}
+            >
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-[color:var(--chat-text)]">
+                    <span>{formatCandidateLabel(candidate)}</span>
+                    {candidate.isDefault ? (
+                      <span className="rounded-full bg-[var(--chat-surface-muted)] px-2 py-0.5 text-[11px] font-medium text-[color:var(--chat-text-tertiary)]">
+                        默认
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="mt-0.5 text-xs text-[color:var(--chat-text-tertiary)]">{formatCandidateStatus(candidate)}</div>
+                </div>
+                {candidate.selected ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--chat-accent)] px-2.5 py-1 text-xs font-semibold text-white">
+                    <Check className="h-3.5 w-3.5" />
+                    已选择
+                  </span>
+                ) : null}
+              </div>
+
+              {candidate.answerContainer ? (
+                <AnswerContainerCard
+                  actionContext={actionContext}
+                  container={candidate.answerContainer}
+                  onOpenSearchResult={onOpenSearchResult}
+                  showPersistedResearchStatus={showPersistedResearchStatus}
+                  variant="candidate"
+                />
+              ) : candidate.liveAssistantDraft ? (
+                <LiveAssistantCard
+                  getLiveSearchPanelData={getLiveSearchPanelData}
+                  liveAssistantDraft={candidate.liveAssistantDraft}
+                  onOpenSearchResult={onOpenSearchResult}
+                  variant="candidate"
+                />
+              ) : (
+                <div className="rounded-2xl border border-dashed border-[color:var(--chat-border)] px-4 py-8 text-sm text-[color:var(--chat-text-tertiary)]">
+                  {candidate.status === 'failed' ? '这个回答生成失败。' : '这个回答暂时没有可展示内容。'}
+                </div>
+              )}
+
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[color:var(--chat-border)] pt-3">
+                <button
+                  type="button"
+                  disabled={candidate.selected || candidate.status === 'failed' || candidate.status === 'empty' || pendingRunIds.has(candidate.candidate.runId)}
+                  onClick={() => onChooseAnswerCandidate?.(candidate.candidate.runId, candidate.candidate.triggerMessageId)}
+                  className={clsx(
+                    'rounded-full px-3 py-1.5 text-xs font-semibold transition',
+                    candidate.selected
+                      ? 'bg-[var(--chat-accent)] text-white'
+                      : 'bg-[var(--chat-surface-muted)] text-[color:var(--chat-text-secondary)] hover:text-[color:var(--chat-text)]',
+                    (candidate.selected || candidate.status === 'failed' || candidate.status === 'empty' || pendingRunIds.has(candidate.candidate.runId)) &&
+                      'cursor-default opacity-60'
+                  )}
+                >
+                  {candidate.selected ? '当前最佳' : '选择这个'}
+                </button>
+                <div className="flex items-center gap-1">
+                  {(['thumbs_up', 'thumbs_down'] as const).map((value) => {
+                    const active = candidate.feedback?.value === value;
+                    const Icon = value === 'thumbs_up' ? ThumbsUp : ThumbsDown;
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        disabled={pendingRunIds.has(candidate.candidate.runId)}
+                        onClick={() =>
+                          onSetRunFeedback?.(
+                            candidate.candidate.runId,
+                            candidate.candidate.triggerMessageId,
+                            active ? null : value
+                          )
+                        }
+                        className={clsx(
+                          'inline-flex h-8 w-8 items-center justify-center rounded-full border transition',
+                          active
+                            ? 'border-[color:var(--chat-accent)] bg-[var(--chat-accent)] text-white'
+                            : 'border-[color:var(--chat-border)] text-[color:var(--chat-text-tertiary)] hover:text-[color:var(--chat-text)]',
+                          pendingRunIds.has(candidate.candidate.runId) && 'cursor-wait opacity-60'
+                        )}
+                        aria-label={value === 'thumbs_up' ? '点赞这个回答' : '点踩这个回答'}
+                      >
+                        <Icon className="h-4 w-4" />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
 export const TranscriptBlockCard = memo(function TranscriptBlockCard({
   block,
   showPersistedResearchStatus = false,
@@ -896,6 +1073,7 @@ export const TranscriptBlockCard = memo(function TranscriptBlockCard({
       block={block}
       onOpenSearchResult={onOpenSearchResult}
       showPersistedResearchStatus={showPersistedResearchStatus}
+      variant="standalone"
       type="persisted-turn"
     />
   );
@@ -905,10 +1083,12 @@ export const LiveAssistantCard = memo(function LiveAssistantCard({
   actionsAvailable = false,
   getLiveSearchPanelData,
   liveAssistantDraft,
+  variant = 'standalone',
   onOpenSearchResult
 }: {
   actionsAvailable?: boolean;
   liveAssistantDraft: LiveAssistantDraft;
+  variant?: 'standalone' | 'candidate';
   getLiveSearchPanelData?: (runId: string, toolCallIds: string[]) => ActiveSearchPanelData | null;
   onOpenSearchResult?: (runId: string, toolCallIds: string[]) => void;
 }) {
@@ -918,6 +1098,7 @@ export const LiveAssistantCard = memo(function LiveAssistantCard({
       getLiveSearchPanelData={getLiveSearchPanelData}
       liveAssistantDraft={liveAssistantDraft}
       onOpenSearchResult={onOpenSearchResult}
+      variant={variant}
       type="live"
     />
   );

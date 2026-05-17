@@ -2,7 +2,14 @@ import type {
   LoadThreadMessagesResult,
   HydratedTranscriptPage
 } from '@agent-infra/durable-chat-client';
-import type { MessageDto, RunDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
+import type {
+  AnswerCandidateDto,
+  AnswerSelectionDto,
+  MessageDto,
+  RunDto,
+  RunFeedbackDto,
+  ThreadMessagesPageInfoDto
+} from '@agent-infra/contracts';
 
 import {
   applyHydratedTranscriptState,
@@ -26,6 +33,8 @@ export type ThreadLoadOptions = {
 type ThreadLoadControllerActions = {
   setActiveResponseRun: Setter<RunDto | null>;
   setActiveResponseRuns: Setter<RunDto[]>;
+  setAnswerCandidates: Setter<AnswerCandidateDto[]>;
+  setAnswerSelections: Setter<AnswerSelectionDto[]>;
   setChatPhase: Setter<ChatPhase>;
   setError: Setter<string | null>;
   setHistoryLoading: Setter<boolean>;
@@ -38,6 +47,7 @@ type ThreadLoadControllerActions = {
   setRecentRuns: Setter<RunDto[]>;
   setRecentRunsError: Setter<string | null>;
   setRecentRunsLoading: Setter<boolean>;
+  setRunFeedback: Setter<RunFeedbackDto[]>;
   setSelectedRunId: Setter<string | null>;
 };
 
@@ -67,7 +77,20 @@ export async function runLoadThreadMessagesController(args: {
     refs: args.refs,
     actions: args.actions,
     operations: {
-      applyHydratedTranscript: ({ messages, pageInfo, activeResponseRun, activeResponseRuns, selectedRunId, runs }) =>
+      applyHydratedTranscript: ({
+        messages,
+        pageInfo,
+        activeResponseRun,
+        activeResponseRuns,
+        answerCandidates,
+        answerSelections,
+        runFeedback,
+        selectedRunId,
+        runs
+      }) => {
+        args.actions.setAnswerCandidates(answerCandidates ?? []);
+        args.actions.setAnswerSelections(answerSelections ?? []);
+        args.actions.setRunFeedback(runFeedback ?? []);
         applyHydratedTranscriptState({
           messages,
           pageInfo,
@@ -76,7 +99,8 @@ export async function runLoadThreadMessagesController(args: {
           selectedRunId,
           runs,
           actions: args.actions
-        }),
+        });
+      },
       hydrateTranscript: args.operations.hydrateTranscript,
       loadLogInspector: args.operations.loadLogInspector,
       resetLogInspectorState: args.operations.resetLogInspectorState

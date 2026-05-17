@@ -1,7 +1,16 @@
 'use client';
 
 import type { DurableRecoveryState, LiveAssistantDraftsByRunId } from '@agent-infra/durable-chat-client';
-import type { MessageDto, RunDto, RuntimePiMetaDto, ThreadDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
+import type {
+  AnswerCandidateDto,
+  AnswerSelectionDto,
+  MessageDto,
+  RunDto,
+  RunFeedbackDto,
+  RuntimePiMetaDto,
+  ThreadDto,
+  ThreadMessagesPageInfoDto
+} from '@agent-infra/contracts';
 import { useReducer } from 'react';
 
 import type { LiveAssistantDraft } from '../types/live-assistant-draft';
@@ -80,6 +89,9 @@ function createInitialChatSessionState(): ChatSessionState {
     messagePageInfo: null,
     activeResponseRun: null,
     activeResponseRuns: [],
+    answerCandidates: [],
+    answerSelections: [],
+    runFeedback: [],
     durableRecoveryState: {
       phase: 'idle',
       message: null
@@ -184,6 +196,15 @@ export function useChatSessionController() {
           activeResponseRun: selectPrimaryActiveResponseRun(current, activeResponseRuns)
         };
       });
+    },
+    setAnswerCandidates: (next: Updater<AnswerCandidateDto[]>) => {
+      dispatch((current) => ({ ...current, answerCandidates: resolveNext(current.answerCandidates, next) }));
+    },
+    setAnswerSelections: (next: Updater<AnswerSelectionDto[]>) => {
+      dispatch((current) => ({ ...current, answerSelections: resolveNext(current.answerSelections, next) }));
+    },
+    setRunFeedback: (next: Updater<RunFeedbackDto[]>) => {
+      dispatch((current) => ({ ...current, runFeedback: resolveNext(current.runFeedback, next) }));
     },
     setDurableRecoveryState: (next: Updater<DurableRecoveryState>) => {
       dispatch((current) => ({ ...current, durableRecoveryState: resolveNext(current.durableRecoveryState, next) }));

@@ -1,4 +1,13 @@
-import type { MessageDto, RunDto, RuntimePiMetaDto, ThreadDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
+import type {
+  AnswerCandidateDto,
+  AnswerSelectionDto,
+  MessageDto,
+  RunDto,
+  RunFeedbackDto,
+  RuntimePiMetaDto,
+  ThreadDto,
+  ThreadMessagesPageInfoDto
+} from '@agent-infra/contracts';
 
 import type { LiveAssistantDraft, LiveAssistantDraftsByRunId } from './live-assistant-draft';
 import type { ChatPhase, DurableRecoveryState } from './runtime';
@@ -29,6 +38,9 @@ export type ChatSessionState = {
   messagePageInfo: ThreadMessagesPageInfoDto | null;
   activeResponseRun: RunDto | null;
   activeResponseRuns: RunDto[];
+  answerCandidates: AnswerCandidateDto[];
+  answerSelections: AnswerSelectionDto[];
+  runFeedback: RunFeedbackDto[];
   durableRecoveryState: DurableRecoveryState;
   sidebarOpen: boolean;
   showScrollToBottom: boolean;

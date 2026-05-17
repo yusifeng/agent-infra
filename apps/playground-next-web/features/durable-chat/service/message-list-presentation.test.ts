@@ -20,7 +20,7 @@ function createMessage(id: string, threadId = 'thread-1'): MessageDto {
   };
 }
 
-function createUserBlock(id: string, threadId = 'thread-1'): TranscriptBlock {
+function createUserBlock(id: string, threadId = 'thread-1'): Extract<TranscriptBlock, { type: 'user-message' }> {
   return {
     type: 'user-message',
     id,
@@ -46,6 +46,14 @@ function createAnswerContainer(id: string, transcriptBlockIds: string[]): Answer
     runId: 'run-1',
     transcriptBlockIds,
     blocks: transcriptBlockIds.map((blockId) => createAssistantBlock(blockId))
+  };
+}
+
+function createAnswerContainerForRun(id: string, runId: string, transcriptBlockIds: string[]): AnswerContainer {
+  return {
+    ...createAnswerContainer(id, transcriptBlockIds),
+    runId,
+    blocks: transcriptBlockIds.map((blockId) => createAssistantBlock(blockId, runId))
   };
 }
 
@@ -145,6 +153,69 @@ describe('message list presentation', () => {
         container
       }
     ]);
+  });
+
+  it('renders a candidate group after its user message and suppresses grouped answer containers', () => {
+    const userBlock = createUserBlock('user-block-1');
+    const runABlock = createAssistantBlock('assistant-a', 'run-a');
+    const runBBlock = createAssistantBlock('assistant-b', 'run-b');
+    const runAContainer = createAnswerContainerForRun('container-a', 'run-a', [runABlock.id]);
+    const runBContainer = createAnswerContainerForRun('container-b', 'run-b', [runBBlock.id]);
+
+    const items = buildTranscriptRenderItems({
+      answerContainers: [runAContainer, runBContainer],
+      answerCandidateGroups: [
+        {
+          id: 'group-1',
+          threadId: 'thread-1',
+          triggerMessageId: userBlock.message.id,
+          selection: null,
+          candidates: [
+            {
+              id: 'candidate-a',
+              candidate: {
+                id: 'candidate-a',
+                threadId: 'thread-1',
+                triggerMessageId: userBlock.message.id,
+                runId: 'run-a',
+                ordinal: 0,
+                kind: 'primary',
+                createdAt: '2026-01-01T00:00:00.000Z'
+              },
+              answerContainer: runAContainer,
+              liveAssistantDraft: null,
+              run: null,
+              status: 'completed',
+              selected: true,
+              isDefault: true,
+              feedback: null
+            },
+            {
+              id: 'candidate-b',
+              candidate: {
+                id: 'candidate-b',
+                threadId: 'thread-1',
+                triggerMessageId: userBlock.message.id,
+                runId: 'run-b',
+                ordinal: 1,
+                kind: 'alternative',
+                createdAt: '2026-01-01T00:00:00.000Z'
+              },
+              answerContainer: runBContainer,
+              liveAssistantDraft: null,
+              run: null,
+              status: 'completed',
+              selected: false,
+              isDefault: false,
+              feedback: null
+            }
+          ]
+        }
+      ],
+      transcriptBlocks: [userBlock, runABlock, runBBlock]
+    });
+
+    expect(items.map((item) => item.type)).toEqual(['transcript-block', 'answer-candidate-group']);
   });
 
   it('exposes runtime warning and recovery notice decisions without UI details', () => {

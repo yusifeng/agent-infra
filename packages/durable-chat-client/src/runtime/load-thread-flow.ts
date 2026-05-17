@@ -1,4 +1,11 @@
-import type { MessageDto, RunDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
+import type {
+  AnswerCandidateDto,
+  AnswerSelectionDto,
+  MessageDto,
+  RunDto,
+  RunFeedbackDto,
+  ThreadMessagesPageInfoDto
+} from '@agent-infra/contracts';
 
 import { fetchThreadMessagesResponse } from '../repo/chat-api.js';
 import { assistantMessageHasVisibleContent } from '../service/message-visibility.js';
@@ -15,6 +22,9 @@ type ApplyHydratedTranscriptArgs = {
   pageInfo: ThreadMessagesPageInfoDto | null;
   activeResponseRun: RunDto | null;
   activeResponseRuns?: RunDto[];
+  answerCandidates?: AnswerCandidateDto[];
+  answerSelections?: AnswerSelectionDto[];
+  runFeedback?: RunFeedbackDto[];
   selectedRunId: string | null;
   runs: RunDto[];
 };
@@ -29,6 +39,9 @@ export type HydratedTranscriptPage = {
   pageInfo: ThreadMessagesPageInfoDto | null;
   activeResponseRun: RunDto | null;
   activeResponseRuns?: RunDto[];
+  answerCandidates?: AnswerCandidateDto[];
+  answerSelections?: AnswerSelectionDto[];
+  runFeedback?: RunFeedbackDto[];
 };
 
 type LoadThreadMessagesArgs = {
@@ -48,6 +61,8 @@ type LoadThreadMessagesArgs = {
   actions: {
     setActiveResponseRun: Setter<RunDto | null>;
     setActiveResponseRuns?: Setter<RunDto[]>;
+    setAnswerCandidates?: Setter<AnswerCandidateDto[]>;
+    setAnswerSelections?: Setter<AnswerSelectionDto[]>;
     setError: Setter<string | null>;
     setHistoryLoading: Setter<boolean>;
     setLiveAssistantDraft: Setter<LiveAssistantDraft | null>;
@@ -57,6 +72,7 @@ type LoadThreadMessagesArgs = {
     setOptimisticUserMessage: Setter<MessageDto | null>;
     setRecentRunsError: Setter<string | null>;
     setRecentRunsLoading: Setter<boolean>;
+    setRunFeedback?: Setter<RunFeedbackDto[]>;
   };
   operations: {
     applyHydratedTranscript: (args: ApplyHydratedTranscriptArgs) => void;
@@ -227,6 +243,9 @@ export async function runLoadThreadMessages({ threadId, options, refs, actions, 
         pageInfo: hydratedTranscriptPage.pageInfo,
         activeResponseRun: hydratedTranscriptPage.activeResponseRun,
         activeResponseRuns: hydratedTranscriptPage.activeResponseRuns,
+        answerCandidates: hydratedTranscriptPage.answerCandidates,
+        answerSelections: hydratedTranscriptPage.answerSelections,
+        runFeedback: hydratedTranscriptPage.runFeedback,
         selectedRunId: null,
         runs: []
       });
@@ -238,6 +257,9 @@ export async function runLoadThreadMessages({ threadId, options, refs, actions, 
       pageInfo: hydratedTranscriptPage.pageInfo,
       activeResponseRun: hydratedTranscriptPage.activeResponseRun,
       activeResponseRuns: hydratedTranscriptPage.activeResponseRuns,
+      answerCandidates: hydratedTranscriptPage.answerCandidates,
+      answerSelections: hydratedTranscriptPage.answerSelections,
+      runFeedback: hydratedTranscriptPage.runFeedback,
       selectedRunId: null,
       runs: []
     });
@@ -264,6 +286,9 @@ export async function runLoadThreadMessages({ threadId, options, refs, actions, 
     actions.setMessagePageInfo(null);
     actions.setActiveResponseRun(null);
     actions.setActiveResponseRuns?.([]);
+    actions.setAnswerCandidates?.([]);
+    actions.setAnswerSelections?.([]);
+    actions.setRunFeedback?.([]);
     actions.setOptimisticUserMessage(null);
     actions.setError(loadError instanceof Error ? loadError.message : 'Failed to load thread messages');
     return { ok: false, restoredRunId: null };

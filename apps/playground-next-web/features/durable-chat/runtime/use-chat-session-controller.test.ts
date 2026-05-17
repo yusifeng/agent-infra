@@ -51,7 +51,7 @@ function createDraft(runId: string): LiveAssistantDraft {
 }
 
 function createState(overrides: Partial<ChatSessionState>): ChatSessionState {
-  return {
+  const base: ChatSessionState = {
     threads: [],
     activeThreadId: 'thread-1',
     messages: [],
@@ -75,14 +75,17 @@ function createState(overrides: Partial<ChatSessionState>): ChatSessionState {
     messagePageInfo: null,
     activeResponseRun: null,
     activeResponseRuns: [],
+    answerCandidates: [],
+    answerSelections: [],
+    runFeedback: [],
     durableRecoveryState: {
       phase: 'idle',
       message: null
     },
     sidebarOpen: true,
     showScrollToBottom: false,
-    ...overrides
   };
+  return Object.assign(base, overrides);
 }
 
 describe('selectPrimaryLiveAssistantDraft', () => {

@@ -15,7 +15,10 @@ import {
   fetchPlaygroundThreads,
   fetchPlaygroundThread,
   fetchThreadMessagesResponse,
-  openThreadRunAttachStream
+  openThreadRunAttachStream,
+  selectAnswerCandidate,
+  setRunFeedback as setRunFeedbackRequest,
+  clearRunFeedback as clearRunFeedbackRequest
 } from '@/features/durable-chat/repo/chat-api';
 import { persistSelectedRunId, readPersistedRunId } from '@/features/durable-chat/repo/run-selection-storage';
 import { normalizePlaygroundStreamEvent, parsePlaygroundSseChunk } from '@/features/durable-chat/schema/playground-stream';
@@ -92,6 +95,9 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       messagePageInfo,
       activeResponseRun,
       activeResponseRuns,
+      answerCandidates,
+      answerSelections,
+      runFeedback,
       durableRecoveryState,
       sidebarOpen,
       showScrollToBottom
@@ -119,6 +125,9 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     setMessagePageInfo,
     setActiveResponseRun,
     setActiveResponseRuns,
+    setAnswerCandidates,
+    setAnswerSelections,
+    setRunFeedback,
     setDurableRecoveryState,
     setSidebarOpen,
     setShowScrollToBottom
@@ -144,6 +153,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     setTimelineLoading,
     setTimelineError
   } = useRunInspectorController();
+  const [candidateMutationRunIds, setCandidateMutationRunIds] = useState<Set<string>>(() => new Set());
   const runtimeBootstrappedRef = useRef(false);
   const routeChangeRequestIdRef = useRef(0);
   const runSelectionPersistenceReadyRef = useRef(false);
@@ -168,12 +178,14 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
   const sendAbortControllerRef = useRef<AbortController | null>(null);
   const reconcileRequestIdRef = useRef(0);
   const activeResponseRunsRef = useRef<RunDto[]>([]);
+  const candidateSelectionRequestIdsByTriggerRef = useRef(new Map<string, number>());
 
   const {
     currentThreadPinned,
     currentThreadTitle,
     deepseekModePresentation,
     displayedAnswerContainers,
+    displayedAnswerCandidateGroups,
     displayedMessages,
     displayedTranscriptBlocks,
     hasOlderMessages,
@@ -190,9 +202,12 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         activeResponseRun,
         activeResponseRuns,
         activeThreadId,
+        answerCandidates,
+        answerSelections,
         chatPhase,
         draft,
         liveAssistantDraft,
+        liveAssistantDraftsByRunId,
         loadingThreadId,
         messagePageInfo,
         messages,
@@ -201,6 +216,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         pendingNavigationTitle,
         pendingNewThreadLoadingId: PENDING_NEW_THREAD_LOADING_ID,
         persistingTurn,
+        runFeedback,
         selectedModelKey,
         threads,
         timeline
@@ -209,9 +225,12 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       activeResponseRun,
       activeResponseRuns,
       activeThreadId,
+      answerCandidates,
+      answerSelections,
       chatPhase,
       draft,
       liveAssistantDraft,
+      liveAssistantDraftsByRunId,
       loadingThreadId,
       messagePageInfo,
       messages,
@@ -219,6 +238,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       optimisticUserMessage,
       pendingNavigationTitle,
       persistingTurn,
+      runFeedback,
       selectedModelKey,
       threads,
       timeline
@@ -405,6 +425,11 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         setTimelineLoading
       }
     });
+    setAnswerCandidates([]);
+    setAnswerSelections([]);
+    setRunFeedback([]);
+    candidateSelectionRequestIdsByTriggerRef.current.clear();
+    setCandidateMutationRunIds(new Set());
   }
 
   function resetLogInspectorState(options?: { clearSelectedRun?: boolean }) {
@@ -450,6 +475,11 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         setPersistingTurn
       }
     });
+    setAnswerCandidates([]);
+    setAnswerSelections([]);
+    setRunFeedback([]);
+    candidateSelectionRequestIdsByTriggerRef.current.clear();
+    setCandidateMutationRunIds(new Set());
   }
 
   async function attachToActiveRun(threadId: string, runId: string) {
@@ -624,7 +654,10 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       messages: result.data.messages ?? [],
       pageInfo: result.data.pageInfo ?? null,
       activeResponseRun: result.data.activeRun ?? null,
-      activeResponseRuns: result.data.activeRuns ?? (result.data.activeRun ? [result.data.activeRun] : [])
+      activeResponseRuns: result.data.activeRuns ?? (result.data.activeRun ? [result.data.activeRun] : []),
+      answerCandidates: result.data.answerCandidates ?? [],
+      answerSelections: result.data.answerSelections ?? [],
+      runFeedback: result.data.runFeedback ?? []
     };
   }
 
@@ -649,6 +682,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       actions: {
         setActiveResponseRun,
         setActiveResponseRuns,
+        setAnswerCandidates,
+        setAnswerSelections,
         setChatPhase,
         setError,
         setHistoryLoading,
@@ -661,6 +696,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         setRecentRuns,
         setRecentRunsError,
         setRecentRunsLoading,
+        setRunFeedback,
         setSelectedRunId
       },
       operations: {
@@ -862,6 +898,78 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     router.push(`/replay/${threadId}`);
   }
 
+  async function chooseAnswerCandidate(runId: string, triggerMessageId: string) {
+    const threadId = activeThreadIdRef.current;
+    if (!threadId || candidateMutationRunIds.has(runId)) {
+      return;
+    }
+
+    const requestId = (candidateSelectionRequestIdsByTriggerRef.current.get(triggerMessageId) ?? 0) + 1;
+    candidateSelectionRequestIdsByTriggerRef.current.set(triggerMessageId, requestId);
+    setCandidateMutationRunIds((current) => new Set(current).add(runId));
+    try {
+      const result = await selectAnswerCandidate(threadId, runId, triggerMessageId);
+      if (candidateSelectionRequestIdsByTriggerRef.current.get(triggerMessageId) !== requestId) {
+        return;
+      }
+      if (!result.ok || !result.data.answerSelection) {
+        throw new Error(result.error ?? `Failed to select answer candidate (${result.status})`);
+      }
+
+      const answerSelection = result.data.answerSelection;
+      setAnswerSelections((current) => [
+        ...current.filter((selection) => selection.triggerMessageId !== answerSelection.triggerMessageId),
+        answerSelection
+      ]);
+      setError(null);
+    } catch (selectionError) {
+      if (candidateSelectionRequestIdsByTriggerRef.current.get(triggerMessageId) !== requestId) {
+        return;
+      }
+      setError(selectionError instanceof Error ? selectionError.message : 'Failed to select answer candidate');
+    } finally {
+      if (candidateSelectionRequestIdsByTriggerRef.current.get(triggerMessageId) === requestId) {
+        candidateSelectionRequestIdsByTriggerRef.current.delete(triggerMessageId);
+      }
+      setCandidateMutationRunIds((current) => {
+        const next = new Set(current);
+        next.delete(runId);
+        return next;
+      });
+    }
+  }
+
+  async function updateRunFeedback(runId: string, triggerMessageId: string, value: 'thumbs_up' | 'thumbs_down' | null) {
+    const threadId = activeThreadIdRef.current;
+    if (!threadId || candidateMutationRunIds.has(runId)) {
+      return;
+    }
+
+    setCandidateMutationRunIds((current) => new Set(current).add(runId));
+    try {
+      const result = value
+        ? await setRunFeedbackRequest(threadId, runId, triggerMessageId, value)
+        : await clearRunFeedbackRequest(threadId, runId);
+      if (!result.ok) {
+        throw new Error(result.error ?? `Failed to update run feedback (${result.status})`);
+      }
+
+      setRunFeedback((current) => {
+        const withoutRun = current.filter((feedback) => feedback.runId !== runId);
+        return result.data.runFeedback ? [...withoutRun, result.data.runFeedback] : withoutRun;
+      });
+      setError(null);
+    } catch (feedbackError) {
+      setError(feedbackError instanceof Error ? feedbackError.message : 'Failed to update run feedback');
+    } finally {
+      setCandidateMutationRunIds((current) => {
+        const next = new Set(current);
+        next.delete(runId);
+        return next;
+      });
+    }
+  }
+
   useEffect(() => {
     void refreshMeta();
   }, []);
@@ -993,9 +1101,11 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
 
   return {
     activeThreadId,
+    candidateMutationRunIds,
     creatingShare,
     currentThreadTitle: currentVisibleThreadTitle,
     displayedAnswerContainers,
+    displayedAnswerCandidateGroups,
     displayedMessages,
     displayedTranscriptBlocks,
     draft,
@@ -1030,8 +1140,14 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       void onOpenShareDialog();
     },
     onOpenThread: openThread,
+    onChooseAnswerCandidate: (runId: string, triggerMessageId: string) => {
+      void chooseAnswerCandidate(runId, triggerMessageId);
+    },
     onOpenThreadShareDialog: (threadId: string) => {
       void onOpenShareDialogForThread(threadId);
+    },
+    onSetRunFeedback: (runId: string, triggerMessageId: string, value: 'thumbs_up' | 'thumbs_down' | null) => {
+      void updateRunFeedback(runId, triggerMessageId, value);
     },
     onLoadOlderMessages: () => {
       void loadOlderMessages();

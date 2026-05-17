@@ -140,7 +140,9 @@ export function DurableChatConsole({ currentUser = null, initialThreadId = null,
                     loadingMessages={runtime.loadingMessages}
                     activeThreadId={runtime.activeThreadId}
                     messages={runtime.displayedMessages}
+                    answerCandidateGroups={runtime.displayedAnswerCandidateGroups}
                     answerContainers={runtime.displayedAnswerContainers}
+                    candidateMutationRunIds={runtime.candidateMutationRunIds}
                     transcriptBlocks={runtime.displayedTranscriptBlocks}
                     liveAssistantDraft={runtime.liveAssistantDraft}
                     liveAssistantActionsAvailable={runtime.liveAssistantActionsAvailable}
@@ -159,7 +161,9 @@ export function DurableChatConsole({ currentUser = null, initialThreadId = null,
                     centeredEmptyState={false}
                     getLiveSearchPanelData={getLiveSearchPanelData}
                     onLoadOlderMessages={handleLoadOlderMessages}
+                    onChooseAnswerCandidate={runtime.onChooseAnswerCandidate}
                     onOpenSearchResult={handleOpenSearchResult}
+                    onSetRunFeedback={runtime.onSetRunFeedback}
                   />
                 </div>
                 {renderComposerDock(false)}

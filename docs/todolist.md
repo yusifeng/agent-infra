@@ -26,7 +26,7 @@
 - [x] Make message persistence safe when sibling runs write assistant/tool messages concurrently.
 - [ ] Support two simultaneous streaming runs for one user message.
 - [x] Hydrate and recover multiple active candidate streams after thread/tab switches.
-- [ ] Render candidate answers side-by-side in `/chat`, with choose-best and thumbs feedback controls.
+- [x] Render candidate answers side-by-side in `/chat`, with choose-best and thumbs feedback controls.
 - [x] Keep reusable durable behavior in `packages/*`; keep `apps/playground-next-web` as the validation/UI host.
 - [x] Preserve legacy thread behavior without destructive migration.
 
@@ -289,41 +289,41 @@
 - [x] Add schema tests for new DTOs and stream events.
 
 ### 3.4 Presentation Services
-- [ ] Add `AnswerCandidateGroup` type for one user turn with one or more candidate answer containers.
-- [ ] Keep `AnswerContainer` as the representation of one assistant answer.
-- [ ] Build candidate groups from messages, runs, candidates, selections, feedback, and live drafts.
-- [ ] Preserve legacy output shape for single-answer turns where feasible.
-- [ ] Mark ordinal `0` as default/primary.
-- [ ] Mark selected candidate in presentation state.
-- [ ] Include feedback state per candidate.
-- [ ] Include live draft candidate containers while runs are streaming.
-- [ ] Ensure non-canonical candidates remain visible in normal `/chat` comparison UI for any persisted dual-answer turn, while canonical-only consumers hide them.
+- [x] Add `AnswerCandidateGroup` type for one user turn with one or more candidate answer containers.
+- [x] Keep `AnswerContainer` as the representation of one assistant answer.
+- [x] Build candidate groups from messages, runs, candidates, selections, feedback, and live drafts.
+- [x] Preserve legacy output shape for single-answer turns where feasible.
+- [x] Mark ordinal `0` as default/primary.
+- [x] Mark selected candidate in presentation state.
+- [x] Include feedback state per candidate.
+- [x] Include live draft candidate containers while runs are streaming.
+- [x] Ensure non-canonical candidates remain visible in normal `/chat` comparison UI for any persisted dual-answer turn, while canonical-only consumers hide them.
 - [ ] Ensure canonical-only consumers can request/project only selected/default answers.
 - [ ] Add service test for a legacy thread with multiple historical single-answer turns and no candidate rows.
-- [ ] Add service test where candidate messages are interleaved by `seq` because both runs streamed concurrently.
-- [ ] Add service test where one candidate is still live and the other is already persisted.
-- [ ] Add service test where selected alternative is canonical but primary remains visible in `/chat` comparison UI.
+- [x] Add service test where candidate messages are interleaved by `seq` because both runs streamed concurrently.
+- [x] Add service test where one candidate is still live and the other is already persisted.
+- [x] Add service test where selected alternative is canonical but primary remains visible in `/chat` comparison UI.
 
 ### 3.5 Chat UI
-- [ ] Render one user message followed by a candidate comparison group when a turn has two candidates.
-- [ ] Render primary and alternative answers side-by-side on desktop.
-- [ ] Define responsive layout for narrow screens.
-- [ ] Add choose-best action for each candidate.
-- [ ] Show default/selected state clearly but without implying the alternative is a separate thread.
-- [ ] Add thumbs up/down controls per candidate answer.
-- [ ] Show per-candidate status: queued/running/completed/failed.
-- [ ] Show failed candidate state without hiding the successful sibling.
-- [ ] Disable choose-best for ineligible failed/empty candidates unless fallback rule allows it.
-- [ ] Ensure thumbs controls are disabled or queued while feedback mutation is in flight.
-- [ ] Ensure choose-best mutation updates canonical marker without reordering raw messages unexpectedly.
-- [ ] Ensure operation bars remain attached to the correct `AnswerContainer`.
-- [ ] Ensure code blocks, markdown, tools, and thinking sections still render correctly inside each candidate.
-- [ ] Ensure streaming candidates do not cause existing auto-scroll/selection bugs to regress.
-- [ ] Ensure text selection works inside side-by-side candidates.
+- [x] Render one user message followed by a candidate comparison group when a turn has two candidates.
+- [x] Render primary and alternative answers side-by-side on desktop.
+- [x] Define responsive layout for narrow screens.
+- [x] Add choose-best action for each candidate.
+- [x] Show default/selected state clearly but without implying the alternative is a separate thread.
+- [x] Add thumbs up/down controls per candidate answer.
+- [x] Show per-candidate status: queued/running/completed/failed.
+- [x] Show failed candidate state without hiding the successful sibling.
+- [x] Disable choose-best for ineligible failed/empty candidates unless fallback rule allows it.
+- [x] Ensure thumbs controls are disabled or queued while feedback mutation is in flight.
+- [x] Ensure choose-best mutation updates canonical marker without reordering raw messages unexpectedly.
+- [x] Ensure operation bars remain attached to the correct `AnswerContainer`.
+- [x] Ensure code blocks, markdown, tools, and thinking sections still render correctly inside each candidate.
+- [x] Ensure streaming candidates do not cause existing auto-scroll/selection bugs to regress.
+- [x] Ensure text selection works inside side-by-side candidates.
 - [ ] Ensure inspector/run trace can still target the correct `runId`.
-- [ ] Add focused UI tests for candidate group rendering.
-- [ ] Add focused UI tests for choose-best action wiring.
-- [ ] Add focused UI tests for thumbs action wiring.
+- [x] Add focused UI tests for candidate group rendering.
+- [x] Add focused UI tests for choose-best action wiring.
+- [x] Add focused UI tests for thumbs action wiring.
 
 ## 4. Tests
 
@@ -374,11 +374,11 @@
 - [x] `packages/durable-chat-client`: completing one run leaves the other live.
 - [x] `packages/durable-chat-client`: hydration attaches multiple active runs.
 - [x] `packages/durable-chat-client`: stale attach event for A cannot clear B's draft.
-- [ ] `apps/playground-next-web`: candidate grouping projection.
-- [ ] `apps/playground-next-web`: side-by-side render smoke.
-- [ ] `apps/playground-next-web`: choose-best action.
-- [ ] `apps/playground-next-web`: thumbs up/down action.
-- [ ] `apps/playground-next-web`: text selection/auto-scroll regression around streaming candidate content if existing test utilities support it.
+- [x] `apps/playground-next-web`: candidate grouping projection.
+- [x] `apps/playground-next-web`: side-by-side render smoke.
+- [x] `apps/playground-next-web`: choose-best action.
+- [x] `apps/playground-next-web`: thumbs up/down action.
+- [x] `apps/playground-next-web`: text selection/auto-scroll regression around streaming candidate content if existing test utilities support it.
 
 ### 4.6 Share / Replay Tests
 - [x] `apps/playground-next-web`: unselected candidate messages are not included in canonical share snapshots.
@@ -499,20 +499,20 @@
 - [x] Add stale-event and partial-completion tests.
 - [x] Run `pnpm --filter @agent-infra/durable-chat-client test`.
 - [x] Run `codex review` for this loop.
-- [ ] Commit this loop after review and verification pass.
+- [x] Commit this loop after review and verification pass.
 
 ### Loop 6: Next Chat Presentation And UI
-- [ ] Add candidate group presentation service.
-- [ ] Render side-by-side answer candidates.
-- [ ] Add per-candidate status.
-- [ ] Add choose-best UI.
-- [ ] Add thumbs up/down UI.
-- [ ] Preserve existing single-answer visual path.
-- [ ] Preserve auto-scroll and text selection behavior during streaming.
-- [ ] Add focused service/UI tests.
-- [ ] Run `pnpm --filter playground-next-web test`.
-- [ ] Run `pnpm --filter playground-next-web typecheck` if available.
-- [ ] Run `codex review` for this loop.
+- [x] Add candidate group presentation service.
+- [x] Render side-by-side answer candidates.
+- [x] Add per-candidate status.
+- [x] Add choose-best UI.
+- [x] Add thumbs up/down UI.
+- [x] Preserve existing single-answer visual path.
+- [x] Preserve auto-scroll and text selection behavior during streaming.
+- [x] Add focused service/UI tests.
+- [x] Run `pnpm --filter playground-next-web test`.
+- [x] Run `pnpm --filter playground-next-web typecheck` if available.
+- [x] Run `codex review` for this loop.
 - [ ] Commit this loop after review and verification pass.
 
 ### Loop 7: Integration Hardening
