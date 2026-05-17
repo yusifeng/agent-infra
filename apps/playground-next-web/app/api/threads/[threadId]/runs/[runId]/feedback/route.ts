@@ -2,9 +2,10 @@ import {
   buildRunFeedbackErrorResponse,
   buildRunFeedbackResponse,
   getRouteErrorStatus,
-  parseSetRunFeedbackInput
 } from '@agent-infra/durable-chat-server';
 
+import { parsePlaygroundSetRunFeedbackRequest } from '@/features/run-feedback/schema/playground-run-feedback-request';
+import { PlaygroundRunFeedbackService } from '@/features/run-feedback/service/playground-run-feedback-service';
 import { loadAccessibleThread, requirePlaygroundUser } from '@/lib/playground-thread-access';
 
 export async function POST(req: Request, { params }: { params: Promise<{ threadId: string; runId: string }> }) {
@@ -18,13 +19,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ threadI
   try {
     const services = await getPlaygroundAppServices();
     await loadAccessibleThread(services, threadId, auth.user.id);
-    const input = parseSetRunFeedbackInput(await req.json().catch(() => ({})));
-    const runFeedback = await services.app.turns.setRunFeedback({
+    const input = parsePlaygroundSetRunFeedbackRequest(await req.json().catch(() => ({})));
+    const runFeedback = await new PlaygroundRunFeedbackService(services.dbConfig).setRunFeedback({
       threadId,
-      triggerMessageId: input.triggerMessageId,
       runId,
       feedbackActorId: auth.user.id,
-      value: input.value
+      value: input.value,
+      details: input.details
     });
 
     return Response.json(buildRunFeedbackResponse(runFeedback));
@@ -46,7 +47,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ threa
   try {
     const services = await getPlaygroundAppServices();
     await loadAccessibleThread(services, threadId, auth.user.id);
-    await services.app.turns.clearRunFeedback({
+    await new PlaygroundRunFeedbackService(services.dbConfig).clearRunFeedback({
       threadId,
       runId,
       feedbackActorId: auth.user.id

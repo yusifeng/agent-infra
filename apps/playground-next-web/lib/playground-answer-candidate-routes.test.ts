@@ -31,23 +31,11 @@ function mockAppServices() {
     createdAt: now(),
     updatedAt: now()
   });
-  const setRunFeedback = vi.fn().mockResolvedValue({
-    id: 'feedback-1',
-    threadId: 'thread-1',
-    triggerMessageId: 'message-1',
-    runId: 'run-2',
-    feedbackActorId: 'user-1',
-    value: 'thumbs_up',
-    createdAt: now(),
-    updatedAt: now()
-  });
-  const clearRunFeedback = vi.fn().mockResolvedValue(undefined);
   const services = {
+    dbConfig: { mode: 'sqlite', db: {} },
     app: {
       turns: {
-        selectAnswerCandidate,
-        setRunFeedback,
-        clearRunFeedback
+        selectAnswerCandidate
       }
     }
   };
@@ -58,9 +46,35 @@ function mockAppServices() {
   }));
 
   return {
-    clearRunFeedback,
     getPlaygroundAppServices,
-    selectAnswerCandidate,
+    selectAnswerCandidate
+  };
+}
+
+function mockRunFeedbackService() {
+  const setRunFeedback = vi.fn().mockResolvedValue({
+    id: 'feedback-1',
+    threadId: 'thread-1',
+    triggerMessageId: 'message-1',
+    runId: 'run-2',
+    feedbackActorId: 'user-1',
+    value: 'thumbs_down',
+    createdAt: now(),
+    updatedAt: now()
+  });
+  const clearRunFeedback = vi.fn().mockResolvedValue(undefined);
+  const PlaygroundRunFeedbackService = vi.fn().mockImplementation(() => ({
+    setRunFeedback,
+    clearRunFeedback
+  }));
+
+  vi.doMock('@/features/run-feedback/service/playground-run-feedback-service', () => ({
+    PlaygroundRunFeedbackService
+  }));
+
+  return {
+    clearRunFeedback,
+    PlaygroundRunFeedbackService,
     setRunFeedback
   };
 }
@@ -73,6 +87,7 @@ describe('playground answer candidate mutation routes', () => {
   afterEach(() => {
     vi.doUnmock('@/lib/playground-app-services');
     vi.doUnmock('@/lib/playground-thread-access');
+    vi.doUnmock('@/features/run-feedback/service/playground-run-feedback-service');
     vi.resetModules();
   });
 
@@ -105,14 +120,21 @@ describe('playground answer candidate mutation routes', () => {
     });
   });
 
-  it('sets and clears run feedback through the app boundary', async () => {
+  it('sets thumbs-down run feedback details through the playground feedback service', async () => {
     mockThreadAccess();
-    const { clearRunFeedback, setRunFeedback } = mockAppServices();
+    mockAppServices();
+    const { setRunFeedback } = mockRunFeedbackService();
     const feedbackRoute = await import('../app/api/threads/[threadId]/runs/[runId]/feedback/route');
 
     const setResponse = await feedbackRoute.POST(new Request('http://localhost/api/threads/thread-1/runs/run-2/feedback', {
       method: 'POST',
-      body: JSON.stringify({ triggerMessageId: 'message-1', value: 'thumbs_up' })
+      body: JSON.stringify({
+        value: 'thumbs_down',
+        details: {
+          reasonTags: ['other', 'not_helpful'],
+          commentText: '  bad answer  '
+        }
+      })
     }), {
       params: Promise.resolve({ threadId: 'thread-1', runId: 'run-2' })
     });
@@ -122,16 +144,51 @@ describe('playground answer candidate mutation routes', () => {
       runFeedback: {
         runId: 'run-2',
         feedbackActorId: 'user-1',
-        value: 'thumbs_up'
+        value: 'thumbs_down'
       }
     });
     expect(setRunFeedback).toHaveBeenCalledWith({
       threadId: 'thread-1',
-      triggerMessageId: 'message-1',
       runId: 'run-2',
       feedbackActorId: 'user-1',
-      value: 'thumbs_up'
+      value: 'thumbs_down',
+      details: {
+        reasonTags: ['not_helpful', 'other'],
+        commentText: 'bad answer'
+      }
     });
+  });
+
+  it('rejects thumbs-up requests that include feedback details', async () => {
+    mockThreadAccess();
+    mockAppServices();
+    const { setRunFeedback } = mockRunFeedbackService();
+    const feedbackRoute = await import('../app/api/threads/[threadId]/runs/[runId]/feedback/route');
+
+    const response = await feedbackRoute.POST(new Request('http://localhost/api/threads/thread-1/runs/run-2/feedback', {
+      method: 'POST',
+      body: JSON.stringify({
+        value: 'thumbs_up',
+        details: {
+          reasonTags: []
+        }
+      })
+    }), {
+      params: Promise.resolve({ threadId: 'thread-1', runId: 'run-2' })
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: 'details are only allowed for thumbs_down feedback'
+    });
+    expect(setRunFeedback).not.toHaveBeenCalled();
+  });
+
+  it('clears run feedback through the playground feedback service', async () => {
+    mockThreadAccess();
+    mockAppServices();
+    const { clearRunFeedback } = mockRunFeedbackService();
+    const feedbackRoute = await import('../app/api/threads/[threadId]/runs/[runId]/feedback/route');
 
     const clearResponse = await feedbackRoute.DELETE(new Request('http://localhost/api/threads/thread-1/runs/run-2/feedback', {
       method: 'DELETE'

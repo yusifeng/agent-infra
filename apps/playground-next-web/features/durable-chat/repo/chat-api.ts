@@ -25,6 +25,7 @@ import type {
 } from '@agent-infra/contracts';
 import { fetchRunTimelineResponse } from '@agent-infra/durable-chat-client';
 import { readApiError, readJsonRecordOrEmpty, type ApiResult } from '@agent-infra/durable-chat-client';
+import type { PlaygroundRunFeedbackDetails } from '@/features/run-feedback/types/playground-run-feedback-details';
 
 export type PlaygroundThreadDto = ThreadDto & {
   pinned?: boolean;
@@ -154,12 +155,13 @@ export async function setRunFeedback(
   threadId: string,
   runId: string,
   value: RunFeedbackDto['value'],
+  details?: PlaygroundRunFeedbackDetails,
   signal?: AbortSignal
 ) {
   return fetchJson<RunFeedbackResponseDto>(`/api/threads/${threadId}/runs/${runId}/feedback`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ value }),
+    body: JSON.stringify(typeof details === 'undefined' ? { value } : { value, details }),
     signal
   });
 }

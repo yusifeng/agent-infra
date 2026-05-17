@@ -98,21 +98,21 @@
 ### 2.3 Playground Route / Service
 - [x] Add a small playground feedback service that coordinates shared `app.turns.setRunFeedback` / `clearRunFeedback` with sidecar detail writes.
 - [x] Ensure the playground feedback service uses transaction-bound shared repositories, not the singleton shared app instance, when it must coordinate sidecar writes atomically.
-- [ ] Update `POST /api/threads/[threadId]/runs/[runId]/feedback` to accept optional playground detail payload only for `thumbs_down`.
-- [ ] Parse and validate the detail payload in app-local playground code, while keeping the response compatible with shared `RunFeedbackResponseDto`.
-- [ ] Ensure `POST` with `value: 'thumbs_up'` clears sidecar detail.
-- [ ] Ensure `POST` with `value: 'thumbs_up'` and any detail payload is rejected.
-- [ ] Ensure `POST` with `value: 'thumbs_down'` stores normalized sidecar detail.
-- [ ] Ensure `DELETE` clears both shared feedback and sidecar detail.
-- [ ] Preserve existing auth and accessible-thread checks.
-- [ ] Keep response compatible with the existing `RunFeedbackResponseDto`; do not require detail hydration in v1.
+- [x] Update `POST /api/threads/[threadId]/runs/[runId]/feedback` to accept optional playground detail payload only for `thumbs_down`.
+- [x] Parse and validate the detail payload in app-local playground code, while keeping the response compatible with shared `RunFeedbackResponseDto`.
+- [x] Ensure `POST` with `value: 'thumbs_up'` clears sidecar detail.
+- [x] Ensure `POST` with `value: 'thumbs_up'` and any detail payload is rejected.
+- [x] Ensure `POST` with `value: 'thumbs_down'` stores normalized sidecar detail.
+- [x] Ensure `DELETE` clears both shared feedback and sidecar detail.
+- [x] Preserve existing auth and accessible-thread checks.
+- [x] Keep response compatible with the existing `RunFeedbackResponseDto`; do not require detail hydration in v1.
 
 ## 3. Frontend Boundary
 
 ### 3.1 API / Schema
-- [ ] Add playground-side request typing for thumbs-down details in `apps/playground-next-web`.
-- [ ] Update the chat API helper so `setRunFeedback` can send optional thumbs-down details.
-- [ ] Do not expose playground detail types from shared durable-chat-client packages.
+- [x] Add playground-side request typing for thumbs-down details in `apps/playground-next-web`.
+- [x] Update the chat API helper so `setRunFeedback` can send optional thumbs-down details.
+- [x] Do not expose playground detail types from shared durable-chat-client packages.
 
 ### 3.2 Runtime
 - [ ] Change inactive thumbs-down click to open a dialog instead of immediately calling `setRunFeedback`.
@@ -138,10 +138,10 @@
 - [x] Add parser/normalizer tests for duplicate tag dedupe, canonical tag ordering, trim-to-null text, 1000-character acceptance, and 1001-character rejection.
 - [x] Add sidecar repo tests for upsert, replacement, and delete.
 - [x] Add sidecar bootstrap tests or SQL assertion tests for idempotent SQLite and Postgres/Turso statement coverage where practical.
-- [ ] Add route/service tests for thumbs-down submit writing shared feedback and sidecar detail.
-- [ ] Add route/service tests for thumbs-up clearing sidecar detail.
-- [ ] Add route/service tests for thumbs-up with details being rejected.
-- [ ] Add route/service tests for DELETE clearing sidecar detail.
+- [x] Add route/service tests for thumbs-down submit writing shared feedback and sidecar detail.
+- [x] Add route/service tests for thumbs-up clearing sidecar detail.
+- [x] Add route/service tests for thumbs-up with details being rejected.
+- [x] Add route/service tests for DELETE clearing sidecar detail.
 - [x] Add transaction rollback tests proving sidecar write failure does not leave shared feedback behind and shared feedback failure does not leave sidecar detail behind.
 
 ### 4.2 Frontend Tests
@@ -179,13 +179,13 @@
 - [x] Commit Loop 1.
 
 ### Loop 2: Route and API Wiring
-- [ ] Update the run feedback route to accept thumbs-down details and clear sidecar details on thumbs-up/delete.
-- [ ] Update playground chat API helper request typing.
-- [ ] Add or update route tests.
-- [ ] Run targeted route tests.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 2.
+- [x] Update the run feedback route to accept thumbs-down details and clear sidecar details on thumbs-up/delete.
+- [x] Update playground chat API helper request typing.
+- [x] Add or update route tests.
+- [x] Run targeted route tests.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit Loop 2.
 
 ### Loop 3: Dialog Runtime and UI
 - [ ] Add runtime state and handlers for the thumbs-down dialog.
