@@ -1,4 +1,13 @@
-import type { MessageDto, RunDto, RunTimelineResponseDto, RuntimePiMetaDto, ThreadDto } from '@agent-infra/contracts';
+import type {
+  AnswerCandidateDto,
+  AnswerSelectionDto,
+  MessageDto,
+  RunDto,
+  RunFeedbackDto,
+  RunTimelineResponseDto,
+  RuntimePiMetaDto,
+  ThreadDto
+} from '@agent-infra/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { runSendMessageFlow } from '../src/runtime/send-message-flow';
@@ -157,6 +166,8 @@ function createActions() {
     setActiveThreadId: createSetterSpy<string | null>(),
     setActiveResponseRun: createSetterSpy<RunDto | null>(),
     setActiveResponseRuns: createSetterSpy<RunDto[]>(),
+    setAnswerCandidates: createSetterSpy<AnswerCandidateDto[]>(),
+    setAnswerSelections: createSetterSpy<AnswerSelectionDto[]>(),
     setChatPhase: createSetterSpy<'idle' | 'thinking' | 'streaming' | 'transcript-final' | 'failed'>(),
     setDraft: createSetterSpy<string>(),
     setError: createSetterSpy<string | null>(),
@@ -169,6 +180,7 @@ function createActions() {
     setOptimisticUserMessage: createSetterSpy<MessageDto | null>(),
     setPersistingTurn: createSetterSpy<boolean>(),
     setRecentRuns: createSetterSpy<RunDto[]>(),
+    setRunFeedback: createSetterSpy<RunFeedbackDto[]>(),
     setSelectedRunId: createSetterSpy<string | null>(),
     setTimeline: createSetterSpy<RunTimelineResponseDto | null>(),
     setTimelineError: createSetterSpy<string | null>(),
@@ -414,6 +426,74 @@ describe('runSendMessageFlow', () => {
       }),
       expect.any(AbortSignal)
     );
+  });
+
+  it('hydrates candidate grouping state from dual run.ready events', async () => {
+    const refs = createRefs();
+    refs.activeThreadIdRef.current = 'thread-existing';
+    const actions = createActions();
+
+    openThreadRunStreamMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      requestId: 'req-1',
+      body: createTextStream([
+        {
+          type: 'run.ready',
+          runId: 'run-a',
+          run: createRun('run-a', 'queued'),
+          userMessage: createUserMessage('message-user-1', 2),
+          triggerMessageId: 'message-user-1',
+          candidateId: 'candidate-a',
+          ordinal: 0,
+          kind: 'primary'
+        },
+        {
+          type: 'run.ready',
+          runId: 'run-b',
+          run: createRun('run-b', 'queued'),
+          userMessage: createUserMessage('message-user-1', 2),
+          triggerMessageId: 'message-user-1',
+          candidateId: 'candidate-b',
+          ordinal: 1,
+          kind: 'alternative'
+        }
+      ])
+    });
+
+    await runSendMessageFlow({
+      state: {
+        activeThreadId: 'thread-existing',
+        draft: '你好',
+        isChatResponding: false,
+        messages: [createMessage('message-1', 1)],
+        selectedWebSearchEnabled: false,
+        selectedThinkingEnabled: false,
+        selectedReasoningEffort: 'high',
+        selectedModelOption: createSelectedModelOption(),
+        answerMode: 'dual',
+        candidateCount: 2
+      },
+      refs,
+      actions,
+      operations: {
+        createThreadRecord: vi.fn(),
+        pendingNewThreadLoadingId: 'pending-new-thread',
+        reconcileCompletedTurn: vi.fn().mockResolvedValue(undefined),
+        replaceCurrentPath: vi.fn()
+      }
+    });
+
+    const candidates = replaySetterCalls(actions.setAnswerCandidates.mock.calls, []);
+    expect(candidates).toMatchObject([
+      { id: 'candidate-a', runId: 'run-a', ordinal: 0, kind: 'primary', triggerMessageId: 'message-user-1' },
+      { id: 'candidate-b', runId: 'run-b', ordinal: 1, kind: 'alternative', triggerMessageId: 'message-user-1' }
+    ]);
+    const selections = replaySetterCalls(actions.setAnswerSelections.mock.calls, []);
+    expect(selections).toMatchObject([
+      { selectedRunId: 'run-a', source: 'default', triggerMessageId: 'message-user-1' }
+    ]);
   });
 
   it('forwards custom stream events through the optional stream handler', async () => {

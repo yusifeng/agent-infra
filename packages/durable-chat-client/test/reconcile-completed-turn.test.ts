@@ -1,4 +1,4 @@
-import type { MessageDto, RunDto } from '@agent-infra/contracts';
+import type { AnswerCandidateDto, AnswerSelectionDto, MessageDto, RunDto, RunFeedbackDto } from '@agent-infra/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { runReconcileCompletedTurn } from '../src/runtime/reconcile-completed-turn';
@@ -52,6 +52,43 @@ function createRun(id: string, status: RunDto['status'] = 'running'): RunDto {
     startedAt: null,
     finishedAt: status === 'completed' || status === 'failed' ? '2026-01-01T00:00:02.000Z' : null,
     createdAt: '2026-01-01T00:00:00.000Z'
+  };
+}
+
+function createAnswerCandidate(id: string, runId = 'run-1'): AnswerCandidateDto {
+  return {
+    id,
+    threadId: 'thread-1',
+    triggerMessageId: 'message-user',
+    runId,
+    ordinal: runId === 'run-1' ? 0 : 1,
+    kind: runId === 'run-1' ? 'primary' : 'alternative',
+    createdAt: '2026-01-01T00:00:00.000Z'
+  };
+}
+
+function createAnswerSelection(runId = 'run-1'): AnswerSelectionDto {
+  return {
+    threadId: 'thread-1',
+    triggerMessageId: 'message-user',
+    selectedRunId: runId,
+    source: 'default',
+    selectedByUserId: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z'
+  };
+}
+
+function createRunFeedback(runId = 'run-1'): RunFeedbackDto {
+  return {
+    id: `feedback-${runId}`,
+    threadId: 'thread-1',
+    triggerMessageId: 'message-user',
+    runId,
+    feedbackActorId: 'actor-1',
+    value: 'thumbs_up',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z'
   };
 }
 
@@ -164,6 +201,84 @@ describe('runReconcileCompletedTurn', () => {
     expect(actions.setOptimisticUserMessage).toHaveBeenCalledWith(null);
     const nextDraft = resolveUpdater(actions.setLiveAssistantDraft.mock.calls[0]?.[0], null);
     expect(nextDraft).toBeNull();
+  });
+
+  it('merges answer candidate hydration during incremental catch-up', async () => {
+    fetchThreadMessagesResponseMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        messages: [createVisibleAssistantMessage('message-3', 3, 'run-1')],
+        pageInfo: {
+          hasOlder: true,
+          hasNewer: false,
+          startCursor: 'cursor-3',
+          endCursor: 'cursor-3'
+        },
+        activeRun: null,
+        activeRuns: [],
+        answerCandidates: [createAnswerCandidate('candidate-1')],
+        answerSelections: [createAnswerSelection()],
+        runFeedback: [createRunFeedback()]
+      }
+    });
+
+    const actions = {
+      setActiveResponseRun: createSetterSpy<RunDto | null>(),
+      setActiveResponseRuns: createSetterSpy<RunDto[]>(),
+      setAnswerCandidates: createSetterSpy<AnswerCandidateDto[]>(),
+      setAnswerSelections: createSetterSpy<AnswerSelectionDto[]>(),
+      setChatPhase: createSetterSpy<'idle' | 'thinking' | 'streaming' | 'transcript-final' | 'failed'>(),
+      setError: createSetterSpy<string | null>(),
+      setLiveAssistantDraft: createSetterSpy<any>(),
+      setLiveAssistantDraftsByRunId: createSetterSpy<Record<string, any>>(),
+      setLoadingThreadId: createSetterSpy<string | null>(),
+      setMessages: createSetterSpy<MessageDto[]>(),
+      setMessagePageInfo: createSetterSpy<any>(),
+      setOptimisticUserMessage: createSetterSpy<MessageDto | null>(),
+      setPersistingTurn: createSetterSpy<boolean>(),
+      setRecentRuns: createSetterSpy<RunDto[]>(),
+      setRecentRunsError: createSetterSpy<string | null>(),
+      setRecentRunsLoading: createSetterSpy<boolean>(),
+      setRunFeedback: createSetterSpy<RunFeedbackDto[]>(),
+      setSelectedRunId: createSetterSpy<string | null>(),
+      setTimeline: createSetterSpy<null>(),
+      setTimelineError: createSetterSpy<string | null>(),
+      setTimelineLoading: createSetterSpy<boolean>()
+    };
+
+    await runReconcileCompletedTurn({
+      threadId: 'thread-1',
+      preferredRunId: null,
+      requestId: 1,
+      state: {
+        messages: [createMessage('message-1', 1)],
+        pageInfo: {
+          hasOlder: true,
+          hasNewer: false,
+          startCursor: 'cursor-1',
+          endCursor: 'cursor-1'
+        }
+      },
+      refs: {
+        activeThreadIdRef: { current: 'thread-1' },
+        logOpenRef: { current: false },
+        reconcileRequestIdRef: { current: 0 },
+        selectedRunIdRef: { current: null },
+        sendRequestIdRef: { current: 1 }
+      },
+      actions
+    });
+
+    expect(resolveUpdater(actions.setAnswerCandidates.mock.calls[0]![0], [])).toMatchObject([
+      { id: 'candidate-1', runId: 'run-1' }
+    ]);
+    expect(resolveUpdater(actions.setAnswerSelections.mock.calls[0]![0], [])).toMatchObject([
+      { selectedRunId: 'run-1' }
+    ]);
+    expect(resolveUpdater(actions.setRunFeedback.mock.calls[0]![0], [])).toMatchObject([
+      { runId: 'run-1', value: 'thumbs_up' }
+    ]);
   });
 
   it('preserves existing message identity when reconciling without page info', async () => {

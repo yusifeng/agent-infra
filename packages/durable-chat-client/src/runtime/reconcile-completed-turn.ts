@@ -1,4 +1,12 @@
-import type { MessageDto, RunDto, RunTimelineResponseDto, ThreadMessagesPageInfoDto } from '@agent-infra/contracts';
+import type {
+  AnswerCandidateDto,
+  AnswerSelectionDto,
+  MessageDto,
+  RunDto,
+  RunFeedbackDto,
+  RunTimelineResponseDto,
+  ThreadMessagesPageInfoDto
+} from '@agent-infra/contracts';
 
 import { fetchRunTimelineResponse, fetchThreadMessagesResponse, fetchThreadRunsResponse } from '../repo/chat-api.js';
 import {
@@ -39,6 +47,8 @@ type ReconcileCompletedTurnArgs = {
   actions: {
     setActiveResponseRun: Setter<RunDto | null>;
     setActiveResponseRuns?: Setter<RunDto[]>;
+    setAnswerCandidates?: Setter<AnswerCandidateDto[]>;
+    setAnswerSelections?: Setter<AnswerSelectionDto[]>;
     setChatPhase: Setter<ChatPhase>;
     setError: Setter<string | null>;
     setLiveAssistantDraft: Setter<LiveAssistantDraft | null>;
@@ -51,12 +61,21 @@ type ReconcileCompletedTurnArgs = {
     setRecentRuns: Setter<RunDto[]>;
     setRecentRunsError: Setter<string | null>;
     setRecentRunsLoading: Setter<boolean>;
+    setRunFeedback?: Setter<RunFeedbackDto[]>;
     setSelectedRunId: Setter<string | null>;
     setTimeline: Setter<RunTimelineResponseDto | null>;
     setTimelineError: Setter<string | null>;
     setTimelineLoading: Setter<boolean>;
   };
 };
+
+function mergeByKey<T>(current: T[], incoming: T[], getKey: (item: T) => string) {
+  const nextByKey = new Map(current.map((item) => [getKey(item), item] as const));
+  for (const item of incoming) {
+    nextByKey.set(getKey(item), item);
+  }
+  return [...nextByKey.values()];
+}
 
 async function tryResolvePreferredRun(threadId: string, runId: string, signal: AbortSignal) {
   try {
@@ -143,6 +162,20 @@ export async function runReconcileCompletedTurn({
       hasActiveRunsAfterReconcile = activeResponseRuns.some((run) => run.status === 'queued' || run.status === 'running');
       actions.setActiveResponseRun(messagesResult.data.activeRun ?? null);
       actions.setActiveResponseRuns?.(activeResponseRuns);
+      const nextAnswerCandidates = messagesResult.data.answerCandidates ?? [];
+      const nextAnswerSelections = messagesResult.data.answerSelections ?? [];
+      const nextRunFeedback = messagesResult.data.runFeedback ?? [];
+      if (state.pageInfo?.endCursor) {
+        actions.setAnswerCandidates?.((current) => mergeByKey(current, nextAnswerCandidates, (candidate) => candidate.id));
+        actions.setAnswerSelections?.((current) =>
+          mergeByKey(current, nextAnswerSelections, (selection) => `${selection.threadId}:${selection.triggerMessageId}`)
+        );
+        actions.setRunFeedback?.((current) => mergeByKey(current, nextRunFeedback, (feedback) => feedback.id));
+      } else {
+        actions.setAnswerCandidates?.(nextAnswerCandidates);
+        actions.setAnswerSelections?.(nextAnswerSelections);
+        actions.setRunFeedback?.(nextRunFeedback);
+      }
       if (isCurrentSend()) {
         actions.setOptimisticUserMessage(null);
       }

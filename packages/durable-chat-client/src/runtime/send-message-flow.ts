@@ -1,4 +1,14 @@
-import type { MessageDto, RunDto, RunStreamEventDto, RunTimelineResponseDto, RuntimePiMetaDto, ThreadDto } from '@agent-infra/contracts';
+import type {
+  AnswerCandidateDto,
+  AnswerSelectionDto,
+  MessageDto,
+  RunDto,
+  RunFeedbackDto,
+  RunStreamEventDto,
+  RunTimelineResponseDto,
+  RuntimePiMetaDto,
+  ThreadDto
+} from '@agent-infra/contracts';
 
 import { openThreadRunStream } from '../repo/chat-api.js';
 import { normalizeRunStreamEvent } from '../schema/run-stream.js';
@@ -51,6 +61,8 @@ type SendMessageFlowArgs = {
     setActiveThreadId: Setter<string | null>;
     setActiveResponseRun: Setter<RunDto | null>;
     setActiveResponseRuns?: Setter<RunDto[]>;
+    setAnswerCandidates?: Setter<AnswerCandidateDto[]>;
+    setAnswerSelections?: Setter<AnswerSelectionDto[]>;
     setChatPhase: Setter<ChatPhase>;
     setDraft: Setter<string>;
     setError: Setter<string | null>;
@@ -63,6 +75,7 @@ type SendMessageFlowArgs = {
     setOptimisticUserMessage: Setter<MessageDto | null>;
     setPersistingTurn: Setter<boolean>;
     setRecentRuns: Setter<RunDto[]>;
+    setRunFeedback?: Setter<RunFeedbackDto[]>;
     setSelectedRunId: Setter<string | null>;
     setTimeline: Setter<RunTimelineResponseDto | null>;
     setTimelineError: Setter<string | null>;
@@ -121,6 +134,45 @@ export async function runSendMessageFlow({ state, refs, actions, operations, str
     const runIds = [...liveStreamRunIds];
     actions.setLiveStreamRunIds?.(runIds);
     actions.setLiveStreamRunId(runIds[0] ?? null);
+  };
+
+  const upsertAnswerCandidateFromReadyEvent = (event: Extract<RunStreamEventDto, { type: 'run.ready' }>) => {
+    if (!event.candidateId || !event.triggerMessageId || event.ordinal === undefined || !event.kind) {
+      return;
+    }
+
+    const candidate: AnswerCandidateDto = {
+      id: event.candidateId,
+      threadId: event.run.threadId,
+      triggerMessageId: event.triggerMessageId,
+      runId: event.runId,
+      ordinal: event.ordinal,
+      kind: event.kind,
+      createdAt: event.run.createdAt
+    };
+
+    actions.setAnswerCandidates?.((current) => {
+      const next = current.filter((item) => item.id !== candidate.id && item.runId !== candidate.runId);
+      next.push(candidate);
+      return next.sort((a, b) => a.ordinal - b.ordinal || a.createdAt.localeCompare(b.createdAt));
+    });
+
+    if (event.ordinal === 0) {
+      const selection: AnswerSelectionDto = {
+        threadId: event.run.threadId,
+        triggerMessageId: event.triggerMessageId,
+        selectedRunId: event.runId,
+        source: 'default',
+        selectedByUserId: null,
+        createdAt: event.run.createdAt,
+        updatedAt: event.run.createdAt
+      };
+      actions.setAnswerSelections?.((current) => {
+        const next = current.filter((item) => item.triggerMessageId !== selection.triggerMessageId);
+        next.push(selection);
+        return next;
+      });
+    }
   };
 
   const upsertActiveResponseRun = (run: RunDto) => {
@@ -182,6 +234,7 @@ export async function runSendMessageFlow({ state, refs, actions, operations, str
 
     if (event.type === 'run.ready') {
       readyEventReceived = true;
+      upsertAnswerCandidateFromReadyEvent(event);
       upsertActiveResponseRun(event.run);
       actions.setOptimisticUserMessage(null);
       actions.setMessages((current) => upsertMessage(current, attachMessageRenderKey(event.userMessage, `optimistic-user-${requestId}`)));
