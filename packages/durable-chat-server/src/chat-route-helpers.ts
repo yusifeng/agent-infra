@@ -1,3 +1,7 @@
+import {
+  parseDatasetExampleReviewUpdateV1,
+  parseDatasetExpectedOutputV1
+} from '@agent-infra/app';
 import type {
   CreateThreadSnapshotShareResult,
   CaptureDatasetExampleFromRunResult,
@@ -41,6 +45,8 @@ import type {
   ThreadMessagesPageInfoDto,
   ThreadRunsResponseDto,
   UpdateThreadResponseDto,
+  UpdateDatasetExampleExpectedOutputRequestDto,
+  UpdateDatasetExampleReviewRequestDto,
   ThreadsResponseDto
 } from '@agent-infra/contracts';
 
@@ -157,21 +163,33 @@ export function parseCaptureDatasetExampleFromRunInput(body: unknown): CaptureDa
 }
 
 export function parseUpdateDatasetExampleExpectedOutputInput(body: unknown): {
-  expectedOutputJson?: Record<string, unknown> | null;
-  metadataJson?: Record<string, unknown> | null;
+  expectedOutputJson: UpdateDatasetExampleExpectedOutputRequestDto['expectedOutputJson'];
 } {
   const record = asObject(body);
-  const input: {
-    expectedOutputJson?: Record<string, unknown> | null;
-    metadataJson?: Record<string, unknown> | null;
-  } = {};
-  if (Object.hasOwn(record, 'expectedOutputJson')) {
-    input.expectedOutputJson = readOptionalRecordOrNull(record, 'expectedOutputJson');
+  for (const key of Object.keys(record)) {
+    if (key !== 'expectedOutputJson') {
+      throw new InvalidRouteBodyError(`unexpected field ${key}`);
+    }
   }
-  if (Object.hasOwn(record, 'metadataJson')) {
-    input.metadataJson = readOptionalRecordOrNull(record, 'metadataJson');
+  if (!Object.hasOwn(record, 'expectedOutputJson')) {
+    throw new InvalidRouteBodyError('expectedOutputJson is required');
   }
-  return input;
+
+  try {
+    return {
+      expectedOutputJson: parseDatasetExpectedOutputV1(record.expectedOutputJson)
+    };
+  } catch (error) {
+    throw new InvalidRouteBodyError(error instanceof Error && error.message ? error.message : 'invalid expectedOutputJson');
+  }
+}
+
+export function parseUpdateDatasetExampleReviewInput(body: unknown): UpdateDatasetExampleReviewRequestDto {
+  try {
+    return parseDatasetExampleReviewUpdateV1(body);
+  } catch (error) {
+    throw new InvalidRouteBodyError(error instanceof Error && error.message ? error.message : 'invalid review update');
+  }
 }
 
 export function buildDatasetsResponse(datasets: Dataset[]): DatasetsResponseDto {

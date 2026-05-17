@@ -114,8 +114,8 @@
 - [x] Prevent review updates from overwriting `metadataJson.feedback`.
 - [x] Prevent review updates from overwriting `metadataJson.host`.
 - [x] Prevent request bodies from passing `capture`, `feedback`, `host`, `evaluation`, or full `metadataJson` into review update semantics.
-- [ ] Keep core `DatasetExample.expectedOutputJson` and `metadataJson` as generic JSON fields.
-- [ ] Keep contract DTO JSON fields wire-compatible while adding stricter request validation where appropriate.
+- [x] Keep core `DatasetExample.expectedOutputJson` and `metadataJson` as generic JSON fields.
+- [x] Keep contract DTO JSON fields wire-compatible while adding stricter request validation where appropriate.
 
 ## 2. Backend / Platform
 
@@ -147,21 +147,21 @@
 - [x] Do not call runtime ports from review or expected-output use cases.
 
 ### 2.3 Contracts / Server / Client
-- [ ] Add `DatasetExpectedOutputV1Dto` if contract helpers need a named DTO.
-- [ ] Add `DatasetExampleReviewDto`.
-- [ ] Add `DatasetExampleEffectiveEligibilityDto`.
-- [ ] Add `UpdateDatasetExampleExpectedOutputRequestDto` validation around the v1 expected-output envelope.
-- [ ] Add `UpdateDatasetExampleReviewRequestDto`.
-- [ ] Add `DatasetExampleResponseDto` support for example detail if missing.
-- [ ] Add durable-chat-server parser for expected-output update requests.
-- [ ] Add durable-chat-server parser for review update requests.
-- [ ] Add durable-chat-server response helper that includes normalized review metadata and effective eligibility if appropriate.
-- [ ] Add durable-chat-client normalizer for expected output.
-- [ ] Add durable-chat-client normalizer for review metadata.
-- [ ] Add durable-chat-client normalizer for effective eligibility.
-- [ ] Add durable-chat-client API helper for `GET /api/datasets/:datasetId/examples/:exampleId`.
-- [ ] Add durable-chat-client API helper for review updates.
-- [ ] Keep contracts independent of playground feedback detail types.
+- [x] Add `DatasetExpectedOutputV1Dto` if contract helpers need a named DTO.
+- [x] Add `DatasetExampleReviewDto`.
+- [x] Add `DatasetExampleEffectiveEligibilityDto`.
+- [x] Add `UpdateDatasetExampleExpectedOutputRequestDto` validation around the v1 expected-output envelope.
+- [x] Add `UpdateDatasetExampleReviewRequestDto`.
+- [x] Add `DatasetExampleResponseDto` support for example detail if missing.
+- [x] Add durable-chat-server parser for expected-output update requests.
+- [x] Add durable-chat-server parser for review update requests.
+- [x] Add durable-chat-server response helper that includes normalized review metadata and effective eligibility if appropriate.
+- [x] Add durable-chat-client normalizer for expected output.
+- [x] Add durable-chat-client normalizer for review metadata.
+- [x] Add durable-chat-client normalizer for effective eligibility.
+- [x] Add durable-chat-client API helper for `GET /api/datasets/:datasetId/examples/:exampleId`.
+- [x] Add durable-chat-client API helper for review updates.
+- [x] Keep contracts independent of playground feedback detail types.
 
 ## 3. Playground Validation Boundary
 
@@ -257,11 +257,11 @@
 - [x] Add app tests proving runtime ports are not called.
 
 ### 4.3 Contracts / Server / Client Tests
-- [ ] Add durable-chat-server parser tests for expected-output request payloads.
-- [ ] Add durable-chat-server parser tests for review request payloads.
-- [ ] Add durable-chat-server response helper tests for review/effective eligibility if helpers expose them.
-- [ ] Add durable-chat-client normalizer tests for expected output.
-- [ ] Add durable-chat-client normalizer tests for review metadata defaults.
+- [x] Add durable-chat-server parser tests for expected-output request payloads.
+- [x] Add durable-chat-server parser tests for review request payloads.
+- [x] Add durable-chat-server response helper tests for review/effective eligibility if helpers expose them.
+- [x] Add durable-chat-client normalizer tests for expected output.
+- [x] Add durable-chat-client normalizer tests for review metadata defaults.
 - [ ] Add durable-chat-client API helper tests if the existing repo API test style supports them.
 
 ### 4.4 Playground Route Tests
@@ -294,9 +294,9 @@
 
 ### 4.6 Targeted Verification
 - [x] Run `pnpm --filter @agent-infra/app test` after app use-case slice.
-- [ ] Run `pnpm --filter @agent-infra/contracts typecheck` after contract slice if available.
-- [ ] Run `pnpm --filter @agent-infra/durable-chat-server test` after server helper slice.
-- [ ] Run `pnpm --filter @agent-infra/durable-chat-client test` after client helper slice.
+- [x] Run `pnpm --filter @agent-infra/contracts typecheck` after contract slice if available.
+- [x] Run `pnpm --filter @agent-infra/durable-chat-server test` after server helper slice.
+- [x] Run `pnpm --filter @agent-infra/durable-chat-client test` after client helper slice.
 - [ ] Run `pnpm --filter playground-next-web test` after playground route/UI slices.
 - [ ] Run `pnpm --filter playground-next-web typecheck` after playground route/UI slices.
 - [ ] Run broader workspace typecheck only if targeted checks leave cross-package uncertainty.
@@ -342,16 +342,16 @@
 - [x] Commit Loop 2.
 
 ### Loop 3: Contracts, Server Helpers, and Client Helpers
-- [ ] Add or tighten dataset expected-output DTOs.
-- [ ] Add dataset review request/response DTOs.
-- [ ] Add server-side parsers and response helpers.
-- [ ] Add client-side normalizers and API helpers.
-- [ ] Add focused server/client tests.
-- [ ] Run `pnpm --filter @agent-infra/contracts typecheck`.
-- [ ] Run `pnpm --filter @agent-infra/durable-chat-server test`.
-- [ ] Run `pnpm --filter @agent-infra/durable-chat-client test`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 3.
+- [x] Add or tighten dataset expected-output DTOs.
+- [x] Add dataset review request/response DTOs.
+- [x] Add server-side parsers and response helpers.
+- [x] Add client-side normalizers and API helpers.
+- [x] Add focused server/client tests.
+- [x] Run `pnpm --filter @agent-infra/contracts typecheck`.
+- [x] Run `pnpm --filter @agent-infra/durable-chat-server test`.
+- [x] Run `pnpm --filter @agent-infra/durable-chat-client test`.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit Loop 3.
 
 ### Loop 4: Playground Review Routes
 - [ ] Add dataset example detail route.

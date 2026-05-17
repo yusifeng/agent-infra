@@ -13,7 +13,9 @@ import type {
   RuntimePiMetaDto,
   ThreadMessagesResponseDto,
   ThreadRunsResponseDto,
-  ThreadsResponseDto
+  ThreadsResponseDto,
+  UpdateDatasetExampleExpectedOutputRequestDto,
+  UpdateDatasetExampleReviewRequestDto
 } from '@agent-infra/contracts';
 
 import {
@@ -115,6 +117,10 @@ export async function fetchDatasetExamplesResponse(datasetId: string, signal?: A
   return fetchJson<DatasetExamplesResponseDto>(`/api/datasets/${datasetId}/examples`, normalizeDatasetExamplesResponse, { signal });
 }
 
+export async function fetchDatasetExampleResponse(datasetId: string, exampleId: string, signal?: AbortSignal) {
+  return fetchJson<DatasetExampleResponseDto>(`/api/datasets/${datasetId}/examples/${exampleId}`, normalizeDatasetExampleResponse, { signal });
+}
+
 export async function captureDatasetExampleFromRunResponse(
   datasetId: string,
   body: CaptureDatasetExampleFromRunRequestDto,
@@ -131,10 +137,24 @@ export async function captureDatasetExampleFromRunResponse(
 export async function updateDatasetExampleExpectedOutputResponse(
   datasetId: string,
   exampleId: string,
-  body: Record<string, unknown>,
+  body: UpdateDatasetExampleExpectedOutputRequestDto,
   signal?: AbortSignal
 ) {
   return fetchJson<DatasetExampleResponseDto>(`/api/datasets/${datasetId}/examples/${exampleId}/expected-output`, normalizeDatasetExampleResponse, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+    signal
+  });
+}
+
+export async function updateDatasetExampleReviewResponse(
+  datasetId: string,
+  exampleId: string,
+  body: UpdateDatasetExampleReviewRequestDto,
+  signal?: AbortSignal
+) {
+  return fetchJson<DatasetExampleResponseDto>(`/api/datasets/${datasetId}/examples/${exampleId}/review`, normalizeDatasetExampleResponse, {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),

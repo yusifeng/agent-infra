@@ -234,8 +234,24 @@ describe('durable-chat-client schema', () => {
       triggerMessageId: 'message-1',
       inputJson: { schemaVersion: 1, kind: 'chat_turn' },
       baselineOutputJson: null,
-      expectedOutputJson: { rubric: 'ok' },
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected answer' },
+      expectedOutput: {
+        state: 'valid',
+        expectedOutput: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected answer', notes: null }
+      },
       metadataJson: { capture: { kind: 'normal_example' } },
+      review: {
+        status: 'approved',
+        evalEligibility: 'default',
+        exclusionReason: null,
+        reviewerNote: 'good',
+        reviewedByActorId: 'actor-1',
+        reviewedAt: '2026-01-01T00:01:00.000Z'
+      },
+      effectiveEligibility: {
+        eligible: true,
+        reason: 'eligible_default'
+      },
       contextSnapshotJson: { status: 'completed' },
       toolInvocationsSnapshotJson: { toolInvocations: [] },
       createdByActorId: 'actor-1',
@@ -251,6 +267,31 @@ describe('durable-chat-client schema', () => {
     expect(examples.examples).toEqual([example]);
     expect(capture.dataset).toEqual(dataset);
     expect(capture.example).toEqual(example);
+
+    const legacyExample = { ...example };
+    delete (legacyExample as Partial<typeof example>).expectedOutput;
+    delete (legacyExample as Partial<typeof example>).review;
+    delete (legacyExample as Partial<typeof example>).effectiveEligibility;
+    const legacyExamples = normalizeDatasetExamplesResponse({
+      examples: [legacyExample]
+    });
+
+    expect(legacyExamples.examples[0]?.expectedOutput).toEqual({
+      state: 'valid',
+      expectedOutput: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected answer', notes: null }
+    });
+    expect(legacyExamples.examples[0]?.review).toEqual({
+      status: 'unreviewed',
+      evalEligibility: 'default',
+      exclusionReason: null,
+      reviewerNote: null,
+      reviewedByActorId: null,
+      reviewedAt: null
+    });
+    expect(legacyExamples.examples[0]?.effectiveEligibility).toEqual({
+      eligible: false,
+      reason: 'ineligible_unreviewed'
+    });
   });
 
   it('normalizes run timeline projection while preserving raw events', () => {

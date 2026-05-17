@@ -4,7 +4,11 @@ import type {
   CaptureDatasetExampleResponseDto,
   CreateThreadResponseDto,
   DatasetDto,
+  DatasetExampleEffectiveEligibilityDto,
   DatasetExampleDto,
+  DatasetExampleReviewDto,
+  DatasetExpectedOutputNormalizationDto,
+  DatasetExpectedOutputV1Dto,
   DatasetExampleResponseDto,
   DatasetExamplesResponseDto,
   DatasetResponseDto,
@@ -315,6 +319,115 @@ function normalizeDataset(value: unknown): DatasetDto | null {
   };
 }
 
+function normalizeDatasetExpectedOutputValue(value: unknown): DatasetExpectedOutputV1Dto | null {
+  const record = asRecord(value);
+  if (!record || record.schemaVersion !== 1 || record.kind !== 'assistant_text') {
+    return null;
+  }
+
+  const text = asString(record.text);
+  if (!text) {
+    return null;
+  }
+
+  return {
+    schemaVersion: 1,
+    kind: 'assistant_text',
+    text,
+    notes: asNullableString(record.notes)
+  };
+}
+
+function normalizeDatasetExpectedOutput(value: unknown): DatasetExpectedOutputNormalizationDto {
+  const record = asRecord(value);
+  if (!record) {
+    return { state: 'missing', expectedOutput: null };
+  }
+
+  if (record.state === 'valid') {
+    const expectedOutput = normalizeDatasetExpectedOutputValue(record.expectedOutput);
+    return expectedOutput
+      ? { state: 'valid', expectedOutput }
+      : { state: 'invalid', expectedOutput: null, reason: 'invalid expected output projection' };
+  }
+
+  if (record.state === 'invalid') {
+    return {
+      state: 'invalid',
+      expectedOutput: null,
+      ...(typeof record.reason === 'string' ? { reason: record.reason } : {})
+    };
+  }
+
+  return { state: 'missing', expectedOutput: null };
+}
+
+function normalizeDatasetExpectedOutputFromRaw(value: unknown): DatasetExpectedOutputNormalizationDto {
+  if (value === null || value === undefined) {
+    return { state: 'missing', expectedOutput: null };
+  }
+
+  const expectedOutput = normalizeDatasetExpectedOutputValue(value);
+  return expectedOutput
+    ? { state: 'valid', expectedOutput }
+    : { state: 'invalid', expectedOutput: null, reason: 'invalid expectedOutputJson' };
+}
+
+function normalizeDatasetExampleReview(value: unknown): DatasetExampleReviewDto {
+  const record = asRecord(value);
+  const status = record?.status;
+  const evalEligibility = record?.evalEligibility;
+  const exclusionReason = record?.exclusionReason;
+
+  return {
+    status:
+      status === 'needs_expected_output' || status === 'approved' || status === 'excluded'
+        ? status
+        : 'unreviewed',
+    evalEligibility: evalEligibility === 'include' || evalEligibility === 'exclude' ? evalEligibility : 'default',
+    exclusionReason:
+      exclusionReason === 'failure_case' ||
+      exclusionReason === 'debug_case' ||
+      exclusionReason === 'missing_expected_output' ||
+      exclusionReason === 'not_representative' ||
+      exclusionReason === 'sensitive_or_unsafe' ||
+      exclusionReason === 'other'
+        ? exclusionReason
+        : null,
+    reviewerNote: asNullableString(record?.reviewerNote),
+    reviewedByActorId: asNullableString(record?.reviewedByActorId),
+    reviewedAt: asNullableString(record?.reviewedAt)
+  };
+}
+
+function normalizeDatasetExampleEffectiveEligibility(value: unknown): DatasetExampleEffectiveEligibilityDto {
+  const record = asRecord(value);
+  const reason = asString(record?.reason);
+  const eligible = asBoolean(record?.eligible);
+  if (
+    eligible !== null &&
+    (reason === 'eligible_default' ||
+      reason === 'eligible_included_by_review' ||
+      reason === 'ineligible_unreviewed' ||
+      reason === 'ineligible_needs_expected_output' ||
+      reason === 'ineligible_missing_expected_output' ||
+      reason === 'ineligible_invalid_expected_output' ||
+      reason === 'ineligible_excluded_by_review' ||
+      reason === 'ineligible_capture_default' ||
+      reason === 'ineligible_contradictory_review_state')
+  ) {
+    return {
+      eligible,
+      reason
+    };
+  }
+
+  return {
+    eligible: false,
+    reason: 'ineligible_unreviewed'
+  };
+}
+
 function normalizeDatasetExample(value: unknown): DatasetExampleDto | null {
   const record = asRecord(value);
   if (!record) {
@@ -340,7 +453,12 @@ function normalizeDatasetExample(value: unknown): DatasetExampleDto | null {
     inputJson,
     baselineOutputJson: asJsonRecordOrNull(record.baselineOutputJson),
     expectedOutputJson: asJsonRecordOrNull(record.expectedOutputJson),
+    expectedOutput: Object.hasOwn(record, 'expectedOutput')
+      ? normalizeDatasetExpectedOutput(record.expectedOutput)
+      : normalizeDatasetExpectedOutputFromRaw(record.expectedOutputJson),
     metadataJson: asJsonRecordOrNull(record.metadataJson),
+    review: normalizeDatasetExampleReview(record.review),
+    effectiveEligibility: normalizeDatasetExampleEffectiveEligibility(record.effectiveEligibility),
     contextSnapshotJson: asJsonRecordOrNull(record.contextSnapshotJson),
     toolInvocationsSnapshotJson: asJsonRecordOrNull(record.toolInvocationsSnapshotJson),
     createdByActorId: asNullableString(record.createdByActorId),
@@ -999,4 +1117,13 @@ export function normalizeRuntimeMetaResponse(value: unknown): Partial<RuntimePiM
   };
 }
 
-export { normalizeDataset, normalizeDatasetExample, normalizeMessage, normalizeRun, normalizeThread };
+export {
+  normalizeDataset,
+  normalizeDatasetExample,
+  normalizeDatasetExampleEffectiveEligibility,
+  normalizeDatasetExampleReview,
+  normalizeDatasetExpectedOutput,
+  normalizeMessage,
+  normalizeRun,
+  normalizeThread
+};

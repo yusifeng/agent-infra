@@ -133,12 +133,65 @@ export interface DatasetExampleDto {
   inputJson: Record<string, unknown>;
   baselineOutputJson?: Record<string, unknown> | null;
   expectedOutputJson?: Record<string, unknown> | null;
+  expectedOutput?: DatasetExpectedOutputNormalizationDto;
   metadataJson?: Record<string, unknown> | null;
+  review?: DatasetExampleReviewDto;
+  effectiveEligibility?: DatasetExampleEffectiveEligibilityDto;
   contextSnapshotJson?: Record<string, unknown> | null;
   toolInvocationsSnapshotJson?: Record<string, unknown> | null;
   createdByActorId?: string | null;
   createdAt: IsoDateString;
   updatedAt: IsoDateString;
+}
+
+export interface DatasetExpectedOutputV1Dto {
+  schemaVersion: 1;
+  kind: 'assistant_text';
+  text: string;
+  notes?: string | null;
+}
+
+export interface DatasetExpectedOutputNormalizationDto {
+  state: 'missing' | 'valid' | 'invalid';
+  expectedOutput: DatasetExpectedOutputV1Dto | null;
+  reason?: string;
+}
+
+export type DatasetExampleReviewStatusDto = 'unreviewed' | 'needs_expected_output' | 'approved' | 'excluded';
+
+export type DatasetExampleReviewEvalEligibilityDto = 'default' | 'include' | 'exclude';
+
+export type DatasetExampleReviewExclusionReasonDto =
+  | 'failure_case'
+  | 'debug_case'
+  | 'missing_expected_output'
+  | 'not_representative'
+  | 'sensitive_or_unsafe'
+  | 'other';
+
+export interface DatasetExampleReviewDto {
+  status: DatasetExampleReviewStatusDto;
+  evalEligibility: DatasetExampleReviewEvalEligibilityDto;
+  exclusionReason?: DatasetExampleReviewExclusionReasonDto | null;
+  reviewerNote?: string | null;
+  reviewedByActorId?: string | null;
+  reviewedAt?: IsoDateString | null;
+}
+
+export type DatasetExampleEffectiveEligibilityReasonDto =
+  | 'eligible_default'
+  | 'eligible_included_by_review'
+  | 'ineligible_unreviewed'
+  | 'ineligible_needs_expected_output'
+  | 'ineligible_missing_expected_output'
+  | 'ineligible_invalid_expected_output'
+  | 'ineligible_excluded_by_review'
+  | 'ineligible_capture_default'
+  | 'ineligible_contradictory_review_state';
+
+export interface DatasetExampleEffectiveEligibilityDto {
+  eligible: boolean;
+  reason: DatasetExampleEffectiveEligibilityReasonDto;
 }
 
 export interface RunEventDto {
@@ -370,8 +423,14 @@ export interface CaptureDatasetExampleFromRunRequestDto {
 }
 
 export interface UpdateDatasetExampleExpectedOutputRequestDto {
-  expectedOutputJson?: Record<string, unknown> | null;
-  metadataJson?: Record<string, unknown> | null;
+  expectedOutputJson: DatasetExpectedOutputV1Dto | null;
+}
+
+export interface UpdateDatasetExampleReviewRequestDto {
+  status?: DatasetExampleReviewStatusDto;
+  evalEligibility?: DatasetExampleReviewEvalEligibilityDto;
+  exclusionReason?: DatasetExampleReviewExclusionReasonDto | null;
+  reviewerNote?: string | null;
 }
 
 export interface AnswerSelectionResponseDto {

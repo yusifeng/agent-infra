@@ -20,6 +20,7 @@ import type {
   ChatShareSnapshotDto,
   DatasetDto,
   DatasetExampleDto,
+  DatasetExpectedOutputNormalizationDto,
   MessageDto,
   MessagePartDto,
   PublicChatShareDto,
@@ -35,6 +36,11 @@ import type {
   ToolInvocationDto,
   ToolInvocationSummaryDto
 } from '@agent-infra/contracts';
+import {
+  computeDatasetExampleEffectiveEligibilityV1,
+  normalizeDatasetExampleReviewMetadataV1,
+  normalizeDatasetExpectedOutputV1
+} from '@agent-infra/app';
 import type { PublicChatShareResult, SharedThreadSnapshotPayload } from '@agent-infra/app';
 
 export type RuntimeMetaDtoInput = {
@@ -253,6 +259,8 @@ export function toDatasetDto(dataset: Dataset): DatasetDto {
 }
 
 export function toDatasetExampleDto(example: DatasetExample): DatasetExampleDto {
+  const expectedOutput = normalizeDatasetExpectedOutputV1(example.expectedOutputJson ?? null) as DatasetExpectedOutputNormalizationDto;
+
   return {
     id: example.id,
     datasetId: example.datasetId,
@@ -262,7 +270,13 @@ export function toDatasetExampleDto(example: DatasetExample): DatasetExampleDto 
     inputJson: example.inputJson,
     baselineOutputJson: example.baselineOutputJson ?? null,
     expectedOutputJson: example.expectedOutputJson ?? null,
+    expectedOutput,
     metadataJson: example.metadataJson ?? null,
+    review: normalizeDatasetExampleReviewMetadataV1(example.metadataJson?.review),
+    effectiveEligibility: computeDatasetExampleEffectiveEligibilityV1({
+      expectedOutputJson: example.expectedOutputJson ?? null,
+      metadataJson: example.metadataJson ?? null
+    }),
     contextSnapshotJson: example.contextSnapshotJson ?? null,
     toolInvocationsSnapshotJson: example.toolInvocationsSnapshotJson ?? null,
     createdByActorId: example.createdByActorId ?? null,

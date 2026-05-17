@@ -24,6 +24,7 @@ import {
   parseCreateDatasetInput,
   parseRenameThreadTitle,
   parseUpdateDatasetExampleExpectedOutputInput,
+  parseUpdateDatasetExampleReviewInput,
   parseThreadMessagesQuery,
   parseThreadRunsLimit,
   parseRunTextTurnInput
@@ -148,8 +149,8 @@ describe('durable chat server route helpers', () => {
       triggerMessageId: 'message-1',
       inputJson: { schemaVersion: 1, kind: 'chat_turn' },
       baselineOutputJson: null,
-      expectedOutputJson: { rubric: 'ok' },
-      metadataJson: { capture: { kind: 'normal_example' } },
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected answer' },
+      metadataJson: { capture: { kind: 'normal_example' }, evaluation: { defaultEligible: true } },
       contextSnapshotJson: { status: 'completed' },
       toolInvocationsSnapshotJson: { toolInvocations: [] },
       createdByActorId: 'actor-1',
@@ -186,20 +187,42 @@ describe('durable chat server route helpers', () => {
     expect(() => parseCaptureDatasetExampleFromRunInput({ sourceRunId: 'run-1', expectedOutputJson: 'bad' })).toThrow(
       InvalidRouteBodyError
     );
-    expect(parseUpdateDatasetExampleExpectedOutputInput({ expectedOutputJson: { rubric: 'ok' } })).toEqual({
-      expectedOutputJson: { rubric: 'ok' }
+    expect(
+      parseUpdateDatasetExampleExpectedOutputInput({
+        expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: ' Expected answer ', notes: ' reviewer note ' }
+      })
+    ).toEqual({
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected answer', notes: 'reviewer note' }
     });
-    expect(parseUpdateDatasetExampleExpectedOutputInput({ expectedOutputJson: null, metadataJson: null })).toEqual({
-      expectedOutputJson: null,
-      metadataJson: null
+    expect(parseUpdateDatasetExampleExpectedOutputInput({ expectedOutputJson: null })).toEqual({
+      expectedOutputJson: null
     });
     expect(() => parseUpdateDatasetExampleExpectedOutputInput({ expectedOutputJson: 'bad' })).toThrow(InvalidRouteBodyError);
+    expect(() => parseUpdateDatasetExampleExpectedOutputInput({ expectedOutputJson: null, metadataJson: null })).toThrow(InvalidRouteBodyError);
+    expect(parseUpdateDatasetExampleReviewInput({ status: 'approved', evalEligibility: 'default', reviewerNote: ' ok ' })).toEqual({
+      status: 'approved',
+      evalEligibility: 'default',
+      reviewerNote: 'ok'
+    });
+    expect(() => parseUpdateDatasetExampleReviewInput({ status: 'approved', reviewedByActorId: 'actor-1' })).toThrow(
+      InvalidRouteBodyError
+    );
     expect(buildDatasetsResponse([dataset])).toMatchObject({ datasets: [{ id: dataset.id, createdAt: createdAt.toISOString() }] });
     expect(buildDatasetResponse(dataset)).toMatchObject({ dataset: { id: dataset.id } });
-    expect(buildDatasetExamplesResponse([example])).toMatchObject({ examples: [{ id: example.id, inputJson: example.inputJson }] });
+    expect(buildDatasetExamplesResponse([example])).toMatchObject({
+      examples: [
+        {
+          id: example.id,
+          inputJson: example.inputJson,
+          expectedOutput: { state: 'valid', expectedOutput: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected answer', notes: null } },
+          review: { status: 'unreviewed', evalEligibility: 'default' },
+          effectiveEligibility: { eligible: false, reason: 'ineligible_unreviewed' }
+        }
+      ]
+    });
     expect(buildCaptureDatasetExampleResponse({ dataset, example })).toMatchObject({
       dataset: { id: dataset.id },
-      example: { id: example.id, expectedOutputJson: { rubric: 'ok' } }
+      example: { id: example.id, expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected answer' } }
     });
   });
 

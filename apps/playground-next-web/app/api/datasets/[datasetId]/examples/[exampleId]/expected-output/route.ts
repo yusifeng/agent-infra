@@ -27,8 +27,7 @@ export async function PATCH(
       datasetId,
       exampleId,
       actorId: auth.user.id,
-      expectedOutputJson: input.expectedOutputJson,
-      metadataJson: input.metadataJson
+      expectedOutputJson: input.expectedOutputJson
     });
     return Response.json(buildDatasetExampleResponse(example));
   } catch (error) {

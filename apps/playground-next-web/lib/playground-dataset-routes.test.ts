@@ -63,7 +63,9 @@ function mockAppServices() {
   const create = vi.fn().mockResolvedValue(dataset);
   const listExamples = vi.fn().mockResolvedValue([example]);
   const captureExampleFromRun = vi.fn().mockResolvedValue({ dataset, example });
-  const updateExampleExpectedOutput = vi.fn().mockResolvedValue(createExample({ expectedOutputJson: { answer: 'ok' } }));
+  const updateExampleExpectedOutput = vi.fn().mockResolvedValue(
+    createExample({ expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected answer' } })
+  );
   const listByRunIds = vi.fn().mockResolvedValue([
     {
       id: 'feedback-1',
@@ -200,21 +202,20 @@ describe('playground dataset routes', () => {
 
     const patchResponse = await expectedOutputRoute.PATCH(new Request('http://localhost/api/datasets/dataset-1/examples/example-1/expected-output', {
       method: 'PATCH',
-      body: JSON.stringify({ expectedOutputJson: { answer: 'ok' } })
+      body: JSON.stringify({ expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: ' Expected answer ' } })
     }), {
       params: Promise.resolve({ datasetId: 'dataset-1', exampleId: 'example-1' })
     });
     expect(patchResponse.status).toBe(200);
     await expect(patchResponse.json()).resolves.toMatchObject({
-      example: { id: 'example-1', expectedOutputJson: { answer: 'ok' } }
+      example: { id: 'example-1', expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected answer' } }
     });
     expect(updateExampleExpectedOutput).toHaveBeenCalledWith({
       appId: 'playground-runtime-pi',
       datasetId: 'dataset-1',
       exampleId: 'example-1',
       actorId: 'user-1',
-      expectedOutputJson: { answer: 'ok' },
-      metadataJson: undefined
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected answer', notes: null }
     });
   });
 
