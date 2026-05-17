@@ -14,6 +14,7 @@ import { ThreadRenameDialog } from './chat-shell/thread-rename-dialog';
 import { ui } from './chat-shell/ui';
 import type { AuthUserDto } from '@/features/auth/dto/project-auth-user-dto';
 import { useDurableChatRuntime } from '@/features/durable-chat/runtime/use-durable-chat-runtime';
+import { RunFeedbackDialog } from '@/features/run-feedback/ui/run-feedback-dialog';
 
 type DurableChatConsoleProps = {
   currentUser?: AuthUserDto | null;
@@ -207,6 +208,12 @@ export function DurableChatConsole({ currentUser = null, initialThreadId = null,
         error={runtime.archiveDialogThreadId !== null ? runtime.threadActionError : null}
         onClose={runtime.onCloseArchiveDialog}
         onConfirm={runtime.onConfirmArchiveThread}
+      />
+      <RunFeedbackDialog
+        open={runtime.runFeedbackDialogOpen}
+        loading={runtime.runFeedbackDialogSubmitting}
+        onClose={runtime.onCloseRunFeedbackDialog}
+        onSubmit={runtime.onSubmitRunFeedbackDialog}
       />
     </main>
   );

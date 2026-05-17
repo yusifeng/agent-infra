@@ -20,11 +20,11 @@
 ### 0.2 Goals
 - [x] Add playground-owned run feedback detail persistence without adding `reasonTags` or `commentText` to `packages/core`.
 - [x] Keep shared contracts focused on generic `RunFeedbackDto` unless a consumer-independent detail contract becomes necessary later.
-- [ ] Add a thumbs-down dialog in `/chat` that collects optional reason tags and optional comment text.
+- [x] Add a thumbs-down dialog in `/chat` that collects optional reason tags and optional comment text.
 - [x] Persist thumbs-down details transactionally with the shared run feedback value.
 - [x] Clear playground feedback details whenever the current feedback is cleared or changed away from thumbs down.
-- [ ] Preserve the existing feedback UI placement inside answer operation/actions.
-- [ ] Add focused tests around sidecar schema, validation, route/service behavior, and runtime dialog behavior.
+- [x] Preserve the existing feedback UI placement inside answer operation/actions.
+- [x] Add focused tests around sidecar schema, validation, route/service behavior, and runtime dialog behavior.
 
 ### 0.3 Non-goals
 - [x] Do not add `reasonTags`, `commentText`, or localized labels to `packages/core`.
@@ -48,7 +48,7 @@
 - [x] Route-local request shape is `value` plus optional `details`, where `details` is allowed only for `value: 'thumbs_down'`.
 - [x] Define `PlaygroundRunFeedbackReasonTag` with stable codes: `harmful_or_unsafe`, `false_or_misleading`, `not_helpful`, `other`.
 - [x] Define `PlaygroundRunFeedbackDetails` as `{ reasonTags: PlaygroundRunFeedbackReasonTag[]; commentText: string | null }`.
-- [ ] Define tag label mapping in the UI layer so stored codes remain independent from Chinese or English copy.
+- [x] Define tag label mapping in the UI layer so stored codes remain independent from Chinese or English copy.
 - [x] Trim comment text before save.
 - [x] Normalize empty comment text to `null`.
 - [x] Reject comment text over 1000 characters.
@@ -74,7 +74,7 @@
 - [x] Clear feedback: clear shared run feedback and delete any playground detail for the same `(runId, feedbackActorId)` in one transaction using transaction-bound repositories.
 - [x] Implement the transaction by using `withDbTransaction` or an equivalent mechanism that creates both shared repos and the sidecar repo against the same `tx`.
 - [x] Do not call the singleton `services.app.turns.setRunFeedback` / `clearRunFeedback` from inside the playground transaction unless the app instance is constructed with transaction-bound repositories.
-- [ ] Dialog cancel: perform no API call and no optimistic feedback mutation.
+- [x] Dialog cancel: perform no API call and no optimistic feedback mutation.
 - [x] Existing feedback rows without playground detail are valid and must continue to hydrate normally.
 
 ## 2. Backend / Platform
@@ -115,21 +115,21 @@
 - [x] Do not expose playground detail types from shared durable-chat-client packages.
 
 ### 3.2 Runtime
-- [ ] Change inactive thumbs-down click to open a dialog instead of immediately calling `setRunFeedback`.
-- [ ] Keep active thumbs-down click as direct clear feedback.
-- [ ] Keep thumbs-up click as direct submit and ensure it clears any pending thumbs-down dialog state.
-- [ ] Track pending feedback run id so the clicked answer operation can show busy/disabled state while submitting.
-- [ ] Ensure dialog cancel resets local dialog state without API calls.
-- [ ] Ensure dialog submit calls the API once with normalized details.
+- [x] Change inactive thumbs-down click to open a dialog instead of immediately calling `setRunFeedback`.
+- [x] Keep active thumbs-down click as direct clear feedback.
+- [x] Keep thumbs-up click as direct submit and ensure it clears any pending thumbs-down dialog state.
+- [x] Track pending feedback run id so the clicked answer operation can show busy/disabled state while submitting.
+- [x] Ensure dialog cancel resets local dialog state without API calls.
+- [x] Ensure dialog submit calls the API once with normalized details.
 
 ### 3.3 UI
-- [ ] Add a shadcn dialog for thumbs-down feedback in the chat UI.
-- [ ] Add four tag pills with labels: `有害/不安全`, `虚假信息`, `没有帮助`, `其他`.
-- [ ] Store selected tag codes, not labels.
-- [ ] Add textarea placeholder copy for optional feedback.
-- [ ] Add cancel and submit actions.
-- [ ] Disable or surface validation when text exceeds 1000 characters.
-- [ ] Preserve the existing filled active thumbs up / thumbs down icon styling.
+- [x] Add a shadcn dialog for thumbs-down feedback in the chat UI.
+- [x] Add four tag pills with labels: `有害/不安全`, `虚假信息`, `没有帮助`, `其他`.
+- [x] Store selected tag codes, not labels.
+- [x] Add textarea placeholder copy for optional feedback.
+- [x] Add cancel and submit actions.
+- [x] Disable or surface validation when text exceeds 1000 characters.
+- [x] Preserve the existing filled active thumbs up / thumbs down icon styling.
 
 ## 4. Tests
 
@@ -145,17 +145,17 @@
 - [x] Add transaction rollback tests proving sidecar write failure does not leave shared feedback behind and shared feedback failure does not leave sidecar detail behind.
 
 ### 4.2 Frontend Tests
-- [ ] Add runtime/controller tests proving inactive thumbs-down opens the dialog and does not call the API.
-- [ ] Add runtime/controller tests proving submit calls the API with reason tag codes and normalized comment text.
-- [ ] Add runtime/controller tests proving active thumbs-down clears directly.
-- [ ] Add runtime/controller tests proving thumbs-up submits directly and clears pending dialog state.
-- [ ] Add runtime/controller tests proving dialog cancel performs no API call.
-- [ ] Add UI smoke or component tests if the existing test setup can cover the dialog without excessive harness work.
+- [x] Add runtime/controller tests proving inactive thumbs-down opens the dialog and does not call the API.
+- [x] Add runtime/controller tests proving submit calls the API with reason tag codes and normalized comment text.
+- [x] Add runtime/controller tests proving active thumbs-down clears directly.
+- [x] Add runtime/controller tests proving thumbs-up submits directly and clears pending dialog state.
+- [x] Add runtime/controller tests proving dialog cancel performs no API call.
+- [x] Add UI smoke or component tests if the existing test setup can cover the dialog without excessive harness work.
 
 ### 4.3 Targeted Verification
-- [ ] Run `pnpm --filter playground-next-web test`.
+- [x] Run `pnpm --filter playground-next-web test`.
 - [x] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run targeted package tests if shared feedback code is touched.
+- [x] No targeted package tests needed because this slice did not touch shared package feedback code.
 
 ## 5. Recommended Execution Order
 
@@ -188,14 +188,14 @@
 - [x] Commit Loop 2.
 
 ### Loop 3: Dialog Runtime and UI
-- [ ] Add runtime state and handlers for the thumbs-down dialog.
-- [ ] Add the shadcn feedback dialog UI.
-- [ ] Wire inactive thumbs-down, active thumbs-down, thumbs-up, cancel, and submit behavior.
-- [ ] Add runtime/UI tests where practical.
-- [ ] Run `pnpm --filter playground-next-web test`.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 3.
+- [x] Add runtime state and handlers for the thumbs-down dialog.
+- [x] Add the shadcn feedback dialog UI.
+- [x] Wire inactive thumbs-down, active thumbs-down, thumbs-up, cancel, and submit behavior.
+- [x] Add runtime/UI tests where practical.
+- [x] Run `pnpm --filter playground-next-web test`.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit Loop 3.
 
 ### Loop 4: Docs and Final Verification
 - [ ] Update source-of-truth docs only for stable feedback boundary facts.

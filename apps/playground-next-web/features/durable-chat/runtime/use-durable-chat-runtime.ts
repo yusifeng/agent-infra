@@ -56,6 +56,11 @@ import {
   resolveInspectorLoadDecision,
   resolveThreadRouteDecision
 } from '@/features/durable-chat/runtime/controllers/runtime-controller-seams';
+import {
+  type RunFeedbackDialogTarget,
+  canSubmitRunFeedbackDialog,
+  resolveRunFeedbackAction
+} from '@/features/durable-chat/runtime/controllers/run-feedback-controller';
 import { buildChatRuntimeViewModel } from '@/features/durable-chat/runtime/chat-runtime-view-model';
 import { useChatShellEffects } from '@/features/durable-chat/runtime/use-chat-shell-effects';
 import { useSearchPanelState } from '@/features/durable-chat/runtime/use-search-panel-state';
@@ -64,6 +69,7 @@ import { useThreadActionController } from '@/features/durable-chat/runtime/use-t
 import { useThreadShareController } from '@/features/durable-chat/runtime/use-thread-share-controller';
 import { useThreadTitleRefreshController } from '@/features/durable-chat/runtime/use-thread-title-refresh-controller';
 import type { DurableChatRuntimeOptions } from '@/features/durable-chat/types/runtime';
+import type { PlaygroundRunFeedbackDetails } from '@/features/run-feedback/types/playground-run-feedback-details';
 import { isDefaultThreadTitle } from '@/features/thread-title/default-thread-title';
 
 const PENDING_NEW_THREAD_LOADING_ID = '__pending-new-thread__';
@@ -158,6 +164,7 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     setTimelineError
   } = useRunInspectorController();
   const [candidateMutationRunIds, setCandidateMutationRunIds] = useState<Set<string>>(() => new Set());
+  const [runFeedbackDialogTarget, setRunFeedbackDialogTarget] = useState<RunFeedbackDialogTarget | null>(null);
   const runtimeBootstrappedRef = useRef(false);
   const routeChangeRequestIdRef = useRef(0);
   const runSelectionPersistenceReadyRef = useRef(false);
@@ -951,16 +958,20 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     }
   }
 
-  async function updateRunFeedback(runId: string, value: 'thumbs_up' | 'thumbs_down' | null) {
-    const threadId = activeThreadIdRef.current;
-    if (!threadId || candidateMutationRunIds.has(runId)) {
-      return;
+  async function updateRunFeedback(
+    threadId: string,
+    runId: string,
+    value: 'thumbs_up' | 'thumbs_down' | null,
+    details?: PlaygroundRunFeedbackDetails
+  ) {
+    if (candidateMutationRunIds.has(runId)) {
+      return false;
     }
 
     setCandidateMutationRunIds((current) => new Set(current).add(runId));
     try {
       const result = value
-        ? await setRunFeedbackRequest(threadId, runId, value)
+        ? await setRunFeedbackRequest(threadId, runId, value, details)
         : await clearRunFeedbackRequest(threadId, runId);
       if (!result.ok) {
         throw new Error(result.error ?? `Failed to update run feedback (${result.status})`);
@@ -971,14 +982,69 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
         return result.data.runFeedback ? [...withoutRun, result.data.runFeedback] : withoutRun;
       });
       setError(null);
+      return true;
     } catch (feedbackError) {
       setError(feedbackError instanceof Error ? feedbackError.message : 'Failed to update run feedback');
+      return false;
     } finally {
       setCandidateMutationRunIds((current) => {
         const next = new Set(current);
         next.delete(runId);
         return next;
       });
+    }
+  }
+
+  function handleSetRunFeedback(runId: string, value: 'thumbs_up' | 'thumbs_down' | null) {
+    const action = resolveRunFeedbackAction({
+      runId,
+      value,
+      pendingRunIds: candidateMutationRunIds
+    });
+
+    if (action.type === 'ignore') {
+      return;
+    }
+
+    if (action.type === 'open-dialog') {
+      const threadId = activeThreadIdRef.current;
+      if (!threadId) {
+        return;
+      }
+      setRunFeedbackDialogTarget({
+        threadId,
+        runId: action.runId
+      });
+      return;
+    }
+
+    const threadId = activeThreadIdRef.current;
+    if (!threadId) {
+      return;
+    }
+
+    if (action.value === 'thumbs_up') {
+      setRunFeedbackDialogTarget(null);
+    }
+    void updateRunFeedback(threadId, action.runId, action.value);
+  }
+
+  async function submitRunFeedbackDialog(details: PlaygroundRunFeedbackDetails) {
+    if (!canSubmitRunFeedbackDialog({
+      target: runFeedbackDialogTarget,
+      pendingRunIds: candidateMutationRunIds
+    }) || !runFeedbackDialogTarget) {
+      return;
+    }
+
+    const succeeded = await updateRunFeedback(
+      runFeedbackDialogTarget.threadId,
+      runFeedbackDialogTarget.runId,
+      'thumbs_down',
+      details
+    );
+    if (succeeded) {
+      setRunFeedbackDialogTarget(null);
     }
   }
 
@@ -1136,6 +1202,8 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
     messagesViewportRef,
     meta,
     runFeedback,
+    runFeedbackDialogOpen: runFeedbackDialogTarget !== null,
+    runFeedbackDialogSubmitting: runFeedbackDialogTarget !== null && candidateMutationRunIds.has(runFeedbackDialogTarget.runId),
     onArchiveThread: () => {
       onArchiveActiveThread();
     },
@@ -1160,7 +1228,11 @@ export function useDurableChatRuntime({ initialThreadId = null }: DurableChatRun
       void onOpenShareDialogForThread(threadId);
     },
     onSetRunFeedback: (runId: string, value: 'thumbs_up' | 'thumbs_down' | null) => {
-      void updateRunFeedback(runId, value);
+      handleSetRunFeedback(runId, value);
+    },
+    onCloseRunFeedbackDialog: () => setRunFeedbackDialogTarget(null),
+    onSubmitRunFeedbackDialog: (details: PlaygroundRunFeedbackDetails) => {
+      void submitRunFeedbackDialog(details);
     },
     onLoadOlderMessages: () => {
       void loadOlderMessages();
