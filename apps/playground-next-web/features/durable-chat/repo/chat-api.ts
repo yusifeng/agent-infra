@@ -1,5 +1,8 @@
 export {
   createThreadResponse,
+  captureDatasetExampleFromRunResponse,
+  createDatasetResponse,
+  fetchDatasetsResponse,
   fetchRunTraceResponse,
   fetchRunTimelineResponse,
   fetchRuntimeMetaResponse,

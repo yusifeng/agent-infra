@@ -1,11 +1,13 @@
 import type { RunDto, RunTimelineResponseDto, RunTraceResponseDto } from '@agent-infra/contracts';
 import { useState } from 'react';
-import { Activity, Clock3, Database, Route } from 'lucide-react';
+import { Activity, Clock3, Database, Plus, Route } from 'lucide-react';
 
+import { Button } from '@/components/ui/button';
 import type { PlaygroundThreadDto } from '@/features/durable-chat/repo/chat-api';
 import { cn } from '@/lib/utils';
 
 import { formatDateTime, formatDurationMs, formatShortId, formatTokenCount, getRunDurationMs } from '../service/format';
+import { DatasetCaptureDialog } from './dataset-capture-dialog';
 import { TimelineTab } from './timeline-tab';
 import { TraceTab } from './trace-tab';
 
@@ -35,6 +37,7 @@ function runStatusClass(status: RunDto['status']) {
 
 export function RunContentPanel({ selectedRun, selectedThread, timeline, timelineLoading, timelineError, trace, traceLoading, traceError }: RunContentPanelProps) {
   const [activeTab, setActiveTab] = useState<'timeline' | 'trace'>('timeline');
+  const [captureOpen, setCaptureOpen] = useState(false);
 
   return (
     <section className="flex min-h-0 min-w-0 flex-col bg-[var(--chat-surface)]">
@@ -43,12 +46,18 @@ export function RunContentPanel({ selectedRun, selectedThread, timeline, timelin
       ) : (
         <>
           <div className="shrink-0 border-b border-[color:var(--chat-border)] px-5 py-4">
-            <div className="flex min-w-0 flex-wrap items-center gap-3">
-              <h2 className="min-w-0 truncate font-mono text-lg font-semibold text-[var(--chat-text)]">{formatShortId(selectedRun.id, 18)}</h2>
-              <span className={cn('rounded-md px-2 py-0.5 text-xs font-medium', runStatusClass(selectedRun.status))}>{selectedRun.status}</span>
-              <span className="truncate text-sm text-[var(--chat-muted)]">
-                {(selectedRun.provider ?? 'provider unknown')} / {(selectedRun.model ?? 'model unknown')}
-              </span>
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+              <div className="flex min-w-0 flex-wrap items-center gap-3">
+                <h2 className="min-w-0 truncate font-mono text-lg font-semibold text-[var(--chat-text)]">{formatShortId(selectedRun.id, 18)}</h2>
+                <span className={cn('rounded-md px-2 py-0.5 text-xs font-medium', runStatusClass(selectedRun.status))}>{selectedRun.status}</span>
+                <span className="truncate text-sm text-[var(--chat-muted)]">
+                  {(selectedRun.provider ?? 'provider unknown')} / {(selectedRun.model ?? 'model unknown')}
+                </span>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setCaptureOpen(true)}>
+                <Plus className="size-4" />
+                Capture
+              </Button>
             </div>
             {selectedRun.error ? <div className="mt-3 rounded-lg bg-[var(--chat-error-bg)] px-3 py-2 text-sm text-[var(--chat-error-text)]">{selectedRun.error}</div> : null}
             <div className="mt-4 grid gap-3 text-sm text-[var(--chat-muted)] md:grid-cols-4">
@@ -120,6 +129,12 @@ export function RunContentPanel({ selectedRun, selectedThread, timeline, timelin
               <TraceTab trace={trace} loading={traceLoading} error={traceError} />
             )}
           </div>
+          <DatasetCaptureDialog
+            open={captureOpen}
+            selectedRun={selectedRun}
+            selectedThread={selectedThread}
+            onOpenChange={setCaptureOpen}
+          />
         </>
       )}
     </section>

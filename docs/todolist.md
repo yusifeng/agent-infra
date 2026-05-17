@@ -170,15 +170,15 @@
 - [x] Avoid adding playground-only dataset tables unless a field is truly host-local.
 
 ### 3.2 Observability UI
-- [ ] Add a minimal capture action for the selected run in `/observability`.
-- [ ] Add a small dataset picker/create dialog for capture.
-- [ ] Show source run id, status, provider/model, and selected dataset in the capture dialog.
-- [ ] Show whether current actor feedback will be copied into metadata when available.
-- [ ] Submit capture through the dataset capture API.
-- [ ] Surface success with dataset/example id and keep the selected observability run unchanged.
-- [ ] Surface route validation errors without breaking the observability page.
-- [ ] Do not build a full dataset management UI in this track.
-- [ ] Do not add heavy capture controls to `/chat` in v1; keep `/chat` as the immediate feedback surface.
+- [x] Add a minimal capture action for the selected run in `/observability`.
+- [x] Add a small dataset picker/create dialog for capture.
+- [x] Show source run id, status, provider/model, and selected dataset in the capture dialog.
+- [x] Show whether current actor feedback will be copied into metadata when available.
+- [x] Submit capture through the dataset capture API.
+- [x] Surface success with dataset/example id and keep the selected observability run unchanged.
+- [x] Surface route validation errors without breaking the observability page.
+- [x] Do not build a full dataset management UI in this track.
+- [x] Do not add heavy capture controls to `/chat` in v1; keep `/chat` as the immediate feedback surface.
 
 ### 3.3 Optional Minimal Dataset Read Surface
 - [ ] Add only the minimal read surface needed to verify captured examples if API responses are not enough.
@@ -232,10 +232,10 @@
 - [x] Add route tests proving inaccessible source runs cannot be captured.
 - [x] Add route tests proving private datasets are not listable or capturable by another actor.
 - [x] Add route tests proving app-visible datasets can be used by same-app actors when allowed.
-- [ ] Add observability UI/runtime tests for opening capture dialog.
-- [ ] Add observability UI/runtime tests for selecting or creating a dataset.
-- [ ] Add observability UI/runtime tests for successful capture submission.
-- [ ] Add observability UI/runtime tests for capture error state.
+- [x] Add observability UI/runtime tests for opening capture dialog.
+- [x] Add observability UI/runtime tests for selecting or creating a dataset.
+- [x] Add observability UI/runtime tests for successful capture submission.
+- [x] Add observability UI/runtime tests for capture error state.
 
 ### 4.5 Targeted Verification
 - [x] Run `pnpm --filter @agent-infra/db test` after DB slice.
@@ -321,16 +321,16 @@
 - [x] Commit Loop 4.
 
 ### Loop 5: Observability Capture UI
-- [ ] Add minimal capture action to selected run content in `/observability`.
-- [ ] Add dataset picker/create dialog.
-- [ ] Wire dialog to dataset list/create/capture APIs.
-- [ ] Add loading, success, and error states.
-- [ ] Keep UI compact and management-oriented; do not build a full dataset dashboard.
-- [ ] Add focused UI/runtime tests where practical.
-- [ ] Run targeted playground UI tests.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 5.
+- [x] Add minimal capture action to selected run content in `/observability`.
+- [x] Add dataset picker/create dialog.
+- [x] Wire dialog to dataset list/create/capture APIs.
+- [x] Add loading, success, and error states.
+- [x] Keep UI compact and management-oriented; do not build a full dataset dashboard.
+- [x] Add focused UI/runtime tests where practical.
+- [x] Run targeted playground UI tests.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit Loop 5.
 
 ### Loop 6: Source-of-Truth Promotion and Closeout
 - [ ] Promote stable dataset/example semantics into `docs/source-of-truth/dataset-example-model.md`.
