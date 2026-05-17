@@ -33,6 +33,11 @@ import {
   TurnPersistenceError,
   TurnProjectionError
 } from './errors.js';
+import {
+  mergeDatasetExampleReviewMetadataV1,
+  parseDatasetExampleReviewUpdateV1,
+  parseDatasetExpectedOutputV1
+} from './dataset-review.js';
 import { buildTraceSpanProjection } from './trace-span-projection.js';
 import type {
   AgentInfraApp,
@@ -129,6 +134,18 @@ async function loadDatasetForAppOrThrow(
   }
 
   return dataset;
+}
+
+async function loadDatasetExampleForDatasetOrThrow(
+  repositories: AgentInfraAppRepositories,
+  input: { datasetId: string; exampleId: string }
+) {
+  const example = await repositories.datasetExampleRepo.findById(input.exampleId);
+  if (!example || example.datasetId !== input.datasetId) {
+    throw new DatasetNotFoundError(input.datasetId);
+  }
+
+  return example;
 }
 
 async function buildCanonicalThreadMessages(repositories: AgentInfraAppRepositories, threadId: string, cutoffMessageId?: string | null) {
@@ -1188,25 +1205,43 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
         await loadDatasetForAppOrThrow(dependencies.repositories, input);
         return dependencies.repositories.datasetExampleRepo.listByDataset(input.datasetId);
       },
+      async getExample(input) {
+        await loadDatasetForAppOrThrow(dependencies.repositories, input);
+        return loadDatasetExampleForDatasetOrThrow(dependencies.repositories, input);
+      },
       async updateExampleExpectedOutput(input) {
         await loadDatasetForAppOrThrow(dependencies.repositories, input);
-        const example = await dependencies.repositories.datasetExampleRepo.findById(input.exampleId);
-        if (!example || example.datasetId !== input.datasetId) {
-          throw new DatasetNotFoundError(input.datasetId);
+        await loadDatasetExampleForDatasetOrThrow(dependencies.repositories, input);
+        const expectedOutputJson = parseDatasetExpectedOutputV1(input.expectedOutputJson);
+        return dependencies.repositories.datasetExampleRepo.updateExpectedOutput(
+          input.exampleId,
+          { expectedOutputJson: expectedOutputJson as unknown as Record<string, unknown> | null },
+          now()
+        );
+      },
+      async updateExampleReview(input) {
+        const rawInput = input as unknown as Record<string, unknown>;
+        if (Object.hasOwn(rawInput, 'reviewedByActorId')) {
+          throw new InvalidDatasetInputError('reviewedByActorId is assigned from actor context');
+        }
+        if (Object.hasOwn(rawInput, 'reviewedAt')) {
+          throw new InvalidDatasetInputError('reviewedAt is assigned from app time');
         }
 
-        const patch: {
-          expectedOutputJson?: Record<string, unknown> | null;
-          metadataJson?: Record<string, unknown> | null;
-        } = {};
-        if (Object.hasOwn(input, 'expectedOutputJson')) {
-          patch.expectedOutputJson = input.expectedOutputJson;
-        }
-        if (Object.hasOwn(input, 'metadataJson')) {
-          patch.metadataJson = input.metadataJson;
-        }
+        return dependencies.transaction(async (repositories) => {
+          await loadDatasetForAppOrThrow(repositories, input);
+          const example = await loadDatasetExampleForDatasetOrThrow(repositories, input);
+          const update = parseDatasetExampleReviewUpdateV1(input.review);
+          const metadataJson = mergeDatasetExampleReviewMetadataV1({
+            metadataJson: example.metadataJson,
+            update,
+            expectedOutputJson: example.expectedOutputJson ?? null,
+            reviewedByActorId: input.actorId ?? null,
+            reviewedAt: now()
+          });
 
-        return dependencies.repositories.datasetExampleRepo.updateExpectedOutput(input.exampleId, patch, now());
+          return repositories.datasetExampleRepo.updateExpectedOutput(input.exampleId, { metadataJson }, now());
+        });
       },
       async captureExampleFromRun(input) {
         const dataset = await loadDatasetForAppOrThrow(dependencies.repositories, input);

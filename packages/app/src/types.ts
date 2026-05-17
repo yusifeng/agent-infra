@@ -231,10 +231,16 @@ export interface GetDatasetInput {
 
 export interface ListDatasetExamplesInput extends GetDatasetInput {}
 
-export interface UpdateDatasetExampleExpectedOutputInput extends GetDatasetInput {
+export interface GetDatasetExampleInput extends GetDatasetInput {
   exampleId: string;
-  expectedOutputJson?: Record<string, unknown> | null;
-  metadataJson?: Record<string, unknown> | null;
+}
+
+export interface UpdateDatasetExampleExpectedOutputInput extends GetDatasetExampleInput {
+  expectedOutputJson: DatasetExpectedOutputV1 | null;
+}
+
+export interface UpdateDatasetExampleReviewInput extends GetDatasetExampleInput {
+  review: DatasetExampleReviewUpdateV1;
 }
 
 export interface CaptureDatasetExampleFromRunInput extends GetDatasetInput {
@@ -691,7 +697,9 @@ export interface AgentInfraApp {
     list(input: ListDatasetsInput): Promise<Dataset[]>;
     get(input: GetDatasetInput): Promise<Dataset>;
     listExamples(input: ListDatasetExamplesInput): Promise<DatasetExample[]>;
+    getExample(input: GetDatasetExampleInput): Promise<DatasetExample>;
     updateExampleExpectedOutput(input: UpdateDatasetExampleExpectedOutputInput): Promise<DatasetExample>;
+    updateExampleReview(input: UpdateDatasetExampleReviewInput): Promise<DatasetExample>;
     captureExampleFromRun(input: CaptureDatasetExampleFromRunInput): Promise<CaptureDatasetExampleFromRunResult>;
   };
   shares: {

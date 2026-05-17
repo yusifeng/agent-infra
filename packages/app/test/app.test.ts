@@ -1313,8 +1313,12 @@ describe('createAgentInfraApp', () => {
     });
   });
 
-  it('updates dataset example expected output without exposing manual example creation', async () => {
-    const { app, repositories } = createDependencies(createHappyRuntime());
+  it('gets and updates dataset example expected output without overwriting metadata', async () => {
+    const runtime = createHappyRuntime();
+    const prepare = vi.spyOn(runtime, 'prepare');
+    const runTextTurn = vi.spyOn(runtime, 'runTextTurn');
+    const generateText = vi.spyOn(runtime, 'generateText');
+    const { app, repositories } = createDependencies(runtime);
     const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Expected output patch' });
     const dataset = await app.datasets.create({
       appId: 'playground-runtime-pi',
@@ -1329,18 +1333,201 @@ describe('createAgentInfraApp', () => {
       sourceRunId: started.run.id,
       actorId: 'actor-1'
     });
+    prepare.mockClear();
+    runTextTurn.mockClear();
+    generateText.mockClear();
 
     const updated = await app.datasets.updateExampleExpectedOutput({
       appId: 'playground-runtime-pi',
       datasetId: dataset.id,
       actorId: 'actor-1',
       exampleId: capture.example.id,
-      expectedOutputJson: { rubric: 'answer should be concise' },
-      metadataJson: { annotation: { reviewer: 'actor-2' } }
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: '  answer should be concise  ', notes: ' reviewer note ' }
     });
 
-    expect(updated.expectedOutputJson).toEqual({ rubric: 'answer should be concise' });
-    expect(updated.metadataJson).toEqual({ annotation: { reviewer: 'actor-2' } });
+    expect(await app.datasets.getExample({
+      appId: 'playground-runtime-pi',
+      datasetId: dataset.id,
+      actorId: 'actor-1',
+      exampleId: capture.example.id
+    })).toMatchObject({ id: capture.example.id });
+    expect(updated.expectedOutputJson).toEqual({
+      schemaVersion: 1,
+      kind: 'assistant_text',
+      text: 'answer should be concise',
+      notes: 'reviewer note'
+    });
+    expect(updated.metadataJson).toMatchObject({
+      capture: { kind: 'normal_example' },
+      evaluation: { defaultEligible: true }
+    });
+    const cleared = await app.datasets.updateExampleExpectedOutput({
+      appId: 'playground-runtime-pi',
+      datasetId: dataset.id,
+      actorId: 'actor-1',
+      exampleId: capture.example.id,
+      expectedOutputJson: null
+    });
+    expect(cleared.expectedOutputJson).toBeNull();
+
+    await expect(
+      app.datasets.updateExampleExpectedOutput({
+        appId: 'playground-runtime-pi',
+        datasetId: dataset.id,
+        actorId: 'actor-1',
+        exampleId: capture.example.id,
+        expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: '   ' }
+      })
+    ).rejects.toBeInstanceOf(InvalidDatasetInputError);
+    expect(prepare).not.toHaveBeenCalled();
+    expect(runTextTurn).not.toHaveBeenCalled();
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it('enforces dataset visibility when reading captured example snapshots', async () => {
+    const { app, repositories } = createDependencies(createHappyRuntime());
+    const privateDataset = await app.datasets.create({
+      appId: 'playground-runtime-pi',
+      name: 'Private captures',
+      createdByActorId: 'actor-1'
+    });
+    const appDataset = await app.datasets.create({
+      appId: 'playground-runtime-pi',
+      name: 'App captures',
+      visibility: 'app',
+      createdByActorId: 'actor-1'
+    });
+    const privateExample = await repositories.datasetExampleRepo.create({
+      id: 'private-example',
+      datasetId: privateDataset.id,
+      sourceRunId: 'missing-source-run',
+      sourceThreadId: 'missing-source-thread',
+      triggerMessageId: null,
+      inputJson: { schemaVersion: 1, kind: 'manual' },
+      baselineOutputJson: null,
+      expectedOutputJson: null,
+      metadataJson: { schemaVersion: 1, evaluation: { defaultEligible: false } },
+      contextSnapshotJson: null,
+      toolInvocationsSnapshotJson: null,
+      createdByActorId: 'actor-1'
+    });
+    const appExample = await repositories.datasetExampleRepo.create({
+      id: 'app-example',
+      datasetId: appDataset.id,
+      sourceRunId: 'missing-source-run',
+      sourceThreadId: 'missing-source-thread',
+      triggerMessageId: null,
+      inputJson: { schemaVersion: 1, kind: 'manual' },
+      baselineOutputJson: null,
+      expectedOutputJson: null,
+      metadataJson: { schemaVersion: 1, evaluation: { defaultEligible: false } },
+      contextSnapshotJson: null,
+      toolInvocationsSnapshotJson: null,
+      createdByActorId: 'actor-1'
+    });
+
+    await expect(app.datasets.getExample({
+      appId: 'playground-runtime-pi',
+      datasetId: privateDataset.id,
+      actorId: 'actor-2',
+      exampleId: privateExample.id
+    })).rejects.toBeInstanceOf(DatasetNotFoundError);
+    await expect(app.datasets.getExample({
+      appId: 'playground-runtime-pi',
+      datasetId: appDataset.id,
+      actorId: 'actor-2',
+      exampleId: appExample.id
+    })).resolves.toMatchObject({ id: appExample.id });
+  });
+
+  it('updates dataset example review metadata while preserving capture metadata', async () => {
+    const runtime = createHappyRuntime();
+    const prepare = vi.spyOn(runtime, 'prepare');
+    const runTextTurn = vi.spyOn(runtime, 'runTextTurn');
+    const generateText = vi.spyOn(runtime, 'generateText');
+    const { app, repositories } = createDependencies(runtime);
+    const thread = await app.threads.create({ appId: 'playground-runtime-pi', title: 'Review patch' });
+    const dataset = await app.datasets.create({
+      appId: 'playground-runtime-pi',
+      name: 'Review captures',
+      createdByActorId: 'actor-1'
+    });
+    const started = await app.turns.startText({ threadId: thread.id, text: 'Review me' });
+    await persistAssistantAnswer(repositories, { threadId: thread.id, runId: started.run.id, text: 'Review answer' });
+    const capture = await app.datasets.captureExampleFromRun({
+      appId: 'playground-runtime-pi',
+      datasetId: dataset.id,
+      sourceRunId: started.run.id,
+      actorId: 'actor-1'
+    });
+    await app.datasets.updateExampleExpectedOutput({
+      appId: 'playground-runtime-pi',
+      datasetId: dataset.id,
+      actorId: 'actor-1',
+      exampleId: capture.example.id,
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected answer' }
+    });
+    prepare.mockClear();
+    runTextTurn.mockClear();
+    generateText.mockClear();
+
+    const reviewed = await app.datasets.updateExampleReview({
+      appId: 'playground-runtime-pi',
+      datasetId: dataset.id,
+      actorId: 'actor-1',
+      exampleId: capture.example.id,
+      review: { status: 'approved', evalEligibility: 'default', reviewerNote: 'Looks good' }
+    });
+
+    expect(reviewed.metadataJson).toMatchObject({
+      capture: {
+        kind: 'normal_example',
+        sourceRunId: started.run.id,
+        sourceThreadId: thread.id
+      },
+      evaluation: { defaultEligible: true },
+      review: {
+        status: 'approved',
+        evalEligibility: 'default',
+        reviewerNote: 'Looks good',
+        reviewedByActorId: 'actor-1',
+        reviewedAt: '2026-04-10T00:00:00.000Z'
+      }
+    });
+    expect(reviewed.expectedOutputJson).toEqual({ schemaVersion: 1, kind: 'assistant_text', text: 'Expected answer', notes: null });
+
+    await expect(
+      app.datasets.updateExampleReview({
+        appId: 'playground-runtime-pi',
+        datasetId: dataset.id,
+        actorId: 'actor-1',
+        exampleId: capture.example.id,
+        review: { status: 'excluded', evalEligibility: 'include' }
+      })
+    ).rejects.toBeInstanceOf(InvalidDatasetInputError);
+    await expect(
+      app.datasets.updateExampleReview({
+        appId: 'playground-runtime-pi',
+        datasetId: dataset.id,
+        actorId: 'actor-1',
+        exampleId: capture.example.id,
+        review: { reviewerNote: 'spoof' },
+        reviewedByActorId: 'spoofed-actor'
+      } as Parameters<typeof app.datasets.updateExampleReview>[0])
+    ).rejects.toBeInstanceOf(InvalidDatasetInputError);
+    await expect(
+      app.datasets.updateExampleReview({
+        appId: 'playground-runtime-pi',
+        datasetId: dataset.id,
+        actorId: 'actor-1',
+        exampleId: capture.example.id,
+        review: { reviewerNote: 'spoof' },
+        reviewedAt: '2026-05-17T00:00:00.000Z'
+      } as Parameters<typeof app.datasets.updateExampleReview>[0])
+    ).rejects.toBeInstanceOf(InvalidDatasetInputError);
+    expect(prepare).not.toHaveBeenCalled();
+    expect(runTextTurn).not.toHaveBeenCalled();
+    expect(generateText).not.toHaveBeenCalled();
   });
 
   it('rejects missing runs and dataset/run app boundary mismatches during capture', async () => {

@@ -60,44 +60,44 @@
 - [x] Update `docs/roadmap.md` to mark this track as the selected next infra track.
 
 ### 1.2 Expected Output Model
-- [ ] Define `DatasetExpectedOutputV1.schemaVersion = 1`.
-- [ ] Define `DatasetExpectedOutputV1.kind = 'assistant_text'`.
-- [ ] Define `DatasetExpectedOutputV1.text` as required trimmed non-empty expected assistant answer text.
-- [ ] Define optional `DatasetExpectedOutputV1.notes` as reviewer context only, not evaluator input.
-- [ ] Define maximum lengths for `DatasetExpectedOutputV1.text` and `DatasetExpectedOutputV1.notes`.
-- [ ] Keep `expectedOutputJson: null` valid for unreviewed or debug-only examples.
-- [ ] Use `expectedOutputJson: null` as the only clear operation result.
-- [ ] Reject invalid expected-output payload shapes at app/server boundaries.
-- [ ] Tolerate legacy arbitrary stored `expectedOutputJson` when normalizing read models so existing examples do not crash list/detail responses.
-- [ ] Do not store actor id, timestamps, or edit history inside `expectedOutputJson` in v1.
-- [ ] Do not add multi-message expected output in v1.
-- [ ] Do not add structured JSON assertion DSL in v1.
-- [ ] Do not add tool-call expected output assertions in v1.
-- [ ] Do not add LLM judge rubric schema in v1.
+- [x] Define `DatasetExpectedOutputV1.schemaVersion = 1`.
+- [x] Define `DatasetExpectedOutputV1.kind = 'assistant_text'`.
+- [x] Define `DatasetExpectedOutputV1.text` as required trimmed non-empty expected assistant answer text.
+- [x] Define optional `DatasetExpectedOutputV1.notes` as reviewer context only, not evaluator input.
+- [x] Define maximum lengths for `DatasetExpectedOutputV1.text` and `DatasetExpectedOutputV1.notes`.
+- [x] Keep `expectedOutputJson: null` valid for unreviewed or debug-only examples.
+- [x] Use `expectedOutputJson: null` as the only clear operation result.
+- [x] Reject invalid expected-output payload shapes at app/server boundaries.
+- [x] Tolerate legacy arbitrary stored `expectedOutputJson` when normalizing read models so existing examples do not crash list/detail responses.
+- [x] Do not store actor id, timestamps, or edit history inside `expectedOutputJson` in v1.
+- [x] Do not add multi-message expected output in v1.
+- [x] Do not add structured JSON assertion DSL in v1.
+- [x] Do not add tool-call expected output assertions in v1.
+- [x] Do not add LLM judge rubric schema in v1.
 
 ### 1.3 Review Metadata Model
-- [ ] Define `DatasetExampleReviewMetadataV1.status = 'unreviewed' | 'needs_expected_output' | 'approved' | 'excluded'`.
-- [ ] Define `DatasetExampleReviewMetadataV1.evalEligibility = 'default' | 'include' | 'exclude'`.
-- [ ] Define optional `exclusionReason = 'failure_case' | 'debug_case' | 'missing_expected_output' | 'not_representative' | 'sensitive_or_unsafe' | 'other' | null`.
-- [ ] Define optional `reviewerNote`.
-- [ ] Define optional `reviewedByActorId`.
-- [ ] Define optional `reviewedAt`.
-- [ ] Default missing review metadata to `status: 'unreviewed'` and `evalEligibility: 'default'` in read-model helpers.
-- [ ] Define review write payloads as strict whitelists; reject unknown keys and protected metadata namespaces.
-- [ ] Define that `reviewedByActorId` and `reviewedAt` are assigned by app use cases, not accepted from request bodies.
-- [ ] Define invalid review combinations and reject them in app-layer validation.
-- [ ] Do not require a DB migration for review metadata in v1 unless implementation proves JSON metadata cannot safely support the workflow.
-- [ ] Defer top-level `reviewStatus`, `reviewedAt`, or `evalEligibilityOverride` columns until there is real query/index pressure.
+- [x] Define `DatasetExampleReviewMetadataV1.status = 'unreviewed' | 'needs_expected_output' | 'approved' | 'excluded'`.
+- [x] Define `DatasetExampleReviewMetadataV1.evalEligibility = 'default' | 'include' | 'exclude'`.
+- [x] Define optional `exclusionReason = 'failure_case' | 'debug_case' | 'missing_expected_output' | 'not_representative' | 'sensitive_or_unsafe' | 'other' | null`.
+- [x] Define optional `reviewerNote`.
+- [x] Define optional `reviewedByActorId`.
+- [x] Define optional `reviewedAt`.
+- [x] Default missing review metadata to `status: 'unreviewed'` and `evalEligibility: 'default'` in read-model helpers.
+- [x] Define review write payloads as strict whitelists; reject unknown keys and protected metadata namespaces.
+- [x] Define that `reviewedByActorId` and `reviewedAt` are assigned by app use cases, not accepted from request bodies.
+- [x] Define invalid review combinations and reject them in app-layer validation.
+- [x] Do not require a DB migration for review metadata in v1 unless implementation proves JSON metadata cannot safely support the workflow.
+- [x] Defer top-level `reviewStatus`, `reviewedAt`, or `evalEligibilityOverride` columns until there is real query/index pressure.
 
 ### 1.4 Effective Eligibility
-- [ ] Define effective eligibility as computed future-eval readiness from `expectedOutputJson`, `metadataJson.review`, and `metadataJson.evaluation.defaultEligible`.
-- [ ] Treat `review.status = 'approved'` as required for default eval eligibility.
-- [ ] Treat a non-null valid `expectedOutputJson` as required for default eval eligibility.
-- [ ] Treat `review.evalEligibility = 'exclude'` as always ineligible.
-- [ ] Treat `review.evalEligibility = 'include'` as reviewer override, but still require valid expected output unless source-of-truth explicitly changes.
-- [ ] Treat `review.evalEligibility = 'default'` as eligible only when capture-time `evaluation.defaultEligible === true`.
-- [ ] Reject or normalize contradictory states such as `excluded + include`, `approved + missing expected output`, and `include + missing expected output`; v1 should reject them at app write boundaries.
-- [ ] Return eligibility reason codes for UI display and tests: `eligible_default`, `eligible_included_by_review`, `ineligible_unreviewed`, `ineligible_needs_expected_output`, `ineligible_missing_expected_output`, `ineligible_invalid_expected_output`, `ineligible_excluded_by_review`, `ineligible_capture_default`, and `ineligible_contradictory_review_state`.
+- [x] Define effective eligibility as computed future-eval readiness from `expectedOutputJson`, `metadataJson.review`, and `metadataJson.evaluation.defaultEligible`.
+- [x] Treat `review.status = 'approved'` as required for default eval eligibility.
+- [x] Treat a non-null valid `expectedOutputJson` as required for default eval eligibility.
+- [x] Treat `review.evalEligibility = 'exclude'` as always ineligible.
+- [x] Treat `review.evalEligibility = 'include'` as reviewer override, but still require valid expected output unless source-of-truth explicitly changes.
+- [x] Treat `review.evalEligibility = 'default'` as eligible only when capture-time `evaluation.defaultEligible === true`.
+- [x] Reject or normalize contradictory states such as `excluded + include`, `approved + missing expected output`, and `include + missing expected output`; v1 should reject them at app write boundaries.
+- [x] Return eligibility reason codes for UI display and tests: `eligible_default`, `eligible_included_by_review`, `ineligible_unreviewed`, `ineligible_needs_expected_output`, `ineligible_missing_expected_output`, `ineligible_invalid_expected_output`, `ineligible_excluded_by_review`, `ineligible_capture_default`, and `ineligible_contradictory_review_state`.
 
 ### 1.5 Types / Interfaces
 - [x] Add app-layer `DatasetExpectedOutputV1` type.
@@ -120,31 +120,31 @@
 ## 2. Backend / Platform
 
 ### 2.1 Shared Core
-- [ ] Avoid adding review-specific top-level fields to `packages/core` in v1 unless source-of-truth changes.
-- [ ] Avoid adding new repository methods only for querying review status in v1 unless implementation proves they are necessary.
-- [ ] Keep `DatasetExampleRepository.updateExpectedOutput` usable as the persistence primitive but not as the public app semantics boundary.
+- [x] Avoid adding review-specific top-level fields to `packages/core` in v1 unless source-of-truth changes.
+- [x] Avoid adding new repository methods only for querying review status in v1 unless implementation proves they are necessary.
+- [x] Keep `DatasetExampleRepository.updateExpectedOutput` usable as the persistence primitive but not as the public app semantics boundary.
 
 ### 2.2 App Use Cases
-- [ ] Add `UpdateDatasetExampleReviewInput`.
-- [ ] Add `UpdateDatasetExampleReviewResult` if needed by the app boundary.
-- [ ] Add `GetDatasetExampleInput`.
-- [ ] Add `GetDatasetExampleResult` if needed by route/UI detail reads.
-- [ ] Add `app.datasets.getExample`.
-- [ ] Add `app.datasets.updateExampleReview`.
-- [ ] Tighten `app.datasets.updateExampleExpectedOutput` to validate `DatasetExpectedOutputV1 | null`.
-- [ ] Ensure `updateExampleExpectedOutput` can no longer accept arbitrary metadata overwrite from callers.
-- [ ] Ensure `updateExampleReview` updates only the review namespace.
-- [ ] Ensure `updateExampleReview` records `reviewedByActorId` from the actor boundary when status changes away from `unreviewed`.
-- [ ] Ensure `updateExampleReview` records `reviewedAt` from app time when review state changes.
-- [ ] Ensure `updateExampleReview` rejects request-supplied `reviewedByActorId`, `reviewedAt`, protected namespaces, and unknown review keys.
-- [ ] Ensure `updateExampleReview` rejects invalid review combinations, including `excluded + include`, `approved + missing expected output`, and `include + missing expected output`.
-- [ ] Ensure app use cases enforce dataset app boundary and dataset visibility.
-- [ ] Ensure private datasets remain accessible only to the creating actor.
-- [ ] Ensure app-visible datasets remain accessible within the app boundary.
-- [ ] Ensure source run/thread access is not required to read captured snapshots after the user has dataset access.
-- [ ] Ensure source run/thread access is checked only when building a lineage navigation target if route code needs it.
-- [ ] Add effective eligibility helper to the app layer.
-- [ ] Do not call runtime ports from review or expected-output use cases.
+- [x] Add `UpdateDatasetExampleReviewInput`.
+- [x] Add `UpdateDatasetExampleReviewResult` if needed by the app boundary.
+- [x] Add `GetDatasetExampleInput`.
+- [x] Add `GetDatasetExampleResult` if needed by route/UI detail reads.
+- [x] Add `app.datasets.getExample`.
+- [x] Add `app.datasets.updateExampleReview`.
+- [x] Tighten `app.datasets.updateExampleExpectedOutput` to validate `DatasetExpectedOutputV1 | null`.
+- [x] Ensure `updateExampleExpectedOutput` can no longer accept arbitrary metadata overwrite from callers.
+- [x] Ensure `updateExampleReview` updates only the review namespace.
+- [x] Ensure `updateExampleReview` records `reviewedByActorId` from the actor boundary when status changes away from `unreviewed`.
+- [x] Ensure `updateExampleReview` records `reviewedAt` from app time when review state changes.
+- [x] Ensure `updateExampleReview` rejects request-supplied `reviewedByActorId`, `reviewedAt`, protected namespaces, and unknown review keys.
+- [x] Ensure `updateExampleReview` rejects invalid review combinations, including `excluded + include`, `approved + missing expected output`, and `include + missing expected output`.
+- [x] Ensure app use cases enforce dataset app boundary and dataset visibility.
+- [x] Ensure private datasets remain accessible only to the creating actor.
+- [x] Ensure app-visible datasets remain accessible within the app boundary.
+- [x] Ensure source run/thread access is not required to read captured snapshots after the user has dataset access.
+- [x] Ensure source run/thread access is checked only when building a lineage navigation target if route code needs it.
+- [x] Add effective eligibility helper to the app layer.
+- [x] Do not call runtime ports from review or expected-output use cases.
 
 ### 2.3 Contracts / Server / Client
 - [ ] Add `DatasetExpectedOutputV1Dto` if contract helpers need a named DTO.
@@ -239,22 +239,22 @@
 - [x] Add tests rejecting invalid review combinations: `excluded + include`, `approved + missing expected output`, and `include + missing expected output`.
 
 ### 4.2 App Tests
-- [ ] Add app tests for `getExample` dataset/app boundary checks.
-- [ ] Add app tests proving private dataset examples are not readable by another actor.
-- [ ] Add app tests proving app-visible dataset examples are readable by same-app actors.
-- [ ] Add app tests for updating expected output with a valid envelope.
-- [ ] Add app tests for clearing expected output.
-- [ ] Add app tests proving arbitrary expected-output JSON is rejected.
-- [ ] Add app tests for updating review metadata.
-- [ ] Add app tests proving review updates preserve `metadataJson.capture`.
-- [ ] Add app tests proving review updates preserve `metadataJson.feedback`.
-- [ ] Add app tests proving review updates preserve `metadataJson.host`.
-- [ ] Add app tests proving review updates preserve `metadataJson.schemaVersion`.
-- [ ] Add app tests proving review updates preserve `metadataJson.evaluation.defaultEligible`.
-- [ ] Add app tests proving review updates preserve unknown metadata namespaces.
-- [ ] Add app tests proving expected-output updates do not overwrite review metadata.
-- [ ] Add app tests proving source run access is not required to review captured snapshots.
-- [ ] Add app tests proving runtime ports are not called.
+- [x] Add app tests for `getExample` dataset/app boundary checks.
+- [x] Add app tests proving private dataset examples are not readable by another actor.
+- [x] Add app tests proving app-visible dataset examples are readable by same-app actors.
+- [x] Add app tests for updating expected output with a valid envelope.
+- [x] Add app tests for clearing expected output.
+- [x] Add app tests proving arbitrary expected-output JSON is rejected.
+- [x] Add app tests for updating review metadata.
+- [x] Add app tests proving review updates preserve `metadataJson.capture`.
+- [x] Add app tests proving review updates preserve `metadataJson.feedback`.
+- [x] Add app tests proving review updates preserve `metadataJson.host`.
+- [x] Add app tests proving review updates preserve `metadataJson.schemaVersion`.
+- [x] Add app tests proving review updates preserve `metadataJson.evaluation.defaultEligible`.
+- [x] Add app tests proving review updates preserve unknown metadata namespaces.
+- [x] Add app tests proving expected-output updates do not overwrite review metadata.
+- [x] Add app tests proving source run access is not required to review captured snapshots.
+- [x] Add app tests proving runtime ports are not called.
 
 ### 4.3 Contracts / Server / Client Tests
 - [ ] Add durable-chat-server parser tests for expected-output request payloads.
@@ -293,7 +293,7 @@
 - [ ] Add UI tests proving `/chat` is not part of this workflow.
 
 ### 4.6 Targeted Verification
-- [ ] Run `pnpm --filter @agent-infra/app test` after app use-case slice.
+- [x] Run `pnpm --filter @agent-infra/app test` after app use-case slice.
 - [ ] Run `pnpm --filter @agent-infra/contracts typecheck` after contract slice if available.
 - [ ] Run `pnpm --filter @agent-infra/durable-chat-server test` after server helper slice.
 - [ ] Run `pnpm --filter @agent-infra/durable-chat-client test` after client helper slice.
@@ -329,17 +329,17 @@
 - [x] Commit Loop 1.
 
 ### Loop 2: App Dataset Review Use Cases
-- [ ] Add `app.datasets.getExample`.
-- [ ] Tighten `app.datasets.updateExampleExpectedOutput`.
-- [ ] Add `app.datasets.updateExampleReview`.
-- [ ] Ensure app use cases enforce dataset app, visibility, and actor boundaries.
-- [ ] Ensure app use cases do not require source-run access for snapshot review.
-- [ ] Ensure app use cases do not call runtime ports.
-- [ ] Add focused app tests for expected output, review metadata, metadata preservation, and access boundaries.
-- [ ] Run `pnpm --filter @agent-infra/app test`.
-- [ ] Run package typecheck for affected shared packages if needed.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 2.
+- [x] Add `app.datasets.getExample`.
+- [x] Tighten `app.datasets.updateExampleExpectedOutput`.
+- [x] Add `app.datasets.updateExampleReview`.
+- [x] Ensure app use cases enforce dataset app, visibility, and actor boundaries.
+- [x] Ensure app use cases do not require source-run access for snapshot review.
+- [x] Ensure app use cases do not call runtime ports.
+- [x] Add focused app tests for expected output, review metadata, metadata preservation, and access boundaries.
+- [x] Run `pnpm --filter @agent-infra/app test`.
+- [x] Run package typecheck for affected shared packages if needed.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit Loop 2.
 
 ### Loop 3: Contracts, Server Helpers, and Client Helpers
 - [ ] Add or tighten dataset expected-output DTOs.
