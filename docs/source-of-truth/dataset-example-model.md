@@ -427,7 +427,15 @@ are explicitly designed.
 
 The playground may expose `/observability/datasets` as an independent validation
 surface for dataset review. It must not depend on `/chat`, `threadId`, `runId`,
-or the selected-run state from `/observability`.
+or the selected-run state from `/observability`. The page may use query params
+such as `datasetId` and `exampleId` as navigable review selection state, but the
+review semantics still belong to the package/app/contract surface rather than
+the page implementation.
+
+The review surface should show datasets, examples, and a selected example detail
+from captured snapshots. It should display source run/thread lineage when
+available, but a missing source link must not block input, baseline output,
+context, tool, expected-output, or review inspection.
 
 Filtering/search, analytics, bulk operations, assignments, multi-reviewer
 workflow, eval reports, and dataset dashboards remain deferred.

@@ -24,7 +24,7 @@ export function hasOmittedToolSnapshot(example: DatasetExampleDto | null | undef
     return false;
   }
 
-  return snapshot.omitted === true || snapshot.status === 'omitted';
+  return snapshot.omitted === true || snapshot.status === 'omitted' || snapshot.state === 'omitted_by_policy';
 }
 
 export function buildSourceRunHref(example: DatasetExampleDto | null | undefined) {

@@ -86,7 +86,10 @@ function DatasetRow({
       </div>
       <div className="mt-1 flex min-w-0 items-center justify-between gap-2 text-xs text-[var(--chat-muted)]">
         <span className="truncate">{dataset.createdByActorId ?? 'unknown actor'}</span>
-        <span className="shrink-0">{formatDateTime(dataset.updatedAt)}</span>
+        <span className="shrink-0">created {formatDateTime(dataset.createdAt)}</span>
+      </div>
+      <div className="mt-1 text-xs text-[var(--chat-muted)]">
+        updated {formatDateTime(dataset.updatedAt)}
       </div>
     </button>
   );
@@ -116,6 +119,8 @@ function ExampleRow({
         </span>
       </div>
       <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-[var(--chat-muted)]">
+        <span className="truncate">run {formatShortId(example.sourceRunId, 10)}</span>
+        <span className="truncate">thread {formatShortId(example.sourceThreadId, 10)}</span>
         <span className="truncate">capture {readCaptureKind(example)}</span>
         <span className="truncate">expected {formatExpectedOutputState(example)}</span>
         <span className="truncate">{formatEligibilityLabel(example)}</span>

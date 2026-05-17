@@ -48,6 +48,7 @@ describe('dataset review presentation helpers', () => {
   it('detects policy-omitted tool snapshots', () => {
     expect(hasOmittedToolSnapshot(example({ toolInvocationsSnapshotJson: { omitted: true } }))).toBe(true);
     expect(hasOmittedToolSnapshot(example({ toolInvocationsSnapshotJson: { status: 'omitted' } }))).toBe(true);
+    expect(hasOmittedToolSnapshot(example({ toolInvocationsSnapshotJson: { state: 'omitted_by_policy' } }))).toBe(true);
     expect(hasOmittedToolSnapshot(example({ toolInvocationsSnapshotJson: { toolInvocations: [] } }))).toBe(false);
   });
 });

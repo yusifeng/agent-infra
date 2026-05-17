@@ -146,6 +146,8 @@ describe('DatasetReviewConsole', () => {
     expect(document.body.textContent).toContain('Dataset Review');
     expect(document.body.textContent).toContain('Regression');
     expect(document.body.textContent).toContain('normal_example');
+    expect(document.body.textContent).toContain('run run-1');
+    expect(document.body.textContent).toContain('thread thread-1');
     expect(document.body.textContent).toContain('Tool Snapshot');
     expect(api.fetchDatasetExamplesResponse).toHaveBeenCalledWith('dataset-1', expect.any(AbortSignal));
     expect(api.fetchDatasetExampleResponse).toHaveBeenCalledWith('dataset-1', 'example-1', expect.any(AbortSignal));
@@ -208,6 +210,20 @@ describe('DatasetReviewConsole', () => {
       expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected answer', notes: null }
     });
 
+    const updatedTextareas = [...document.body.querySelectorAll('textarea')];
+    await act(async () => {
+      valueSetter?.call(updatedTextareas[0], '   ');
+      updatedTextareas[0]?.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => {
+      saveButton?.click();
+    });
+    await flush();
+
+    expect(api.updateDatasetExampleExpectedOutputResponse).toHaveBeenLastCalledWith('dataset-1', 'example-1', {
+      expectedOutputJson: null
+    });
+
     const statusSelect = document.body.querySelector('select');
     await act(async () => {
       statusSelect!.value = 'approved';
@@ -225,5 +241,31 @@ describe('DatasetReviewConsole', () => {
       exclusionReason: null,
       reviewerNote: null
     });
+  });
+
+  it('renders source unavailable without blocking snapshot review', async () => {
+    const sourceUnavailable = example({ sourceRunId: null, sourceThreadId: null });
+    api.fetchDatasetExamplesResponse.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      error: null,
+      data: { examples: [sourceUnavailable] }
+    });
+    api.fetchDatasetExampleResponse.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      error: null,
+      data: { example: sourceUnavailable }
+    });
+
+    await act(async () => {
+      root.render(<DatasetReviewConsole currentUser={{ id: 'user-1', email: 'user@example.com' }} />);
+    });
+    await flush();
+    await flush();
+
+    expect(document.body.textContent).toContain('Source unavailable');
+    expect(document.body.textContent).toContain('Input');
+    expect(document.body.textContent).toContain('Baseline Output');
   });
 });
