@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  normalizeCaptureDatasetExampleResponse,
+  normalizeDatasetExamplesResponse,
+  normalizeDatasetsResponse,
   normalizeRunTraceResponse,
   normalizeRunTimelineResponse,
   normalizeRuntimeMetaResponse,
@@ -209,6 +212,45 @@ describe('durable-chat-client schema', () => {
     expect(meta.runtimeConfigured).toBe(true);
     expect(meta.modelOptions).toHaveLength(1);
     expect(meta.defaultModelKey).toBeUndefined();
+  });
+
+  it('normalizes dataset and dataset example responses', () => {
+    const dataset = {
+      id: 'dataset-1',
+      appId: 'app-1',
+      name: 'Regression',
+      description: null,
+      visibility: 'private',
+      metadata: { team: 'infra' },
+      createdByActorId: 'actor-1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:05:00.000Z'
+    };
+    const example = {
+      id: 'example-1',
+      datasetId: 'dataset-1',
+      sourceRunId: 'run-1',
+      sourceThreadId: 'thread-1',
+      triggerMessageId: 'message-1',
+      inputJson: { schemaVersion: 1, kind: 'chat_turn' },
+      baselineOutputJson: null,
+      expectedOutputJson: { rubric: 'ok' },
+      metadataJson: { capture: { kind: 'normal_example' } },
+      contextSnapshotJson: { status: 'completed' },
+      toolInvocationsSnapshotJson: { toolInvocations: [] },
+      createdByActorId: 'actor-1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:05:00.000Z'
+    };
+
+    const datasets = normalizeDatasetsResponse({ datasets: [dataset, { id: 'broken' }] });
+    const examples = normalizeDatasetExamplesResponse({ examples: [example, { id: 'broken' }] });
+    const capture = normalizeCaptureDatasetExampleResponse({ dataset, example });
+
+    expect(datasets.datasets).toEqual([dataset]);
+    expect(examples.examples).toEqual([example]);
+    expect(capture.dataset).toEqual(dataset);
+    expect(capture.example).toEqual(example);
   });
 
   it('normalizes run timeline projection while preserving raw events', () => {

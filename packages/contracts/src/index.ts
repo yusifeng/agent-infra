@@ -2,6 +2,7 @@ import type {
   ChatShareScopeType,
   ChatShareSnapshotPayloadFormat,
   ChatShareStatus,
+  DatasetVisibility,
   AnswerCandidateKind,
   AnswerSelectionSource,
   MessagePartType,
@@ -107,6 +108,35 @@ export interface RunFeedbackDto {
   runId: string;
   feedbackActorId: string;
   value: RunFeedbackValue;
+  createdAt: IsoDateString;
+  updatedAt: IsoDateString;
+}
+
+export interface DatasetDto {
+  id: string;
+  appId: string;
+  name: string;
+  description?: string | null;
+  visibility: DatasetVisibility;
+  metadata?: Record<string, unknown> | null;
+  createdByActorId?: string | null;
+  createdAt: IsoDateString;
+  updatedAt: IsoDateString;
+}
+
+export interface DatasetExampleDto {
+  id: string;
+  datasetId: string;
+  sourceRunId?: string | null;
+  sourceThreadId?: string | null;
+  triggerMessageId?: string | null;
+  inputJson: Record<string, unknown>;
+  baselineOutputJson?: Record<string, unknown> | null;
+  expectedOutputJson?: Record<string, unknown> | null;
+  metadataJson?: Record<string, unknown> | null;
+  contextSnapshotJson?: Record<string, unknown> | null;
+  toolInvocationsSnapshotJson?: Record<string, unknown> | null;
+  createdByActorId?: string | null;
   createdAt: IsoDateString;
   updatedAt: IsoDateString;
 }
@@ -324,8 +354,54 @@ export interface SetRunFeedbackRequestDto {
   value: RunFeedbackValue;
 }
 
+export interface CreateDatasetRequestDto {
+  name: string;
+  description?: string | null;
+  visibility?: DatasetVisibility;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface CaptureDatasetExampleFromRunRequestDto {
+  sourceRunId: string;
+  expectedOutputJson?: Record<string, unknown> | null;
+  metadataJson?: Record<string, unknown> | null;
+  omitToolInvocations?: boolean;
+  toolInvocationOmissionReason?: string | null;
+}
+
+export interface UpdateDatasetExampleExpectedOutputRequestDto {
+  expectedOutputJson?: Record<string, unknown> | null;
+  metadataJson?: Record<string, unknown> | null;
+}
+
 export interface AnswerSelectionResponseDto {
   answerSelection?: AnswerSelectionDto;
+  error?: string;
+}
+
+export interface DatasetsResponseDto {
+  datasets: DatasetDto[];
+  error?: string;
+}
+
+export interface DatasetResponseDto {
+  dataset?: DatasetDto;
+  error?: string;
+}
+
+export interface DatasetExamplesResponseDto {
+  examples: DatasetExampleDto[];
+  error?: string;
+}
+
+export interface DatasetExampleResponseDto {
+  example?: DatasetExampleDto;
+  error?: string;
+}
+
+export interface CaptureDatasetExampleResponseDto {
+  dataset?: DatasetDto;
+  example?: DatasetExampleDto;
   error?: string;
 }
 

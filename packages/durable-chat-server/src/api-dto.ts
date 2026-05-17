@@ -3,6 +3,8 @@ import type {
   AnswerSelection,
   ChatShare,
   ChatShareSnapshot,
+  Dataset,
+  DatasetExample,
   Message,
   MessagePart,
   Run,
@@ -16,6 +18,8 @@ import type {
   AnswerSelectionDto,
   ChatShareDto,
   ChatShareSnapshotDto,
+  DatasetDto,
+  DatasetExampleDto,
   MessageDto,
   MessagePartDto,
   PublicChatShareDto,
@@ -231,6 +235,39 @@ export function toRunFeedbackDto(feedback: RunFeedback): RunFeedbackDto {
     value: feedback.value,
     createdAt: feedback.createdAt.toISOString(),
     updatedAt: feedback.updatedAt.toISOString()
+  };
+}
+
+export function toDatasetDto(dataset: Dataset): DatasetDto {
+  return {
+    id: dataset.id,
+    appId: dataset.appId,
+    name: dataset.name,
+    description: dataset.description ?? null,
+    visibility: dataset.visibility,
+    metadata: dataset.metadata ?? null,
+    createdByActorId: dataset.createdByActorId ?? null,
+    createdAt: dataset.createdAt.toISOString(),
+    updatedAt: dataset.updatedAt.toISOString()
+  };
+}
+
+export function toDatasetExampleDto(example: DatasetExample): DatasetExampleDto {
+  return {
+    id: example.id,
+    datasetId: example.datasetId,
+    sourceRunId: example.sourceRunId ?? null,
+    sourceThreadId: example.sourceThreadId ?? null,
+    triggerMessageId: example.triggerMessageId ?? null,
+    inputJson: example.inputJson,
+    baselineOutputJson: example.baselineOutputJson ?? null,
+    expectedOutputJson: example.expectedOutputJson ?? null,
+    metadataJson: example.metadataJson ?? null,
+    contextSnapshotJson: example.contextSnapshotJson ?? null,
+    toolInvocationsSnapshotJson: example.toolInvocationsSnapshotJson ?? null,
+    createdByActorId: example.createdByActorId ?? null,
+    createdAt: example.createdAt.toISOString(),
+    updatedAt: example.updatedAt.toISOString()
   };
 }
 

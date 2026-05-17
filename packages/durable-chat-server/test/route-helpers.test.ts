@@ -4,6 +4,10 @@ import { InvalidTurnTextError } from '@agent-infra/app';
 
 import { toRunDto } from '../src/api-dto';
 import {
+  buildCaptureDatasetExampleResponse,
+  buildDatasetExamplesResponse,
+  buildDatasetResponse,
+  buildDatasetsResponse,
   buildRunTextTurnResponse,
   buildRunTraceErrorResponse,
   buildRunTraceResponse,
@@ -16,7 +20,10 @@ import {
   decodeThreadMessageCursor,
   encodeSseEvent,
   parseCreateThreadTitle,
+  parseCaptureDatasetExampleFromRunInput,
+  parseCreateDatasetInput,
   parseRenameThreadTitle,
+  parseUpdateDatasetExampleExpectedOutputInput,
   parseThreadMessagesQuery,
   parseThreadRunsLimit,
   parseRunTextTurnInput
@@ -117,6 +124,83 @@ describe('durable chat server route helpers', () => {
     expect(parseThreadRunsLimit('0')).toBe(8);
     expect(parseThreadRunsLimit('2')).toBe(2);
     expect(parseThreadRunsLimit('50')).toBe(20);
+  });
+
+  it('parses and serializes dataset route payloads', () => {
+    const createdAt = new Date('2026-01-01T00:00:00.000Z');
+    const updatedAt = new Date('2026-01-01T00:05:00.000Z');
+    const dataset = {
+      id: 'dataset-1',
+      appId: 'app-1',
+      name: 'Regression',
+      description: null,
+      visibility: 'private' as const,
+      metadata: { team: 'infra' },
+      createdByActorId: 'actor-1',
+      createdAt,
+      updatedAt
+    };
+    const example = {
+      id: 'example-1',
+      datasetId: dataset.id,
+      sourceRunId: 'run-1',
+      sourceThreadId: 'thread-1',
+      triggerMessageId: 'message-1',
+      inputJson: { schemaVersion: 1, kind: 'chat_turn' },
+      baselineOutputJson: null,
+      expectedOutputJson: { rubric: 'ok' },
+      metadataJson: { capture: { kind: 'normal_example' } },
+      contextSnapshotJson: { status: 'completed' },
+      toolInvocationsSnapshotJson: { toolInvocations: [] },
+      createdByActorId: 'actor-1',
+      createdAt,
+      updatedAt
+    };
+
+    expect(parseCreateDatasetInput({ name: '  Regression  ', visibility: 'app', metadata: { team: 'infra' } })).toEqual({
+      name: 'Regression',
+      description: undefined,
+      visibility: 'app',
+      metadata: { team: 'infra' }
+    });
+    expect(
+      parseCaptureDatasetExampleFromRunInput({
+        sourceRunId: ' run-1 ',
+        expectedOutputJson: { rubric: 'ok' },
+        omitToolInvocations: true,
+        toolInvocationOmissionReason: ' policy '
+      })
+    ).toEqual({
+      sourceRunId: 'run-1',
+      expectedOutputJson: { rubric: 'ok' },
+      omitToolInvocations: true,
+      toolInvocationOmissionReason: 'policy'
+    });
+    expect(parseCaptureDatasetExampleFromRunInput({ sourceRunId: 'run-1', expectedOutputJson: null })).toEqual({
+      sourceRunId: 'run-1',
+      expectedOutputJson: null,
+      metadataJson: undefined,
+      omitToolInvocations: undefined,
+      toolInvocationOmissionReason: undefined
+    });
+    expect(() => parseCaptureDatasetExampleFromRunInput({ sourceRunId: 'run-1', expectedOutputJson: 'bad' })).toThrow(
+      InvalidRouteBodyError
+    );
+    expect(parseUpdateDatasetExampleExpectedOutputInput({ expectedOutputJson: { rubric: 'ok' } })).toEqual({
+      expectedOutputJson: { rubric: 'ok' }
+    });
+    expect(parseUpdateDatasetExampleExpectedOutputInput({ expectedOutputJson: null, metadataJson: null })).toEqual({
+      expectedOutputJson: null,
+      metadataJson: null
+    });
+    expect(() => parseUpdateDatasetExampleExpectedOutputInput({ expectedOutputJson: 'bad' })).toThrow(InvalidRouteBodyError);
+    expect(buildDatasetsResponse([dataset])).toMatchObject({ datasets: [{ id: dataset.id, createdAt: createdAt.toISOString() }] });
+    expect(buildDatasetResponse(dataset)).toMatchObject({ dataset: { id: dataset.id } });
+    expect(buildDatasetExamplesResponse([example])).toMatchObject({ examples: [{ id: example.id, inputJson: example.inputJson }] });
+    expect(buildCaptureDatasetExampleResponse({ dataset, example })).toMatchObject({
+      dataset: { id: dataset.id },
+      example: { id: example.id, expectedOutputJson: { rubric: 'ok' } }
+    });
   });
 
   it('builds thread and message dto responses', () => {

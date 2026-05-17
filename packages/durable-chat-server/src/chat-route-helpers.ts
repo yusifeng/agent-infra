@@ -1,18 +1,26 @@
 import type {
   CreateThreadSnapshotShareResult,
+  CaptureDatasetExampleFromRunResult,
   PublicChatShareResult,
   RunTextTurnResult,
   RunTimelineResult,
   RunTraceResult,
   StartTextTurnResult
 } from '@agent-infra/app';
-import type { AnswerCandidate, AnswerSelection, Message, MessagePageResult, MessagePart, Run, RunFeedback, Thread } from '@agent-infra/core';
+import type { AnswerCandidate, AnswerSelection, Dataset, DatasetExample, Message, MessagePageResult, MessagePart, Run, RunFeedback, Thread } from '@agent-infra/core';
 import type {
   AnswerSelectionResponseDto,
+  CaptureDatasetExampleFromRunRequestDto,
+  CaptureDatasetExampleResponseDto,
+  CreateDatasetRequestDto,
   CreateThreadShareResponseDto,
   PublicChatShareResponseDto,
   RevokeChatShareResponseDto,
   CreateThreadResponseDto,
+  DatasetExampleResponseDto,
+  DatasetExamplesResponseDto,
+  DatasetResponseDto,
+  DatasetsResponseDto,
   RenameThreadRequestDto,
   RunFeedbackResponseDto,
   RunStreamAssistantEventDto,
@@ -40,6 +48,8 @@ import {
   toAnswerCandidateDto,
   toAnswerSelectionDto,
   toChatShareDto,
+  toDatasetDto,
+  toDatasetExampleDto,
   toMessageDto,
   toPublicChatShareDto,
   toRunFeedbackDto,
@@ -54,6 +64,22 @@ import { getRouteErrorMessage, InvalidRouteBodyError, InvalidRouteCursorError } 
 
 function asObject(value: unknown) {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+}
+
+function readOptionalRecordOrNull(record: Record<string, unknown>, key: string): Record<string, unknown> | null | undefined {
+  if (!Object.hasOwn(record, key)) {
+    return undefined;
+  }
+
+  const value = record[key];
+  if (value === null) {
+    return null;
+  }
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+
+  throw new InvalidRouteBodyError(`${key} must be an object or null`);
 }
 
 export function buildRuntimeMetaResponse(input: RuntimeMetaDtoInput): RuntimePiMetaDto {
@@ -98,6 +124,114 @@ export function buildCreateThreadResponse(thread: Thread): CreateThreadResponseD
 }
 
 export function buildCreateThreadErrorResponse(error: unknown, fallbackMessage: string): CreateThreadResponseDto {
+  return {
+    error: getRouteErrorMessage(error, fallbackMessage)
+  };
+}
+
+export function parseCreateDatasetInput(body: unknown): CreateDatasetRequestDto {
+  const record = asObject(body);
+  const visibility = record.visibility === 'app' || record.visibility === 'private' ? record.visibility : undefined;
+  return {
+    name: typeof record.name === 'string' ? record.name.trim() : '',
+    description: typeof record.description === 'string' ? record.description.trim() || null : record.description === null ? null : undefined,
+    visibility,
+    metadata: readOptionalRecordOrNull(record, 'metadata')
+  };
+}
+
+export function parseCaptureDatasetExampleFromRunInput(body: unknown): CaptureDatasetExampleFromRunRequestDto {
+  const record = asObject(body);
+  return {
+    sourceRunId: typeof record.sourceRunId === 'string' ? record.sourceRunId.trim() : '',
+    expectedOutputJson: readOptionalRecordOrNull(record, 'expectedOutputJson'),
+    metadataJson: readOptionalRecordOrNull(record, 'metadataJson'),
+    omitToolInvocations: typeof record.omitToolInvocations === 'boolean' ? record.omitToolInvocations : undefined,
+    toolInvocationOmissionReason:
+      typeof record.toolInvocationOmissionReason === 'string'
+        ? record.toolInvocationOmissionReason.trim() || null
+        : record.toolInvocationOmissionReason === null
+          ? null
+          : undefined
+  };
+}
+
+export function parseUpdateDatasetExampleExpectedOutputInput(body: unknown): {
+  expectedOutputJson?: Record<string, unknown> | null;
+  metadataJson?: Record<string, unknown> | null;
+} {
+  const record = asObject(body);
+  const input: {
+    expectedOutputJson?: Record<string, unknown> | null;
+    metadataJson?: Record<string, unknown> | null;
+  } = {};
+  if (Object.hasOwn(record, 'expectedOutputJson')) {
+    input.expectedOutputJson = readOptionalRecordOrNull(record, 'expectedOutputJson');
+  }
+  if (Object.hasOwn(record, 'metadataJson')) {
+    input.metadataJson = readOptionalRecordOrNull(record, 'metadataJson');
+  }
+  return input;
+}
+
+export function buildDatasetsResponse(datasets: Dataset[]): DatasetsResponseDto {
+  return {
+    datasets: datasets.map(toDatasetDto)
+  };
+}
+
+export function buildDatasetsErrorResponse(error: unknown, fallbackMessage: string): DatasetsResponseDto {
+  return {
+    datasets: [],
+    error: getRouteErrorMessage(error, fallbackMessage)
+  };
+}
+
+export function buildDatasetResponse(dataset: Dataset): DatasetResponseDto {
+  return {
+    dataset: toDatasetDto(dataset)
+  };
+}
+
+export function buildDatasetErrorResponse(error: unknown, fallbackMessage: string): DatasetResponseDto {
+  return {
+    error: getRouteErrorMessage(error, fallbackMessage)
+  };
+}
+
+export function buildDatasetExamplesResponse(examples: DatasetExample[]): DatasetExamplesResponseDto {
+  return {
+    examples: examples.map(toDatasetExampleDto)
+  };
+}
+
+export function buildDatasetExamplesErrorResponse(error: unknown, fallbackMessage: string): DatasetExamplesResponseDto {
+  return {
+    examples: [],
+    error: getRouteErrorMessage(error, fallbackMessage)
+  };
+}
+
+export function buildDatasetExampleResponse(example: DatasetExample): DatasetExampleResponseDto {
+  return {
+    example: toDatasetExampleDto(example)
+  };
+}
+
+export function buildDatasetExampleErrorResponse(error: unknown, fallbackMessage: string): DatasetExampleResponseDto {
+  return {
+    error: getRouteErrorMessage(error, fallbackMessage)
+  };
+}
+
+export function buildCaptureDatasetExampleResponse(result: CaptureDatasetExampleFromRunResult): CaptureDatasetExampleResponseDto {
+  return {
+    dataset: toDatasetDto(result.dataset),
+    example: toDatasetExampleDto(result.example)
+  };
+}
+
+export function buildCaptureDatasetExampleErrorResponse(error: unknown, fallbackMessage: string): CaptureDatasetExampleResponseDto {
   return {
     error: getRouteErrorMessage(error, fallbackMessage)
   };

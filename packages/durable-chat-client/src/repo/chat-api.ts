@@ -1,5 +1,12 @@
 import type {
+  CaptureDatasetExampleFromRunRequestDto,
+  CaptureDatasetExampleResponseDto,
+  CreateDatasetRequestDto,
   CreateThreadResponseDto,
+  DatasetExampleResponseDto,
+  DatasetExamplesResponseDto,
+  DatasetResponseDto,
+  DatasetsResponseDto,
   RunTraceResponseDto,
   RunTextTurnRequestDto,
   RunTimelineResponseDto,
@@ -10,7 +17,12 @@ import type {
 } from '@agent-infra/contracts';
 
 import {
+  normalizeCaptureDatasetExampleResponse,
   normalizeCreateThreadResponse,
+  normalizeDatasetExampleResponse,
+  normalizeDatasetExamplesResponse,
+  normalizeDatasetResponse,
+  normalizeDatasetsResponse,
   normalizeRunTraceResponse,
   normalizeRunTimelineResponse,
   normalizeRuntimeMetaResponse,
@@ -84,6 +96,50 @@ export async function fetchThreadsResponse() {
 
 export async function fetchRuntimeMetaResponse() {
   return fetchJson<Partial<RuntimePiMetaDto>>('/api/meta', normalizeRuntimeMetaResponse);
+}
+
+export async function fetchDatasetsResponse(signal?: AbortSignal) {
+  return fetchJson<DatasetsResponseDto>('/api/datasets', normalizeDatasetsResponse, { signal });
+}
+
+export async function createDatasetResponse(body: CreateDatasetRequestDto, signal?: AbortSignal) {
+  return fetchJson<DatasetResponseDto>('/api/datasets', normalizeDatasetResponse, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+    signal
+  });
+}
+
+export async function fetchDatasetExamplesResponse(datasetId: string, signal?: AbortSignal) {
+  return fetchJson<DatasetExamplesResponseDto>(`/api/datasets/${datasetId}/examples`, normalizeDatasetExamplesResponse, { signal });
+}
+
+export async function captureDatasetExampleFromRunResponse(
+  datasetId: string,
+  body: CaptureDatasetExampleFromRunRequestDto,
+  signal?: AbortSignal
+) {
+  return fetchJson<CaptureDatasetExampleResponseDto>(`/api/datasets/${datasetId}/examples/capture-run`, normalizeCaptureDatasetExampleResponse, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+    signal
+  });
+}
+
+export async function updateDatasetExampleExpectedOutputResponse(
+  datasetId: string,
+  exampleId: string,
+  body: Record<string, unknown>,
+  signal?: AbortSignal
+) {
+  return fetchJson<DatasetExampleResponseDto>(`/api/datasets/${datasetId}/examples/${exampleId}/expected-output`, normalizeDatasetExampleResponse, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+    signal
+  });
 }
 
 export async function fetchRunTimelineResponse(runId: string, signal?: AbortSignal) {

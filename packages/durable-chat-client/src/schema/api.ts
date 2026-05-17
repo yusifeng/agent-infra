@@ -1,7 +1,14 @@
 import type {
   AnswerCandidateDto,
   AnswerSelectionDto,
+  CaptureDatasetExampleResponseDto,
   CreateThreadResponseDto,
+  DatasetDto,
+  DatasetExampleDto,
+  DatasetExampleResponseDto,
+  DatasetExamplesResponseDto,
+  DatasetResponseDto,
+  DatasetsResponseDto,
   MessageDto,
   MessagePartDto,
   RunFeedbackDto,
@@ -273,6 +280,70 @@ function normalizeRunFeedback(value: unknown): RunFeedbackDto | null {
     runId,
     feedbackActorId,
     value: feedbackValue,
+    createdAt,
+    updatedAt
+  };
+}
+
+function normalizeDataset(value: unknown): DatasetDto | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const id = asString(record.id);
+  const appId = asString(record.appId);
+  const name = asString(record.name);
+  const visibility = asString(record.visibility) as DatasetDto['visibility'] | null;
+  const createdAt = asString(record.createdAt);
+  const updatedAt = asString(record.updatedAt);
+
+  if (!id || !appId || !name || (visibility !== 'private' && visibility !== 'app') || !createdAt || !updatedAt) {
+    return null;
+  }
+
+  return {
+    id,
+    appId,
+    name,
+    description: asNullableString(record.description),
+    visibility,
+    metadata: asJsonRecordOrNull(record.metadata),
+    createdByActorId: asNullableString(record.createdByActorId),
+    createdAt,
+    updatedAt
+  };
+}
+
+function normalizeDatasetExample(value: unknown): DatasetExampleDto | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const id = asString(record.id);
+  const datasetId = asString(record.datasetId);
+  const inputJson = asRecord(record.inputJson);
+  const createdAt = asString(record.createdAt);
+  const updatedAt = asString(record.updatedAt);
+
+  if (!id || !datasetId || !inputJson || !createdAt || !updatedAt) {
+    return null;
+  }
+
+  return {
+    id,
+    datasetId,
+    sourceRunId: asNullableString(record.sourceRunId),
+    sourceThreadId: asNullableString(record.sourceThreadId),
+    triggerMessageId: asNullableString(record.triggerMessageId),
+    inputJson,
+    baselineOutputJson: asJsonRecordOrNull(record.baselineOutputJson),
+    expectedOutputJson: asJsonRecordOrNull(record.expectedOutputJson),
+    metadataJson: asJsonRecordOrNull(record.metadataJson),
+    contextSnapshotJson: asJsonRecordOrNull(record.contextSnapshotJson),
+    toolInvocationsSnapshotJson: asJsonRecordOrNull(record.toolInvocationsSnapshotJson),
+    createdByActorId: asNullableString(record.createdByActorId),
     createdAt,
     updatedAt
   };
@@ -805,6 +876,51 @@ export function normalizeCreateThreadResponse(value: unknown): CreateThreadRespo
   };
 }
 
+export function normalizeDatasetsResponse(value: unknown): DatasetsResponseDto {
+  const record = asRecord(value) ?? {};
+  return {
+    datasets: Array.isArray(record.datasets)
+      ? record.datasets.map(normalizeDataset).filter((dataset): dataset is DatasetDto => dataset !== null)
+      : [],
+    error: readApiError(record) ?? undefined
+  };
+}
+
+export function normalizeDatasetResponse(value: unknown): DatasetResponseDto {
+  const record = asRecord(value) ?? {};
+  return {
+    dataset: normalizeDataset(record.dataset) ?? undefined,
+    error: readApiError(record) ?? undefined
+  };
+}
+
+export function normalizeDatasetExamplesResponse(value: unknown): DatasetExamplesResponseDto {
+  const record = asRecord(value) ?? {};
+  return {
+    examples: Array.isArray(record.examples)
+      ? record.examples.map(normalizeDatasetExample).filter((example): example is DatasetExampleDto => example !== null)
+      : [],
+    error: readApiError(record) ?? undefined
+  };
+}
+
+export function normalizeDatasetExampleResponse(value: unknown): DatasetExampleResponseDto {
+  const record = asRecord(value) ?? {};
+  return {
+    example: normalizeDatasetExample(record.example) ?? undefined,
+    error: readApiError(record) ?? undefined
+  };
+}
+
+export function normalizeCaptureDatasetExampleResponse(value: unknown): CaptureDatasetExampleResponseDto {
+  const record = asRecord(value) ?? {};
+  return {
+    dataset: normalizeDataset(record.dataset) ?? undefined,
+    example: normalizeDatasetExample(record.example) ?? undefined,
+    error: readApiError(record) ?? undefined
+  };
+}
+
 export function normalizeThreadMessagesResponse(value: unknown): ThreadMessagesResponseDto {
   const record = asRecord(value) ?? {};
   const legacyActiveRun = normalizeRun(record.activeRun);
@@ -883,4 +999,4 @@ export function normalizeRuntimeMetaResponse(value: unknown): Partial<RuntimePiM
   };
 }
 
-export { normalizeMessage, normalizeRun, normalizeThread };
+export { normalizeDataset, normalizeDatasetExample, normalizeMessage, normalizeRun, normalizeThread };

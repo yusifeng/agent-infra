@@ -19,7 +19,7 @@
 - [x] Add app-layer dataset use cases, including `captureExampleFromRun`.
 - [x] Capture an existing run into a dataset example with source refs, input snapshot, baseline output snapshot, context snapshot, tool invocation snapshot, and metadata.
 - [x] Allow `expectedOutputJson` to be `null` in v1 so examples can be captured before human annotation.
-- [ ] Expose minimal contracts/server/client helpers for dataset create/list/read/capture flows.
+- [x] Expose minimal contracts/server/client helpers for dataset create/list/read/capture flows.
 - [ ] Add a minimal `/observability` capture path that validates the shared package capability.
 - [ ] Copy shared run feedback and playground feedback details into dataset example metadata only as a capture-time snapshot.
 - [ ] Document that Dataset Capture v1 is not evaluation, replay, or experiment execution.
@@ -88,10 +88,10 @@
 - [x] Include `visibility` in dataset create/list boundaries so private and app-visible datasets have explicit semantics.
 - [x] Include optional `createdByActorId` / `capturedByActorId` without introducing a shared business `user_id` requirement.
 - [x] Keep core dataset/example JSON fields generic, and define capture-generated snapshot envelope types in `packages/app`.
-- [ ] Define DTOs in `packages/contracts` for datasets, examples, create/list/read/capture requests, and responses.
-- [ ] Keep DTO JSON fields generic `Record<string, unknown>` and nullable where appropriate.
-- [ ] Add durable-chat-server DTO projector/helper functions for dataset and example responses.
-- [ ] Add durable-chat-client normalizers/fetch helpers for minimal dataset create/list/example/capture flows.
+- [x] Define DTOs in `packages/contracts` for datasets, examples, create/list/read/capture requests, and responses.
+- [x] Keep DTO JSON fields generic `Record<string, unknown>` and nullable where appropriate.
+- [x] Add durable-chat-server DTO projector/helper functions for dataset and example responses.
+- [x] Add durable-chat-client normalizers/fetch helpers for minimal dataset create/list/example/capture flows.
 
 ## 2. Backend / Platform
 
@@ -142,15 +142,15 @@
 - [x] Do not call runtime ports from dataset capture use cases.
 
 ### 2.4 Contracts / Server / Client
-- [ ] Add `DatasetDto` and `DatasetExampleDto`.
-- [ ] Add dataset list/create/read response DTOs.
-- [ ] Add dataset example list/update-expected-output/capture response DTOs.
-- [ ] Add request DTOs for dataset creation and capture-from-run.
-- [ ] Add durable-chat-server projector functions for dataset/example DTOs.
-- [ ] Add durable-chat-server response builders and error response builders.
-- [ ] Add durable-chat-client schema normalizers for dataset/example DTOs.
-- [ ] Add durable-chat-client API helpers for `GET /api/datasets`, `POST /api/datasets`, `GET /api/datasets/:datasetId/examples`, and capture-from-run.
-- [ ] Keep contracts independent of playground feedback detail types.
+- [x] Add `DatasetDto` and `DatasetExampleDto`.
+- [x] Add dataset list/create/read response DTOs.
+- [x] Add dataset example list/update-expected-output/capture response DTOs.
+- [x] Add request DTOs for dataset creation and capture-from-run.
+- [x] Add durable-chat-server projector functions for dataset/example DTOs.
+- [x] Add durable-chat-server response builders and error response builders.
+- [x] Add durable-chat-client schema normalizers for dataset/example DTOs.
+- [x] Add durable-chat-client API helpers for `GET /api/datasets`, `POST /api/datasets`, `GET /api/datasets/:datasetId/examples`, and capture-from-run.
+- [x] Keep contracts independent of playground feedback detail types.
 
 ## 3. Playground Validation Boundary
 
@@ -217,11 +217,11 @@
 - [x] Add app tests proving capture rejects dataset/run app boundary mismatch.
 
 ### 4.3 Contracts / Server / Client Tests
-- [ ] Add contracts compile coverage for dataset/example DTOs.
-- [ ] Add durable-chat-server DTO projector tests.
-- [ ] Add durable-chat-server route-helper response/error tests.
-- [ ] Add durable-chat-client normalizer tests for full and nullable dataset example payloads.
-- [ ] Add durable-chat-client API helper tests if the existing repo API test style supports them.
+- [x] Add contracts compile coverage for dataset/example DTOs.
+- [x] Add durable-chat-server DTO projector tests.
+- [x] Add durable-chat-server route-helper response/error tests.
+- [x] Add durable-chat-client normalizer tests for full and nullable dataset example payloads.
+- [x] Add durable-chat-client API helper tests if the existing repo API test style supports them.
 
 ### 4.4 Playground Tests
 - [ ] Add route tests for dataset list/create auth.
@@ -240,9 +240,9 @@
 ### 4.5 Targeted Verification
 - [x] Run `pnpm --filter @agent-infra/db test` after DB slice.
 - [x] Run `pnpm --filter @agent-infra/app test` after app slice.
-- [ ] Run `pnpm --filter @agent-infra/contracts typecheck` after contracts slice if available.
-- [ ] Run `pnpm --filter @agent-infra/durable-chat-server test` after server helper slice.
-- [ ] Run `pnpm --filter @agent-infra/durable-chat-client test` after client helper slice.
+- [x] Run `pnpm --filter @agent-infra/contracts typecheck` after contracts slice if available.
+- [x] Run `pnpm --filter @agent-infra/durable-chat-server test` after server helper slice.
+- [x] Run `pnpm --filter @agent-infra/durable-chat-client test` after client helper slice.
 - [ ] Run `pnpm --filter playground-next-web test` after playground route/UI slice.
 - [ ] Run `pnpm --filter playground-next-web typecheck` after playground route/UI slice.
 - [x] Confirm broader package typecheck is not needed when targeted verification leaves no cross-package uncertainty.
@@ -296,15 +296,15 @@
 - [x] Commit Loop 2.
 
 ### Loop 3: Contracts, Server Helpers, and Client Helpers
-- [ ] Add dataset/example DTOs and request/response contracts.
-- [ ] Add durable-chat-server projector and response helper functions.
-- [ ] Add durable-chat-client normalizers.
-- [ ] Add durable-chat-client fetch helpers.
-- [ ] Add focused server/client tests.
-- [ ] Run targeted server/client tests.
-- [ ] Run package typecheck for affected packages if needed.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 3.
+- [x] Add dataset/example DTOs and request/response contracts.
+- [x] Add durable-chat-server projector and response helper functions.
+- [x] Add durable-chat-client normalizers.
+- [x] Add durable-chat-client fetch helpers.
+- [x] Add focused server/client tests.
+- [x] Run targeted server/client tests.
+- [x] Run package typecheck for affected packages if needed.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit Loop 3.
 
 ### Loop 4: Playground Routes and Feedback Metadata Bridge
 - [ ] Add Next dataset list/create routes.
