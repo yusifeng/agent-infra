@@ -148,7 +148,7 @@ Phase 1 span projection is projection-only:
 - no runtime-written span rows
 - no `runs.metadata_json`
 - no shared user/auth/org/tenant/account model
-- no feedback, dataset/eval, prompt hub, or exporter implementation
+- no feedback, eval runner, prompt hub, or exporter implementation
 
 External systems such as LangSmith or OpenTelemetry may be added later as sinks.
 They must not replace internal durable truth.
@@ -351,6 +351,32 @@ The projection-level diagnostics include:
 
 Except for missing base run/thread/app attribution, unknown or incomplete source
 relationships should produce diagnostics rather than fail trace reads.
+
+## Dataset Capture Boundary
+
+Timeline and trace projections may provide source references, diagnostics, and
+context for dataset capture. They are observability read models over durable
+facts, not deterministic replay logs.
+
+Dataset examples must store capture-time snapshots as their durable content:
+
+- `inputJson` for canonical chat context at capture time
+- `baselineOutputJson` for source-run assistant output
+- `contextSnapshotJson` for run/thread attribution, provider/model, usage,
+  timing, error, and trace diagnostics
+- `toolInvocationsSnapshotJson` for durable tool invocation state
+- `metadataJson` for capture classification, feedback snapshot, and host
+  metadata
+
+Source refs such as `runId`, `run_event`, `tool_invocation`, `sourceRunId`,
+`sourceThreadId`, and `triggerMessageId` are lineage and inspection anchors.
+They are not the only source of truth for the captured example.
+
+The dataset model source of truth lives in
+[`dataset-example-model.md`](./dataset-example-model.md). Future eval or replay
+systems may consume both trace projections and dataset examples, but they must
+define a separate execution contract instead of treating trace or timeline data
+as sufficient to reproduce a run.
 
 ## Usage Summary
 

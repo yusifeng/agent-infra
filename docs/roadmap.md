@@ -32,6 +32,36 @@ Deferred until real need is demonstrated:
 - replay/eval fixtures
 - broader runtime adapter contract hardening
 
+## Completed Infra Track: Run-to-Dataset Capture v1
+
+`Run-to-Dataset Capture v1` is complete as the next quality-loop foundation.
+
+The source of truth lives in
+[`source-of-truth/dataset-example-model.md`](./source-of-truth/dataset-example-model.md).
+
+Completed foundation:
+
+- shared `Dataset` and `DatasetExample` domain records and repositories
+- SQLite/Postgres persistence for datasets and examples
+- app-layer dataset use cases, including `captureExampleFromRun`
+- minimal dataset contracts, server helpers, and client helpers
+- authenticated playground dataset routes
+- observability capture action for the selected durable run
+- capture-time snapshots for canonical input context, baseline output, run
+  context, tool invocations, and metadata
+- capture-time metadata bridge for shared run feedback and playground-local
+  feedback details
+
+Deferred until the captured-example model has real usage pressure:
+
+- evaluation runner
+- live replay or frozen replay runtime
+- experiment comparison
+- LLM-as-judge scoring
+- prompt hub or prompt version manager
+- dataset management dashboard, filtering, search, or analytics
+- automatic historical-run import
+
 ## Completed `v0`
 
 The completed baseline includes:
