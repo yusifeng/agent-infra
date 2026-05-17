@@ -62,9 +62,25 @@ function mockAppServices() {
   const list = vi.fn().mockResolvedValue([dataset]);
   const create = vi.fn().mockResolvedValue(dataset);
   const listExamples = vi.fn().mockResolvedValue([example]);
+  const getExample = vi.fn().mockResolvedValue(example);
   const captureExampleFromRun = vi.fn().mockResolvedValue({ dataset, example });
   const updateExampleExpectedOutput = vi.fn().mockResolvedValue(
     createExample({ expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected answer' } })
+  );
+  const updateExampleReview = vi.fn().mockResolvedValue(
+    createExample({
+      metadataJson: {
+        capture: { kind: 'normal_example' },
+        review: {
+          status: 'approved',
+          evalEligibility: 'default',
+          exclusionReason: null,
+          reviewerNote: 'Looks good',
+          reviewedByActorId: 'user-1',
+          reviewedAt: '2026-01-01T00:00:00.000Z'
+        }
+      }
+    })
   );
   const listByRunIds = vi.fn().mockResolvedValue([
     {
@@ -89,9 +105,11 @@ function mockAppServices() {
       datasets: {
         captureExampleFromRun,
         create,
+        getExample,
         list,
         listExamples,
-        updateExampleExpectedOutput
+        updateExampleExpectedOutput,
+        updateExampleReview
       }
     }
   };
@@ -106,12 +124,14 @@ function mockAppServices() {
     create,
     dataset,
     example,
+    getExample,
     getPlaygroundAppServices,
     list,
     listByRunIds,
     listExamples,
     services,
-    updateExampleExpectedOutput
+    updateExampleExpectedOutput,
+    updateExampleReview
   };
 }
 
@@ -217,6 +237,97 @@ describe('playground dataset routes', () => {
       actorId: 'user-1',
       expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected answer', notes: null }
     });
+
+    const invalidPatchResponse = await expectedOutputRoute.PATCH(new Request('http://localhost/api/datasets/dataset-1/examples/example-1/expected-output', {
+      method: 'PATCH',
+      body: JSON.stringify({ expectedOutputJson: null, metadataJson: null })
+    }), {
+      params: Promise.resolve({ datasetId: 'dataset-1', exampleId: 'example-1' })
+    });
+    expect(invalidPatchResponse.status).toBe(400);
+    expect(updateExampleExpectedOutput).toHaveBeenCalledTimes(1);
+  });
+
+  it('loads dataset example detail without source-run access', async () => {
+    const { loadAccessibleRun } = mockThreadAccess({
+      loadAccessibleRun: vi.fn().mockRejectedValue(new Error('source unavailable'))
+    });
+    const { getExample } = mockAppServices();
+    const detailRoute = await import('../app/api/datasets/[datasetId]/examples/[exampleId]/route');
+
+    const response = await detailRoute.GET(new Request('http://localhost/api/datasets/dataset-1/examples/example-1'), {
+      params: Promise.resolve({ datasetId: 'dataset-1', exampleId: 'example-1' })
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      example: { id: 'example-1', sourceRunId: 'run-1' }
+    });
+    expect(getExample).toHaveBeenCalledWith({
+      appId: 'playground-runtime-pi',
+      datasetId: 'dataset-1',
+      exampleId: 'example-1',
+      actorId: 'user-1'
+    });
+    expect(loadAccessibleRun).not.toHaveBeenCalled();
+  });
+
+  it('maps dataset example detail access failures without source-run lookup', async () => {
+    const { loadAccessibleRun } = mockThreadAccess();
+    const { getExample } = mockAppServices();
+    getExample.mockRejectedValueOnce(new Error('dataset unavailable'));
+    const detailRoute = await import('../app/api/datasets/[datasetId]/examples/[exampleId]/route');
+
+    const response = await detailRoute.GET(new Request('http://localhost/api/datasets/dataset-1/examples/example-1'), {
+      params: Promise.resolve({ datasetId: 'dataset-1', exampleId: 'example-1' })
+    });
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({ error: 'dataset unavailable' });
+    expect(loadAccessibleRun).not.toHaveBeenCalled();
+  });
+
+  it('patches dataset example review through the app boundary', async () => {
+    mockThreadAccess();
+    const { updateExampleReview } = mockAppServices();
+    const reviewRoute = await import('../app/api/datasets/[datasetId]/examples/[exampleId]/review/route');
+
+    const response = await reviewRoute.PATCH(new Request('http://localhost/api/datasets/dataset-1/examples/example-1/review', {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'approved', evalEligibility: 'default', reviewerNote: ' Looks good ' })
+    }), {
+      params: Promise.resolve({ datasetId: 'dataset-1', exampleId: 'example-1' })
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      example: {
+        id: 'example-1',
+        metadataJson: {
+          review: {
+            status: 'approved',
+            reviewerNote: 'Looks good',
+            reviewedByActorId: 'user-1'
+          }
+        }
+      }
+    });
+    expect(updateExampleReview).toHaveBeenCalledWith({
+      appId: 'playground-runtime-pi',
+      datasetId: 'dataset-1',
+      exampleId: 'example-1',
+      actorId: 'user-1',
+      review: { status: 'approved', evalEligibility: 'default', reviewerNote: 'Looks good' }
+    });
+
+    const spoofResponse = await reviewRoute.PATCH(new Request('http://localhost/api/datasets/dataset-1/examples/example-1/review', {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'approved', reviewedByActorId: 'attacker' })
+    }), {
+      params: Promise.resolve({ datasetId: 'dataset-1', exampleId: 'example-1' })
+    });
+    expect(spoofResponse.status).toBe(400);
+    expect(updateExampleReview).toHaveBeenCalledTimes(1);
   });
 
   it('captures accessible runs and copies feedback snapshots into metadata', async () => {
@@ -295,17 +406,25 @@ describe('playground dataset routes', () => {
   });
 
   it('short-circuits unauthenticated dataset requests', async () => {
-    const unauthorized = Response.json({ error: 'UNAUTHORIZED' }, { status: 401 });
     mockThreadAccess({
-      requirePlaygroundUser: vi.fn().mockResolvedValue({ user: null, response: unauthorized })
+      requirePlaygroundUser: vi.fn().mockImplementation(async () => ({
+        user: null,
+        response: Response.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+      }))
     });
     const { getPlaygroundAppServices } = mockAppServices();
     const datasetsRoute = await import('../app/api/datasets/route');
+    const detailRoute = await import('../app/api/datasets/[datasetId]/examples/[exampleId]/route');
 
     const response = await datasetsRoute.GET(new Request('http://localhost/api/datasets'));
+    const detailResponse = await detailRoute.GET(new Request('http://localhost/api/datasets/dataset-1/examples/example-1'), {
+      params: Promise.resolve({ datasetId: 'dataset-1', exampleId: 'example-1' })
+    });
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({ error: 'UNAUTHORIZED' });
+    expect(detailResponse.status).toBe(401);
+    await expect(detailResponse.json()).resolves.toEqual({ error: 'UNAUTHORIZED' });
     expect(getPlaygroundAppServices).not.toHaveBeenCalled();
   });
 });

@@ -166,17 +166,17 @@
 ## 3. Playground Validation Boundary
 
 ### 3.1 Routes / Services
-- [ ] Add authenticated `GET /api/datasets/[datasetId]/examples/[exampleId]` route for detail reads without relying on list responses or selected run state.
-- [ ] Tighten authenticated `PATCH /api/datasets/[datasetId]/examples/[exampleId]/expected-output` route around `DatasetExpectedOutputV1 | null`.
-- [ ] Remove or stop accepting arbitrary `metadataJson` from the expected-output patch route.
-- [ ] Add authenticated `PATCH /api/datasets/[datasetId]/examples/[exampleId]/review` route.
-- [ ] Ensure review route uses `app.datasets.updateExampleReview`.
-- [ ] Ensure all dataset review routes use shared app/service boundaries rather than duplicating metadata merge logic in Next routes.
-- [ ] Ensure dataset access, not source-run access, controls snapshot review.
-- [ ] Ensure source-run lineage links are optional and may resolve to unavailable.
-- [ ] Ensure example detail does not require source-run access when dataset access is valid.
-- [ ] Ensure inaccessible source lineage renders unavailable without leaking source-run existence outside actor boundary.
-- [ ] Preserve playground auth and actor identity boundaries.
+- [x] Add authenticated `GET /api/datasets/[datasetId]/examples/[exampleId]` route for detail reads without relying on list responses or selected run state.
+- [x] Tighten authenticated `PATCH /api/datasets/[datasetId]/examples/[exampleId]/expected-output` route around `DatasetExpectedOutputV1 | null`.
+- [x] Remove or stop accepting arbitrary `metadataJson` from the expected-output patch route.
+- [x] Add authenticated `PATCH /api/datasets/[datasetId]/examples/[exampleId]/review` route.
+- [x] Ensure review route uses `app.datasets.updateExampleReview`.
+- [x] Ensure all dataset review routes use shared app/service boundaries rather than duplicating metadata merge logic in Next routes.
+- [x] Ensure dataset access, not source-run access, controls snapshot review.
+- [x] Ensure source-run lineage links are optional and may resolve to unavailable.
+- [x] Ensure example detail does not require source-run access when dataset access is valid.
+- [x] Ensure inaccessible source lineage renders unavailable without leaking source-run existence outside actor boundary.
+- [x] Preserve playground auth and actor identity boundaries.
 - [ ] Keep playground feedback sidecar details read-only display data in review UI.
 - [ ] Do not parse playground feedback details in shared packages.
 
@@ -265,18 +265,18 @@
 - [ ] Add durable-chat-client API helper tests if the existing repo API test style supports them.
 
 ### 4.4 Playground Route Tests
-- [ ] Add route tests for dataset example detail auth.
-- [ ] Add route tests for dataset example detail app boundary.
-- [ ] Add route tests proving dataset example detail does not call source-run loading when dataset access is valid.
-- [ ] Add route tests for expected-output patch validation.
-- [ ] Add route tests proving expected-output patch cannot overwrite metadata.
-- [ ] Add route tests proving expected-output patch does not accept `metadataJson`, including `metadataJson: null`.
-- [ ] Add route tests for review patch validation.
-- [ ] Add route tests for review patch preserving capture/feedback/host metadata.
-- [ ] Add route tests proving source run inaccessibility does not block captured snapshot reads when dataset access is valid.
-- [ ] Add route tests proving inaccessible source lineage renders unavailable without source-run existence leakage.
-- [ ] Add route tests proving private datasets remain private.
-- [ ] Add route tests proving app-visible datasets work for same-app actors when allowed.
+- [x] Add route tests for dataset example detail auth.
+- [x] Add route tests for dataset example detail app boundary.
+- [x] Add route tests proving dataset example detail does not call source-run loading when dataset access is valid.
+- [x] Add route tests for expected-output patch validation.
+- [x] Add route tests proving expected-output patch cannot overwrite metadata.
+- [x] Add route tests proving expected-output patch does not accept `metadataJson`, including `metadataJson: null`.
+- [x] Add route tests for review patch validation.
+- [x] Add route tests for review patch preserving capture/feedback/host metadata.
+- [x] Add route tests proving source run inaccessibility does not block captured snapshot reads when dataset access is valid.
+- [x] Add route tests proving inaccessible source lineage renders unavailable without source-run existence leakage.
+- [x] Add route tests proving private datasets remain private.
+- [x] Add route tests proving app-visible datasets work for same-app actors when allowed.
 
 ### 4.5 Playground UI Tests
 - [ ] Add UI tests for opening dataset list.
@@ -297,8 +297,8 @@
 - [x] Run `pnpm --filter @agent-infra/contracts typecheck` after contract slice if available.
 - [x] Run `pnpm --filter @agent-infra/durable-chat-server test` after server helper slice.
 - [x] Run `pnpm --filter @agent-infra/durable-chat-client test` after client helper slice.
-- [ ] Run `pnpm --filter playground-next-web test` after playground route/UI slices.
-- [ ] Run `pnpm --filter playground-next-web typecheck` after playground route/UI slices.
+- [x] Run `pnpm --filter playground-next-web test` after playground route/UI slices.
+- [x] Run `pnpm --filter playground-next-web typecheck` after playground route/UI slices.
 - [ ] Run broader workspace typecheck only if targeted checks leave cross-package uncertainty.
 
 ## 5. Recommended Execution Order
@@ -354,16 +354,16 @@
 - [x] Commit Loop 3.
 
 ### Loop 4: Playground Review Routes
-- [ ] Add dataset example detail route.
-- [ ] Tighten expected-output patch route.
-- [ ] Add review patch route.
-- [ ] Route all review logic through shared app use cases.
-- [ ] Preserve playground auth and actor boundaries.
-- [ ] Add route tests for auth, access, validation, metadata preservation, and source-unavailable review.
-- [ ] Run targeted playground route tests.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 4.
+- [x] Add dataset example detail route.
+- [x] Tighten expected-output patch route.
+- [x] Add review patch route.
+- [x] Route all review logic through shared app use cases.
+- [x] Preserve playground auth and actor boundaries.
+- [x] Add route tests for auth, access, validation, metadata preservation, and source-unavailable review.
+- [x] Run targeted playground route tests.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit Loop 4.
 
 ### Loop 5: Dataset Review UI
 - [ ] Add `/observability/datasets` dataset review surface.
