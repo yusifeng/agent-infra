@@ -644,7 +644,7 @@ function ResultFiltersPanel({
   };
 
   return (
-    <section className="border-b border-[color:var(--chat-border)] px-4 py-3">
+    <section className="mb-2 rounded-[12px] border border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] px-3 py-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Filter className="size-4 text-[var(--chat-muted)]" />
@@ -655,70 +655,7 @@ function ResultFiltersPanel({
         </span>
       </div>
 
-      <div className="mt-3 grid gap-2 text-xs text-[var(--chat-muted)]">
-        <label className="block">
-          {EVAL_COPY.resultStatus}
-          <select
-            aria-label="Result status filter"
-            className="mt-1 h-8 w-full rounded-md border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-2 text-xs text-[var(--chat-text)]"
-            value={filters.resultStatus}
-            onChange={(event) => setFilter('resultStatus', event.target.value as ResultStatusFilter)}
-          >
-            <option value="all">全部</option>
-            {RESULT_STATUSES.map((status) => <option key={status} value={status}>{formatResultStatusLabel(status)}</option>)}
-          </select>
-        </label>
-
-        <label className="block">
-          {EVAL_COPY.reviewStatus}
-          <select
-            aria-label="Review status filter"
-            className="mt-1 h-8 w-full rounded-md border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-2 text-xs text-[var(--chat-text)]"
-            value={filters.reviewStatus}
-            onChange={(event) => setFilter('reviewStatus', event.target.value as ReviewStatusFilter)}
-          >
-            <option value="all">全部</option>
-            {RESULT_REVIEW_STATUSES.map((status) => <option key={status} value={status}>{formatReviewStatusLabel(status)}</option>)}
-          </select>
-        </label>
-
-        <label className="block">
-          {EVAL_COPY.comparison}
-          <select
-            aria-label="Comparison outcome filter"
-            className="mt-1 h-8 w-full rounded-md border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-2 text-xs text-[var(--chat-text)]"
-            value={filters.comparisonOutcome}
-            onChange={(event) => setFilter('comparisonOutcome', event.target.value as ComparisonOutcomeFilter)}
-          >
-            <option value="all">全部</option>
-            <option value="match">{COMPARISON_OUTCOME_LABELS.match}</option>
-            <option value="mismatch">{COMPARISON_OUTCOME_LABELS.mismatch}</option>
-            <option value="not_comparable">{COMPARISON_OUTCOME_LABELS.not_comparable}</option>
-          </select>
-        </label>
-
-        <label className="flex items-center gap-2 rounded-md border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-2 py-1.5 text-xs text-[var(--chat-text)]">
-          <input
-            type="checkbox"
-            className="size-3.5"
-            checked={filters.errorOnly}
-            onChange={(event) => setFilter('errorOnly', event.target.checked)}
-          />
-          {EVAL_COPY.errorOnly}
-        </label>
-
-        <label className="flex items-center gap-2 rounded-md border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-2 py-1.5 text-xs text-[var(--chat-text)]">
-          <input
-            type="checkbox"
-            className="size-3.5"
-            checked={filters.missingActualOnly}
-            onChange={(event) => setFilter('missingActualOnly', event.target.checked)}
-          />
-          {EVAL_COPY.missingActual}
-        </label>
-      </div>
-
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-2 flex flex-wrap gap-1.5">
         <Button
           type="button"
           size="sm"
@@ -779,6 +716,72 @@ function ResultFiltersPanel({
           {EVAL_COPY.clear}
         </Button>
       </div>
+
+      <details className="mt-2">
+        <summary className="cursor-pointer text-xs text-[var(--chat-muted)]">{EVAL_COPY.filter}</summary>
+        <div className="mt-2 grid gap-2 text-xs text-[var(--chat-muted)]">
+          <label className="block">
+            {EVAL_COPY.resultStatus}
+            <select
+              aria-label="Result status filter"
+              className="mt-1 h-8 w-full rounded-md border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-2 text-xs text-[var(--chat-text)]"
+              value={filters.resultStatus}
+              onChange={(event) => setFilter('resultStatus', event.target.value as ResultStatusFilter)}
+            >
+              <option value="all">全部</option>
+              {RESULT_STATUSES.map((status) => <option key={status} value={status}>{formatResultStatusLabel(status)}</option>)}
+            </select>
+          </label>
+
+          <label className="block">
+            {EVAL_COPY.reviewStatus}
+            <select
+              aria-label="Review status filter"
+              className="mt-1 h-8 w-full rounded-md border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-2 text-xs text-[var(--chat-text)]"
+              value={filters.reviewStatus}
+              onChange={(event) => setFilter('reviewStatus', event.target.value as ReviewStatusFilter)}
+            >
+              <option value="all">全部</option>
+              {RESULT_REVIEW_STATUSES.map((status) => <option key={status} value={status}>{formatReviewStatusLabel(status)}</option>)}
+            </select>
+          </label>
+
+          <label className="block">
+            {EVAL_COPY.comparison}
+            <select
+              aria-label="Comparison outcome filter"
+              className="mt-1 h-8 w-full rounded-md border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-2 text-xs text-[var(--chat-text)]"
+              value={filters.comparisonOutcome}
+              onChange={(event) => setFilter('comparisonOutcome', event.target.value as ComparisonOutcomeFilter)}
+            >
+              <option value="all">全部</option>
+              <option value="match">{COMPARISON_OUTCOME_LABELS.match}</option>
+              <option value="mismatch">{COMPARISON_OUTCOME_LABELS.mismatch}</option>
+              <option value="not_comparable">{COMPARISON_OUTCOME_LABELS.not_comparable}</option>
+            </select>
+          </label>
+
+          <label className="flex items-center gap-2 rounded-md border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-2 py-1.5 text-xs text-[var(--chat-text)]">
+            <input
+              type="checkbox"
+              className="size-3.5"
+              checked={filters.errorOnly}
+              onChange={(event) => setFilter('errorOnly', event.target.checked)}
+            />
+            {EVAL_COPY.errorOnly}
+          </label>
+
+          <label className="flex items-center gap-2 rounded-md border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-2 py-1.5 text-xs text-[var(--chat-text)]">
+            <input
+              type="checkbox"
+              className="size-3.5"
+              checked={filters.missingActualOnly}
+              onChange={(event) => setFilter('missingActualOnly', event.target.checked)}
+            />
+            {EVAL_COPY.missingActual}
+          </label>
+        </div>
+      </details>
     </section>
   );
 }
@@ -901,7 +904,18 @@ function ResultDetailPanel({
         </div>
       </div>
 
-      <div className="grid gap-3 py-4 md:grid-cols-2 xl:grid-cols-4">
+      {result.error ? <div className="mt-4 rounded-lg bg-[var(--chat-error-bg)] px-3 py-2 text-sm text-[var(--chat-error-text)]">{result.error}</div> : null}
+      {hiddenByFilter ? (
+        <div className="mt-4 rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] px-3 py-2 text-sm text-[var(--chat-muted)]">
+          {EVAL_COPY.hiddenByFilter}
+        </div>
+      ) : null}
+
+      <ComparePanel result={result} />
+
+      <ReviewEditor result={result} saving={savingReview} onSave={onSaveReview} />
+
+      <div className="grid gap-3 border-t border-[color:var(--chat-border)] py-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
           <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.resultUuid}</div>
           <div className="mt-1 break-all font-mono text-xs text-[var(--chat-text)]">{result.id}</div>
@@ -920,17 +934,6 @@ function ResultDetailPanel({
           <div className="mt-1 text-xs text-[var(--chat-muted)]">{EVAL_COPY.duration} {readEvalResultDuration(result)}</div>
         </div>
       </div>
-
-      {result.error ? <div className="mt-4 rounded-lg bg-[var(--chat-error-bg)] px-3 py-2 text-sm text-[var(--chat-error-text)]">{result.error}</div> : null}
-      {hiddenByFilter ? (
-        <div className="mt-4 rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] px-3 py-2 text-sm text-[var(--chat-muted)]">
-          {EVAL_COPY.hiddenByFilter}
-        </div>
-      ) : null}
-
-      <ComparePanel result={result} />
-
-      <ReviewEditor result={result} saving={savingReview} onSave={onSaveReview} />
 
       {sourceExampleLoading ? <div className="py-3 text-sm text-[var(--chat-muted)]">{EVAL_COPY.loadingSourceExample}</div> : null}
       {sourceExampleError ? <div className="py-3 text-sm text-[var(--chat-muted)]">{sourceExampleError}</div> : null}
