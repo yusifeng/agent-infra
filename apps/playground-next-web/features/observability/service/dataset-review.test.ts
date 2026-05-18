@@ -6,6 +6,7 @@ import {
   formatEligibilityLabel,
   formatExpectedOutputState,
   hasOmittedToolSnapshot,
+  readBaselineAssistantTexts,
   readCaptureKind
 } from './dataset-review';
 
@@ -50,5 +51,47 @@ describe('dataset review presentation helpers', () => {
     expect(hasOmittedToolSnapshot(example({ toolInvocationsSnapshotJson: { status: 'omitted' } }))).toBe(true);
     expect(hasOmittedToolSnapshot(example({ toolInvocationsSnapshotJson: { state: 'omitted_by_policy' } }))).toBe(true);
     expect(hasOmittedToolSnapshot(example({ toolInvocationsSnapshotJson: { toolInvocations: [] } }))).toBe(false);
+  });
+
+  it('reads baseline assistant text from captured run output snapshots', () => {
+    expect(readBaselineAssistantTexts(example({ baselineOutputJson: { text: 'legacy baseline' } }))).toEqual(['legacy baseline']);
+    expect(readBaselineAssistantTexts(example({
+      baselineOutputJson: {
+        schemaVersion: 1,
+        kind: 'run_output',
+        assistantMessages: [
+          {
+            id: 'message-1',
+            parts: [
+              { type: 'text', textValue: 'first answer' },
+              { type: 'json', jsonValue: { ignored: true } }
+            ]
+          },
+          {
+            id: 'message-2',
+            parts: [{ type: 'text', textValue: 'second answer' }]
+          }
+        ]
+      }
+    }))).toEqual(['first answer', 'second answer']);
+    expect(readBaselineAssistantTexts(example({ baselineOutputJson: null }))).toEqual([]);
+  });
+
+  it('preserves markdown line breaks in baseline assistant text', () => {
+    expect(readBaselineAssistantTexts(example({
+      baselineOutputJson: {
+        schemaVersion: 1,
+        kind: 'run_output',
+        assistantMessages: [
+          {
+            id: 'message-1',
+            parts: [
+              { type: 'text', textValue: '**核心结论：** 可以做到。' },
+              { type: 'text', textValue: '### 1. 现在能实现的\n- 外形仿生\n- 有限动作' }
+            ]
+          }
+        ]
+      }
+    }))).toEqual(['**核心结论：** 可以做到。\n\n### 1. 现在能实现的\n- 外形仿生\n- 有限动作']);
   });
 });

@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 
 import React, { act } from 'react';
-import { BarChart3 } from 'lucide-react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -41,9 +40,6 @@ describe('ObservabilityConsoleShell', () => {
         <ObservabilityConsoleShell
           activeSection="datasets"
           currentUser={{ id: 'user-1', email: 'user@example.com' }}
-          title="Datasets"
-          subtitle="Captured examples"
-          icon={<BarChart3 className="size-5" />}
           onRefresh={refresh}
           sectionHrefs={{ evals: '/observability/evals?datasetId=dataset-1' }}
         >
@@ -67,10 +63,37 @@ describe('ObservabilityConsoleShell', () => {
     });
     expect(refresh).toHaveBeenCalledOnce();
 
-    const logoutButton = document.body.querySelector('button[aria-label="Log out"]');
+    const logoutButton = [...document.body.querySelectorAll('button')].find((button) => button.textContent === 'Log out');
     act(() => {
       logoutButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     expect(logout).toHaveBeenCalledOnce();
+  });
+
+  it('collapses and reopens the observability sidebar', () => {
+    act(() => {
+      root.render(
+        <ObservabilityConsoleShell
+          activeSection="runs"
+          currentUser={{ id: 'user-1', email: 'user@example.com' }}
+          onRefresh={vi.fn()}
+        >
+          <div>section content</div>
+        </ObservabilityConsoleShell>
+      );
+    });
+
+    const collapseButton = document.body.querySelector('button[aria-label="Collapse observability sidebar"]');
+    act(() => {
+      collapseButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(document.body.querySelector('button[aria-label="Open observability sidebar"]')).toBeTruthy();
+
+    const openButton = document.body.querySelector('button[aria-label="Open observability sidebar"]');
+    act(() => {
+      openButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(document.body.querySelector('button[aria-label="Open observability sidebar"]')).toBeNull();
+    expect(document.body.querySelector('button[aria-label="Collapse observability sidebar"]')).toBeTruthy();
   });
 });

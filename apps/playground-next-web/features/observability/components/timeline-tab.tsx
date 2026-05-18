@@ -103,16 +103,16 @@ export function TimelineTab({ timeline, loading, error }: TimelineTabProps) {
         <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] p-3">
           <div className="flex items-center gap-2 text-xs text-[var(--chat-muted)]">
             <Terminal className="size-3" />
-            runEvents
+            Events
           </div>
           <div className="mt-1 text-lg font-semibold text-[var(--chat-text)]">{timeline.runEvents.length}</div>
         </div>
         <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] p-3">
-          <div className="text-xs text-[var(--chat-muted)]">toolInvocations</div>
+          <div className="text-xs text-[var(--chat-muted)]">Tool calls</div>
           <div className="mt-1 text-lg font-semibold text-[var(--chat-text)]">{timeline.toolInvocations.length}</div>
         </div>
         <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] p-3">
-          <div className="text-xs text-[var(--chat-muted)]">timelineItems</div>
+          <div className="text-xs text-[var(--chat-muted)]">Timeline items</div>
           <div className="mt-1 text-lg font-semibold text-[var(--chat-text)]">{items.length}</div>
         </div>
       </div>

@@ -219,6 +219,10 @@ function createRepositories(stateRef: { current: InMemoryState }, snapshot?: InM
             parts: [...message.parts].sort((left, right) => left.partIndex - right.partIndex)
           }));
       },
+      async listByIds(threadId, ids) {
+        const idSet = new Set(ids);
+        return (await this.listByThread(threadId)).filter((message) => idSet.has(message.id));
+      },
       async listPageByThread(threadId, options = {}) {
         const allMessages = await this.listByThread(threadId);
         const filtered = allMessages.filter((message) => {

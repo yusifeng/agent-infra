@@ -697,8 +697,17 @@ export interface SharedThreadSnapshotDto {
   searchBundles?: Record<string, unknown> | null;
 }
 
+export interface ThreadRunListItemDto {
+  run: RunDto;
+  triggerMessage: {
+    id: string;
+    seq: number;
+    preview: string | null;
+  } | null;
+}
+
 export interface ThreadRunsResponseDto {
-  runs: RunDto[];
+  items: ThreadRunListItemDto[];
   error?: string;
 }
 

@@ -642,6 +642,25 @@ export class SqliteMessageRepository implements MessageRepository {
     return { ...input, createdAt };
   }
 
+  async listByIds(threadId: string, ids: string[]): Promise<Array<Message & { parts: MessagePart[] }>> {
+    const uniqueIds = [...new Set(ids.filter(Boolean))];
+    if (uniqueIds.length === 0) {
+      return [];
+    }
+
+    const msgRows = (await this.db
+      .select()
+      .from(messages)
+      .where(and(eq(messages.threadId, threadId), inArray(messages.id, uniqueIds)))
+      .orderBy(asc(messages.seq))) as Message[];
+    const partsByMessageId = await this.loadMessageParts(msgRows.map((message) => message.id));
+
+    return msgRows.map((message) => ({
+      ...message,
+      parts: partsByMessageId.get(message.id) ?? []
+    }));
+  }
+
   async listByThread(threadId: string): Promise<Array<Message & { parts: MessagePart[] }>> {
     const page = await this.listPageByThread(threadId);
     return page.messages;

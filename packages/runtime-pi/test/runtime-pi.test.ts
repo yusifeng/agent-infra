@@ -111,6 +111,11 @@ class InMemoryMessageRepository implements MessageRepository {
       .map((message) => ({ ...message, parts: [...message.parts].sort((left, right) => left.partIndex - right.partIndex) }));
   }
 
+  async listByIds(threadId: string, ids: string[]): Promise<Array<Message & { parts: MessagePart[] }>> {
+    const idSet = new Set(ids.filter(Boolean));
+    return (await this.listByThread(threadId)).filter((message) => idSet.has(message.id));
+  }
+
   async nextSeq(threadId: string): Promise<number> {
     const maxSeq = [...this.messages.values()].filter((message) => message.threadId === threadId).reduce((max, message) => Math.max(max, message.seq), 0);
     return maxSeq + 1;

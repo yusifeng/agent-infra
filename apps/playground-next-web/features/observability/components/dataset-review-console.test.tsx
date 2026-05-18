@@ -17,6 +17,10 @@ const api = vi.hoisted(() => ({
   updateDatasetExampleReviewResponse: vi.fn()
 }));
 
+const toast = vi.hoisted(() => ({
+  error: vi.fn()
+}));
+
 vi.mock('next/navigation', () => ({
   usePathname: () => '/observability/datasets',
   useRouter: () => ({
@@ -36,6 +40,16 @@ vi.mock('@/features/durable-chat/repo/chat-api', () => ({
   fetchDatasetsResponse: api.fetchDatasetsResponse,
   updateDatasetExampleExpectedOutputResponse: api.updateDatasetExampleExpectedOutputResponse,
   updateDatasetExampleReviewResponse: api.updateDatasetExampleReviewResponse
+}));
+
+vi.mock('sonner', () => ({
+  toast
+}));
+
+vi.mock('@/components/chat-shell/markdown-renderer', () => ({
+  MarkdownRenderer: ({ text, cacheKey }: { text: string; cacheKey?: string }) => (
+    <div data-markdown-cache-key={cacheKey}>{text}</div>
+  )
 }));
 
 import { DatasetReviewConsole } from './dataset-review-console';
@@ -61,7 +75,17 @@ function example(overrides: Record<string, unknown> = {}) {
     sourceRunId: 'run-1',
     sourceThreadId: 'thread-1',
     triggerMessageId: 'message-1',
-    inputJson: { schemaVersion: 1, kind: 'chat_turn' },
+    inputJson: {
+      schemaVersion: 1,
+      kind: 'chat_turn',
+      triggerMessageId: 'message-1',
+      triggerMessage: {
+        id: 'message-1',
+        role: 'user',
+        parts: [{ type: 'text', textValue: 'Browser QA smoke prompt' }]
+      },
+      messages: []
+    },
     baselineOutputJson: { text: 'baseline' },
     expectedOutputJson: null,
     expectedOutput: { state: 'missing' as const, expectedOutput: null },
@@ -107,6 +131,7 @@ describe('DatasetReviewConsole', () => {
     api.fetchDatasetsResponse.mockReset();
     api.updateDatasetExampleExpectedOutputResponse.mockReset();
     api.updateDatasetExampleReviewResponse.mockReset();
+    toast.error.mockReset();
 
     api.fetchDatasetsResponse.mockResolvedValue({
       ok: true,
@@ -143,14 +168,18 @@ describe('DatasetReviewConsole', () => {
     await flush();
     await flush();
 
-    expect(document.body.textContent).toContain('Datasets');
+    expect(document.body.textContent).toContain('数据集');
     expect(document.body.textContent).toContain('Regression');
-    expect(document.body.textContent).toContain('Source Run');
-    expect(document.body.textContent).toContain('Example');
-    expect(document.body.textContent).toContain('normal_example');
-    expect(document.body.textContent).toContain('run run-1');
-    expect(document.body.textContent).toContain('thread thread-1');
-    expect(document.body.textContent).toContain('Tool Snapshot');
+    expect(document.body.textContent).toContain('来源 Run');
+    expect(document.body.textContent).toContain('样本');
+    expect(document.body.textContent).toContain('Browser QA smoke prompt');
+    expect(document.body.textContent).toContain('输出对照');
+    expect(document.body.textContent).toContain('原始 Run 回复');
+    expect(document.body.textContent).toContain('baseline');
+    expect(document.body.textContent).toContain('期望助手回复');
+    expect(document.body.textContent).toContain('常规样本');
+    expect(document.body.textContent).toContain('run-1');
+    expect(document.body.textContent).toContain('工具调用');
     expect(api.fetchDatasetExamplesResponse).toHaveBeenCalledWith('dataset-1', expect.any(AbortSignal));
     expect(api.fetchDatasetExampleResponse).toHaveBeenCalledWith('dataset-1', 'example-1', expect.any(AbortSignal));
     expect(navigation.replace).toHaveBeenCalledWith('/observability/datasets?datasetId=dataset-1&exampleId=example-1', { scroll: false });
@@ -202,7 +231,7 @@ describe('DatasetReviewConsole', () => {
       textareas[0]?.dispatchEvent(new Event('input', { bubbles: true }));
     });
 
-    const saveButton = [...document.body.querySelectorAll('button')].find((button) => button.textContent === 'Save');
+    const saveButton = [...document.body.querySelectorAll('button')].find((button) => button.textContent === '保存');
     await act(async () => {
       saveButton?.click();
     });
@@ -231,7 +260,7 @@ describe('DatasetReviewConsole', () => {
       statusSelect!.value = 'approved';
       statusSelect!.dispatchEvent(new Event('change', { bubbles: true }));
     });
-    const applyButton = [...document.body.querySelectorAll('button')].find((button) => button.textContent === 'Apply');
+    const applyButton = [...document.body.querySelectorAll('button')].find((button) => button.textContent === '应用');
     await act(async () => {
       applyButton?.click();
     });
@@ -243,6 +272,68 @@ describe('DatasetReviewConsole', () => {
       exclusionReason: null,
       reviewerNote: null
     });
+  });
+
+  it('shows mutation errors as toast notifications instead of inline page errors', async () => {
+    api.updateDatasetExampleReviewResponse.mockResolvedValue({
+      ok: false,
+      status: 400,
+      error: 'approved examples require valid expected output',
+      data: {}
+    });
+
+    await act(async () => {
+      root.render(<DatasetReviewConsole currentUser={{ id: 'user-1', email: 'user@example.com' }} />);
+    });
+    await flush();
+    await flush();
+
+    const applyButton = [...document.body.querySelectorAll('button')].find((button) => button.textContent === '应用');
+    await act(async () => {
+      applyButton?.click();
+    });
+    await flush();
+
+    expect(toast.error).toHaveBeenCalledWith('保存失败', {
+      description: 'approved examples require valid expected output'
+    });
+    expect(document.body.textContent).not.toContain('approved examples require valid expected output');
+  });
+
+  it('renders baseline assistant text through the shared markdown renderer', async () => {
+    const markdownExample = example({
+      baselineOutputJson: {
+        schemaVersion: 1,
+        kind: 'run_output',
+        assistantMessages: [
+          {
+            id: 'assistant-1',
+            parts: [{ type: 'text', textValue: '**核心结论：** 可以做到。' }]
+          }
+        ]
+      }
+    });
+    api.fetchDatasetExamplesResponse.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      error: null,
+      data: { examples: [markdownExample] }
+    });
+    api.fetchDatasetExampleResponse.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      error: null,
+      data: { example: markdownExample }
+    });
+
+    await act(async () => {
+      root.render(<DatasetReviewConsole currentUser={{ id: 'user-1', email: 'user@example.com' }} />);
+    });
+    await flush();
+    await flush();
+
+    const renderedMarkdown = document.body.querySelector('[data-markdown-cache-key="dataset-baseline:example-1:0"]');
+    expect(renderedMarkdown?.textContent).toBe('**核心结论：** 可以做到。');
   });
 
   it('renders source unavailable without blocking snapshot review', async () => {
@@ -266,10 +357,9 @@ describe('DatasetReviewConsole', () => {
     await flush();
     await flush();
 
-    expect(document.body.textContent).toContain('Source unavailable');
-    expect(document.body.textContent).toContain('Captured snapshots and review controls remain usable');
-    expect(document.body.textContent).toContain('Source Run');
-    expect(document.body.textContent).toContain('Input');
-    expect(document.body.textContent).toContain('Baseline Output');
+    expect(document.body.textContent).toContain('来源 Run 不可用');
+    expect(document.body.textContent).toContain('来源 Run');
+    expect(document.body.textContent).toContain('输入');
+    expect(document.body.textContent).toContain('原始 Run 回复 JSON');
   });
 });

@@ -627,15 +627,46 @@ export function parseThreadRunsLimit(value: string | null, defaultLimit = 8, max
   return Math.min(parsed, maxLimit);
 }
 
-export function buildThreadRunsResponse(runs: Run[]): ThreadRunsResponseDto {
+function buildMessageTextPreview(message: Message & { parts: MessagePart[] }) {
+  const text = message.parts
+    .filter((part) => part.type === 'text')
+    .sort((left, right) => left.partIndex - right.partIndex)
+    .map((part) => part.textValue ?? '')
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return text ? text.slice(0, 96) : null;
+}
+
+export function buildThreadRunsResponse(runs: Run[], messages: Array<Message & { parts: MessagePart[] }>): ThreadRunsResponseDto {
+  const triggerMessageById = new Map(messages.filter((message) => message.role === 'user').map((message) => [message.id, message]));
+
   return {
-    runs: runs.map((run) => toRunDto(run)).filter((run): run is NonNullable<typeof run> => run !== null)
+    items: runs.flatMap((run) => {
+      const runDto = toRunDto(run);
+      if (!runDto) {
+        return [];
+      }
+
+      const triggerMessage = run.triggerMessageId ? triggerMessageById.get(run.triggerMessageId) ?? null : null;
+      return [{
+        run: runDto,
+        triggerMessage: triggerMessage
+          ? {
+              id: triggerMessage.id,
+              seq: triggerMessage.seq,
+              preview: buildMessageTextPreview(triggerMessage)
+            }
+          : null
+      }];
+    })
   };
 }
 
 export function buildThreadRunsErrorResponse(error: unknown, fallbackMessage: string): ThreadRunsResponseDto {
   return {
-    runs: [],
+    items: [],
     error: getRouteErrorMessage(error, fallbackMessage)
   };
 }

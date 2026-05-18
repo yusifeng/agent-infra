@@ -138,8 +138,8 @@ export function DatasetCaptureDialog({ open, selectedRun, selectedThread, onOpen
       <DialogContent className="max-w-[560px] rounded-xl border-[color:var(--chat-border)] bg-[var(--chat-surface)] text-[var(--chat-text)]">
         <DialogHeader>
           <DialogTitle>Capture Run</DialogTitle>
-          <DialogDescription>
-            Save this run as a dataset example snapshot for later review and evaluation work.
+          <DialogDescription className="sr-only">
+            Capture the selected run into a dataset.
           </DialogDescription>
         </DialogHeader>
 
@@ -211,11 +211,6 @@ export function DatasetCaptureDialog({ open, selectedRun, selectedThread, onOpen
               />
             </label>
           )}
-
-          <div className="rounded-lg border border-[color:var(--chat-border)] px-3 py-2 text-xs text-[var(--chat-muted)]">
-            Current actor feedback is checked during capture and copied into metadata when present.
-          </div>
-
           {error ? <div className="rounded-lg bg-[var(--chat-error-bg)] px-3 py-2 text-sm text-[var(--chat-error-text)]">{error}</div> : null}
           {success ? (
             <div className="flex items-start gap-2 rounded-lg bg-[var(--chat-status-success-bg)] px-3 py-2 text-sm text-[var(--chat-status-success-text)]">

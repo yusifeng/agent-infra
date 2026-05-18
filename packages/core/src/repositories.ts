@@ -146,6 +146,7 @@ export interface MessageRepository {
   createWithNextSeq(input: Omit<Message, 'createdAt' | 'seq'>): Promise<Message>;
   updateStatus(id: string, status: Message['status']): Promise<Message>;
   createPart(input: Omit<MessagePart, 'createdAt'>): Promise<MessagePart>;
+  listByIds(threadId: string, ids: string[]): Promise<Array<Message & { parts: MessagePart[] }>>;
   listByThread(threadId: string): Promise<Array<Message & { parts: MessagePart[] }>>;
   listPageByThread(threadId: string, options?: { limit?: number; beforeSeq?: number; afterSeq?: number }): Promise<MessagePageResult>;
   nextSeq(threadId: string): Promise<number>;

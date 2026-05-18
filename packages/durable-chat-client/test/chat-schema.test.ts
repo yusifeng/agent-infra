@@ -76,22 +76,31 @@ describe('durable-chat-client schema', () => {
     });
 
     const runs = normalizeThreadRunsResponse({
-      runs: [
+      items: [
         {
-          id: 'run-1',
-          threadId: 'thread-1',
-          triggerMessageId: null,
-          provider: 'openai',
-          model: 'gpt-4o-mini',
-          status: 'completed',
-          usage,
-          error: null,
-          startedAt: null,
-          finishedAt: null,
-          createdAt: '2026-01-01T00:00:00.000Z'
+          run: {
+            id: 'run-1',
+            threadId: 'thread-1',
+            triggerMessageId: 'message-1',
+            provider: 'openai',
+            model: 'gpt-4o-mini',
+            status: 'completed',
+            usage,
+            error: null,
+            startedAt: null,
+            finishedAt: null,
+            createdAt: '2026-01-01T00:00:00.000Z'
+          },
+          triggerMessage: {
+            id: 'message-1',
+            seq: 2,
+            preview: 'Explain observability runs'
+          }
         },
         {
-          threadId: 'thread-1'
+          run: {
+            threadId: 'thread-1'
+          }
         }
       ]
     });
@@ -106,8 +115,36 @@ describe('durable-chat-client schema', () => {
     expect(messages.activeRun?.id).toBe('run-active');
     expect(messages.activeRuns?.map((run) => run.id)).toEqual(['run-active']);
     expect(messages.activeRun?.usage).toEqual(usage);
-    expect(runs.runs).toHaveLength(1);
-    expect(runs.runs[0]?.usage).toEqual(usage);
+    expect(runs.items).toHaveLength(1);
+    expect(runs.items[0]?.run.usage).toEqual(usage);
+    expect(runs.items[0]?.triggerMessage?.preview).toBe('Explain observability runs');
+  });
+
+  it('normalizes legacy thread runs responses', () => {
+    const runs = normalizeThreadRunsResponse({
+      runs: [
+        {
+          id: 'run-legacy',
+          threadId: 'thread-1',
+          triggerMessageId: 'message-1',
+          provider: 'openai',
+          model: 'gpt-4o-mini',
+          status: 'completed',
+          usage: null,
+          error: null,
+          startedAt: null,
+          finishedAt: null,
+          createdAt: '2026-01-01T00:00:00.000Z'
+        },
+        {
+          threadId: 'thread-1'
+        }
+      ]
+    });
+
+    expect(runs.items).toHaveLength(1);
+    expect(runs.items[0]?.run.id).toBe('run-legacy');
+    expect(runs.items[0]?.triggerMessage).toBeNull();
   });
 
   it('normalizes active runs and answer candidate hydration data', () => {

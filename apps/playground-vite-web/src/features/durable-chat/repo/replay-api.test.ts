@@ -28,7 +28,7 @@ describe('replay api repo facade', () => {
       ok: true,
       status: 200,
       error: null,
-      data: { runs: [] }
+      data: { items: [] }
     });
     fetchThreadMessagesResponse
       .mockResolvedValueOnce({
@@ -84,7 +84,7 @@ describe('replay api repo facade', () => {
       ok: true,
       status: 200,
       error: null,
-      data: { runs: [] }
+      data: { items: [] }
     });
     fetchThreadMessagesResponse.mockResolvedValue({
       ok: true,

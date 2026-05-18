@@ -32,7 +32,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ threadId
     const { app } = services;
     await loadAccessibleThread(services, threadId, auth.user.id);
     const runs = await app.runs.listByThread({ threadId, limit });
-    return Response.json(buildThreadRunsResponse(runs));
+    const triggerMessageIds = runs.flatMap((run) => (run.triggerMessageId ? [run.triggerMessageId] : []));
+    const messages = await services.repos.messageRepo.listByIds(threadId, triggerMessageIds);
+    return Response.json(buildThreadRunsResponse(runs, messages));
   } catch (error) {
     return Response.json(buildThreadRunsErrorResponse(error, 'failed to load thread runs'), {
       status: getRouteErrorStatus(error)

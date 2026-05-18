@@ -64,6 +64,14 @@ describe('RunContentPanel', () => {
       root.render(
         <RunContentPanel
           selectedRun={selectedRun()}
+          selectedRunItem={{
+            run: selectedRun(),
+            triggerMessage: {
+              id: 'message-1',
+              seq: 1,
+              preview: 'Explain run details'
+            }
+          }}
           selectedThread={selectedThread()}
           timeline={null}
           timelineLoading={false}
@@ -75,10 +83,13 @@ describe('RunContentPanel', () => {
       );
     });
 
-    expect(document.body.textContent).toContain('Thread');
-    expect(document.body.textContent).toContain('thread-1');
-    expect(document.body.textContent).toContain('Run');
+    expect(document.body.textContent).toContain('Demo thread');
+    expect(document.body.textContent).toContain('Explain run details');
+    expect(document.body.textContent).toContain('UUID');
+    expect(document.body.textContent).toContain('Model');
+    expect(document.body.textContent).toContain('Time');
+    expect(document.body.textContent).toContain('Usage');
     expect(document.body.textContent).toContain('run-1');
-    expect([...document.body.querySelectorAll('button')].some((button) => button.textContent === 'Capture')).toBe(true);
+    expect([...document.body.querySelectorAll('button')].some((button) => button.textContent === 'Capture example')).toBe(true);
   });
 });

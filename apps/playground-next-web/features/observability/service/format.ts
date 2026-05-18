@@ -80,7 +80,18 @@ export function readTotalTokens(usage: RunUsageDto | null | undefined) {
     return null;
   }
 
-  return readNumberField(usage as Record<string, unknown>, ['totalTokens', 'total_tokens', 'tokensTotal']);
+  const record = usage as Record<string, unknown>;
+  const flatTotal = readNumberField(record, ['totalTokens', 'total_tokens', 'tokensTotal']);
+  if (flatTotal !== null) {
+    return flatTotal;
+  }
+
+  const tokens = record.tokens;
+  if (tokens && typeof tokens === 'object') {
+    return readNumberField(tokens as Record<string, unknown>, ['total', 'totalTokens', 'total_tokens', 'tokensTotal']);
+  }
+
+  return null;
 }
 
 export function formatTokenCount(usage: RunUsageDto | null | undefined) {

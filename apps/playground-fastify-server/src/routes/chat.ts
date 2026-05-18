@@ -667,8 +667,12 @@ export async function registerChatRoutes(app: FastifyInstance, dependencies: Cha
           limit: parseThreadRunsLimit(request.query.limit ?? null)
         })
       );
+      const triggerMessageIds = runs.flatMap((run) => (run.triggerMessageId ? [run.triggerMessageId] : []));
+      const messages = await request.requestTiming.measureAsync('runs.trigger_messages.list', () =>
+        services.repos.messageRepo.listByIds(request.params.threadId, triggerMessageIds)
+      );
 
-      return reply.send(buildThreadRunsResponse(runs));
+      return reply.send(buildThreadRunsResponse(runs, messages));
     } catch (error) {
       return reply.code(getRouteErrorStatus(error)).send(buildThreadRunsErrorResponse(error, 'failed to load thread runs'));
     }

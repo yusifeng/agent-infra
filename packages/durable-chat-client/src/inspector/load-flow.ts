@@ -71,7 +71,7 @@ async function hydrateRecentRuns(threadId: string, signal: AbortSignal) {
     throw new Error(result.error ?? `Failed to load thread runs (${result.status})`);
   }
 
-  return result.data.runs.slice().sort(compareRunsByCreatedAt);
+  return result.data.items.map((item) => item.run).sort(compareRunsByCreatedAt);
 }
 
 async function tryResolvePreferredRun(threadId: string, runId: string, signal: AbortSignal) {

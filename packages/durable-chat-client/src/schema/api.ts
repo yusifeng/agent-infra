@@ -37,6 +37,7 @@ import type {
   ThreadDto,
   ThreadMessagesResponseDto,
   ThreadMessagesPageInfoDto,
+  ThreadRunListItemDto,
   ThreadRunsResponseDto,
   ThreadsResponseDto,
   TraceProjectionDiagnosticDto,
@@ -178,6 +179,33 @@ function normalizeMessagePart(value: unknown): MessagePartDto | null {
     textValue: asNullableString(record.textValue),
     jsonValue: asJsonRecordOrNull(record.jsonValue),
     createdAt
+  };
+}
+
+function normalizeThreadRunListItem(value: unknown): ThreadRunListItemDto | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const run = normalizeRun(record.run);
+  if (!run) {
+    return null;
+  }
+
+  const triggerRecord = asRecord(record.triggerMessage);
+  const triggerId = triggerRecord ? asString(triggerRecord.id) : null;
+  const triggerSeq = triggerRecord ? asNumber(triggerRecord.seq) : null;
+
+  return {
+    run,
+    triggerMessage: triggerRecord && triggerId && triggerSeq !== null
+      ? {
+          id: triggerId,
+          seq: triggerSeq,
+          preview: asNullableString(triggerRecord.preview)
+        }
+      : null
   };
 }
 
@@ -1324,8 +1352,15 @@ export function normalizeThreadMessagesResponse(value: unknown): ThreadMessagesR
 
 export function normalizeThreadRunsResponse(value: unknown): ThreadRunsResponseDto {
   const record = asRecord(value) ?? {};
+  const items = Array.isArray(record.items)
+    ? record.items.map(normalizeThreadRunListItem).filter((item): item is ThreadRunListItemDto => item !== null)
+    : null;
+  const legacyRuns = Array.isArray(record.runs)
+    ? record.runs.map(normalizeRun).filter((run): run is RunDto => run !== null)
+    : [];
+
   return {
-    runs: Array.isArray(record.runs) ? record.runs.map(normalizeRun).filter((run): run is RunDto => run !== null) : [],
+    items: items ?? legacyRuns.map((run) => ({ run, triggerMessage: null })),
     error: readApiError(record) ?? undefined
   };
 }

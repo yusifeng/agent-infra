@@ -1,7 +1,5 @@
 'use client';
 
-import { BarChart3 } from 'lucide-react';
-
 import type { AuthUserDto } from '@/features/auth/dto/project-auth-user-dto';
 import { useObservabilityConsole } from '@/features/observability/runtime/use-observability-console';
 
@@ -17,9 +15,6 @@ export function ObservabilityConsole({ currentUser }: { currentUser: AuthUserDto
     <ObservabilityConsoleShell
       activeSection="runs"
       currentUser={currentUser}
-      title="Runs"
-      subtitle="Inspect durable agent runs by thread, timeline, and trace"
-      icon={<BarChart3 className="size-5" />}
       onRefresh={state.refresh}
     >
       <div className="grid h-full min-h-0 grid-cols-1 overflow-hidden lg:grid-cols-[280px_320px_minmax(0,1fr)]">
@@ -32,7 +27,7 @@ export function ObservabilityConsole({ currentUser }: { currentUser: AuthUserDto
           onSelectThread={state.selectThread}
         />
         <RunColumn
-          runs={state.runs}
+          items={state.runItems}
           loading={state.runsLoading}
           error={state.runsError}
           selectedRunId={state.selectedRunId}
@@ -42,6 +37,7 @@ export function ObservabilityConsole({ currentUser }: { currentUser: AuthUserDto
         />
         <RunContentPanel
           selectedRun={state.selectedRun}
+          selectedRunItem={state.selectedRunItem}
           selectedThread={state.selectedThread}
           timeline={state.timeline}
           timelineLoading={state.timelineLoading}

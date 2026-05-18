@@ -118,7 +118,7 @@ export async function fetchReplayThreadBasis(threadId: string, signal?: AbortSig
       messages: messagesResult.data.messages,
       pageInfo: messagesResult.data.pageInfo,
       activeRun: messagesResult.data.activeRun,
-      runs: runsResult.data.runs
+      runs: runsResult.data.items.map((item) => item.run)
     }
   };
 }

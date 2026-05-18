@@ -43,17 +43,22 @@ function DiagnosticsPanel({ diagnostics }: { diagnostics: TraceSpanProjectionDia
   const clean = diagnostics.unknownEventCount === 0 && diagnostics.orphanEventCount === 0 && diagnostics.warnings.length === 0;
 
   return (
-    <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] p-3">
-      <div className="flex items-center gap-2 text-sm font-medium text-[var(--chat-text)]">
-        {clean ? <CheckCircle2 className="size-4 text-[var(--chat-status-success-text)]" /> : <AlertTriangle className="size-4 text-[var(--chat-warning-text)]" />}
-        Diagnostics
-      </div>
+    <details className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] p-3" open={!clean}>
+      <summary className="flex cursor-pointer items-center justify-between gap-3">
+        <span className="flex items-center gap-2 text-sm font-medium text-[var(--chat-text)]">
+          {clean ? <CheckCircle2 className="size-4 text-[var(--chat-status-success-text)]" /> : <AlertTriangle className="size-4 text-[var(--chat-warning-text)]" />}
+          Diagnostics
+        </span>
+        <span className="text-xs text-[var(--chat-muted)]">
+          {diagnostics.unknownEventCount} unknown · {diagnostics.orphanEventCount} orphan
+        </span>
+      </summary>
       {clean ? (
         <div className="mt-2 text-sm text-[var(--chat-muted)]">No projection warnings</div>
       ) : (
         <div className="mt-3 flex flex-col gap-2 text-sm text-[var(--chat-muted)]">
-          <div>unknownEventCount: {diagnostics.unknownEventCount}</div>
-          <div>orphanEventCount: {diagnostics.orphanEventCount}</div>
+          <div>Unknown events: {diagnostics.unknownEventCount}</div>
+          <div>Orphan events: {diagnostics.orphanEventCount}</div>
           {diagnostics.warnings.map((warning, index) => (
             <div key={`${warning.code}:${index}`} className="rounded-md border border-[color:var(--chat-warning-border)] bg-[var(--chat-warning-bg)] px-2 py-1 text-[var(--chat-warning-text)]">
               {warning.code}: {warning.message}
@@ -61,7 +66,7 @@ function DiagnosticsPanel({ diagnostics }: { diagnostics: TraceSpanProjectionDia
           ))}
         </div>
       )}
-    </div>
+    </details>
   );
 }
 
@@ -81,27 +86,27 @@ function SpanDetails({ span }: { span: TraceSpanDto | null }) {
       </div>
       <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
         <div>
-          <dt className="text-xs text-[var(--chat-muted)]">kind</dt>
+          <dt className="text-xs text-[var(--chat-muted)]">Kind</dt>
           <dd className="mt-1 text-[var(--chat-text)]">{span.kind}</dd>
         </div>
         <div>
-          <dt className="text-xs text-[var(--chat-muted)]">duration</dt>
+          <dt className="text-xs text-[var(--chat-muted)]">Duration</dt>
           <dd className="mt-1 text-[var(--chat-text)]">{formatDurationMs(span.durationMs)}</dd>
         </div>
         <div>
-          <dt className="text-xs text-[var(--chat-muted)]">startedAt</dt>
+          <dt className="text-xs text-[var(--chat-muted)]">Started</dt>
           <dd className="mt-1 text-[var(--chat-text)]">{formatDateTime(span.startedAt)}</dd>
         </div>
         <div>
-          <dt className="text-xs text-[var(--chat-muted)]">finishedAt</dt>
+          <dt className="text-xs text-[var(--chat-muted)]">Finished</dt>
           <dd className="mt-1 text-[var(--chat-text)]">{formatDateTime(span.finishedAt)}</dd>
         </div>
         <div>
-          <dt className="text-xs text-[var(--chat-muted)]">parentSpanId</dt>
+          <dt className="text-xs text-[var(--chat-muted)]">Parent span</dt>
           <dd className="mt-1 truncate font-mono text-xs text-[var(--chat-text)]">{span.parentSpanId ?? '-'}</dd>
         </div>
         <div>
-          <dt className="text-xs text-[var(--chat-muted)]">tool</dt>
+          <dt className="text-xs text-[var(--chat-muted)]">Tool</dt>
           <dd className="mt-1 truncate text-[var(--chat-text)]">{span.tool?.toolName ?? '-'}</dd>
         </div>
       </dl>
@@ -111,10 +116,10 @@ function SpanDetails({ span }: { span: TraceSpanDto | null }) {
           {span.error.message}
         </div>
       ) : null}
-      <div className="mt-4">
-        <div className="text-xs font-medium text-[var(--chat-muted)]">sourceRefs</div>
+      <details className="mt-4">
+        <summary className="cursor-pointer text-xs font-medium text-[var(--chat-muted)]">Source refs</summary>
         <pre className="mt-2 max-h-44 overflow-auto rounded-md bg-[var(--chat-code-bg)] p-3 text-xs text-[var(--chat-code-text)]">{JSON.stringify(span.sourceRefs, null, 2)}</pre>
-      </div>
+      </details>
     </div>
   );
 }

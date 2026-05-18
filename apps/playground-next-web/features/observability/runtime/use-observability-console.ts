@@ -1,6 +1,6 @@
 'use client';
 
-import type { RunDto, RunTimelineResponseDto, RunTraceResponseDto } from '@agent-infra/contracts';
+import type { RunDto, RunTimelineResponseDto, RunTraceResponseDto, ThreadRunListItemDto } from '@agent-infra/contracts';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -28,7 +28,7 @@ export function useObservabilityConsole() {
   const [threadsLoading, setThreadsLoading] = useState(true);
   const [threadsError, setThreadsError] = useState<string | null>(null);
 
-  const [runs, setRuns] = useState<RunDto[]>([]);
+  const [runItems, setRunItems] = useState<ThreadRunListItemDto[]>([]);
   const [runsLoading, setRunsLoading] = useState(false);
   const [runsError, setRunsError] = useState<string | null>(null);
 
@@ -42,6 +42,7 @@ export function useObservabilityConsole() {
 
   const requestedThreadId = normalizeObservabilityQueryValue(searchParams.get('threadId'));
   const requestedRunId = normalizeObservabilityQueryValue(searchParams.get('runId'));
+  const runs = useMemo(() => runItems.map((item) => item.run), [runItems]);
 
   const threadSelection = useMemo(
     () => resolveObservabilitySelection(threads, requestedThreadId),
@@ -90,7 +91,7 @@ export function useObservabilityConsole() {
 
   useEffect(() => {
     const controller = new AbortController();
-    setRuns([]);
+    setRunItems([]);
     setRunsError(null);
     setTimeline(null);
     setTrace(null);
@@ -110,14 +111,14 @@ export function useObservabilityConsole() {
           throw new Error(result.error ?? `Failed to load runs (${result.status})`);
         }
 
-        setRuns(result.data.runs);
+        setRunItems(result.data.items);
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) {
           return;
         }
 
-        setRuns([]);
+        setRunItems([]);
         setRunsError(error instanceof Error ? error.message : 'Failed to load runs');
       })
       .finally(() => {
@@ -210,6 +211,7 @@ export function useObservabilityConsole() {
 
   const selectedThread = threads.find((thread) => thread.id === selectedThreadId) ?? null;
   const selectedRun = runs.find((run) => run.id === selectedRunId) ?? timeline?.run ?? trace?.run ?? null;
+  const selectedRunItem = runItems.find((item) => item.run.id === selectedRunId) ?? null;
 
   const selectThread = useCallback(
     (threadId: string) => {
@@ -233,10 +235,12 @@ export function useObservabilityConsole() {
     selectedThread,
     selectedThreadId,
     runs,
+    runItems,
     runsLoading,
     runsError,
     runSelection,
     selectedRun,
+    selectedRunItem,
     selectedRunId,
     timeline,
     timelineLoading,

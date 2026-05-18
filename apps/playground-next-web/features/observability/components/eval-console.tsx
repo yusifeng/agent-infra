@@ -21,7 +21,6 @@ import {
   Loader2,
   Play,
   Save,
-  ScrollText,
   SplitSquareHorizontal
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -210,7 +209,6 @@ function ComparePanel({ result }: { result: EvalExampleResultDto }) {
       </div>
 
       <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--chat-muted)]">
-        <span>Assist only; manual Result Review is the review truth.</span>
         <span>reason {formatComparisonLabel(comparison.reason)}</span>
         <span>result {result.status}</span>
         <span>{readEvalResultUsage(result)}</span>
@@ -312,7 +310,7 @@ function DatasetContextHeader({
                 <span>updated {formatDateTime(selectedDataset.updatedAt)}</span>
               </>
             ) : (
-              <span>{datasetsError ?? 'Select a dataset to review eval runs.'}</span>
+              <span>{datasetsError ?? 'No dataset selected'}</span>
             )}
           </div>
         </div>
@@ -353,7 +351,6 @@ function EvalRunRow({ evalRun, selected, onSelect }: { evalRun: EvalRunDto; sele
         <span className="truncate">done {readEvalRunCompleted(evalRun)}</span>
         <span className="truncate">failed {readEvalRunFailed(evalRun)}</span>
       </div>
-      <div className="mt-1 truncate text-xs text-[var(--chat-muted)]">created {formatDateTime(evalRun.createdAt)}</div>
     </button>
   );
 }
@@ -377,7 +374,6 @@ function ResultRow({ result, selected, onSelect }: { result: EvalExampleResultDt
       </div>
       <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-[var(--chat-muted)]">
         <span className="truncate">review {result.review?.status ?? 'unreviewed'}</span>
-        <span className="truncate">actual {result.actualOutputJson ? 'yes' : 'no'}</span>
         <span className="truncate">{readEvalResultUsage(result)}</span>
         <span className="truncate">{readEvalResultDuration(result)}</span>
       </div>
@@ -686,7 +682,7 @@ function ResultDetailPanel({
     return <ConsolePanelState title="Select an eval run" />;
   }
   if (!result) {
-    return <ConsolePanelState title="Select a result" description="Choose a result from the selected eval run to inspect output and save a review." />;
+    return <ConsolePanelState title="Select a result" />;
   }
 
   const sourceHref = buildDatasetExampleHref({ datasetId: evalRun.datasetId, exampleId: result.datasetExampleId });
@@ -734,12 +730,6 @@ function ResultDetailPanel({
         </div>
       </div>
 
-      {outputHref ? (
-        <div className="mt-3 rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] px-3 py-2 text-xs leading-5 text-[var(--chat-muted)]">
-          Eval output run is an execution artifact for this eval run. It is linked for debugging and is not shown in normal chat threads.
-        </div>
-      ) : null}
-
       {result.error ? <div className="mt-4 rounded-lg bg-[var(--chat-error-bg)] px-3 py-2 text-sm text-[var(--chat-error-text)]">{result.error}</div> : null}
       {mutationError ? <div className="mt-4 rounded-lg bg-[var(--chat-error-bg)] px-3 py-2 text-sm text-[var(--chat-error-text)]">{mutationError}</div> : null}
       {hiddenByFilter ? (
@@ -755,12 +745,12 @@ function ResultDetailPanel({
       {sourceExampleLoading ? <div className="py-3 text-sm text-[var(--chat-muted)]">Loading source example</div> : null}
       {sourceExampleError ? <div className="py-3 text-sm text-[var(--chat-muted)]">{sourceExampleError}</div> : null}
 
-      <JsonBlock title="Expected Output Snapshot" value={result.expectedOutputJson} />
-      <JsonBlock title="Actual Output Snapshot" value={result.actualOutputJson} />
-      <JsonBlock title="Baseline Output Snapshot" value={readBaselineOutput(sourceExample)} />
-      <JsonBlock title="Input Snapshot" value={result.inputJson} />
-      <JsonBlock title="Usage Snapshot" value={result.usageJson} />
-      <JsonBlock title="Metadata Snapshot" value={result.metadataJson} />
+      <JsonBlock title="Expected Output" value={result.expectedOutputJson} />
+      <JsonBlock title="Actual Output" value={result.actualOutputJson} />
+      <JsonBlock title="Baseline Output" value={readBaselineOutput(sourceExample)} />
+      <JsonBlock title="Input" value={result.inputJson} />
+      <JsonBlock title="Usage" value={result.usageJson} />
+      <JsonBlock title="Metadata" value={result.metadataJson} />
     </div>
   );
 }
@@ -822,9 +812,6 @@ export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
     <ObservabilityConsoleShell
       activeSection="evals"
       currentUser={currentUser}
-      title="Evals"
-      subtitle="Dataset-backed regression runs and result review"
-      icon={<ScrollText className="size-5" />}
       onRefresh={state.refresh}
     >
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -839,18 +826,16 @@ export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
         />
 
         <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[320px_minmax(0,1fr)]">
-          <aside className="min-h-0 border-r border-[color:var(--chat-border)] bg-[var(--chat-bg)]">
+          <aside className="flex min-h-0 flex-col border-r border-[color:var(--chat-border)] bg-[var(--chat-bg)]">
             <div className="flex h-12 items-center justify-between gap-2 border-b border-[color:var(--chat-border)] px-4">
               <h2 className="min-w-0 truncate text-sm font-semibold">Eval runs</h2>
               {state.evalRunsLoading ? <Loader2 className="size-4 animate-spin text-[var(--chat-muted)]" /> : null}
             </div>
-            <div className="h-full overflow-auto pb-12">
+            <div className="min-h-0 flex-1 overflow-auto pb-12">
               {state.evalRunsError ? <ConsolePanelState title={state.evalRunsError} /> : null}
-              {!state.selectedDataset && !state.datasetsError ? (
-                <ConsolePanelState title="Select a dataset" description="Choose a dataset above to load eval runs." />
-              ) : null}
+              {!state.selectedDataset && !state.datasetsError ? <ConsolePanelState title="Select a dataset" /> : null}
               {!state.evalRunsError && state.selectedDataset && state.evalRuns.length === 0 && !state.evalRunsLoading ? (
-                <ConsolePanelState title="No eval runs" description="Create an eval run for the selected dataset." />
+                <ConsolePanelState title="No eval runs" />
               ) : null}
               {state.evalRuns.map((evalRun) => (
                 <EvalRunRow key={evalRun.id} evalRun={evalRun} selected={evalRun.id === state.selectedEvalRunId} onSelect={state.selectEvalRun} />
@@ -869,14 +854,14 @@ export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
             ) : null}
             {state.selectedEvalRun ? (
               <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[360px_minmax(0,1fr)]">
-                <aside className="min-h-0 border-r border-[color:var(--chat-border)] bg-[var(--chat-bg)]">
+                <aside className="flex min-h-0 flex-col border-r border-[color:var(--chat-border)] bg-[var(--chat-bg)]">
                   <div className="flex h-12 items-center justify-between gap-2 border-b border-[color:var(--chat-border)] px-4">
                     <h2 className="text-sm font-semibold">Results</h2>
                   </div>
-                  <div className="h-full overflow-auto pb-12">
+                  <div className="min-h-0 flex-1 overflow-auto pb-12">
                     {state.resultsError ? <ConsolePanelState title={state.resultsError} /> : null}
                     {!state.resultsError && state.results.length === 0 && !state.resultsLoading ? (
-                      <ConsolePanelState title="No results" description="Run this eval run to generate result rows." />
+                      <ConsolePanelState title="No results" />
                     ) : null}
                     {!state.resultsError && state.results.length > 0 ? (
                       <ResultFiltersPanel
@@ -887,9 +872,7 @@ export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
                         onChange={setResultFilters}
                       />
                     ) : null}
-                    {!state.resultsError && state.results.length > 0 && filteredResults.length === 0 ? (
-                      <ConsolePanelState title="No results match filters" description="Clear or relax the local review filters." />
-                    ) : null}
+                    {!state.resultsError && state.results.length > 0 && filteredResults.length === 0 ? <ConsolePanelState title="No results match filters" /> : null}
                     {filteredResults.map((result) => (
                       <ResultRow key={result.id} result={result} selected={result.id === state.selectedResultId} onSelect={state.selectResult} />
                     ))}
@@ -909,7 +892,7 @@ export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
                 />
               </div>
             ) : (
-              <ConsolePanelState title="Select an eval run" description="Choose an eval run to review its summary, results, and result detail." />
+              <ConsolePanelState title="Select an eval run" />
             )}
           </section>
         </div>

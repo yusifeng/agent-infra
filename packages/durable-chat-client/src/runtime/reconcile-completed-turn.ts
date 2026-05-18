@@ -213,7 +213,7 @@ export async function runReconcileCompletedTurn({
         throw new Error(runsResult.error ?? `Failed to load thread runs (${runsResult.status})`);
       }
 
-      let nextRuns = runsResult.data.runs.slice().sort(compareRunsByCreatedAt);
+      let nextRuns = runsResult.data.items.map((item) => item.run).sort(compareRunsByCreatedAt);
       if (requestedRunId && !nextRuns.some((run) => run.id === requestedRunId)) {
         const preferredResolvedRun = await tryResolvePreferredRun(threadId, requestedRunId, reconcileController.signal);
         if (isReconcileThreadStale()) {

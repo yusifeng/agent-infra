@@ -47,7 +47,7 @@ describe('chat api repo facade', () => {
   });
 
   it('forwards thread run requests', async () => {
-    const expected = { ok: true, status: 200, data: { runs: [] }, error: null };
+    const expected = { ok: true, status: 200, data: { items: [] }, error: null };
     fetchThreadRunsResponse.mockResolvedValue(expected);
 
     const { fetchThreadRuns } = await import('@/features/durable-chat/repo/chat-api');

@@ -467,7 +467,7 @@ describe('durable chat server route helpers', () => {
         {
           id: 'run-1',
           threadId: 'thread-1',
-          triggerMessageId: null,
+          triggerMessageId: 'message-1',
           provider: 'deepseek',
           model: 'deepseek-v4-flash',
           status: 'completed',
@@ -477,21 +477,50 @@ describe('durable chat server route helpers', () => {
           finishedAt: new Date('2026-01-01T00:00:01.000Z'),
           createdAt: new Date('2026-01-01T00:00:00.000Z')
         }
+      ], [
+        {
+          id: 'message-1',
+          threadId: 'thread-1',
+          runId: null,
+          role: 'user',
+          seq: 1,
+          status: 'completed',
+          metadata: null,
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          parts: [
+            {
+              id: 'part-1',
+              messageId: 'message-1',
+              partIndex: 0,
+              type: 'text',
+              textValue: 'Explain observability runs',
+              jsonValue: null,
+              createdAt: new Date('2026-01-01T00:00:00.000Z')
+            }
+          ]
+        }
       ])
     ).toEqual({
-      runs: [
+      items: [
         {
-          id: 'run-1',
-          threadId: 'thread-1',
-          triggerMessageId: null,
-          provider: 'deepseek',
-          model: 'deepseek-v4-flash',
-          status: 'completed',
-          usage: null,
-          error: null,
-          startedAt: '2026-01-01T00:00:00.000Z',
-          finishedAt: '2026-01-01T00:00:01.000Z',
-          createdAt: '2026-01-01T00:00:00.000Z'
+          run: {
+            id: 'run-1',
+            threadId: 'thread-1',
+            triggerMessageId: 'message-1',
+            provider: 'deepseek',
+            model: 'deepseek-v4-flash',
+            status: 'completed',
+            usage: null,
+            error: null,
+            startedAt: '2026-01-01T00:00:00.000Z',
+            finishedAt: '2026-01-01T00:00:01.000Z',
+            createdAt: '2026-01-01T00:00:00.000Z'
+          },
+          triggerMessage: {
+            id: 'message-1',
+            seq: 1,
+            preview: 'Explain observability runs'
+          }
         }
       ]
     });
