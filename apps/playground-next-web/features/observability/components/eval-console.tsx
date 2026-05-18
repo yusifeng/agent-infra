@@ -24,6 +24,7 @@ import {
   SplitSquareHorizontal
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import type { AuthUserDto } from '@/features/auth/dto/project-auth-user-dto';
@@ -43,7 +44,6 @@ import {
 import { formatDateTime, formatShortId } from '../service/format';
 import { formatJsonPreview } from '../service/dataset-review';
 import { ConsolePanelState } from './console-panel-state';
-import { ObjectContextTrail } from './object-context-trail';
 import { ObservabilityConsoleShell } from './observability-console-shell';
 
 const RESULT_REVIEW_STATUSES: EvalExampleResultReviewStatusDto[] = ['unreviewed', 'pass', 'fail', 'needs_review', 'not_applicable'];
@@ -70,9 +70,9 @@ const DEFAULT_RESULT_FILTERS: EvalResultFilters = {
 };
 
 const COMPARISON_OUTCOME_LABELS: Record<EvalResultComparisonOutcomeV1, string> = {
-  match: 'text match',
-  mismatch: 'text differs',
-  not_comparable: 'not comparable'
+  match: '文本一致',
+  mismatch: '文本不同',
+  not_comparable: '不可对比'
 };
 
 const COMPARISON_OUTCOME_CLASSES: Record<EvalResultComparisonOutcomeV1, string> = {
@@ -81,8 +81,125 @@ const COMPARISON_OUTCOME_CLASSES: Record<EvalResultComparisonOutcomeV1, string> 
   not_comparable: 'border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] text-[var(--chat-muted)]'
 };
 
+const EVAL_COPY = {
+  datasetContext: '数据集',
+  selectDataset: '选择数据集',
+  noDatasetSelected: '未选择数据集',
+  createEvalRun: '新建评估',
+  evalRuns: '评估运行',
+  results: '结果',
+  selectEvalRun: '选择一个评估运行',
+  selectResult: '选择一个结果',
+  noEvalRuns: '暂无评估运行',
+  noResults: '暂无结果',
+  noResultsMatchFilters: '没有符合筛选的结果',
+  filter: '筛选',
+  showCount: '显示',
+  resultStatus: '结果状态',
+  reviewStatus: '审核状态',
+  comparison: '对比',
+  errorOnly: '仅错误',
+  missingActual: '缺少实际输出',
+  clear: '清除',
+  unreviewed: '未审核',
+  failed: '失败',
+  errors: '错误',
+  outputComparison: '输出对照',
+  expectedText: '期望回复',
+  actualText: '实际回复',
+  actualMessages: '实际助手消息',
+  actualMessage: '实际消息',
+  textDiff: '文本差异',
+  diffUnavailable: '暂无可对比文本。',
+  noText: '暂无文本。',
+  diagnostics: '诊断',
+  reason: '原因',
+  result: '结果',
+  review: '审核',
+  reviewerNote: '审核备注',
+  save: '保存',
+  runEval: '运行评估',
+  status: '状态',
+  selected: '样本',
+  completed: '完成',
+  total: '总数',
+  outputRun: '输出 Run',
+  sourceExample: '来源样本',
+  resultUuid: '结果 UUID',
+  exampleUuid: '样本 UUID',
+  evalRunUuid: '评估运行 UUID',
+  datasetUuid: '数据集 UUID',
+  usage: '用量',
+  duration: '耗时',
+  hiddenByFilter: '当前结果被筛选条件隐藏。',
+  loadingSourceExample: '正在加载来源样本',
+  saveFailed: '保存失败',
+  expectedOutput: '期望输出',
+  actualOutput: '实际输出',
+  baselineOutput: '原始输出',
+  input: '输入',
+  metadata: '元数据',
+  lastReview: '最近审核',
+  notReviewed: '未审核',
+  by: '由',
+  unknown: '未知',
+  evalRunFallback: '评估运行'
+} as const;
+
+const EVAL_RUN_STATUS_LABELS: Record<EvalRunDto['status'], string> = {
+  queued: '排队中',
+  running: '运行中',
+  completed: '已完成',
+  failed: '失败'
+};
+
+const RESULT_STATUS_LABELS: Record<EvalExampleResultStatusDto, string> = {
+  queued: '排队中',
+  running: '运行中',
+  completed: '已完成',
+  failed: '失败',
+  skipped: '已跳过'
+};
+
+const RESULT_REVIEW_STATUS_LABELS: Record<EvalExampleResultReviewStatusDto, string> = {
+  unreviewed: '未审核',
+  pass: '通过',
+  fail: '失败',
+  needs_review: '需复核',
+  not_applicable: '不适用'
+};
+
+const COMPARISON_REASON_LABELS: Record<string, string> = {
+  normalized_text_equal: '规范化文本一致',
+  normalized_text_different: '规范化文本不同',
+  missing_expected_output: '缺少期望输出',
+  missing_actual_output: '缺少实际输出',
+  result_failed: '结果失败',
+  unsupported_expected_output: '不支持的期望输出',
+  unsupported_actual_output: '不支持的实际输出',
+  no_assistant_text: '缺少助手文本'
+};
+
+const COMPARISON_DIAGNOSTIC_LABELS: Record<string, string> = {
+  multiple_actual_assistant_messages: '存在多条实际助手消息',
+  non_text_actual_parts_omitted: '已省略非文本实际输出片段',
+  non_text_expected_parts_omitted: '已省略非文本期望片段'
+};
+
 function formatComparisonLabel(value: string) {
-  return value.replaceAll('_', ' ');
+  return COMPARISON_REASON_LABELS[value] ?? COMPARISON_DIAGNOSTIC_LABELS[value] ?? value.replaceAll('_', ' ');
+}
+
+function formatEvalRunStatusLabel(status: EvalRunDto['status']) {
+  return EVAL_RUN_STATUS_LABELS[status] ?? status;
+}
+
+function formatResultStatusLabel(status: EvalExampleResultStatusDto) {
+  return RESULT_STATUS_LABELS[status] ?? status;
+}
+
+function formatReviewStatusLabel(status: EvalExampleResultReviewStatusDto) {
+  return RESULT_REVIEW_STATUS_LABELS[status] ?? status;
 }
 
 function readResultReviewStatus(result: EvalExampleResultDto): EvalExampleResultReviewStatusDto {
@@ -134,7 +251,7 @@ function splitComparisonTokens(text: string) {
 
 function DiffText({ expectedText, actualText }: { expectedText: string | null | undefined; actualText: string | null | undefined }) {
   if (!expectedText || !actualText) {
-    return <div className="text-sm text-[var(--chat-muted)]">Diff is unavailable for this result.</div>;
+    return <div className="text-sm text-[var(--chat-muted)]">{EVAL_COPY.diffUnavailable}</div>;
   }
 
   const expectedTokens = splitComparisonTokens(expectedText);
@@ -143,7 +260,7 @@ function DiffText({ expectedText, actualText }: { expectedText: string | null | 
 
   return (
     <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
-      <div className="mb-2 text-xs font-medium text-[var(--chat-muted)]">Actual text diff</div>
+      <div className="mb-2 text-xs font-medium text-[var(--chat-muted)]">{EVAL_COPY.textDiff}</div>
       <pre className="max-h-[240px] overflow-auto whitespace-pre-wrap break-words text-sm leading-6 text-[var(--chat-text)]">
         {Array.from({ length: maxLength }, (_, index) => {
           const actualToken = actualTokens[index] ?? '';
@@ -189,7 +306,7 @@ function TextBlock({ label, text }: { label: string; text: string | null | undef
       {text ? (
         <pre className="max-h-[240px] overflow-auto whitespace-pre-wrap break-words text-sm leading-6 text-[var(--chat-text)]">{text}</pre>
       ) : (
-        <div className="text-sm text-[var(--chat-muted)]">No text available.</div>
+        <div className="text-sm text-[var(--chat-muted)]">{EVAL_COPY.noText}</div>
       )}
     </div>
   );
@@ -203,27 +320,27 @@ function ComparePanel({ result }: { result: EvalExampleResultDto }) {
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <SplitSquareHorizontal className="size-4 shrink-0 text-[var(--chat-muted)]" />
-          <h3 className="text-sm font-semibold text-[var(--chat-text)]">Comparison Assist</h3>
+          <h3 className="text-sm font-semibold text-[var(--chat-text)]">{EVAL_COPY.outputComparison}</h3>
         </div>
         <ComparisonBadge outcome={comparison.outcome} />
       </div>
 
       <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--chat-muted)]">
-        <span>reason {formatComparisonLabel(comparison.reason)}</span>
-        <span>result {result.status}</span>
+        <span>{EVAL_COPY.reason} {formatComparisonLabel(comparison.reason)}</span>
+        <span>{EVAL_COPY.result} {formatResultStatusLabel(result.status)}</span>
         <span>{readEvalResultUsage(result)}</span>
         <span>{readEvalResultDuration(result)}</span>
       </div>
 
       {comparison.diagnostics.length > 0 ? (
         <div className="mb-3 rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] px-3 py-2 text-xs leading-5 text-[var(--chat-muted)]">
-          Diagnostics: {comparison.diagnostics.map(formatComparisonLabel).join(', ')}
+          {EVAL_COPY.diagnostics}: {comparison.diagnostics.map(formatComparisonLabel).join(', ')}
         </div>
       ) : null}
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <TextBlock label="Expected assistant text" text={comparison.expectedText} />
-        <TextBlock label="Actual assistant text" text={comparison.actualText} />
+        <TextBlock label={EVAL_COPY.expectedText} text={comparison.expectedText} />
+        <TextBlock label={EVAL_COPY.actualText} text={comparison.actualText} />
       </div>
 
       {comparison.actualTextBlocks.length > 1 ? <ActualMessageBlocks comparison={comparison} /> : null}
@@ -238,12 +355,12 @@ function ComparePanel({ result }: { result: EvalExampleResultDto }) {
 function ActualMessageBlocks({ comparison }: { comparison: EvalResultComparisonProjectionV1 }) {
   return (
     <div className="mt-3 rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
-      <div className="mb-2 text-xs font-medium text-[var(--chat-muted)]">Actual assistant messages</div>
+      <div className="mb-2 text-xs font-medium text-[var(--chat-muted)]">{EVAL_COPY.actualMessages}</div>
       <div className="grid gap-2">
         {comparison.actualTextBlocks.map((block, index) => (
           <div key={`${block.messageId}-${index}`} className="rounded-md border border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] p-2">
             <div className="mb-1 text-[11px] text-[var(--chat-muted)]">
-              Actual Message {index + 1} · {block.seq == null ? 'seq n/a' : `seq ${block.seq}`} · {formatShortId(block.messageId, 10)}
+              {EVAL_COPY.actualMessage} {index + 1} · {block.seq == null ? 'seq n/a' : `seq ${block.seq}`} · {formatShortId(block.messageId, 10)}
             </div>
             <pre className="max-h-[160px] overflow-auto whitespace-pre-wrap break-words text-xs leading-5 text-[var(--chat-text)]">{block.text}</pre>
           </div>
@@ -290,7 +407,7 @@ function DatasetContextHeader({
         <div className="min-w-[240px] flex-1">
           <div className="mb-1 flex items-center gap-2">
             <Database className="size-4 text-[var(--chat-muted)]" />
-            <span className="text-xs font-medium uppercase tracking-normal text-[var(--chat-muted)]">Dataset context</span>
+            <span className="text-xs font-medium uppercase tracking-normal text-[var(--chat-muted)]">{EVAL_COPY.datasetContext}</span>
             {datasetsLoading ? <Loader2 className="size-3.5 animate-spin text-[var(--chat-muted)]" /> : null}
           </div>
           <select
@@ -300,17 +417,17 @@ function DatasetContextHeader({
             disabled={datasetsLoading || datasets.length === 0}
             onChange={(event) => onSelectDataset(event.target.value)}
           >
-            {selectedDataset ? null : <option value="">Select dataset</option>}
+            {selectedDataset ? null : <option value="">{EVAL_COPY.selectDataset}</option>}
             {datasets.map((dataset) => <option key={dataset.id} value={dataset.id}>{dataset.name}</option>)}
           </select>
           <div className="mt-1 flex flex-wrap gap-2 text-xs text-[var(--chat-muted)]">
             {selectedDataset ? (
               <>
                 <span>{selectedDataset.visibility}</span>
-                <span>updated {formatDateTime(selectedDataset.updatedAt)}</span>
+                <span>{formatDateTime(selectedDataset.updatedAt)}</span>
               </>
             ) : (
-              <span>{datasetsError ?? 'No dataset selected'}</span>
+              <span>{datasetsError ?? EVAL_COPY.noDatasetSelected}</span>
             )}
           </div>
         </div>
@@ -319,9 +436,10 @@ function DatasetContextHeader({
           aria-label="Create eval run"
           onClick={onCreateEvalRun}
           disabled={!selectedDataset || creatingEvalRun}
+          className="bg-blue-600 text-white hover:bg-blue-700"
         >
           {creatingEvalRun ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
-          Create eval run
+          {EVAL_COPY.createEvalRun}
         </Button>
       </div>
       {datasetsError ? (
@@ -331,51 +449,78 @@ function DatasetContextHeader({
   );
 }
 
-function EvalRunRow({ evalRun, selected, onSelect }: { evalRun: EvalRunDto; selected: boolean; onSelect: (evalRunId: string) => void }) {
+function EvalRunRow({
+  evalRun,
+  index,
+  selected,
+  onSelect
+}: {
+  evalRun: EvalRunDto;
+  index: number;
+  selected: boolean;
+  onSelect: (evalRunId: string) => void;
+}) {
+  const label = evalRun.name?.trim() || `${EVAL_COPY.evalRunFallback} ${index + 1}`;
+  const showStatus = evalRun.status !== 'completed';
+
   return (
     <button
       type="button"
-      className={`w-full border-b border-[color:var(--chat-border)] px-4 py-3 text-left transition-colors ${
-        selected ? 'bg-[var(--chat-brand-accent-soft)]' : 'hover:bg-[var(--chat-surface-muted)]'
+      className={`group flex h-12 w-full items-center justify-between rounded-[12px] px-3 text-left transition ${
+        selected ? 'bg-[var(--chat-brand-accent-soft)] text-[var(--chat-text)]' : 'text-[var(--chat-text)] hover:bg-[var(--chat-hover)]'
       }`}
       onClick={() => onSelect(evalRun.id)}
     >
-      <div className="flex min-w-0 items-center justify-between gap-2">
-        <div className="min-w-0 truncate font-mono text-xs font-medium text-[var(--chat-text)]">{formatShortId(evalRun.id, 16)}</div>
-        <span className="shrink-0 rounded-md border border-[color:var(--chat-border)] px-2 py-0.5 text-[11px] text-[var(--chat-muted)]">
-          {evalRun.status}
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm leading-[1.2]" title={label}>{label}</div>
+        <div className="mt-1 truncate text-xs text-[var(--chat-muted)]">
+          {EVAL_COPY.selected} {readEvalRunTotal(evalRun)} · {EVAL_COPY.completed} {readEvalRunCompleted(evalRun)} · {EVAL_COPY.failed} {readEvalRunFailed(evalRun)}
+        </div>
+      </div>
+      {showStatus ? (
+        <span className="ml-2 shrink-0 rounded-md border border-[color:var(--chat-border)] px-2 py-0.5 text-[11px] text-[var(--chat-muted)]">
+          {formatEvalRunStatusLabel(evalRun.status)}
         </span>
-      </div>
-      <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-[var(--chat-muted)]">
-        <span className="truncate">total {readEvalRunTotal(evalRun)}</span>
-        <span className="truncate">done {readEvalRunCompleted(evalRun)}</span>
-        <span className="truncate">failed {readEvalRunFailed(evalRun)}</span>
-      </div>
+      ) : null}
     </button>
   );
 }
 
-function ResultRow({ result, selected, onSelect }: { result: EvalExampleResultDto; selected: boolean; onSelect: (resultId: string) => void }) {
+function ResultRow({
+  result,
+  comparison,
+  selected,
+  onSelect
+}: {
+  result: EvalExampleResultDto;
+  comparison: EvalResultComparisonProjectionV1;
+  selected: boolean;
+  onSelect: (resultId: string) => void;
+}) {
+  const reviewStatus = readResultReviewStatus(result);
+  const showReviewStatus = reviewStatus !== 'unreviewed';
+
   return (
     <button
       type="button"
-      className={`w-full border-b border-[color:var(--chat-border)] px-4 py-3 text-left transition-colors ${
-        selected ? 'bg-[var(--chat-brand-accent-soft)]' : 'hover:bg-[var(--chat-surface-muted)]'
+      className={`group flex min-h-12 w-full items-center justify-between rounded-[12px] px-3 py-2 text-left transition ${
+        selected ? 'bg-[var(--chat-brand-accent-soft)] text-[var(--chat-text)]' : 'text-[var(--chat-text)] hover:bg-[var(--chat-hover)]'
       }`}
       onClick={() => onSelect(result.id)}
     >
-      <div className="flex min-w-0 items-center justify-between gap-2">
-        <div className="min-w-0 truncate font-mono text-xs font-medium text-[var(--chat-text)]">
-          #{result.exampleOrdinal} {formatShortId(result.datasetExampleId, 10)}
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm leading-[1.2]">{EVAL_COPY.selected} #{result.exampleOrdinal}</div>
+        <div className="mt-1 truncate text-xs text-[var(--chat-muted)]">
+          {formatResultStatusLabel(result.status)} · {readEvalResultUsage(result)} · {readEvalResultDuration(result)}
         </div>
-        <span className="shrink-0 rounded-md border border-[color:var(--chat-border)] px-2 py-0.5 text-[11px] text-[var(--chat-muted)]">
-          {result.status}
-        </span>
       </div>
-      <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-[var(--chat-muted)]">
-        <span className="truncate">review {result.review?.status ?? 'unreviewed'}</span>
-        <span className="truncate">{readEvalResultUsage(result)}</span>
-        <span className="truncate">{readEvalResultDuration(result)}</span>
+      <div className="ml-2 flex shrink-0 items-center gap-2">
+        {showReviewStatus ? (
+          <span className="rounded-md border border-[color:var(--chat-border)] px-2 py-0.5 text-[11px] text-[var(--chat-muted)]">
+            {formatReviewStatusLabel(reviewStatus)}
+          </span>
+        ) : null}
+        <ComparisonBadge outcome={comparison.outcome} />
       </div>
     </button>
   );
@@ -411,52 +556,52 @@ function ResultFiltersPanel({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Filter className="size-4 text-[var(--chat-muted)]" />
-          <h3 className="text-sm font-semibold text-[var(--chat-text)]">Review Queue</h3>
+          <h3 className="text-sm font-semibold text-[var(--chat-text)]">{EVAL_COPY.filter}</h3>
         </div>
         <span className="text-xs text-[var(--chat-muted)]">
-          Showing {visibleCount} of {totalCount}
+          {EVAL_COPY.showCount} {visibleCount}/{totalCount}
         </span>
       </div>
 
       <div className="mt-3 grid gap-2 text-xs text-[var(--chat-muted)]">
         <label className="block">
-          Result
+          {EVAL_COPY.resultStatus}
           <select
             aria-label="Result status filter"
             className="mt-1 h-8 w-full rounded-md border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-2 text-xs text-[var(--chat-text)]"
             value={filters.resultStatus}
             onChange={(event) => setFilter('resultStatus', event.target.value as ResultStatusFilter)}
           >
-            <option value="all">all</option>
-            {RESULT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+            <option value="all">全部</option>
+            {RESULT_STATUSES.map((status) => <option key={status} value={status}>{formatResultStatusLabel(status)}</option>)}
           </select>
         </label>
 
         <label className="block">
-          Review
+          {EVAL_COPY.reviewStatus}
           <select
             aria-label="Review status filter"
             className="mt-1 h-8 w-full rounded-md border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-2 text-xs text-[var(--chat-text)]"
             value={filters.reviewStatus}
             onChange={(event) => setFilter('reviewStatus', event.target.value as ReviewStatusFilter)}
           >
-            <option value="all">all</option>
-            {RESULT_REVIEW_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+            <option value="all">全部</option>
+            {RESULT_REVIEW_STATUSES.map((status) => <option key={status} value={status}>{formatReviewStatusLabel(status)}</option>)}
           </select>
         </label>
 
         <label className="block">
-          Comparison
+          {EVAL_COPY.comparison}
           <select
             aria-label="Comparison outcome filter"
             className="mt-1 h-8 w-full rounded-md border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-2 text-xs text-[var(--chat-text)]"
             value={filters.comparisonOutcome}
             onChange={(event) => setFilter('comparisonOutcome', event.target.value as ComparisonOutcomeFilter)}
           >
-            <option value="all">all</option>
-            <option value="match">text match</option>
-            <option value="mismatch">text differs</option>
-            <option value="not_comparable">not comparable</option>
+            <option value="all">全部</option>
+            <option value="match">{COMPARISON_OUTCOME_LABELS.match}</option>
+            <option value="mismatch">{COMPARISON_OUTCOME_LABELS.mismatch}</option>
+            <option value="not_comparable">{COMPARISON_OUTCOME_LABELS.not_comparable}</option>
           </select>
         </label>
 
@@ -467,7 +612,7 @@ function ResultFiltersPanel({
             checked={filters.errorOnly}
             onChange={(event) => setFilter('errorOnly', event.target.checked)}
           />
-          Errors only
+          {EVAL_COPY.errorOnly}
         </label>
 
         <label className="flex items-center gap-2 rounded-md border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-2 py-1.5 text-xs text-[var(--chat-text)]">
@@ -477,7 +622,7 @@ function ResultFiltersPanel({
             checked={filters.missingActualOnly}
             onChange={(event) => setFilter('missingActualOnly', event.target.checked)}
           />
-          Missing actual
+          {EVAL_COPY.missingActual}
         </label>
       </div>
 
@@ -488,7 +633,7 @@ function ResultFiltersPanel({
           variant="outline"
           onClick={() => onChange({ ...DEFAULT_RESULT_FILTERS, reviewStatus: 'unreviewed' })}
         >
-          Unreviewed {queueCounts.unreviewed}
+          {EVAL_COPY.unreviewed} {queueCounts.unreviewed}
         </Button>
         <Button
           type="button"
@@ -496,7 +641,7 @@ function ResultFiltersPanel({
           variant="outline"
           onClick={() => onChange({ ...DEFAULT_RESULT_FILTERS, resultStatus: 'failed' })}
         >
-          Failed {queueCounts.failed}
+          {EVAL_COPY.failed} {queueCounts.failed}
         </Button>
         <Button
           type="button"
@@ -504,7 +649,7 @@ function ResultFiltersPanel({
           variant="outline"
           onClick={() => onChange({ ...DEFAULT_RESULT_FILTERS, comparisonOutcome: 'match' })}
         >
-          Text Match {queueCounts.match}
+          {COMPARISON_OUTCOME_LABELS.match} {queueCounts.match}
         </Button>
         <Button
           type="button"
@@ -512,7 +657,7 @@ function ResultFiltersPanel({
           variant="outline"
           onClick={() => onChange({ ...DEFAULT_RESULT_FILTERS, reviewStatus: 'unreviewed', comparisonOutcome: 'mismatch' })}
         >
-          Mismatch {queueCounts.mismatch}
+          {COMPARISON_OUTCOME_LABELS.mismatch} {queueCounts.mismatch}
         </Button>
         <Button
           type="button"
@@ -520,7 +665,7 @@ function ResultFiltersPanel({
           variant="outline"
           onClick={() => onChange({ ...DEFAULT_RESULT_FILTERS, reviewStatus: 'unreviewed', comparisonOutcome: 'not_comparable' })}
         >
-          Not Comparable {queueCounts.notComparable}
+          {COMPARISON_OUTCOME_LABELS.not_comparable} {queueCounts.notComparable}
         </Button>
         <Button
           type="button"
@@ -528,7 +673,7 @@ function ResultFiltersPanel({
           variant="outline"
           onClick={() => onChange({ ...DEFAULT_RESULT_FILTERS, errorOnly: true })}
         >
-          Errors {queueCounts.error}
+          {EVAL_COPY.errors} {queueCounts.error}
         </Button>
         <Button
           type="button"
@@ -536,10 +681,10 @@ function ResultFiltersPanel({
           variant="outline"
           onClick={() => onChange({ ...DEFAULT_RESULT_FILTERS, missingActualOnly: true })}
         >
-          Missing Actual {queueCounts.missingActual}
+          {EVAL_COPY.missingActual} {queueCounts.missingActual}
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={() => onChange(DEFAULT_RESULT_FILTERS)}>
-          Clear
+          {EVAL_COPY.clear}
         </Button>
       </div>
     </section>
@@ -566,26 +711,26 @@ function ReviewEditor({
   return (
     <section className="border-t border-[color:var(--chat-border)] py-4">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold text-[var(--chat-text)]">Result Review</h3>
+        <h3 className="text-sm font-semibold text-[var(--chat-text)]">{EVAL_COPY.review}</h3>
         <Button size="sm" onClick={() => onSave({ status, reviewerNote })} disabled={saving}>
           {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-          Save
+          {EVAL_COPY.save}
         </Button>
       </div>
       <div className="grid gap-3 md:grid-cols-[240px_minmax(0,1fr)]">
         <label className="block text-xs font-medium text-[var(--chat-muted)]">
-          Status
+          {EVAL_COPY.status}
           <select
             aria-label="Review decision"
             className="mt-1 h-9 w-full rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-2 text-sm text-[var(--chat-text)]"
             value={status}
             onChange={(event) => setStatus(event.target.value as EvalExampleResultReviewStatusDto)}
           >
-            {RESULT_REVIEW_STATUSES.map((item) => <option key={item} value={item}>{item}</option>)}
+            {RESULT_REVIEW_STATUSES.map((item) => <option key={item} value={item}>{formatReviewStatusLabel(item)}</option>)}
           </select>
         </label>
         <label className="block text-xs font-medium text-[var(--chat-muted)]">
-          Reviewer Note
+          {EVAL_COPY.reviewerNote}
           <input
             aria-label="Reviewer Note"
             className="mt-1 h-9 w-full rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-3 text-sm text-[var(--chat-text)] outline-none focus:border-[color:var(--chat-border-strong)]"
@@ -595,7 +740,7 @@ function ReviewEditor({
         </label>
       </div>
       <div className="mt-2 text-xs text-[var(--chat-muted)]">
-        Last review: {result.review?.reviewedAt ? `${formatDateTime(result.review.reviewedAt)} by ${result.review.reviewedByActorId ?? 'unknown'}` : 'not reviewed'}
+        {EVAL_COPY.lastReview}: {result.review?.reviewedAt ? `${formatDateTime(result.review.reviewedAt)} ${EVAL_COPY.by} ${result.review.reviewedByActorId ?? EVAL_COPY.unknown}` : EVAL_COPY.notReviewed}
       </div>
     </section>
   );
@@ -615,43 +760,44 @@ function EvalSummary({
   return (
     <section className="border-b border-[color:var(--chat-border)] px-5 py-4">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <ObjectContextTrail
-            items={[
-              { label: 'Dataset', value: dataset?.name ?? formatShortId(evalRun.datasetId, 12) },
-              { label: 'EvalRun', value: formatShortId(evalRun.id, 16) }
-            ]}
-          />
-          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
-            <h3 className="truncate font-mono text-sm font-semibold text-[var(--chat-text)]">{formatShortId(evalRun.id, 16)}</h3>
-            <span className="rounded-md border border-[color:var(--chat-border)] px-2 py-0.5 text-xs text-[var(--chat-muted)]">{evalRun.status}</span>
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-base font-semibold text-[var(--chat-text)]">{dataset?.name ?? formatShortId(evalRun.datasetId, 12)}</h3>
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2 text-xs text-[var(--chat-muted)]">
+            <span>{EVAL_COPY.status} {formatEvalRunStatusLabel(evalRun.status)}</span>
+            <span>{EVAL_COPY.evalRunUuid} {evalRun.id}</span>
           </div>
         </div>
-        <Button size="sm" aria-label="Run eval" onClick={onRun} disabled={running || evalRun.status !== 'queued'}>
+        <Button
+          size="sm"
+          aria-label="Run eval"
+          onClick={onRun}
+          disabled={running || evalRun.status !== 'queued'}
+          className="bg-blue-600 text-white hover:bg-blue-700"
+        >
           {running ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
-          Run eval
+          {EVAL_COPY.runEval}
         </Button>
       </div>
       <div className="grid gap-3 md:grid-cols-4">
         <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
-          <div className="text-xs text-[var(--chat-muted)]">Status</div>
-          <div className="mt-1 text-sm font-semibold text-[var(--chat-text)]">{evalRun.status}</div>
+          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.status}</div>
+          <div className="mt-1 text-sm font-semibold text-[var(--chat-text)]">{formatEvalRunStatusLabel(evalRun.status)}</div>
         </div>
         <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
-          <div className="text-xs text-[var(--chat-muted)]">Selected</div>
+          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.selected}</div>
           <div className="mt-1 text-sm font-semibold text-[var(--chat-text)]">{readEvalRunTotal(evalRun)}</div>
         </div>
         <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
-          <div className="text-xs text-[var(--chat-muted)]">Completed</div>
+          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.completed}</div>
           <div className="mt-1 text-sm font-semibold text-[var(--chat-text)]">{readEvalRunCompleted(evalRun)}</div>
         </div>
         <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
-          <div className="text-xs text-[var(--chat-muted)]">Failed</div>
+          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.failed}</div>
           <div className="mt-1 text-sm font-semibold text-[var(--chat-text)]">{readEvalRunFailed(evalRun)}</div>
         </div>
       </div>
       <div className="mt-3 text-xs leading-5 text-[var(--chat-muted)]">
-        Result status: {formatCountMap(evalRun.summary?.results.statusCounts)} · Review status: {formatCountMap(evalRun.summary?.results.reviewStatusCounts)}
+        {EVAL_COPY.resultStatus}: {formatCountMap(evalRun.summary?.results.statusCounts)} · {EVAL_COPY.reviewStatus}: {formatCountMap(evalRun.summary?.results.reviewStatusCounts)}
       </div>
     </section>
   );
@@ -664,7 +810,6 @@ function ResultDetailPanel({
   sourceExampleLoading,
   sourceExampleError,
   savingReview,
-  mutationError,
   hiddenByFilter,
   onSaveReview
 }: {
@@ -674,38 +819,29 @@ function ResultDetailPanel({
   sourceExampleLoading: boolean;
   sourceExampleError: string | null;
   savingReview: boolean;
-  mutationError: string | null;
   hiddenByFilter: boolean;
   onSaveReview: (draft: EvalResultReviewDraft) => void;
 }) {
   if (!evalRun) {
-    return <ConsolePanelState title="Select an eval run" />;
+    return <ConsolePanelState title={EVAL_COPY.selectEvalRun} />;
   }
   if (!result) {
-    return <ConsolePanelState title="Select a result" />;
+    return <ConsolePanelState title={EVAL_COPY.selectResult} />;
   }
 
   const sourceHref = buildDatasetExampleHref({ datasetId: evalRun.datasetId, exampleId: result.datasetExampleId });
   const outputHref = buildOutputRunHref(result);
 
   return (
-    <div className="min-h-0 overflow-auto px-5 py-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <ObjectContextTrail
-            items={[
-              { label: 'DatasetExample', value: formatShortId(result.datasetExampleId, 12), href: sourceHref },
-              { label: 'EvalRun', value: formatShortId(evalRun.id, 12) },
-              { label: 'Result', value: `#${result.exampleOrdinal}` },
-              { label: 'Eval output run', value: formatShortId(result.outputRunId, 12), href: outputHref },
-              { label: 'Review', value: result.review?.status ?? 'unreviewed' }
-            ]}
-          />
-          <h2 className="truncate font-mono text-base font-semibold text-[var(--chat-text)]">{result.id}</h2>
+    <div className="h-full min-h-0 overflow-auto px-5 py-4">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[color:var(--chat-border)] pb-4">
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate text-base font-semibold text-[var(--chat-text)]">
+            {EVAL_COPY.result} #{result.exampleOrdinal}
+          </h2>
           <div className="mt-1 flex flex-wrap gap-2 text-xs text-[var(--chat-muted)]">
-            <span>example {formatShortId(result.datasetExampleId, 12)}</span>
-            <span>status {result.status}</span>
-            <span>review {result.review?.status ?? 'unreviewed'}</span>
+            <span>{EVAL_COPY.status} {formatResultStatusLabel(result.status)}</span>
+            <span>{EVAL_COPY.review} {formatReviewStatusLabel(result.review?.status ?? 'unreviewed')}</span>
             <span>{readEvalResultUsage(result)}</span>
             <span>{readEvalResultDuration(result)}</span>
           </div>
@@ -715,7 +851,7 @@ function ResultDetailPanel({
             <Button asChild size="sm" variant="outline">
               <a href={sourceHref}>
                 <Database className="size-4" />
-                Example
+                {EVAL_COPY.sourceExample}
               </a>
             </Button>
           ) : null}
@@ -723,18 +859,37 @@ function ResultDetailPanel({
             <Button asChild size="sm" variant="outline">
               <a href={outputHref}>
                 <Link2 className="size-4" />
-                Eval output run
+                {EVAL_COPY.outputRun}
               </a>
             </Button>
           ) : null}
         </div>
       </div>
 
+      <div className="grid gap-3 py-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
+          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.resultUuid}</div>
+          <div className="mt-1 break-all font-mono text-xs text-[var(--chat-text)]">{result.id}</div>
+        </div>
+        <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
+          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.exampleUuid}</div>
+          <div className="mt-1 break-all font-mono text-xs text-[var(--chat-text)]">{result.datasetExampleId}</div>
+        </div>
+        <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
+          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.outputRun}</div>
+          <div className="mt-1 break-all font-mono text-xs text-[var(--chat-text)]">{result.outputRunId ?? '-'}</div>
+        </div>
+        <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
+          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.usage}</div>
+          <div className="mt-1 text-sm font-semibold text-[var(--chat-text)]">{readEvalResultUsage(result)}</div>
+          <div className="mt-1 text-xs text-[var(--chat-muted)]">{EVAL_COPY.duration} {readEvalResultDuration(result)}</div>
+        </div>
+      </div>
+
       {result.error ? <div className="mt-4 rounded-lg bg-[var(--chat-error-bg)] px-3 py-2 text-sm text-[var(--chat-error-text)]">{result.error}</div> : null}
-      {mutationError ? <div className="mt-4 rounded-lg bg-[var(--chat-error-bg)] px-3 py-2 text-sm text-[var(--chat-error-text)]">{mutationError}</div> : null}
       {hiddenByFilter ? (
         <div className="mt-4 rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] px-3 py-2 text-sm text-[var(--chat-muted)]">
-          Selected result is hidden by the current filters.
+          {EVAL_COPY.hiddenByFilter}
         </div>
       ) : null}
 
@@ -742,15 +897,15 @@ function ResultDetailPanel({
 
       <ReviewEditor result={result} saving={savingReview} onSave={onSaveReview} />
 
-      {sourceExampleLoading ? <div className="py-3 text-sm text-[var(--chat-muted)]">Loading source example</div> : null}
+      {sourceExampleLoading ? <div className="py-3 text-sm text-[var(--chat-muted)]">{EVAL_COPY.loadingSourceExample}</div> : null}
       {sourceExampleError ? <div className="py-3 text-sm text-[var(--chat-muted)]">{sourceExampleError}</div> : null}
 
-      <JsonBlock title="Expected Output" value={result.expectedOutputJson} />
-      <JsonBlock title="Actual Output" value={result.actualOutputJson} />
-      <JsonBlock title="Baseline Output" value={readBaselineOutput(sourceExample)} />
-      <JsonBlock title="Input" value={result.inputJson} />
-      <JsonBlock title="Usage" value={result.usageJson} />
-      <JsonBlock title="Metadata" value={result.metadataJson} />
+      <JsonBlock title={EVAL_COPY.expectedOutput} value={result.expectedOutputJson} />
+      <JsonBlock title={EVAL_COPY.actualOutput} value={result.actualOutputJson} />
+      <JsonBlock title={EVAL_COPY.baselineOutput} value={readBaselineOutput(sourceExample)} />
+      <JsonBlock title={EVAL_COPY.input} value={result.inputJson} />
+      <JsonBlock title={EVAL_COPY.usage} value={result.usageJson} />
+      <JsonBlock title={EVAL_COPY.metadata} value={result.metadataJson} />
     </div>
   );
 }
@@ -808,6 +963,14 @@ export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
     )
   }), [comparisonByResultId, state.results]);
 
+  useEffect(() => {
+    if (state.mutationError) {
+      toast.error(EVAL_COPY.saveFailed, {
+        description: state.mutationError
+      });
+    }
+  }, [state.mutationError]);
+
   return (
     <ObservabilityConsoleShell
       activeSection="evals"
@@ -828,17 +991,23 @@ export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
         <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[320px_minmax(0,1fr)]">
           <aside className="flex min-h-0 flex-col border-r border-[color:var(--chat-border)] bg-[var(--chat-bg)]">
             <div className="flex h-12 items-center justify-between gap-2 border-b border-[color:var(--chat-border)] px-4">
-              <h2 className="min-w-0 truncate text-sm font-semibold">Eval runs</h2>
+              <h2 className="min-w-0 truncate text-sm font-semibold">{EVAL_COPY.evalRuns}</h2>
               {state.evalRunsLoading ? <Loader2 className="size-4 animate-spin text-[var(--chat-muted)]" /> : null}
             </div>
-            <div className="min-h-0 flex-1 overflow-auto pb-12">
+            <div className="min-h-0 flex-1 overflow-auto px-3 py-2">
               {state.evalRunsError ? <ConsolePanelState title={state.evalRunsError} /> : null}
-              {!state.selectedDataset && !state.datasetsError ? <ConsolePanelState title="Select a dataset" /> : null}
+              {!state.selectedDataset && !state.datasetsError ? <ConsolePanelState title={EVAL_COPY.selectDataset} /> : null}
               {!state.evalRunsError && state.selectedDataset && state.evalRuns.length === 0 && !state.evalRunsLoading ? (
-                <ConsolePanelState title="No eval runs" />
+                <ConsolePanelState title={EVAL_COPY.noEvalRuns} />
               ) : null}
-              {state.evalRuns.map((evalRun) => (
-                <EvalRunRow key={evalRun.id} evalRun={evalRun} selected={evalRun.id === state.selectedEvalRunId} onSelect={state.selectEvalRun} />
+              {state.evalRuns.map((evalRun, index) => (
+                <EvalRunRow
+                  key={evalRun.id}
+                  evalRun={evalRun}
+                  index={index}
+                  selected={evalRun.id === state.selectedEvalRunId}
+                  onSelect={state.selectEvalRun}
+                />
               ))}
             </div>
           </aside>
@@ -856,12 +1025,13 @@ export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
               <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[360px_minmax(0,1fr)]">
                 <aside className="flex min-h-0 flex-col border-r border-[color:var(--chat-border)] bg-[var(--chat-bg)]">
                   <div className="flex h-12 items-center justify-between gap-2 border-b border-[color:var(--chat-border)] px-4">
-                    <h2 className="text-sm font-semibold">Results</h2>
+                    <h2 className="text-sm font-semibold">{EVAL_COPY.results}</h2>
+                    {state.resultsLoading ? <Loader2 className="size-4 animate-spin text-[var(--chat-muted)]" /> : null}
                   </div>
-                  <div className="min-h-0 flex-1 overflow-auto pb-12">
+                  <div className="min-h-0 flex-1 overflow-auto px-3 py-2">
                     {state.resultsError ? <ConsolePanelState title={state.resultsError} /> : null}
                     {!state.resultsError && state.results.length === 0 && !state.resultsLoading ? (
-                      <ConsolePanelState title="No results" />
+                      <ConsolePanelState title={EVAL_COPY.noResults} />
                     ) : null}
                     {!state.resultsError && state.results.length > 0 ? (
                       <ResultFiltersPanel
@@ -872,10 +1042,19 @@ export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
                         onChange={setResultFilters}
                       />
                     ) : null}
-                    {!state.resultsError && state.results.length > 0 && filteredResults.length === 0 ? <ConsolePanelState title="No results match filters" /> : null}
-                    {filteredResults.map((result) => (
-                      <ResultRow key={result.id} result={result} selected={result.id === state.selectedResultId} onSelect={state.selectResult} />
-                    ))}
+                    {!state.resultsError && state.results.length > 0 && filteredResults.length === 0 ? <ConsolePanelState title={EVAL_COPY.noResultsMatchFilters} /> : null}
+                    {filteredResults.map((result) => {
+                      const comparison = comparisonByResultId.get(result.id);
+                      return comparison ? (
+                        <ResultRow
+                          key={result.id}
+                          result={result}
+                          comparison={comparison}
+                          selected={result.id === state.selectedResultId}
+                          onSelect={state.selectResult}
+                        />
+                      ) : null;
+                    })}
                   </div>
                 </aside>
 
@@ -886,13 +1065,12 @@ export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
                   sourceExampleLoading={state.sourceExampleLoading}
                   sourceExampleError={state.sourceExampleError}
                   savingReview={state.savingReview}
-                  mutationError={state.mutationError}
                   hiddenByFilter={selectedResultHiddenByFilter}
                   onSaveReview={state.saveResultReview}
                 />
               </div>
             ) : (
-              <ConsolePanelState title="Select an eval run" />
+              <ConsolePanelState title={EVAL_COPY.selectEvalRun} />
             )}
           </section>
         </div>

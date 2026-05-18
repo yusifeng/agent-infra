@@ -21,6 +21,10 @@ const api = vi.hoisted(() => ({
   updateEvalExampleResultReviewResponse: vi.fn()
 }));
 
+const toast = vi.hoisted(() => ({
+  error: vi.fn()
+}));
+
 vi.mock('next/navigation', () => ({
   usePathname: () => '/observability/evals',
   useRouter: () => ({
@@ -44,6 +48,10 @@ vi.mock('@/features/durable-chat/repo/chat-api', () => ({
   fetchThreadRunsResponse: api.fetchThreadRunsResponse,
   runEvalRunResponse: api.runEvalRunResponse,
   updateEvalExampleResultReviewResponse: api.updateEvalExampleResultReviewResponse
+}));
+
+vi.mock('sonner', () => ({
+  toast
 }));
 
 import { EvalConsole } from './eval-console';
@@ -206,6 +214,7 @@ describe('EvalConsole', () => {
     for (const mock of Object.values(api)) {
       mock.mockReset();
     }
+    toast.error.mockReset();
 
     api.fetchDatasetsResponse.mockResolvedValue({
       ok: true,
@@ -257,20 +266,20 @@ describe('EvalConsole', () => {
     expect(document.body.textContent).toContain('Evals');
     expect(document.body.textContent).toContain('Regression');
     expect(document.body.textContent).toContain('eval-run-1');
-    expect(document.body.textContent).toContain('Dataset');
-    expect(document.body.textContent).toContain('EvalRun');
-    expect(document.body.textContent).toContain('DatasetExample');
-    expect(document.body.textContent).toContain('Eval output run');
-    expect(document.body.textContent).toContain('Comparison Assist');
-    expect(document.body.textContent).toContain('text differs');
-    expect(document.body.textContent).toContain('normalized text different');
-    expect(document.body.textContent).toContain('Expected assistant text');
+    expect(document.body.textContent).toContain('数据集');
+    expect(document.body.textContent).toContain('评估运行 UUID');
+    expect(document.body.textContent).toContain('样本 UUID');
+    expect(document.body.textContent).toContain('输出 Run');
+    expect(document.body.textContent).toContain('输出对照');
+    expect(document.body.textContent).toContain('文本不同');
+    expect(document.body.textContent).toContain('规范化文本不同');
+    expect(document.body.textContent).toContain('期望回复');
     expect(document.body.textContent).toContain('Expected answer');
-    expect(document.body.textContent).toContain('Actual assistant text');
+    expect(document.body.textContent).toContain('实际回复');
     expect(document.body.textContent).toContain('Actual answer');
-    expect(document.body.textContent).toContain('Expected Output');
-    expect(document.body.textContent).toContain('Actual Output');
-    expect(document.body.textContent).toContain('Baseline Output');
+    expect(document.body.textContent).toContain('期望输出');
+    expect(document.body.textContent).toContain('实际输出');
+    expect(document.body.textContent).toContain('原始输出');
     expect(document.body.textContent).toContain('42 tokens');
     expect(api.fetchDatasetEvalRunsResponse).toHaveBeenCalledWith('dataset-1', expect.any(AbortSignal));
     expect(api.fetchEvalExampleResultsResponse).toHaveBeenCalledWith('eval-run-1', expect.any(AbortSignal));
@@ -303,8 +312,8 @@ describe('EvalConsole', () => {
     await flush();
     await flush();
 
-    expect(document.body.textContent).toContain('Dataset context');
-    expect(document.body.textContent).toContain('Eval runs');
+    expect(document.body.textContent).toContain('数据集');
+    expect(document.body.textContent).toContain('评估运行');
 
     const selector = document.body.querySelector('select[aria-label="Eval dataset"]') as HTMLSelectElement;
     await act(async () => {
@@ -410,7 +419,7 @@ describe('EvalConsole', () => {
 
     const select = document.body.querySelector('select[aria-label="Review decision"]') as HTMLSelectElement;
     const input = document.body.querySelector('input[aria-label="Reviewer Note"]') as HTMLInputElement;
-    const saveButton = [...document.body.querySelectorAll('button')].find((button) => button.textContent === 'Save');
+    const saveButton = [...document.body.querySelectorAll('button')].find((button) => button.textContent === '保存');
     const inputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
 
     for (const status of ['pass', 'fail', 'needs_review', 'not_applicable'] as const) {
@@ -476,8 +485,8 @@ describe('EvalConsole', () => {
     await flush();
     await flush();
 
-    expect(document.body.textContent).toContain('text match');
-    expect(document.body.textContent).toContain('normalized text equal');
+    expect(document.body.textContent).toContain('文本一致');
+    expect(document.body.textContent).toContain('规范化文本一致');
 
     const select = document.body.querySelector('select[aria-label="Review decision"]') as HTMLSelectElement;
     expect(select.value).toBe('unreviewed');
@@ -506,10 +515,10 @@ describe('EvalConsole', () => {
     await flush();
     await flush();
 
-    expect(document.body.textContent).toContain('not comparable');
-    expect(document.body.textContent).toContain('result failed');
+    expect(document.body.textContent).toContain('不可对比');
+    expect(document.body.textContent).toContain('结果失败');
     expect(document.body.textContent).toContain('model timeout');
-    expect(document.body.textContent).toContain('No text available.');
+    expect(document.body.textContent).toContain('暂无文本。');
 
     const select = document.body.querySelector('select[aria-label="Review decision"]') as HTMLSelectElement;
     expect(select.value).toBe('unreviewed');
@@ -571,11 +580,11 @@ describe('EvalConsole', () => {
     await flush();
     await flush();
 
-    expect(document.body.textContent).toContain('Diagnostics: multiple actual assistant messages, non text actual parts omitted');
-    expect(document.body.textContent).toContain('Actual assistant messages');
-    expect(document.body.textContent).toContain('Actual Message 1');
+    expect(document.body.textContent).toContain('诊断: 存在多条实际助手消息, 已省略非文本实际输出片段');
+    expect(document.body.textContent).toContain('实际助手消息');
+    expect(document.body.textContent).toContain('实际消息 1');
     expect(document.body.textContent).toContain('First answer');
-    expect(document.body.textContent).toContain('Actual Message 2');
+    expect(document.body.textContent).toContain('实际消息 2');
     expect(document.body.textContent).toContain('Second answer');
   });
 
@@ -636,58 +645,56 @@ describe('EvalConsole', () => {
     await flush();
     await flush();
 
-    expect(document.body.textContent).toContain('Showing 3 of 3');
-    expect(document.body.textContent).toContain('#1 example-ma...');
-    expect(document.body.textContent).toContain('#1 example-fa...');
-    expect(document.body.textContent).toContain('#1 example-re...');
+    expect(document.body.textContent).toContain('显示 3/3');
+    expect(document.body.textContent).toContain('样本 #1');
+    expect(document.body.textContent).toContain('通过');
 
     await act(async () => {
-      [...document.body.querySelectorAll('button')].find((button) => button.textContent === 'Failed 1')?.click();
+      [...document.body.querySelectorAll('button')].find((button) => button.textContent === '失败 1')?.click();
     });
     await flush();
 
-    expect(document.body.textContent).toContain('Showing 1 of 3');
-    expect(document.body.textContent).toContain('#1 example-fa...');
-    expect(document.body.textContent).not.toContain('#1 example-ma...');
+    expect(document.body.textContent).toContain('显示 1/3');
+    expect(document.body.textContent).toContain('不可对比');
+    expect(document.body.textContent).not.toContain('文本一致样本 #1');
 
     await act(async () => {
-      [...document.body.querySelectorAll('button')].find((button) => button.textContent === 'Clear')?.click();
+      [...document.body.querySelectorAll('button')].find((button) => button.textContent === '清除')?.click();
     });
     await flush();
 
     await act(async () => {
-      [...document.body.querySelectorAll('button')].find((button) => button.textContent === 'Unreviewed 2')?.click();
+      [...document.body.querySelectorAll('button')].find((button) => button.textContent === '未审核 2')?.click();
     });
     await flush();
 
-    expect(document.body.textContent).toContain('Showing 2 of 3');
-    expect(document.body.textContent).toContain('#1 example-ma...');
-    expect(document.body.textContent).toContain('#1 example-fa...');
-    expect(document.body.textContent).not.toContain('#1 example-re...');
+    expect(document.body.textContent).toContain('显示 2/3');
+    expect(document.body.textContent).toContain('文本一致');
+    expect(document.body.textContent).toContain('不可对比');
 
     await act(async () => {
-      [...document.body.querySelectorAll('button')].find((button) => button.textContent === 'Text Match 1')?.click();
+      [...document.body.querySelectorAll('button')].find((button) => button.textContent === '文本一致 1')?.click();
     });
     await flush();
 
-    expect(document.body.textContent).toContain('Showing 1 of 3');
-    expect(document.body.textContent).toContain('#1 example-ma...');
+    expect(document.body.textContent).toContain('显示 1/3');
+    expect(document.body.textContent).toContain('文本一致');
 
     await act(async () => {
-      [...document.body.querySelectorAll('button')].find((button) => button.textContent === 'Errors 1')?.click();
+      [...document.body.querySelectorAll('button')].find((button) => button.textContent === '错误 1')?.click();
     });
     await flush();
 
-    expect(document.body.textContent).toContain('Showing 1 of 3');
-    expect(document.body.textContent).toContain('#1 example-fa...');
+    expect(document.body.textContent).toContain('显示 1/3');
+    expect(document.body.textContent).toContain('不可对比');
 
     await act(async () => {
-      [...document.body.querySelectorAll('button')].find((button) => button.textContent === 'Missing Actual 1')?.click();
+      [...document.body.querySelectorAll('button')].find((button) => button.textContent === '缺少实际输出 1')?.click();
     });
     await flush();
 
-    expect(document.body.textContent).toContain('Showing 1 of 3');
-    expect(document.body.textContent).toContain('#1 example-fa...');
+    expect(document.body.textContent).toContain('显示 1/3');
+    expect(document.body.textContent).toContain('不可对比');
 
     expect(navigation.replace).toHaveBeenLastCalledWith('/observability/evals?datasetId=dataset-1&evalRunId=eval-run-1&resultId=result-match', { scroll: false });
   });
@@ -718,14 +725,13 @@ describe('EvalConsole', () => {
     await flush();
     await flush();
 
-    const notComparableButton = [...document.body.querySelectorAll('button')].find((button) => button.textContent === 'Not Comparable 1');
+    const notComparableButton = [...document.body.querySelectorAll('button')].find((button) => button.textContent === '不可对比 1');
     await act(async () => {
       notComparableButton?.click();
     });
 
-    expect(document.body.textContent).toContain('Showing 1 of 2');
-    expect(document.body.textContent).toContain('#1 example-fa...');
-    expect(document.body.textContent).toContain('Selected result is hidden by the current filters.');
+    expect(document.body.textContent).toContain('显示 1/2');
+    expect(document.body.textContent).toContain('当前结果被筛选条件隐藏。');
     expect(document.body.textContent).toContain('result-selected');
     expect(navigation.push).not.toHaveBeenCalledWith(expect.stringContaining('comparisonOutcome'), expect.anything());
     expect(navigation.replace).not.toHaveBeenCalledWith(expect.stringContaining('comparisonOutcome'), expect.anything());
@@ -785,9 +791,9 @@ describe('EvalConsole', () => {
     await flush();
     await flush();
 
-    expect(document.body.textContent).toContain('Review status: unreviewed: 1');
+    expect(document.body.textContent).toContain('审核状态: unreviewed: 1');
 
-    const saveButton = [...document.body.querySelectorAll('button')].find((button) => button.textContent === 'Save');
+    const saveButton = [...document.body.querySelectorAll('button')].find((button) => button.textContent === '保存');
     const select = document.body.querySelector('select[aria-label="Review decision"]') as HTMLSelectElement;
 
     await act(async () => {
@@ -800,6 +806,32 @@ describe('EvalConsole', () => {
     await flush();
 
     expect(api.fetchEvalRunResponse).toHaveBeenCalledWith('eval-run-1');
-    expect(document.body.textContent).toContain('Review status: pass: 1');
+    expect(document.body.textContent).toContain('审核状态: pass: 1');
+  });
+
+  it('shows mutation errors as toast notifications instead of inline page errors', async () => {
+    api.updateEvalExampleResultReviewResponse.mockResolvedValue({
+      ok: false,
+      status: 400,
+      error: 'review save failed',
+      data: {}
+    });
+
+    await act(async () => {
+      root.render(<EvalConsole currentUser={{ id: 'user-1', email: 'user@example.com' }} />);
+    });
+    await flush();
+    await flush();
+
+    const saveButton = [...document.body.querySelectorAll('button')].find((button) => button.textContent === '保存');
+    await act(async () => {
+      saveButton?.click();
+    });
+    await flush();
+
+    expect(toast.error).toHaveBeenCalledWith('保存失败', {
+      description: 'review save failed'
+    });
+    expect(document.body.textContent).not.toContain('review save failed');
   });
 });
