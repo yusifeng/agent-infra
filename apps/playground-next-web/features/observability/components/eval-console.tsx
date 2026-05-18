@@ -2,6 +2,11 @@
 
 import type { DatasetDto, EvalExampleResultDto, EvalExampleResultReviewStatusDto, EvalRunDto } from '@agent-infra/contracts';
 import {
+  projectEvalExampleResultComparisonV1,
+  type EvalResultComparisonOutcomeV1,
+  type EvalResultComparisonProjectionV1
+} from '@agent-infra/durable-chat-client';
+import {
   ArrowLeft,
   CheckCircle2,
   Database,
@@ -12,9 +17,10 @@ import {
   Play,
   RefreshCw,
   Save,
-  ScrollText
+  ScrollText,
+  SplitSquareHorizontal
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { usePlaygroundLogout } from '@/components/chat-shell/use-playground-logout';
 import { Button } from '@/components/ui/button';
@@ -36,6 +42,147 @@ import { formatDateTime, formatShortId } from '../service/format';
 import { formatJsonPreview } from '../service/dataset-review';
 
 const RESULT_REVIEW_STATUSES: EvalExampleResultReviewStatusDto[] = ['unreviewed', 'pass', 'fail', 'needs_review', 'not_applicable'];
+
+const COMPARISON_OUTCOME_LABELS: Record<EvalResultComparisonOutcomeV1, string> = {
+  match: 'text match',
+  mismatch: 'text differs',
+  not_comparable: 'not comparable'
+};
+
+const COMPARISON_OUTCOME_CLASSES: Record<EvalResultComparisonOutcomeV1, string> = {
+  match: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+  mismatch: 'border-amber-200 bg-amber-50 text-amber-800',
+  not_comparable: 'border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] text-[var(--chat-muted)]'
+};
+
+function formatComparisonLabel(value: string) {
+  return value.replaceAll('_', ' ');
+}
+
+function splitComparisonTokens(text: string) {
+  return text.match(/\S+|\s+/g) ?? [];
+}
+
+function DiffText({ expectedText, actualText }: { expectedText: string | null | undefined; actualText: string | null | undefined }) {
+  if (!expectedText || !actualText) {
+    return <div className="text-sm text-[var(--chat-muted)]">Diff is unavailable for this result.</div>;
+  }
+
+  const expectedTokens = splitComparisonTokens(expectedText);
+  const actualTokens = splitComparisonTokens(actualText);
+  const maxLength = Math.max(expectedTokens.length, actualTokens.length);
+
+  return (
+    <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
+      <div className="mb-2 text-xs font-medium text-[var(--chat-muted)]">Actual text diff</div>
+      <pre className="max-h-[240px] overflow-auto whitespace-pre-wrap break-words text-sm leading-6 text-[var(--chat-text)]">
+        {Array.from({ length: maxLength }, (_, index) => {
+          const actualToken = actualTokens[index] ?? '';
+          const expectedToken = expectedTokens[index] ?? '';
+          const differs = actualToken !== expectedToken;
+          const whitespace = actualToken.trim().length === 0;
+
+          if (!actualToken) {
+            return (
+              <span key={index} className="rounded bg-amber-100 px-0.5 text-amber-900">
+                {expectedToken}
+              </span>
+            );
+          }
+
+          if (!differs || whitespace) {
+            return actualToken;
+          }
+
+          return (
+            <span key={index} className="rounded bg-amber-100 px-0.5 text-amber-900">
+              {actualToken}
+            </span>
+          );
+        })}
+      </pre>
+    </div>
+  );
+}
+
+function ComparisonBadge({ outcome }: { outcome: EvalResultComparisonOutcomeV1 }) {
+  return (
+    <span className={`shrink-0 rounded-md border px-2 py-0.5 text-xs font-medium ${COMPARISON_OUTCOME_CLASSES[outcome]}`}>
+      {COMPARISON_OUTCOME_LABELS[outcome]}
+    </span>
+  );
+}
+
+function TextBlock({ label, text }: { label: string; text: string | null | undefined }) {
+  return (
+    <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
+      <div className="mb-2 text-xs font-medium text-[var(--chat-muted)]">{label}</div>
+      {text ? (
+        <pre className="max-h-[240px] overflow-auto whitespace-pre-wrap break-words text-sm leading-6 text-[var(--chat-text)]">{text}</pre>
+      ) : (
+        <div className="text-sm text-[var(--chat-muted)]">No text available.</div>
+      )}
+    </div>
+  );
+}
+
+function ComparePanel({ result }: { result: EvalExampleResultDto }) {
+  const comparison = useMemo(() => projectEvalExampleResultComparisonV1(result), [result]);
+
+  return (
+    <section className="mt-4 border-t border-[color:var(--chat-border)] py-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <SplitSquareHorizontal className="size-4 shrink-0 text-[var(--chat-muted)]" />
+          <h3 className="text-sm font-semibold text-[var(--chat-text)]">Comparison Assist</h3>
+        </div>
+        <ComparisonBadge outcome={comparison.outcome} />
+      </div>
+
+      <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--chat-muted)]">
+        <span>reason {formatComparisonLabel(comparison.reason)}</span>
+        <span>result {result.status}</span>
+        <span>{readEvalResultUsage(result)}</span>
+        <span>{readEvalResultDuration(result)}</span>
+      </div>
+
+      {comparison.diagnostics.length > 0 ? (
+        <div className="mb-3 rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] px-3 py-2 text-xs leading-5 text-[var(--chat-muted)]">
+          Diagnostics: {comparison.diagnostics.map(formatComparisonLabel).join(', ')}
+        </div>
+      ) : null}
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        <TextBlock label="Expected assistant text" text={comparison.expectedText} />
+        <TextBlock label="Actual assistant text" text={comparison.actualText} />
+      </div>
+
+      {comparison.actualTextBlocks.length > 1 ? <ActualMessageBlocks comparison={comparison} /> : null}
+
+      <div className="mt-3">
+        <DiffText expectedText={comparison.expectedText} actualText={comparison.actualText} />
+      </div>
+    </section>
+  );
+}
+
+function ActualMessageBlocks({ comparison }: { comparison: EvalResultComparisonProjectionV1 }) {
+  return (
+    <div className="mt-3 rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
+      <div className="mb-2 text-xs font-medium text-[var(--chat-muted)]">Actual assistant messages</div>
+      <div className="grid gap-2">
+        {comparison.actualTextBlocks.map((block, index) => (
+          <div key={`${block.messageId}-${index}`} className="rounded-md border border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] p-2">
+            <div className="mb-1 text-[11px] text-[var(--chat-muted)]">
+              Actual Message {index + 1} · {block.seq == null ? 'seq n/a' : `seq ${block.seq}`} · {formatShortId(block.messageId, 10)}
+            </div>
+            <pre className="max-h-[160px] overflow-auto whitespace-pre-wrap break-words text-xs leading-5 text-[var(--chat-text)]">{block.text}</pre>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function EmptyState({ label }: { label: string }) {
   return (
@@ -277,13 +424,15 @@ function ResultDetailPanel({
       {result.error ? <div className="mt-4 rounded-lg bg-[var(--chat-error-bg)] px-3 py-2 text-sm text-[var(--chat-error-text)]">{result.error}</div> : null}
       {mutationError ? <div className="mt-4 rounded-lg bg-[var(--chat-error-bg)] px-3 py-2 text-sm text-[var(--chat-error-text)]">{mutationError}</div> : null}
 
+      <ComparePanel result={result} />
+
       <ReviewEditor result={result} saving={savingReview} onSave={onSaveReview} />
 
       {sourceExampleLoading ? <div className="py-3 text-sm text-[var(--chat-muted)]">Loading source example</div> : null}
       {sourceExampleError ? <div className="py-3 text-sm text-[var(--chat-muted)]">{sourceExampleError}</div> : null}
 
-      <JsonBlock title="Expected Output Snapshot" value={result.expectedOutputJson} open />
-      <JsonBlock title="Actual Output Snapshot" value={result.actualOutputJson} open />
+      <JsonBlock title="Expected Output Snapshot" value={result.expectedOutputJson} />
+      <JsonBlock title="Actual Output Snapshot" value={result.actualOutputJson} />
       <JsonBlock title="Baseline Output Snapshot" value={readBaselineOutput(sourceExample)} />
       <JsonBlock title="Input Snapshot" value={result.inputJson} />
       <JsonBlock title="Usage Snapshot" value={result.usageJson} />

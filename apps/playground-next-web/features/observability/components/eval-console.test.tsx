@@ -114,6 +114,27 @@ function evalRun(overrides: Record<string, unknown> = {}) {
 }
 
 function result(overrides: Record<string, unknown> = {}) {
+  const actualOutput = {
+    schemaVersion: 1,
+    kind: 'eval_run_output',
+    outputRunId: 'output-run-1',
+    evalThreadId: 'eval-thread-1',
+    status: 'completed',
+    assistantMessages: [
+      {
+        id: 'assistant-1',
+        threadId: 'eval-thread-1',
+        runId: 'output-run-1',
+        role: 'assistant',
+        seq: 2,
+        status: 'completed',
+        metadata: null,
+        createdAt: '2026-01-01T00:00:02.000Z',
+        parts: [{ id: 'part-1', messageId: 'assistant-1', partIndex: 0, type: 'text', textValue: 'Actual answer', jsonValue: null, createdAt: '2026-01-01T00:00:02.000Z' }]
+      }
+    ]
+  };
+
   return {
     id: 'result-1',
     evalRunId: 'eval-run-1',
@@ -123,27 +144,8 @@ function result(overrides: Record<string, unknown> = {}) {
     evalThreadId: 'eval-thread-1',
     outputRunId: 'output-run-1',
     expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected answer' },
-    actualOutputJson: {
-      schemaVersion: 1,
-      kind: 'eval_run_output',
-      outputRunId: 'output-run-1',
-      evalThreadId: 'eval-thread-1',
-      status: 'completed',
-      assistantMessages: [
-        {
-          id: 'assistant-1',
-          threadId: 'eval-thread-1',
-          runId: 'output-run-1',
-          role: 'assistant',
-          seq: 2,
-          status: 'completed',
-          metadata: null,
-          createdAt: '2026-01-01T00:00:02.000Z',
-          parts: [{ id: 'part-1', messageId: 'assistant-1', partIndex: 0, type: 'text', textValue: 'Actual answer', jsonValue: null, createdAt: '2026-01-01T00:00:02.000Z' }]
-        }
-      ]
-    },
-    actualOutput: null,
+    actualOutputJson: actualOutput,
+    actualOutput,
     inputJson: { schemaVersion: 1, kind: 'chat_turn' },
     usageJson: { totalTokens: 42 },
     metadataJson: null,
@@ -247,6 +249,13 @@ describe('EvalConsole', () => {
     expect(document.body.textContent).toContain('Eval Runs');
     expect(document.body.textContent).toContain('Regression');
     expect(document.body.textContent).toContain('eval-run-1');
+    expect(document.body.textContent).toContain('Comparison Assist');
+    expect(document.body.textContent).toContain('text differs');
+    expect(document.body.textContent).toContain('normalized text different');
+    expect(document.body.textContent).toContain('Expected assistant text');
+    expect(document.body.textContent).toContain('Expected answer');
+    expect(document.body.textContent).toContain('Actual assistant text');
+    expect(document.body.textContent).toContain('Actual answer');
     expect(document.body.textContent).toContain('Expected Output Snapshot');
     expect(document.body.textContent).toContain('Actual Output Snapshot');
     expect(document.body.textContent).toContain('Baseline Output Snapshot');
@@ -341,5 +350,150 @@ describe('EvalConsole', () => {
         reviewerNote: `${status} note`
       });
     }
+  });
+
+  it('does not auto-select pass when the comparison text matches', async () => {
+    const matchingActualOutput = {
+      schemaVersion: 1,
+      kind: 'eval_run_output',
+      outputRunId: 'output-run-1',
+      evalThreadId: 'eval-thread-1',
+      status: 'completed',
+      assistantMessages: [
+        {
+          id: 'assistant-1',
+          threadId: 'eval-thread-1',
+          runId: 'output-run-1',
+          role: 'assistant',
+          seq: 2,
+          status: 'completed',
+          metadata: null,
+          createdAt: '2026-01-01T00:00:02.000Z',
+          parts: [{ id: 'part-1', messageId: 'assistant-1', partIndex: 0, type: 'text', textValue: 'Expected answer', jsonValue: null, createdAt: '2026-01-01T00:00:02.000Z' }]
+        }
+      ]
+    };
+
+    api.fetchEvalExampleResultsResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        results: [
+          result({
+            actualOutputJson: matchingActualOutput,
+            actualOutput: matchingActualOutput
+          })
+        ]
+      }
+    });
+
+    await act(async () => {
+      root.render(<EvalConsole currentUser={{ id: 'user-1', email: 'user@example.com' }} />);
+    });
+    await flush();
+    await flush();
+
+    expect(document.body.textContent).toContain('text match');
+    expect(document.body.textContent).toContain('normalized text equal');
+
+    const select = document.body.querySelector('select') as HTMLSelectElement;
+    expect(select.value).toBe('unreviewed');
+  });
+
+  it('shows missing actual and failed result comparison states without auto-reviewing', async () => {
+    api.fetchEvalExampleResultsResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        results: [
+          result({
+            status: 'failed',
+            error: 'model timeout',
+            actualOutputJson: null,
+            actualOutput: null
+          })
+        ]
+      }
+    });
+
+    await act(async () => {
+      root.render(<EvalConsole currentUser={{ id: 'user-1', email: 'user@example.com' }} />);
+    });
+    await flush();
+    await flush();
+
+    expect(document.body.textContent).toContain('not comparable');
+    expect(document.body.textContent).toContain('result failed');
+    expect(document.body.textContent).toContain('model timeout');
+    expect(document.body.textContent).toContain('No text available.');
+
+    const select = document.body.querySelector('select') as HTMLSelectElement;
+    expect(select.value).toBe('unreviewed');
+  });
+
+  it('renders multiple actual assistant messages and diagnostics', async () => {
+    const multiMessageActualOutput = {
+      schemaVersion: 1,
+      kind: 'eval_run_output',
+      outputRunId: 'output-run-1',
+      evalThreadId: 'eval-thread-1',
+      status: 'completed',
+      assistantMessages: [
+        {
+          id: 'assistant-2',
+          threadId: 'eval-thread-1',
+          runId: 'output-run-1',
+          role: 'assistant',
+          seq: 3,
+          status: 'completed',
+          metadata: null,
+          createdAt: '2026-01-01T00:00:03.000Z',
+          parts: [{ id: 'part-2', messageId: 'assistant-2', partIndex: 0, type: 'text', textValue: 'Second answer', jsonValue: null, createdAt: '2026-01-01T00:00:03.000Z' }]
+        },
+        {
+          id: 'assistant-1',
+          threadId: 'eval-thread-1',
+          runId: 'output-run-1',
+          role: 'assistant',
+          seq: 2,
+          status: 'completed',
+          metadata: null,
+          createdAt: '2026-01-01T00:00:02.000Z',
+          parts: [
+            { id: 'part-1', messageId: 'assistant-1', partIndex: 0, type: 'text', textValue: 'First answer', jsonValue: null, createdAt: '2026-01-01T00:00:02.000Z' },
+            { id: 'part-1b', messageId: 'assistant-1', partIndex: 1, type: 'tool_result', textValue: null, jsonValue: { ok: true }, createdAt: '2026-01-01T00:00:02.000Z' }
+          ]
+        }
+      ]
+    };
+
+    api.fetchEvalExampleResultsResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        results: [
+          result({
+            actualOutputJson: multiMessageActualOutput,
+            actualOutput: multiMessageActualOutput
+          })
+        ]
+      }
+    });
+
+    await act(async () => {
+      root.render(<EvalConsole currentUser={{ id: 'user-1', email: 'user@example.com' }} />);
+    });
+    await flush();
+    await flush();
+
+    expect(document.body.textContent).toContain('Diagnostics: multiple actual assistant messages, non text actual parts omitted');
+    expect(document.body.textContent).toContain('Actual assistant messages');
+    expect(document.body.textContent).toContain('Actual Message 1');
+    expect(document.body.textContent).toContain('First answer');
+    expect(document.body.textContent).toContain('Actual Message 2');
+    expect(document.body.textContent).toContain('Second answer');
   });
 });

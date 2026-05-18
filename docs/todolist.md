@@ -21,13 +21,13 @@
 
 ### 0.2 Goals
 
-- [ ] Make eval result review faster without changing eval execution semantics.
+- [x] Make eval result review faster without changing eval execution semantics.
 - [x] Add an expected-vs-actual compare projection that is defined outside playground UI code.
 - [x] Add an assistive deterministic comparator projection for simple assistant-text expected outputs.
 - [x] Keep comparator output as a read-time projection in v1, not durable review truth.
 - [x] Keep comparison projection out of API response DTOs in the first implementation round.
 - [x] Implement comparison projection in a browser-safe shared client package helper.
-- [ ] Improve `/observability/evals` result detail so reviewers can inspect expected text, actual text, diff, status, error, usage, and lineage without reading raw JSON first.
+- [x] Improve `/observability/evals` result detail so reviewers can inspect expected text, actual text, diff, status, error, usage, and lineage without reading raw JSON first.
 - [ ] Add result filters / review queue affordances for common review tasks.
 - [ ] Fix or avoid stale eval run summary display after result review updates.
 
@@ -145,49 +145,49 @@
 
 ### 2.3 Playground Routes
 
-- [ ] Keep existing eval result list route shape.
-- [ ] Do not duplicate comparison semantics in Next route handlers.
-- [ ] Do not require runtime services for read/list/detail/review routes.
-- [ ] Preserve auth and dataset/eval access boundaries.
+- [x] Keep existing eval result list route shape.
+- [x] Do not duplicate comparison semantics in Next route handlers.
+- [x] Do not require runtime services for read/list/detail/review routes.
+- [x] Preserve auth and dataset/eval access boundaries.
 - [ ] Fix stale eval run summary after review updates by refetching the selected eval run after review save.
-- [ ] Do not change the review route response shape in the first implementation round.
+- [x] Do not change the review route response shape in the first implementation round.
 
 ## 3. Frontend Boundary
 
 ### 3.1 Eval UI Data Flow
 
-- [ ] Keep `/observability/evals` as the main eval review surface.
-- [ ] Keep `/chat` unchanged.
-- [ ] Keep `/observability` run panel focused on run inspection and capture.
-- [ ] Use shared client helpers for API calls.
-- [ ] Use durable-chat-client comparison projection helper.
-- [ ] Keep page-local state limited to selection, filters, and form drafts.
-- [ ] Do not compute durable comparison semantics only inside React components.
+- [x] Keep `/observability/evals` as the main eval review surface.
+- [x] Keep `/chat` unchanged.
+- [x] Keep `/observability` run panel focused on run inspection and capture.
+- [x] Use shared client helpers for API calls.
+- [x] Use durable-chat-client comparison projection helper.
+- [x] Keep page-local state limited to selection, filters, and form drafts.
+- [x] Do not compute durable comparison semantics only inside React components.
 - [ ] Keep filter state local to the component in v1.
 - [ ] Keep URL state limited to `datasetId`, `evalRunId`, and `resultId` in v1.
 
 ### 3.2 Compare / Diff View
 
-- [ ] Add a compare panel above raw JSON snapshots in result detail.
-- [ ] Show expected assistant text.
-- [ ] Show actual assistant text.
-- [ ] Show comparison outcome badge.
-- [ ] Show comparison reason.
-- [ ] Show comparison diagnostics.
-- [ ] Show result status.
-- [ ] Show result error when present.
-- [ ] Show usage and duration near compare context.
-- [ ] Show output run lineage link when available.
-- [ ] Show source dataset example link.
-- [ ] Preserve baseline output as context, not expected truth.
-- [ ] Keep raw snapshots available but visually secondary.
-- [ ] Add joined text diff view for expected vs actual text.
-- [ ] Handle multiple assistant messages without silently dropping content.
-- [ ] Display multiple assistant messages as separate actual text blocks.
-- [ ] Handle missing expected output.
-- [ ] Handle missing actual output.
-- [ ] Handle failed result rows.
-- [ ] Avoid UI labels that imply automatic pass/fail review.
+- [x] Add a compare panel above raw JSON snapshots in result detail.
+- [x] Show expected assistant text.
+- [x] Show actual assistant text.
+- [x] Show comparison outcome badge.
+- [x] Show comparison reason.
+- [x] Show comparison diagnostics.
+- [x] Show result status.
+- [x] Show result error when present.
+- [x] Show usage and duration near compare context.
+- [x] Show output run lineage link when available.
+- [x] Show source dataset example link.
+- [x] Preserve baseline output as context, not expected truth.
+- [x] Keep raw snapshots available but visually secondary.
+- [x] Add joined text diff view for expected vs actual text.
+- [x] Handle multiple assistant messages without silently dropping content.
+- [x] Display multiple assistant messages as separate actual text blocks.
+- [x] Handle missing expected output.
+- [x] Handle missing actual output.
+- [x] Handle failed result rows.
+- [x] Avoid UI labels that imply automatic pass/fail review.
 
 ### 3.3 Filters / Review Queue
 
@@ -207,12 +207,12 @@
 
 ### 3.4 Review Save UX
 
-- [ ] Preserve existing manual review statuses.
-- [ ] Preserve reviewer note save flow.
+- [x] Preserve existing manual review statuses.
+- [x] Preserve reviewer note save flow.
 - [ ] Ensure save updates selected result.
 - [ ] Ensure save refetches eval run summary counts.
-- [ ] Keep comparator outcome unchanged by manual review.
-- [ ] Avoid auto-writing `pass` / `fail` from comparator.
+- [x] Keep comparator outcome unchanged by manual review.
+- [x] Avoid auto-writing `pass` / `fail` from comparator.
 
 ## 4. Tests
 
@@ -247,24 +247,24 @@
 
 ### 4.3 Playground Route Tests
 
-- [ ] Add tests proving read/list/detail/review routes still do not require runtime services.
-- [ ] Add tests proving review patch cannot spoof comparator output or review actor/time.
-- [ ] Add tests proving review patch rejects unknown comparator-related keys if route/parser coverage is touched.
-- [ ] No route response shape tests are required in the first implementation round because review route response stays unchanged.
+- [x] Add tests proving read/list/detail/review routes still do not require runtime services.
+- [x] Add tests proving review patch cannot spoof comparator output or review actor/time.
+- [x] Add tests proving review patch rejects unknown comparator-related keys if route/parser coverage is touched.
+- [x] No route response shape tests are required in the first implementation round because review route response stays unchanged.
 
 ### 4.4 Playground UI Tests
 
-- [ ] Add UI tests for compare panel expected text.
-- [ ] Add UI tests for compare panel actual text.
-- [ ] Add UI tests for comparison outcome badge.
-- [ ] Add UI tests for missing actual / failed result display.
+- [x] Add UI tests for compare panel expected text.
+- [x] Add UI tests for compare panel actual text.
+- [x] Add UI tests for comparison outcome badge.
+- [x] Add UI tests for missing actual / failed result display.
 - [ ] Add UI tests for result status filter.
 - [ ] Add UI tests for review status filter.
 - [ ] Add UI tests for comparison outcome filter.
 - [ ] Add UI tests for queue shortcuts.
 - [ ] Add UI tests proving review save updates result row and summary/progress display.
-- [ ] Add UI tests proving comparison match does not auto-select manual review `pass`.
-- [ ] Add UI tests proving review save payload does not include comparator fields.
+- [x] Add UI tests proving comparison match does not auto-select manual review `pass`.
+- [x] Add UI tests proving review save payload does not include comparator fields.
 - [ ] Add UI tests for local filter state without URL filter query params.
 - [ ] Add UI tests proving `/chat` is not part of this workflow.
 
@@ -274,10 +274,10 @@
 - [x] Run `pnpm --filter @agent-infra/durable-chat-client typecheck` after helper exports.
 - [ ] Run `pnpm --filter @agent-infra/contracts typecheck` only if contracts change later.
 - [ ] Run `pnpm --filter @agent-infra/durable-chat-server test` only if server helpers change later.
-- [ ] Run targeted `playground-next-web` route/UI tests after playground changes.
-- [ ] Run `pnpm --filter playground-next-web typecheck` after UI changes.
+- [x] Run targeted `playground-next-web` route/UI tests after playground changes.
+- [x] Run `pnpm --filter playground-next-web typecheck` after UI changes.
 - [ ] Run broader workspace typecheck only if targeted checks leave cross-package uncertainty.
-- [ ] Run browser smoke test after UI implementation.
+- [x] Run browser smoke test after UI implementation.
 
 ## 5. Recommended Execution Order
 
@@ -296,7 +296,7 @@
 - [x] Lock review-save summary freshness as eval run refetch, not response-shape change.
 - [x] Run no tests unless executable code changes.
 - [x] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 0.
+- [x] Commit Loop 0.
 
 ### Loop 1: Durable Chat Client Projection Helper
 
@@ -309,21 +309,21 @@
 - [x] Run `pnpm --filter @agent-infra/durable-chat-client test`.
 - [x] Run `pnpm --filter @agent-infra/durable-chat-client typecheck`.
 - [x] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 1.
+- [x] Commit Loop 1.
 
 ### Loop 2: Eval Compare UI
 
-- [ ] Add compare panel to `/observability/evals` result detail.
-- [ ] Add expected / actual text rendering.
-- [ ] Add diff rendering.
-- [ ] Add comparison badge and reason display.
-- [ ] Relegate raw JSON snapshots to secondary detail.
-- [ ] Add focused UI tests for compare panel and edge cases.
-- [ ] Run targeted `playground-next-web` UI tests.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run browser smoke test for compare panel.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 2.
+- [x] Add compare panel to `/observability/evals` result detail.
+- [x] Add expected / actual text rendering.
+- [x] Add diff rendering.
+- [x] Add comparison badge and reason display.
+- [x] Relegate raw JSON snapshots to secondary detail.
+- [x] Add focused UI tests for compare panel and edge cases.
+- [x] Run targeted `playground-next-web` UI tests.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run browser smoke test for compare panel.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit Loop 2.
 
 ### Loop 3: Filters, Review Queue, And Summary Freshness
 
