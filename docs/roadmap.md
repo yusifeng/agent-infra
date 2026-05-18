@@ -6,9 +6,81 @@ The completed `v0` scope and closeout rationale live in [`v0-closeout.md`](./v0-
 
 The roadmap after `v0` should be read as a set of candidate tracks, not as a promise to build every item in order.
 
-## Selected Next Infra Track: Eval Review Ergonomics And Comparator Assist v1
+## Selected Next Infra Track: Observability Console IA Cleanup v1
 
-The next infra track is `Eval Review Ergonomics And Comparator Assist v1`.
+The next infra track is `Observability Console IA Cleanup v1`.
+
+This track organizes the existing observability management surfaces into one
+coherent console without changing durable runtime, dataset, eval, review,
+contract, or database semantics. The goal is to make current objects, lineage,
+actions, and review/execution state clear before adding broader eval comparison
+features.
+
+This is UI/IA cleanup over existing durable concepts. It should not create new
+package APIs, database fields, eval execution semantics, result review truth,
+persisted comparison data, or shared user/org/billing concepts.
+
+Visible v1 sections:
+
+- `Runs`: displayed at `/observability`
+- `Datasets`: displayed at `/observability/datasets`
+- `Evals`: displayed at `/observability/evals`
+
+Existing selected-object query params stay stable:
+
+- `/observability?threadId=...&runId=...`
+- `/observability/datasets?datasetId=...&exampleId=...`
+- `/observability/evals?datasetId=...&evalRunId=...&resultId=...`
+
+Action placement follows the selected object:
+
+- global shell actions: refresh current section, logout
+- run object actions: capture selected run to dataset
+- dataset/evals context actions: create eval run
+- eval run object actions: run queued eval run
+- form object actions: save expected output, save dataset review, save eval
+  result review
+- lineage actions: source run, dataset example, and eval output run links
+
+Lineage display expectations:
+
+- Run detail: `Thread -> Run`
+- Dataset example detail: `Source Run -> Dataset -> Example`
+- Eval run detail: `Dataset -> EvalRun`
+- Eval result detail: `DatasetExample -> EvalRun -> Result -> Eval output
+  run -> Review`
+
+In scope:
+
+- shared observability console shell for Runs, Datasets, and Evals
+- stable section navigation with only `Runs`, `Datasets`, and `Evals`
+- object context and action placement cleanup
+- `/observability/evals` layout cleanup from four peer columns into selected
+  dataset context, eval run list, and eval run review workspace
+- local review filter behavior preservation
+- review summary freshness preservation
+- copy clarifying eval output runs as execution artifacts, not ordinary chat
+  threads
+
+Deferred:
+
+- `Eval Run Compare v1` UI or nav exposure
+- disabled compare tabs or top-level compare nav
+- route migration from `/observability` to `/observability/runs`
+- DB schema changes
+- eval execution semantic changes
+- dataset eligibility semantic changes
+- result review truth changes
+- persisted comparison fields or tables
+- server-side result filtering, sorting, or pagination by comparison
+- URL query params for local review filters
+- LLM-as-judge scoring
+- reports, dashboards, alerts, prompt hubs, CI gates, assignment queues, or
+  bulk review workflows
+
+## Completed Infra Track: Eval Review Ergonomics And Comparator Assist v1
+
+`Eval Review Ergonomics And Comparator Assist v1` is complete.
 
 This track improves the human review loop for eval results without changing
 eval execution semantics or persisted review truth. It adds a browser-safe
