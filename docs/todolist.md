@@ -22,11 +22,11 @@
 ### 0.2 Goals
 
 - [ ] Make eval result review faster without changing eval execution semantics.
-- [ ] Add an expected-vs-actual compare projection that is defined outside playground UI code.
-- [ ] Add an assistive deterministic comparator projection for simple assistant-text expected outputs.
-- [ ] Keep comparator output as a read-time projection in v1, not durable review truth.
-- [ ] Keep comparison projection out of API response DTOs in the first implementation round.
-- [ ] Implement comparison projection in a browser-safe shared client package helper.
+- [x] Add an expected-vs-actual compare projection that is defined outside playground UI code.
+- [x] Add an assistive deterministic comparator projection for simple assistant-text expected outputs.
+- [x] Keep comparator output as a read-time projection in v1, not durable review truth.
+- [x] Keep comparison projection out of API response DTOs in the first implementation round.
+- [x] Implement comparison projection in a browser-safe shared client package helper.
 - [ ] Improve `/observability/evals` result detail so reviewers can inspect expected text, actual text, diff, status, error, usage, and lineage without reading raw JSON first.
 - [ ] Add result filters / review queue affordances for common review tasks.
 - [ ] Fix or avoid stale eval run summary display after result review updates.
@@ -106,11 +106,11 @@
 
 ### 1.3 Types / Interfaces
 
-- [ ] Add durable-chat-client comparison projection type and helper exports.
-- [ ] Add `projectEvalExampleResultComparisonV1`.
-- [ ] Add `extractEvalExpectedTextV1`.
-- [ ] Add `extractEvalActualTextV1`.
-- [ ] Add `normalizeComparisonTextV1`.
+- [x] Add durable-chat-client comparison projection type and helper exports.
+- [x] Add `projectEvalExampleResultComparisonV1`.
+- [x] Add `extractEvalExpectedTextV1`.
+- [x] Add `extractEvalActualTextV1`.
+- [x] Add `normalizeComparisonTextV1`.
 - [x] Do not add contract DTO for comparison projection in the first implementation round.
 - [x] Do not add durable-chat-server DTO builder support for comparison projection in the first implementation round.
 - [x] Keep durable-chat-client normalizer shape unchanged except for exported helper availability.
@@ -122,17 +122,17 @@
 
 ### 2.1 Browser-Safe Shared Projection
 
-- [ ] Add browser-safe projection helpers under `packages/durable-chat-client`.
-- [ ] Add pure helper to project expected text from an `EvalExampleResultDto`.
-- [ ] Add pure helper to project actual text from an `EvalExampleResultDto`.
-- [ ] Add pure helper to normalize comparator text.
-- [ ] Add pure helper to build `EvalResultComparisonProjectionV1`.
-- [ ] Ensure helper does not mutate result records.
-- [ ] Ensure helper does not read live source dataset examples.
-- [ ] Ensure helper uses only eval result snapshots and status/error fields.
-- [ ] Ensure helper treats human review as separate from comparator projection.
-- [ ] Ensure helper returns no `review` field and never infers review status.
-- [ ] Ensure helper uses `not_comparable` for comparison non-applicability instead of review `not_applicable`.
+- [x] Add browser-safe projection helpers under `packages/durable-chat-client`.
+- [x] Add pure helper to project expected text from an `EvalExampleResultDto`.
+- [x] Add pure helper to project actual text from an `EvalExampleResultDto`.
+- [x] Add pure helper to normalize comparator text.
+- [x] Add pure helper to build `EvalResultComparisonProjectionV1`.
+- [x] Ensure helper does not mutate result records.
+- [x] Ensure helper does not read live source dataset examples.
+- [x] Ensure helper uses only eval result snapshots and status/error fields.
+- [x] Ensure helper treats human review as separate from comparator projection.
+- [x] Ensure helper returns no `review` field and never infers review status.
+- [x] Ensure helper uses `not_comparable` for comparison non-applicability instead of review `not_applicable`.
 
 ### 2.2 Contracts / Server / Client
 
@@ -218,32 +218,32 @@
 
 ### 4.1 Source / Type Tests
 
-- [ ] Add tests for expected text extraction.
-- [ ] Add tests for actual text extraction.
-- [ ] Add tests for text normalization.
-- [ ] Add tests for `normalized_text_equal`.
-- [ ] Add tests for `normalized_text_different`.
-- [ ] Add tests for `result_failed`.
-- [ ] Add tests for `missing_expected_output`.
-- [ ] Add tests for `missing_expected_text`.
-- [ ] Add tests for `empty_expected_text`.
-- [ ] Add tests for `missing_actual_output`.
-- [ ] Add tests for `missing_actual_text`.
-- [ ] Add tests for `empty_actual_text`.
-- [ ] Add tests for `result_not_completed`.
-- [ ] Add tests for `actual_output_error`.
-- [ ] Add tests for `missing_actual_assistant_messages`.
-- [ ] Add tests for comparison diagnostics.
-- [ ] Add tests for multiple assistant messages.
-- [ ] Add tests proving comparison does not mutate review metadata.
-- [ ] Add tests proving comparison helper returns no review field.
+- [x] Add tests for expected text extraction.
+- [x] Add tests for actual text extraction.
+- [x] Add tests for text normalization.
+- [x] Add tests for `normalized_text_equal`.
+- [x] Add tests for `normalized_text_different`.
+- [x] Add tests for `result_failed`.
+- [x] Add tests for `missing_expected_output`.
+- [x] Add tests for `missing_expected_text`.
+- [x] Add tests for `empty_expected_text`.
+- [x] Add tests for `missing_actual_output`.
+- [x] Add tests for `missing_actual_text`.
+- [x] Add tests for `empty_actual_text`.
+- [x] Add tests for `result_not_completed`.
+- [x] Add tests for `actual_output_error`.
+- [x] Add tests for `missing_actual_assistant_messages`.
+- [x] Add tests for comparison diagnostics.
+- [x] Add tests for multiple assistant messages.
+- [x] Add tests proving comparison does not mutate review metadata.
+- [x] Add tests proving comparison helper returns no review field.
 
 ### 4.2 Contracts / Server / Client Tests
 
-- [ ] Run durable-chat-client tests for browser-safe comparison projection.
-- [ ] Run durable-chat-client typecheck after helper exports.
-- [ ] No contract DTO tests are required in the first implementation round because result DTO shape stays unchanged.
-- [ ] No server response helper tests are required in the first implementation round because server response builders stay unchanged.
+- [x] Run durable-chat-client tests for browser-safe comparison projection.
+- [x] Run durable-chat-client typecheck after helper exports.
+- [x] No contract DTO tests are required in the first implementation round because result DTO shape stays unchanged.
+- [x] No server response helper tests are required in the first implementation round because server response builders stay unchanged.
 
 ### 4.3 Playground Route Tests
 
@@ -270,8 +270,8 @@
 
 ### 4.5 Targeted Verification
 
-- [ ] Run `pnpm --filter @agent-infra/durable-chat-client test` after comparison helper changes.
-- [ ] Run `pnpm --filter @agent-infra/durable-chat-client typecheck` after helper exports.
+- [x] Run `pnpm --filter @agent-infra/durable-chat-client test` after comparison helper changes.
+- [x] Run `pnpm --filter @agent-infra/durable-chat-client typecheck` after helper exports.
 - [ ] Run `pnpm --filter @agent-infra/contracts typecheck` only if contracts change later.
 - [ ] Run `pnpm --filter @agent-infra/durable-chat-server test` only if server helpers change later.
 - [ ] Run targeted `playground-next-web` route/UI tests after playground changes.
@@ -300,15 +300,15 @@
 
 ### Loop 1: Durable Chat Client Projection Helper
 
-- [ ] Add durable-chat-client comparison projection types and helpers.
-- [ ] Add expected text extraction helper.
-- [ ] Add actual text extraction helper with joined text, display blocks, and diagnostics.
-- [ ] Add normalized text comparator helper.
-- [ ] Add focused durable-chat-client helper tests.
-- [ ] Export browser-safe helpers from durable-chat-client entry points.
-- [ ] Run `pnpm --filter @agent-infra/durable-chat-client test`.
-- [ ] Run `pnpm --filter @agent-infra/durable-chat-client typecheck`.
-- [ ] Run `codex review` for this loop after targeted verification passes.
+- [x] Add durable-chat-client comparison projection types and helpers.
+- [x] Add expected text extraction helper.
+- [x] Add actual text extraction helper with joined text, display blocks, and diagnostics.
+- [x] Add normalized text comparator helper.
+- [x] Add focused durable-chat-client helper tests.
+- [x] Export browser-safe helpers from durable-chat-client entry points.
+- [x] Run `pnpm --filter @agent-infra/durable-chat-client test`.
+- [x] Run `pnpm --filter @agent-infra/durable-chat-client typecheck`.
+- [x] Run `codex review` for this loop after targeted verification passes.
 - [ ] Commit Loop 1.
 
 ### Loop 2: Eval Compare UI
