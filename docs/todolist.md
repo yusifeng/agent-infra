@@ -18,12 +18,12 @@
 - [x] Result review filters in `/observability/evals` remain local UI state and must not become URL query params or server-side filters in this track.
 
 ### 0.2 Goals
-- [ ] Make Runs, Datasets, and Evals feel like sections of one management console instead of three unrelated tools.
+- [x] Make Runs, Datasets, and Evals feel like sections of one management console instead of three unrelated tools.
 - [ ] Make each detail surface answer: current object, upstream lineage, downstream links, object-scoped actions, and current review/execution state.
 - [ ] Normalize global, section-level, object-level, and inline action placement.
 - [ ] Simplify the Evals page from a four-peer-object layout into a dataset-contextual eval run review workspace.
-- [ ] Preserve the current durable semantics, data models, routes, query selection behavior, and review truth.
-- [ ] Keep the first implementation conservative: shared shell and layout primitives are allowed, but broad generic abstraction is not the goal.
+- [x] Preserve the current durable semantics, data models, routes, query selection behavior, and review truth.
+- [x] Keep the first implementation conservative: shared shell and layout primitives are allowed, but broad generic abstraction is not the goal.
 - [ ] Leave a clean path for future `Eval Run Compare v1` without implementing or prematurely exposing compare UI.
 
 ### 0.3 Non-goals
@@ -72,14 +72,14 @@
 - [x] No persisted selection or filter model is needed.
 - [x] No new eval result comparison storage is needed.
 - [x] No new dataset, eval run, or review fields are needed.
-- [ ] Verify during implementation that all new UI state is derived from existing DTOs or local-only view state.
+- [x] Verify during implementation that all new UI state is derived from existing DTOs or local-only view state.
 
 ### 1.3 Types / Interfaces
-- [ ] Add only lightweight React layout/view types needed by the console shell and page composition.
-- [ ] Do not add new package-level interfaces unless implementation reveals reusable cross-consumer semantics.
-- [ ] Do not introduce a generic `ObjectConsole<T>` or similar broad abstraction in v1.
-- [ ] Shared components should accept display items, React nodes, strings, and slots rather than domain DTOs such as `DatasetExampleDto` or `EvalRunDto`.
-- [ ] Prefer explicit page-specific composition over premature generic layout machinery.
+- [x] Add only lightweight React layout/view types needed by the console shell and page composition.
+- [x] Do not add new package-level interfaces unless implementation reveals reusable cross-consumer semantics.
+- [x] Do not introduce a generic `ObjectConsole<T>` or similar broad abstraction in v1.
+- [x] Shared components should accept display items, React nodes, strings, and slots rather than domain DTOs such as `DatasetExampleDto` or `EvalRunDto`.
+- [x] Prefer explicit page-specific composition over premature generic layout machinery.
 
 ## 2. Backend / Platform
 
@@ -89,35 +89,35 @@
 - [x] No eval execution route changes planned.
 - [x] No dataset route changes planned.
 - [x] No run observability route changes planned.
-- [ ] Keep an eye out for accidental package semantic drift while editing UI copy and client usage.
+- [x] Keep an eye out for accidental package semantic drift while editing UI copy and client usage.
 
 ## 3. Frontend Boundary
 
 ### 3.1 Shared Console Shell
-- [ ] Add a shared observability console shell under `apps/playground-next-web/features/observability/components`.
-- [ ] Add a left section nav with `Runs`, `Datasets`, and `Evals`.
-- [ ] Add a top/header area that can show section title, object context, refresh, current actor, and logout.
-- [ ] Keep page-specific data loading and mutations in the existing runtime/hooks.
-- [ ] Avoid moving dataset/eval/run semantics into the shell.
+- [x] Add a shared observability console shell under `apps/playground-next-web/features/observability/components`.
+- [x] Add a left section nav with `Runs`, `Datasets`, and `Evals`.
+- [x] Add a top/header area that can show section title, object context, refresh, current actor, and logout.
+- [x] Keep page-specific data loading and mutations in the existing runtime/hooks.
+- [x] Avoid moving dataset/eval/run semantics into the shell.
 
 ### 3.2 Runs Section
-- [ ] Display `/observability` as `Runs` in the console nav and page header.
-- [ ] Preserve existing thread/run selection query behavior.
+- [x] Display `/observability` as `Runs` in the console nav and page header.
+- [x] Preserve existing thread/run selection query behavior.
 - [ ] Add or normalize `Thread -> Run` context in the selected run detail.
 - [ ] Move or present `Capture to dataset` as a selected-run scoped action.
-- [ ] Preserve existing run timeline, trace/usage, capture dialog, and source behavior.
+- [x] Preserve existing run timeline, trace/usage, capture dialog, and source behavior.
 
 ### 3.3 Datasets Section
-- [ ] Display `/observability/datasets` as `Datasets` in the console nav and page header.
-- [ ] Preserve existing dataset/example selection query behavior.
+- [x] Display `/observability/datasets` as `Datasets` in the console nav and page header.
+- [x] Preserve existing dataset/example selection query behavior.
 - [ ] Add or normalize `Source Run -> Dataset -> Example` context in example detail.
 - [ ] Preserve source-unavailable behavior: captured snapshots and review remain usable.
 - [ ] Keep expected-output save and dataset review save near their forms.
 - [ ] Keep source run and eval links as lineage navigation rather than primary submit actions.
 
 ### 3.4 Evals Section
-- [ ] Display `/observability/evals` as `Evals` in the console nav and page header.
-- [ ] Preserve existing `datasetId`, `evalRunId`, and `resultId` query behavior.
+- [x] Display `/observability/evals` as `Evals` in the console nav and page header.
+- [x] Preserve existing `datasetId`, `evalRunId`, and `resultId` query behavior.
 - [ ] Keep Evals tied to selected dataset context.
 - [ ] Move away from a four-peer-column layout.
 - [ ] Make the main Evals workspace `dataset context + eval run list + eval run review workspace`.
@@ -127,8 +127,8 @@
 - [ ] Keep results list and result detail as internal parts of the selected eval run workspace.
 - [ ] Place `Run eval` in the selected EvalRun workspace/detail header, not in the global page header or result list header.
 - [ ] Keep Comparison Assist inside result detail and do not promote it to a Compare tab.
-- [ ] Keep filter state local and out of URL.
-- [ ] Preserve review save behavior that refetches the selected eval run summary.
+- [x] Keep filter state local and out of URL.
+- [x] Preserve review save behavior that refetches the selected eval run summary.
 
 ### 3.5 Shared States and Copy
 - [ ] Add only the shared empty/loading/error primitives that reduce obvious duplication.
@@ -140,16 +140,16 @@
 
 ## 4. Tests
 
-- [ ] Update or add tests proving the shared shell renders the correct active section for Runs, Datasets, and Evals.
+- [x] Update or add tests proving the shared shell renders the correct active section for Runs, Datasets, and Evals.
 - [ ] Update Runs tests for the new heading/action placement without changing run query semantics.
-- [ ] Update Datasets tests proving dataset/example detail remains independent of `/observability` run query state.
-- [ ] Update Datasets tests proving source unavailable does not block captured snapshot review/editing.
-- [ ] Update Evals tests proving eval page remains independent of `threadId`/`runId` query state.
-- [ ] Update Evals tests proving filter state remains local and does not write URL params.
-- [ ] Update Evals tests proving review save still refreshes selected eval run summary.
-- [ ] Avoid tests that overfit old layout copy, column order, button index, or exact CSS grid shape.
+- [x] Update Datasets tests proving dataset/example detail remains independent of `/observability` run query state.
+- [x] Update Datasets tests proving source unavailable does not block captured snapshot review/editing.
+- [x] Update Evals tests proving eval page remains independent of `threadId`/`runId` query state.
+- [x] Update Evals tests proving filter state remains local and does not write URL params.
+- [x] Update Evals tests proving review save still refreshes selected eval run summary.
+- [x] Avoid tests that overfit old layout copy, column order, button index, or exact CSS grid shape.
 - [ ] Add browser smoke coverage for `/observability`, `/observability/datasets`, and `/observability/evals`.
-- [ ] Run targeted app tests before each code-review checkpoint.
+- [x] Run targeted app tests before each code-review checkpoint.
 - [ ] Run `pnpm --filter playground-next-web typecheck` before final closeout.
 - [ ] Run broader workspace verification if shared package files are touched unexpectedly.
 
@@ -163,18 +163,18 @@
 - [x] Run a docs-focused verification check by reading the updated section for duplicate or conflicting truth.
 - [x] run `codex review` for this loop after targeted verification passes.
   - Review reported only unrelated untracked `.codex/skills/ui-ux-pro-max` findings; no Loop 1 roadmap/todo findings.
-- [ ] Commit the source-of-truth IA note.
+- [x] Commit the source-of-truth IA note.
 
 ### Loop 2 — Shared console shell without page re-layout
-- [ ] Add the minimal shared observability console shell.
-- [ ] Add the left nav with `Runs`, `Datasets`, and `Evals`.
-- [ ] Wrap `/observability`, `/observability/datasets`, and `/observability/evals` in the shared shell.
-- [ ] Normalize current actor, logout, and refresh placement through shell slots.
-- [ ] Preserve each page's existing internal layout and data behavior.
-- [ ] Add or update shell/nav tests.
-- [ ] Run targeted `playground-next-web` tests for affected components.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] run `codex review` for this loop after targeted verification passes.
+- [x] Add the minimal shared observability console shell.
+- [x] Add the left nav with `Runs`, `Datasets`, and `Evals`.
+- [x] Wrap `/observability`, `/observability/datasets`, and `/observability/evals` in the shared shell.
+- [x] Normalize current actor, logout, and refresh placement through shell slots.
+- [x] Preserve each page's existing internal layout and data behavior.
+- [x] Add or update shell/nav tests.
+- [x] Run targeted `playground-next-web` tests for affected components.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] run `codex review` for this loop after targeted verification passes.
 - [ ] Commit the shared shell slice.
 
 ### Loop 3 — Object context and action placement

@@ -143,7 +143,7 @@ describe('DatasetReviewConsole', () => {
     await flush();
     await flush();
 
-    expect(document.body.textContent).toContain('Dataset Review');
+    expect(document.body.textContent).toContain('Datasets');
     expect(document.body.textContent).toContain('Regression');
     expect(document.body.textContent).toContain('normal_example');
     expect(document.body.textContent).toContain('run run-1');

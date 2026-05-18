@@ -254,7 +254,7 @@ describe('EvalConsole', () => {
     await flush();
     await flush();
 
-    expect(document.body.textContent).toContain('Eval Runs');
+    expect(document.body.textContent).toContain('Evals');
     expect(document.body.textContent).toContain('Regression');
     expect(document.body.textContent).toContain('eval-run-1');
     expect(document.body.textContent).toContain('Comparison Assist');

@@ -8,20 +8,16 @@ import type {
   DatasetExampleReviewStatusDto
 } from '@agent-infra/contracts';
 import {
-  ArrowLeft,
   CheckCircle2,
   Database,
   FileJson2,
   Link2,
   Loader2,
-  LogOut,
-  RefreshCw,
   Save,
   ShieldAlert
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-import { usePlaygroundLogout } from '@/components/chat-shell/use-playground-logout';
 import { Button } from '@/components/ui/button';
 import type { AuthUserDto } from '@/features/auth/dto/project-auth-user-dto';
 import { useDatasetReviewConsole, type ExpectedOutputDraft, type ReviewDraft } from '@/features/observability/runtime/use-dataset-review-console';
@@ -35,6 +31,7 @@ import {
   readCaptureKind
 } from '../service/dataset-review';
 import { formatDateTime, formatShortId } from '../service/format';
+import { ObservabilityConsoleShell } from './observability-console-shell';
 
 const REVIEW_STATUSES: DatasetExampleReviewStatusDto[] = ['unreviewed', 'needs_expected_output', 'approved', 'excluded'];
 const EVAL_ELIGIBILITIES: DatasetExampleReviewEvalEligibilityDto[] = ['default', 'include', 'exclude'];
@@ -349,54 +346,20 @@ function ExampleDetailPanel({
 
 export function DatasetReviewConsole({ currentUser }: { currentUser: AuthUserDto }) {
   const state = useDatasetReviewConsole();
-  const logout = usePlaygroundLogout();
 
   return (
-    <main className="flex h-dvh min-h-0 flex-col overflow-hidden bg-[var(--chat-bg)] text-[var(--chat-text)]">
-      <header className="flex h-[72px] shrink-0 items-center justify-between border-b border-[color:var(--chat-border)] bg-[var(--chat-surface)] px-5">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-[color:var(--chat-border-strong)] bg-[var(--chat-surface-muted)] text-[var(--chat-accent)]">
-            <Database className="size-5" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold text-[var(--chat-text)]">Dataset Review</h1>
-            <p className="truncate text-sm text-[var(--chat-muted)]">Captured examples, expected outputs, and eval readiness</p>
-          </div>
-        </div>
-        <div className="flex min-w-0 items-center gap-2">
-          <Button asChild variant="outline" size="sm">
-            <a href="/observability">
-              <ArrowLeft className="size-4" />
-              Runs
-            </a>
-          </Button>
-          <Button asChild variant="outline" size="sm">
-            <a href={state.selectedDatasetId ? `/observability/evals?datasetId=${encodeURIComponent(state.selectedDatasetId)}` : '/observability/evals'}>
-              <Database className="size-4" />
-              Evals
-            </a>
-          </Button>
-          <div className="hidden min-w-0 max-w-[260px] truncate rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] px-3 py-1.5 text-xs text-[var(--chat-muted)] md:block">
-            {currentUser.email}
-          </div>
-          <Button variant="outline" size="sm" onClick={state.refresh}>
-            <RefreshCw className="size-4" />
-            Refresh
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Log out"
-            onClick={() => {
-              void logout();
-            }}
-          >
-            <LogOut className="size-4" />
-          </Button>
-        </div>
-      </header>
-
-      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[280px_360px_minmax(0,1fr)]">
+    <ObservabilityConsoleShell
+      activeSection="datasets"
+      currentUser={currentUser}
+      title="Datasets"
+      subtitle="Captured examples, expected outputs, and eval readiness"
+      icon={<Database className="size-5" />}
+      onRefresh={state.refresh}
+      sectionHrefs={{
+        evals: state.selectedDatasetId ? `/observability/evals?datasetId=${encodeURIComponent(state.selectedDatasetId)}` : '/observability/evals'
+      }}
+    >
+      <div className="grid h-full min-h-0 grid-cols-1 overflow-hidden lg:grid-cols-[280px_360px_minmax(0,1fr)]">
         <aside className="min-h-0 border-r border-[color:var(--chat-border)] bg-[var(--chat-surface)]">
           <div className="flex h-12 items-center justify-between border-b border-[color:var(--chat-border)] px-4">
             <h2 className="text-sm font-semibold">Datasets</h2>
@@ -450,6 +413,6 @@ export function DatasetReviewConsole({ currentUser }: { currentUser: AuthUserDto
           />
         </section>
       </div>
-    </main>
+    </ObservabilityConsoleShell>
   );
 }
