@@ -267,6 +267,7 @@ describe('DatasetReviewConsole', () => {
     await flush();
 
     expect(document.body.textContent).toContain('Source unavailable');
+    expect(document.body.textContent).toContain('Captured snapshots and review controls remain usable');
     expect(document.body.textContent).toContain('Source Run');
     expect(document.body.textContent).toContain('Input');
     expect(document.body.textContent).toContain('Baseline Output');

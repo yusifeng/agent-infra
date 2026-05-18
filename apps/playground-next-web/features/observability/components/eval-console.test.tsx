@@ -261,7 +261,10 @@ describe('EvalConsole', () => {
     expect(document.body.textContent).toContain('EvalRun');
     expect(document.body.textContent).toContain('DatasetExample');
     expect(document.body.textContent).toContain('Eval output run');
+    expect(document.body.textContent).toContain('execution artifact for this eval run');
+    expect(document.body.textContent).toContain('not shown in normal chat threads');
     expect(document.body.textContent).toContain('Comparison Assist');
+    expect(document.body.textContent).toContain('manual Result Review is the review truth');
     expect(document.body.textContent).toContain('text differs');
     expect(document.body.textContent).toContain('normalized text different');
     expect(document.body.textContent).toContain('Expected assistant text');

@@ -31,6 +31,7 @@ import {
   readCaptureKind
 } from '../service/dataset-review';
 import { formatDateTime, formatShortId } from '../service/format';
+import { ConsolePanelState } from './console-panel-state';
 import { ObjectContextTrail } from './object-context-trail';
 import { ObservabilityConsoleShell } from './observability-console-shell';
 
@@ -125,14 +126,6 @@ function ExampleRow({
         <span className="truncate">{formatDateTime(example.createdAt)}</span>
       </div>
     </button>
-  );
-}
-
-function EmptyState({ label }: { label: string }) {
-  return (
-    <div className="flex min-h-[180px] items-center justify-center px-6 text-center text-sm text-[var(--chat-muted)]">
-      {label}
-    </div>
   );
 }
 
@@ -282,13 +275,13 @@ function ExampleDetailPanel({
   onSaveReview: (draft: ReviewDraft) => void;
 }) {
   if (loading) {
-    return <EmptyState label="Loading example" />;
+    return <ConsolePanelState title="Loading example" />;
   }
   if (error) {
-    return <EmptyState label={error} />;
+    return <ConsolePanelState title={error} />;
   }
   if (!example) {
-    return <EmptyState label="Select an example" />;
+    return <ConsolePanelState title="Select an example" description="Choose a captured example to edit expected output and review readiness." />;
   }
 
   const sourceHref = buildSourceRunHref(example);
@@ -319,7 +312,9 @@ function ExampleDetailPanel({
             </a>
           </Button>
         ) : (
-          <div className="rounded-lg border border-[color:var(--chat-border)] px-3 py-1.5 text-xs text-[var(--chat-muted)]">Source unavailable</div>
+          <div className="max-w-xs rounded-lg border border-[color:var(--chat-border)] px-3 py-1.5 text-xs leading-5 text-[var(--chat-muted)]">
+            Source unavailable. Captured snapshots and review controls remain usable.
+          </div>
         )}
       </div>
 
@@ -374,8 +369,10 @@ export function DatasetReviewConsole({ currentUser }: { currentUser: AuthUserDto
             {state.datasetsLoading ? <Loader2 className="size-4 animate-spin text-[var(--chat-muted)]" /> : null}
           </div>
           <div className="h-[calc(100dvh-120px)] overflow-auto">
-            {state.datasetsError ? <EmptyState label={state.datasetsError} /> : null}
-            {!state.datasetsError && state.datasets.length === 0 && !state.datasetsLoading ? <EmptyState label="No datasets" /> : null}
+            {state.datasetsError ? <ConsolePanelState title={state.datasetsError} /> : null}
+            {!state.datasetsError && state.datasets.length === 0 && !state.datasetsLoading ? (
+              <ConsolePanelState title="No datasets" description="Capture a selected run into a dataset before reviewing examples." />
+            ) : null}
             {state.datasets.map((dataset) => (
               <DatasetRow
                 key={dataset.id}
@@ -395,8 +392,10 @@ export function DatasetReviewConsole({ currentUser }: { currentUser: AuthUserDto
             {state.examplesLoading ? <Loader2 className="size-4 animate-spin text-[var(--chat-muted)]" /> : null}
           </div>
           <div className="h-[calc(100dvh-120px)] overflow-auto">
-            {state.examplesError ? <EmptyState label={state.examplesError} /> : null}
-            {!state.examplesError && state.examples.length === 0 && !state.examplesLoading ? <EmptyState label="No examples" /> : null}
+            {state.examplesError ? <ConsolePanelState title={state.examplesError} /> : null}
+            {!state.examplesError && state.examples.length === 0 && !state.examplesLoading ? (
+              <ConsolePanelState title="No examples" description="Capture runs into this dataset to create reviewable examples." />
+            ) : null}
             {state.examples.map((example) => (
               <ExampleRow
                 key={example.id}

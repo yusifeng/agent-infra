@@ -43,6 +43,7 @@ import {
 } from '../service/eval-review';
 import { formatDateTime, formatShortId } from '../service/format';
 import { formatJsonPreview } from '../service/dataset-review';
+import { ConsolePanelState } from './console-panel-state';
 import { ObjectContextTrail } from './object-context-trail';
 import { ObservabilityConsoleShell } from './observability-console-shell';
 
@@ -209,6 +210,7 @@ function ComparePanel({ result }: { result: EvalExampleResultDto }) {
       </div>
 
       <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--chat-muted)]">
+        <span>Assist only; manual Result Review is the review truth.</span>
         <span>reason {formatComparisonLabel(comparison.reason)}</span>
         <span>result {result.status}</span>
         <span>{readEvalResultUsage(result)}</span>
@@ -249,14 +251,6 @@ function ActualMessageBlocks({ comparison }: { comparison: EvalResultComparisonP
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-function EmptyState({ label }: { label: string }) {
-  return (
-    <div className="flex min-h-[180px] items-center justify-center px-6 text-center text-sm text-[var(--chat-muted)]">
-      {label}
     </div>
   );
 }
@@ -689,10 +683,10 @@ function ResultDetailPanel({
   onSaveReview: (draft: EvalResultReviewDraft) => void;
 }) {
   if (!evalRun) {
-    return <EmptyState label="Select an eval run" />;
+    return <ConsolePanelState title="Select an eval run" />;
   }
   if (!result) {
-    return <EmptyState label="Select a result" />;
+    return <ConsolePanelState title="Select a result" description="Choose a result from the selected eval run to inspect output and save a review." />;
   }
 
   const sourceHref = buildDatasetExampleHref({ datasetId: evalRun.datasetId, exampleId: result.datasetExampleId });
@@ -739,6 +733,12 @@ function ResultDetailPanel({
           ) : null}
         </div>
       </div>
+
+      {outputHref ? (
+        <div className="mt-3 rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] px-3 py-2 text-xs leading-5 text-[var(--chat-muted)]">
+          Eval output run is an execution artifact for this eval run. It is linked for debugging and is not shown in normal chat threads.
+        </div>
+      ) : null}
 
       {result.error ? <div className="mt-4 rounded-lg bg-[var(--chat-error-bg)] px-3 py-2 text-sm text-[var(--chat-error-text)]">{result.error}</div> : null}
       {mutationError ? <div className="mt-4 rounded-lg bg-[var(--chat-error-bg)] px-3 py-2 text-sm text-[var(--chat-error-text)]">{mutationError}</div> : null}
@@ -845,9 +845,13 @@ export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
               {state.evalRunsLoading ? <Loader2 className="size-4 animate-spin text-[var(--chat-muted)]" /> : null}
             </div>
             <div className="h-full overflow-auto pb-12">
-              {state.evalRunsError ? <EmptyState label={state.evalRunsError} /> : null}
-              {!state.selectedDataset && !state.datasetsError ? <EmptyState label="Select a dataset to load eval runs" /> : null}
-              {!state.evalRunsError && state.selectedDataset && state.evalRuns.length === 0 && !state.evalRunsLoading ? <EmptyState label="No eval runs. Create an eval run for this dataset." /> : null}
+              {state.evalRunsError ? <ConsolePanelState title={state.evalRunsError} /> : null}
+              {!state.selectedDataset && !state.datasetsError ? (
+                <ConsolePanelState title="Select a dataset" description="Choose a dataset above to load eval runs." />
+              ) : null}
+              {!state.evalRunsError && state.selectedDataset && state.evalRuns.length === 0 && !state.evalRunsLoading ? (
+                <ConsolePanelState title="No eval runs" description="Create an eval run for the selected dataset." />
+              ) : null}
               {state.evalRuns.map((evalRun) => (
                 <EvalRunRow key={evalRun.id} evalRun={evalRun} selected={evalRun.id === state.selectedEvalRunId} onSelect={state.selectEvalRun} />
               ))}
@@ -870,8 +874,10 @@ export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
                     <h2 className="text-sm font-semibold">Results</h2>
                   </div>
                   <div className="h-full overflow-auto pb-12">
-                    {state.resultsError ? <EmptyState label={state.resultsError} /> : null}
-                    {!state.resultsError && state.results.length === 0 && !state.resultsLoading ? <EmptyState label="No results. Run this eval run to generate results." /> : null}
+                    {state.resultsError ? <ConsolePanelState title={state.resultsError} /> : null}
+                    {!state.resultsError && state.results.length === 0 && !state.resultsLoading ? (
+                      <ConsolePanelState title="No results" description="Run this eval run to generate result rows." />
+                    ) : null}
                     {!state.resultsError && state.results.length > 0 ? (
                       <ResultFiltersPanel
                         filters={resultFilters}
@@ -881,7 +887,9 @@ export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
                         onChange={setResultFilters}
                       />
                     ) : null}
-                    {!state.resultsError && state.results.length > 0 && filteredResults.length === 0 ? <EmptyState label="No results match filters" /> : null}
+                    {!state.resultsError && state.results.length > 0 && filteredResults.length === 0 ? (
+                      <ConsolePanelState title="No results match filters" description="Clear or relax the local review filters." />
+                    ) : null}
                     {filteredResults.map((result) => (
                       <ResultRow key={result.id} result={result} selected={result.id === state.selectedResultId} onSelect={state.selectResult} />
                     ))}
@@ -901,7 +909,7 @@ export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
                 />
               </div>
             ) : (
-              <EmptyState label="Select an eval run to review results" />
+              <ConsolePanelState title="Select an eval run" description="Choose an eval run to review its summary, results, and result detail." />
             )}
           </section>
         </div>
