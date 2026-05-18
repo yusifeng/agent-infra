@@ -6,9 +6,48 @@ The completed `v0` scope and closeout rationale live in [`v0-closeout.md`](./v0-
 
 The roadmap after `v0` should be read as a set of candidate tracks, not as a promise to build every item in order.
 
-## Selected Next Infra Track: Dataset Regression Runner v1
+## Selected Next Infra Track: Eval Review Ergonomics And Comparator Assist v1
 
-The next infra track is `Dataset Regression Runner v1`.
+The next infra track is `Eval Review Ergonomics And Comparator Assist v1`.
+
+This track improves the human review loop for eval results without changing
+eval execution semantics or persisted review truth. It adds a browser-safe
+read-time comparison projection, expected-vs-actual compare/diff UI, local
+review filters, review queue shortcuts, and summary freshness after manual
+review updates.
+
+The source of truth lives in
+[`source-of-truth/eval-run-model.md`](./source-of-truth/eval-run-model.md).
+
+In scope:
+
+- `normalized_text_v1` as the first deterministic assistive comparator
+- read-time comparison projection in `packages/durable-chat-client`
+- comparison outcomes `match`, `mismatch`, and `not_comparable`
+- expected assistant-text extraction from result expected-output snapshots
+- actual assistant-text extraction from result actual-output snapshots
+- separate display blocks for multiple assistant messages
+- compare/diff panel in `/observability/evals`
+- local result filters and review queue shortcuts
+- review summary freshness by refetching selected eval run after review save
+
+Deferred:
+
+- persisted comparison fields or tables
+- comparison in `EvalExampleResultDto`
+- server-side result filtering, sorting, or pagination by comparison
+- URL query params for filter state
+- `contains_text` assertions
+- LLM-as-judge scoring
+- experiment comparison
+- prompt hub or prompt version management
+- CI gates
+- reports, pass-rate dashboards, alerting, or cost analytics
+- assignment queues, bulk operations, or multi-reviewer workflow
+
+## Completed Infra Track: Dataset Regression Runner v1
+
+`Dataset Regression Runner v1` is complete.
 
 This track turns curated eligible dataset examples into durable current-runtime
 regression batches. It adds `EvalRun` and `EvalExampleResult`, create-time

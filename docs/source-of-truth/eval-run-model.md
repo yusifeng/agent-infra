@@ -363,6 +363,104 @@ Review writes are strict app-layer operations:
 Automatic comparators, LLM judge outputs, assignments, and workflow states such
 as `blocked` are not part of v1 review truth.
 
+## Review Ergonomics And Comparator Assist
+
+`Eval Review Ergonomics And Comparator Assist v1` improves how humans inspect
+and review eval results. It does not change eval execution semantics, result
+truth, or persisted review semantics.
+
+Human review remains the only result judgment truth. Assistive comparison data
+must not auto-write `pass`, `fail`, `needs_review`, or `not_applicable`, and UI
+copy must avoid labels such as `auto pass`, `auto fail`, or `grade`.
+
+The first comparator is a read-time projection over an `EvalExampleResult` or
+its DTO. It is not persisted in v1 and is not part of `EvalExampleResultDto` in
+the first implementation round. A browser-safe shared helper in
+`packages/durable-chat-client` owns the projection so validation UIs can consume
+shared semantics without making playground code the source of truth.
+
+The initial strategy is `normalized_text_v1`:
+
+- extract expected text only from `DatasetExpectedOutputV1` with
+  `kind = 'assistant_text'`
+- extract actual text from `EvalActualOutputSnapshotV1.assistantMessages`
+- trim text
+- normalize line endings
+- collapse whitespace
+
+`contains_text` is deferred because expected output v1 is a target assistant
+answer, not an assertion fragment.
+
+The projection shape is:
+
+```ts
+interface EvalResultComparisonProjectionV1 {
+  schemaVersion: 1;
+  kind: 'eval_result_comparison';
+  strategy: 'normalized_text_v1';
+  outcome: 'match' | 'mismatch' | 'not_comparable';
+  reason: EvalResultComparisonReasonV1;
+  diagnostics: EvalResultComparisonDiagnosticV1[];
+  expectedText?: string | null;
+  actualText?: string | null;
+  actualTextBlocks: Array<{
+    messageId: string;
+    seq?: number | null;
+    text: string;
+  }>;
+}
+```
+
+`not_comparable` is intentionally separate from the manual review status
+`not_applicable`.
+
+Reason codes are:
+
+- `normalized_text_equal`
+- `normalized_text_different`
+- `result_not_completed`
+- `result_failed`
+- `missing_expected_output`
+- `unsupported_expected_output_shape`
+- `missing_expected_text`
+- `empty_expected_text`
+- `missing_actual_output`
+- `unsupported_actual_output_shape`
+- `actual_output_error`
+- `missing_actual_assistant_messages`
+- `missing_actual_text`
+- `empty_actual_text`
+
+Diagnostics are:
+
+- `multiple_actual_assistant_messages`
+- `non_text_actual_parts_omitted`
+- `empty_actual_text_parts_omitted`
+
+Multiple assistant messages remain comparable by joined text. The UI should also
+show separate actual text blocks so reviewers can inspect how the runtime
+produced the joined body.
+
+Result filters and review queue controls are local review-surface state in v1:
+result status, review status, comparison outcome, error-only, missing actual,
+unreviewed, mismatch, and failed or not-comparable shortcuts. They do not change
+the eval result list route, do not add server-side filtering or pagination, and
+do not add URL query params beyond the selected `datasetId`, `evalRunId`, and
+`resultId`.
+
+After a manual review update, the validation UI should refresh the selected eval
+run summary by refetching the eval run. The review route response shape stays
+unchanged in the first implementation round.
+
+Persisted comparison should be considered only after concrete pressure appears,
+such as:
+
+- DB-level filtering, sorting, or pagination by comparison outcome
+- historical audit of a specific comparator strategy result
+- multiple comparator strategies or versions
+- expensive or server-only comparator execution
+- returned run-level comparison summaries
+
 ## Public V1 Surface
 
 The public app/contract surface is intentionally narrow:
