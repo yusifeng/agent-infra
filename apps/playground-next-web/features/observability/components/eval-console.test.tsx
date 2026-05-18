@@ -257,6 +257,10 @@ describe('EvalConsole', () => {
     expect(document.body.textContent).toContain('Evals');
     expect(document.body.textContent).toContain('Regression');
     expect(document.body.textContent).toContain('eval-run-1');
+    expect(document.body.textContent).toContain('Dataset');
+    expect(document.body.textContent).toContain('EvalRun');
+    expect(document.body.textContent).toContain('DatasetExample');
+    expect(document.body.textContent).toContain('Eval output run');
     expect(document.body.textContent).toContain('Comparison Assist');
     expect(document.body.textContent).toContain('text differs');
     expect(document.body.textContent).toContain('normalized text different');
@@ -311,6 +315,38 @@ describe('EvalConsole', () => {
     await flush();
 
     expect(api.runEvalRunResponse).toHaveBeenCalledWith('eval-run-2');
+  });
+
+  it('keeps run action available when results fail to load', async () => {
+    api.fetchEvalExampleResultsResponse.mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: 'results unavailable',
+      data: { results: [] }
+    });
+    api.runEvalRunResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: { evalRun: evalRun({ status: 'completed' }) }
+    });
+
+    await act(async () => {
+      root.render(<EvalConsole currentUser={{ id: 'user-1', email: 'user@example.com' }} />);
+    });
+    await flush();
+    await flush();
+
+    expect(document.body.textContent).toContain('results unavailable');
+
+    const runButton = document.body.querySelector('button[aria-label="Run eval"]');
+    expect(runButton).toBeTruthy();
+    await act(async () => {
+      runButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await flush();
+
+    expect(api.runEvalRunResponse).toHaveBeenCalledWith('eval-run-1');
   });
 
   it('marks a result pass, fail, needs_review, and not_applicable through review controls', async () => {

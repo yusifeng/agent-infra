@@ -19,8 +19,8 @@
 
 ### 0.2 Goals
 - [x] Make Runs, Datasets, and Evals feel like sections of one management console instead of three unrelated tools.
-- [ ] Make each detail surface answer: current object, upstream lineage, downstream links, object-scoped actions, and current review/execution state.
-- [ ] Normalize global, section-level, object-level, and inline action placement.
+- [x] Make each detail surface answer: current object, upstream lineage, downstream links, object-scoped actions, and current review/execution state.
+- [x] Normalize global, section-level, object-level, and inline action placement.
 - [ ] Simplify the Evals page from a four-peer-object layout into a dataset-contextual eval run review workspace.
 - [x] Preserve the current durable semantics, data models, routes, query selection behavior, and review truth.
 - [x] Keep the first implementation conservative: shared shell and layout primitives are allowed, but broad generic abstraction is not the goal.
@@ -103,17 +103,17 @@
 ### 3.2 Runs Section
 - [x] Display `/observability` as `Runs` in the console nav and page header.
 - [x] Preserve existing thread/run selection query behavior.
-- [ ] Add or normalize `Thread -> Run` context in the selected run detail.
-- [ ] Move or present `Capture to dataset` as a selected-run scoped action.
+- [x] Add or normalize `Thread -> Run` context in the selected run detail.
+- [x] Move or present `Capture to dataset` as a selected-run scoped action.
 - [x] Preserve existing run timeline, trace/usage, capture dialog, and source behavior.
 
 ### 3.3 Datasets Section
 - [x] Display `/observability/datasets` as `Datasets` in the console nav and page header.
 - [x] Preserve existing dataset/example selection query behavior.
-- [ ] Add or normalize `Source Run -> Dataset -> Example` context in example detail.
-- [ ] Preserve source-unavailable behavior: captured snapshots and review remain usable.
-- [ ] Keep expected-output save and dataset review save near their forms.
-- [ ] Keep source run and eval links as lineage navigation rather than primary submit actions.
+- [x] Add or normalize `Source Run -> Dataset -> Example` context in example detail.
+- [x] Preserve source-unavailable behavior: captured snapshots and review remain usable.
+- [x] Keep expected-output save and dataset review save near their forms.
+- [x] Keep source run and eval links as lineage navigation rather than primary submit actions.
 
 ### 3.4 Evals Section
 - [x] Display `/observability/evals` as `Evals` in the console nav and page header.
@@ -125,7 +125,7 @@
 - [ ] Place `Create eval run` near the selected dataset context or in an EvalRun list header that explicitly says it is for the selected dataset.
 - [ ] Put eval run summary and local review filters inside the selected eval run workspace.
 - [ ] Keep results list and result detail as internal parts of the selected eval run workspace.
-- [ ] Place `Run eval` in the selected EvalRun workspace/detail header, not in the global page header or result list header.
+- [x] Place `Run eval` in the selected EvalRun workspace/detail header, not in the global page header or result list header.
 - [ ] Keep Comparison Assist inside result detail and do not promote it to a Compare tab.
 - [x] Keep filter state local and out of URL.
 - [x] Preserve review save behavior that refetches the selected eval run summary.
@@ -134,14 +134,14 @@
 - [ ] Add only the shared empty/loading/error primitives that reduce obvious duplication.
 - [ ] Use local panel-level loading/error states where possible instead of blocking the whole console.
 - [ ] Make empty states state the next available action.
-- [ ] Make output run copy clear with wording like `Eval output run`, `execution artifact`, and `not shown in normal chat threads`.
-- [ ] Ensure review status remains visually and semantically higher than Comparison Assist.
-- [ ] Avoid terms like `auto pass`, `auto fail`, `grade`, or any copy implying comparison assist is review truth.
+- [x] Make output run copy clear with wording like `Eval output run`, `execution artifact`, and `not shown in normal chat threads`.
+- [x] Ensure review status remains visually and semantically higher than Comparison Assist.
+- [x] Avoid terms like `auto pass`, `auto fail`, `grade`, or any copy implying comparison assist is review truth.
 
 ## 4. Tests
 
 - [x] Update or add tests proving the shared shell renders the correct active section for Runs, Datasets, and Evals.
-- [ ] Update Runs tests for the new heading/action placement without changing run query semantics.
+- [x] Update Runs tests for the new heading/action placement without changing run query semantics.
 - [x] Update Datasets tests proving dataset/example detail remains independent of `/observability` run query state.
 - [x] Update Datasets tests proving source unavailable does not block captured snapshot review/editing.
 - [x] Update Evals tests proving eval page remains independent of `threadId`/`runId` query state.
@@ -175,20 +175,20 @@
 - [x] Run targeted `playground-next-web` tests for affected components.
 - [x] Run `pnpm --filter playground-next-web typecheck`.
 - [x] run `codex review` for this loop after targeted verification passes.
-- [ ] Commit the shared shell slice.
+- [x] Commit the shared shell slice.
 
 ### Loop 3 — Object context and action placement
-- [ ] If this loop becomes hard to review across all three sections, split it into `3a Runs`, `3b Datasets`, and `3c Evals`.
-- [ ] Add lightweight object context/breadcrumb components without introducing generic object-console abstractions.
-- [ ] Runs: show `Thread -> Run` context and keep capture as a selected-run action.
-- [ ] Datasets: show `Source Run -> Dataset -> Example` context and preserve source-unavailable behavior.
-- [ ] Evals: show `Dataset -> EvalRun` context and move `Run eval` to selected EvalRun context.
-- [ ] Keep save actions close to their forms.
-- [ ] Keep lineage links visually separate from primary submit actions.
-- [ ] Update affected UI tests for copy/action placement.
-- [ ] Run targeted `playground-next-web` tests for Runs, Datasets, and Evals.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] run `codex review` for this loop after targeted verification passes.
+- [x] If this loop becomes hard to review across all three sections, split it into `3a Runs`, `3b Datasets`, and `3c Evals`.
+- [x] Add lightweight object context/breadcrumb components without introducing generic object-console abstractions.
+- [x] Runs: show `Thread -> Run` context and keep capture as a selected-run action.
+- [x] Datasets: show `Source Run -> Dataset -> Example` context and preserve source-unavailable behavior.
+- [x] Evals: show `Dataset -> EvalRun` context and move `Run eval` to selected EvalRun context.
+- [x] Keep save actions close to their forms.
+- [x] Keep lineage links visually separate from primary submit actions.
+- [x] Update affected UI tests for copy/action placement.
+- [x] Run targeted `playground-next-web` tests for Runs, Datasets, and Evals.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] run `codex review` for this loop after targeted verification passes.
 - [ ] Commit the object context/action placement slice.
 
 ### Loop 4 — Evals workspace simplification

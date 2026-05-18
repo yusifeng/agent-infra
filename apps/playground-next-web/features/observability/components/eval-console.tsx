@@ -43,6 +43,7 @@ import {
 } from '../service/eval-review';
 import { formatDateTime, formatShortId } from '../service/format';
 import { formatJsonPreview } from '../service/dataset-review';
+import { ObjectContextTrail } from './object-context-trail';
 import { ObservabilityConsoleShell } from './observability-console-shell';
 
 const RESULT_REVIEW_STATUSES: EvalExampleResultReviewStatusDto[] = ['unreviewed', 'pass', 'fail', 'needs_review', 'not_applicable'];
@@ -566,9 +567,37 @@ function ReviewEditor({
   );
 }
 
-function EvalSummary({ evalRun }: { evalRun: EvalRunDto }) {
+function EvalSummary({
+  evalRun,
+  dataset,
+  running,
+  onRun
+}: {
+  evalRun: EvalRunDto;
+  dataset: DatasetDto | null;
+  running: boolean;
+  onRun: () => void;
+}) {
   return (
     <section className="border-b border-[color:var(--chat-border)] px-5 py-4">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <ObjectContextTrail
+            items={[
+              { label: 'Dataset', value: dataset?.name ?? formatShortId(evalRun.datasetId, 12) },
+              { label: 'EvalRun', value: formatShortId(evalRun.id, 16) }
+            ]}
+          />
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
+            <h3 className="truncate font-mono text-sm font-semibold text-[var(--chat-text)]">{formatShortId(evalRun.id, 16)}</h3>
+            <span className="rounded-md border border-[color:var(--chat-border)] px-2 py-0.5 text-xs text-[var(--chat-muted)]">{evalRun.status}</span>
+          </div>
+        </div>
+        <Button size="sm" aria-label="Run eval" onClick={onRun} disabled={running || evalRun.status !== 'queued'}>
+          {running ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
+          Run eval
+        </Button>
+      </div>
       <div className="grid gap-3 md:grid-cols-4">
         <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
           <div className="text-xs text-[var(--chat-muted)]">Status</div>
@@ -629,6 +658,15 @@ function ResultDetailPanel({
     <div className="min-h-0 overflow-auto px-5 py-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
+          <ObjectContextTrail
+            items={[
+              { label: 'DatasetExample', value: formatShortId(result.datasetExampleId, 12), href: sourceHref },
+              { label: 'EvalRun', value: formatShortId(evalRun.id, 12) },
+              { label: 'Result', value: `#${result.exampleOrdinal}` },
+              { label: 'Eval output run', value: formatShortId(result.outputRunId, 12), href: outputHref },
+              { label: 'Review', value: result.review?.status ?? 'unreviewed' }
+            ]}
+          />
           <h2 className="truncate font-mono text-base font-semibold text-[var(--chat-text)]">{result.id}</h2>
           <div className="mt-1 flex flex-wrap gap-2 text-xs text-[var(--chat-muted)]">
             <span>example {formatShortId(result.datasetExampleId, 12)}</span>
@@ -651,7 +689,7 @@ function ResultDetailPanel({
             <Button asChild size="sm" variant="outline">
               <a href={outputHref}>
                 <Link2 className="size-4" />
-                Output Run
+                Eval output run
               </a>
             </Button>
           ) : null}
@@ -779,13 +817,17 @@ export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
         <aside className="min-h-0 border-r border-[color:var(--chat-border)] bg-[var(--chat-bg)]">
           <div className="flex h-12 items-center justify-between gap-2 border-b border-[color:var(--chat-border)] px-4">
             <h2 className="text-sm font-semibold">Results</h2>
-            <Button size="icon-sm" aria-label="Run eval" onClick={state.runSelectedEvalRun} disabled={!state.selectedEvalRunId || state.runningEvalRun || state.selectedEvalRun?.status !== 'queued'}>
-              {state.runningEvalRun ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
-            </Button>
           </div>
           <div className="h-[calc(100dvh-120px)] overflow-auto">
+            {state.selectedEvalRun ? (
+              <EvalSummary
+                evalRun={state.selectedEvalRun}
+                dataset={state.selectedDataset}
+                running={state.runningEvalRun}
+                onRun={state.runSelectedEvalRun}
+              />
+            ) : null}
             {state.resultsError ? <EmptyState label={state.resultsError} /> : null}
-            {!state.resultsError && state.selectedEvalRun ? <EvalSummary evalRun={state.selectedEvalRun} /> : null}
             {!state.resultsError && state.results.length === 0 && !state.resultsLoading ? <EmptyState label="No results" /> : null}
             {!state.resultsError && state.results.length > 0 ? (
               <ResultFiltersPanel

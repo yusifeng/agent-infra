@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 
 import { formatDateTime, formatDurationMs, formatShortId, formatTokenCount, getRunDurationMs } from '../service/format';
 import { DatasetCaptureDialog } from './dataset-capture-dialog';
+import { ObjectContextTrail } from './object-context-trail';
 import { TimelineTab } from './timeline-tab';
 import { TraceTab } from './trace-tab';
 
@@ -48,11 +49,21 @@ export function RunContentPanel({ selectedRun, selectedThread, timeline, timelin
           <div className="shrink-0 border-b border-[color:var(--chat-border)] px-5 py-4">
             <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
               <div className="flex min-w-0 flex-wrap items-center gap-3">
-                <h2 className="min-w-0 truncate font-mono text-lg font-semibold text-[var(--chat-text)]">{formatShortId(selectedRun.id, 18)}</h2>
-                <span className={cn('rounded-md px-2 py-0.5 text-xs font-medium', runStatusClass(selectedRun.status))}>{selectedRun.status}</span>
-                <span className="truncate text-sm text-[var(--chat-muted)]">
-                  {(selectedRun.provider ?? 'provider unknown')} / {(selectedRun.model ?? 'model unknown')}
-                </span>
+                <div className="min-w-0">
+                  <ObjectContextTrail
+                    items={[
+                      { label: 'Thread', value: formatShortId(selectedThread?.id, 12) },
+                      { label: 'Run', value: formatShortId(selectedRun.id, 18) }
+                    ]}
+                  />
+                  <div className="mt-1 flex min-w-0 flex-wrap items-center gap-3">
+                    <h2 className="min-w-0 truncate font-mono text-lg font-semibold text-[var(--chat-text)]">{formatShortId(selectedRun.id, 18)}</h2>
+                    <span className={cn('rounded-md px-2 py-0.5 text-xs font-medium', runStatusClass(selectedRun.status))}>{selectedRun.status}</span>
+                    <span className="truncate text-sm text-[var(--chat-muted)]">
+                      {(selectedRun.provider ?? 'provider unknown')} / {(selectedRun.model ?? 'model unknown')}
+                    </span>
+                  </div>
+                </div>
               </div>
               <Button variant="outline" size="sm" onClick={() => setCaptureOpen(true)}>
                 <Plus className="size-4" />

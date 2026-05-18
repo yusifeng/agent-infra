@@ -145,6 +145,8 @@ describe('DatasetReviewConsole', () => {
 
     expect(document.body.textContent).toContain('Datasets');
     expect(document.body.textContent).toContain('Regression');
+    expect(document.body.textContent).toContain('Source Run');
+    expect(document.body.textContent).toContain('Example');
     expect(document.body.textContent).toContain('normal_example');
     expect(document.body.textContent).toContain('run run-1');
     expect(document.body.textContent).toContain('thread thread-1');
@@ -265,6 +267,7 @@ describe('DatasetReviewConsole', () => {
     await flush();
 
     expect(document.body.textContent).toContain('Source unavailable');
+    expect(document.body.textContent).toContain('Source Run');
     expect(document.body.textContent).toContain('Input');
     expect(document.body.textContent).toContain('Baseline Output');
   });

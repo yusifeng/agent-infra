@@ -31,6 +31,7 @@ import {
   readCaptureKind
 } from '../service/dataset-review';
 import { formatDateTime, formatShortId } from '../service/format';
+import { ObjectContextTrail } from './object-context-trail';
 import { ObservabilityConsoleShell } from './observability-console-shell';
 
 const REVIEW_STATUSES: DatasetExampleReviewStatusDto[] = ['unreviewed', 'needs_expected_output', 'approved', 'excluded'];
@@ -296,6 +297,13 @@ function ExampleDetailPanel({
     <div className="min-h-0 overflow-auto px-5 py-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
+          <ObjectContextTrail
+            items={[
+              { label: 'Source Run', value: formatShortId(example.sourceRunId, 12), href: sourceHref },
+              { label: 'Dataset', value: formatShortId(example.datasetId, 12) },
+              { label: 'Example', value: formatShortId(example.id, 12) }
+            ]}
+          />
           <h2 className="truncate font-mono text-base font-semibold text-[var(--chat-text)]">{example.id}</h2>
           <div className="mt-1 flex flex-wrap gap-2 text-xs text-[var(--chat-muted)]">
             <span>capture {readCaptureKind(example)}</span>
@@ -307,7 +315,7 @@ function ExampleDetailPanel({
           <Button asChild size="sm" variant="outline">
             <a href={sourceHref}>
               <Link2 className="size-4" />
-              Source
+              Source run
             </a>
           </Button>
         ) : (
