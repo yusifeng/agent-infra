@@ -1,6 +1,12 @@
 'use client';
 
-import type { DatasetDto, EvalExampleResultDto, EvalExampleResultReviewStatusDto, EvalRunDto } from '@agent-infra/contracts';
+import type {
+  DatasetDto,
+  EvalExampleResultDto,
+  EvalExampleResultReviewStatusDto,
+  EvalExampleResultStatusDto,
+  EvalRunDto
+} from '@agent-infra/contracts';
 import {
   projectEvalExampleResultComparisonV1,
   type EvalResultComparisonOutcomeV1,
@@ -11,6 +17,7 @@ import {
   CheckCircle2,
   Database,
   FileJson2,
+  Filter,
   Link2,
   Loader2,
   LogOut,
@@ -42,6 +49,27 @@ import { formatDateTime, formatShortId } from '../service/format';
 import { formatJsonPreview } from '../service/dataset-review';
 
 const RESULT_REVIEW_STATUSES: EvalExampleResultReviewStatusDto[] = ['unreviewed', 'pass', 'fail', 'needs_review', 'not_applicable'];
+const RESULT_STATUSES: EvalExampleResultStatusDto[] = ['queued', 'running', 'completed', 'failed', 'skipped'];
+
+type ResultStatusFilter = 'all' | EvalExampleResultStatusDto;
+type ReviewStatusFilter = 'all' | EvalExampleResultReviewStatusDto;
+type ComparisonOutcomeFilter = 'all' | EvalResultComparisonOutcomeV1;
+
+type EvalResultFilters = {
+  resultStatus: ResultStatusFilter;
+  reviewStatus: ReviewStatusFilter;
+  comparisonOutcome: ComparisonOutcomeFilter;
+  errorOnly: boolean;
+  missingActualOnly: boolean;
+};
+
+const DEFAULT_RESULT_FILTERS: EvalResultFilters = {
+  resultStatus: 'all',
+  reviewStatus: 'all',
+  comparisonOutcome: 'all',
+  errorOnly: false,
+  missingActualOnly: false
+};
 
 const COMPARISON_OUTCOME_LABELS: Record<EvalResultComparisonOutcomeV1, string> = {
   match: 'text match',
@@ -57,6 +85,49 @@ const COMPARISON_OUTCOME_CLASSES: Record<EvalResultComparisonOutcomeV1, string> 
 
 function formatComparisonLabel(value: string) {
   return value.replaceAll('_', ' ');
+}
+
+function readResultReviewStatus(result: EvalExampleResultDto): EvalExampleResultReviewStatusDto {
+  return result.review?.status ?? 'unreviewed';
+}
+
+function resultHasError(result: EvalExampleResultDto) {
+  return Boolean(result.error || result.actualOutput?.error);
+}
+
+function resultIsMissingActual(result: EvalExampleResultDto, comparison: EvalResultComparisonProjectionV1) {
+  return comparison.reason === 'missing_actual_output' || (!result.actualOutput && !result.actualOutputJson);
+}
+
+function resultMatchesFilters(result: EvalExampleResultDto, comparison: EvalResultComparisonProjectionV1, filters: EvalResultFilters) {
+  if (filters.resultStatus !== 'all' && result.status !== filters.resultStatus) {
+    return false;
+  }
+  if (filters.reviewStatus !== 'all' && readResultReviewStatus(result) !== filters.reviewStatus) {
+    return false;
+  }
+  if (filters.comparisonOutcome !== 'all' && comparison.outcome !== filters.comparisonOutcome) {
+    return false;
+  }
+  if (filters.errorOnly && !resultHasError(result)) {
+    return false;
+  }
+  if (filters.missingActualOnly && !resultIsMissingActual(result, comparison)) {
+    return false;
+  }
+
+  return true;
+}
+
+function countResults(
+  results: EvalExampleResultDto[],
+  comparisonByResultId: Map<string, EvalResultComparisonProjectionV1>,
+  predicate: (result: EvalExampleResultDto, comparison: EvalResultComparisonProjectionV1) => boolean
+) {
+  return results.reduce((count, result) => {
+    const comparison = comparisonByResultId.get(result.id);
+    return comparison && predicate(result, comparison) ? count + 1 : count;
+  }, 0);
 }
 
 function splitComparisonTokens(text: string) {
@@ -278,6 +349,171 @@ function ResultRow({ result, selected, onSelect }: { result: EvalExampleResultDt
   );
 }
 
+function ResultFiltersPanel({
+  filters,
+  totalCount,
+  visibleCount,
+  queueCounts,
+  onChange
+}: {
+  filters: EvalResultFilters;
+  totalCount: number;
+  visibleCount: number;
+  queueCounts: {
+    unreviewed: number;
+    mismatch: number;
+    notComparable: number;
+    failed: number;
+    match: number;
+    error: number;
+    missingActual: number;
+  };
+  onChange: (filters: EvalResultFilters) => void;
+}) {
+  const setFilter = <TKey extends keyof EvalResultFilters>(key: TKey, value: EvalResultFilters[TKey]) => {
+    onChange({ ...filters, [key]: value });
+  };
+
+  return (
+    <section className="border-b border-[color:var(--chat-border)] px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Filter className="size-4 text-[var(--chat-muted)]" />
+          <h3 className="text-sm font-semibold text-[var(--chat-text)]">Review Queue</h3>
+        </div>
+        <span className="text-xs text-[var(--chat-muted)]">
+          Showing {visibleCount} of {totalCount}
+        </span>
+      </div>
+
+      <div className="mt-3 grid gap-2 text-xs text-[var(--chat-muted)]">
+        <label className="block">
+          Result
+          <select
+            aria-label="Result status filter"
+            className="mt-1 h-8 w-full rounded-md border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-2 text-xs text-[var(--chat-text)]"
+            value={filters.resultStatus}
+            onChange={(event) => setFilter('resultStatus', event.target.value as ResultStatusFilter)}
+          >
+            <option value="all">all</option>
+            {RESULT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+          </select>
+        </label>
+
+        <label className="block">
+          Review
+          <select
+            aria-label="Review status filter"
+            className="mt-1 h-8 w-full rounded-md border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-2 text-xs text-[var(--chat-text)]"
+            value={filters.reviewStatus}
+            onChange={(event) => setFilter('reviewStatus', event.target.value as ReviewStatusFilter)}
+          >
+            <option value="all">all</option>
+            {RESULT_REVIEW_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+          </select>
+        </label>
+
+        <label className="block">
+          Comparison
+          <select
+            aria-label="Comparison outcome filter"
+            className="mt-1 h-8 w-full rounded-md border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-2 text-xs text-[var(--chat-text)]"
+            value={filters.comparisonOutcome}
+            onChange={(event) => setFilter('comparisonOutcome', event.target.value as ComparisonOutcomeFilter)}
+          >
+            <option value="all">all</option>
+            <option value="match">text match</option>
+            <option value="mismatch">text differs</option>
+            <option value="not_comparable">not comparable</option>
+          </select>
+        </label>
+
+        <label className="flex items-center gap-2 rounded-md border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-2 py-1.5 text-xs text-[var(--chat-text)]">
+          <input
+            type="checkbox"
+            className="size-3.5"
+            checked={filters.errorOnly}
+            onChange={(event) => setFilter('errorOnly', event.target.checked)}
+          />
+          Errors only
+        </label>
+
+        <label className="flex items-center gap-2 rounded-md border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-2 py-1.5 text-xs text-[var(--chat-text)]">
+          <input
+            type="checkbox"
+            className="size-3.5"
+            checked={filters.missingActualOnly}
+            onChange={(event) => setFilter('missingActualOnly', event.target.checked)}
+          />
+          Missing actual
+        </label>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => onChange({ ...DEFAULT_RESULT_FILTERS, reviewStatus: 'unreviewed' })}
+        >
+          Unreviewed {queueCounts.unreviewed}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => onChange({ ...DEFAULT_RESULT_FILTERS, resultStatus: 'failed' })}
+        >
+          Failed {queueCounts.failed}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => onChange({ ...DEFAULT_RESULT_FILTERS, comparisonOutcome: 'match' })}
+        >
+          Text Match {queueCounts.match}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => onChange({ ...DEFAULT_RESULT_FILTERS, reviewStatus: 'unreviewed', comparisonOutcome: 'mismatch' })}
+        >
+          Mismatch {queueCounts.mismatch}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => onChange({ ...DEFAULT_RESULT_FILTERS, reviewStatus: 'unreviewed', comparisonOutcome: 'not_comparable' })}
+        >
+          Not Comparable {queueCounts.notComparable}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => onChange({ ...DEFAULT_RESULT_FILTERS, errorOnly: true })}
+        >
+          Errors {queueCounts.error}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => onChange({ ...DEFAULT_RESULT_FILTERS, missingActualOnly: true })}
+        >
+          Missing Actual {queueCounts.missingActual}
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={() => onChange(DEFAULT_RESULT_FILTERS)}>
+          Clear
+        </Button>
+      </div>
+    </section>
+  );
+}
+
 function ReviewEditor({
   result,
   saving,
@@ -308,6 +544,7 @@ function ReviewEditor({
         <label className="block text-xs font-medium text-[var(--chat-muted)]">
           Status
           <select
+            aria-label="Review decision"
             className="mt-1 h-9 w-full rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-2 text-sm text-[var(--chat-text)]"
             value={status}
             onChange={(event) => setStatus(event.target.value as EvalExampleResultReviewStatusDto)}
@@ -318,6 +555,7 @@ function ReviewEditor({
         <label className="block text-xs font-medium text-[var(--chat-muted)]">
           Reviewer Note
           <input
+            aria-label="Reviewer Note"
             className="mt-1 h-9 w-full rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-3 text-sm text-[var(--chat-text)] outline-none focus:border-[color:var(--chat-border-strong)]"
             value={reviewerNote}
             onChange={(event) => setReviewerNote(event.target.value)}
@@ -367,6 +605,7 @@ function ResultDetailPanel({
   sourceExampleError,
   savingReview,
   mutationError,
+  hiddenByFilter,
   onSaveReview
 }: {
   evalRun: EvalRunDto | null;
@@ -376,6 +615,7 @@ function ResultDetailPanel({
   sourceExampleError: string | null;
   savingReview: boolean;
   mutationError: string | null;
+  hiddenByFilter: boolean;
   onSaveReview: (draft: EvalResultReviewDraft) => void;
 }) {
   if (!evalRun) {
@@ -423,6 +663,11 @@ function ResultDetailPanel({
 
       {result.error ? <div className="mt-4 rounded-lg bg-[var(--chat-error-bg)] px-3 py-2 text-sm text-[var(--chat-error-text)]">{result.error}</div> : null}
       {mutationError ? <div className="mt-4 rounded-lg bg-[var(--chat-error-bg)] px-3 py-2 text-sm text-[var(--chat-error-text)]">{mutationError}</div> : null}
+      {hiddenByFilter ? (
+        <div className="mt-4 rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] px-3 py-2 text-sm text-[var(--chat-muted)]">
+          Selected result is hidden by the current filters.
+        </div>
+      ) : null}
 
       <ComparePanel result={result} />
 
@@ -444,6 +689,56 @@ function ResultDetailPanel({
 export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
   const state = useEvalConsole();
   const logout = usePlaygroundLogout();
+  const [resultFilters, setResultFilters] = useState<EvalResultFilters>(DEFAULT_RESULT_FILTERS);
+  const comparisonByResultId = useMemo(() => {
+    return new Map(state.results.map((result) => [result.id, projectEvalExampleResultComparisonV1(result)]));
+  }, [state.results]);
+  const filteredResults = useMemo(() => {
+    return state.results.filter((result) => {
+      const comparison = comparisonByResultId.get(result.id);
+      return comparison ? resultMatchesFilters(result, comparison, resultFilters) : false;
+    });
+  }, [comparisonByResultId, resultFilters, state.results]);
+  const selectedResultHiddenByFilter = Boolean(
+    state.selectedResult && !filteredResults.some((result) => result.id === state.selectedResult?.id)
+  );
+  const queueCounts = useMemo(() => ({
+    unreviewed: countResults(
+      state.results,
+      comparisonByResultId,
+      (result) => readResultReviewStatus(result) === 'unreviewed'
+    ),
+    mismatch: countResults(
+      state.results,
+      comparisonByResultId,
+      (result, comparison) => readResultReviewStatus(result) === 'unreviewed' && comparison.outcome === 'mismatch'
+    ),
+    notComparable: countResults(
+      state.results,
+      comparisonByResultId,
+      (result, comparison) => readResultReviewStatus(result) === 'unreviewed' && comparison.outcome === 'not_comparable'
+    ),
+    failed: countResults(
+      state.results,
+      comparisonByResultId,
+      (result) => result.status === 'failed'
+    ),
+    match: countResults(
+      state.results,
+      comparisonByResultId,
+      (_result, comparison) => comparison.outcome === 'match'
+    ),
+    error: countResults(
+      state.results,
+      comparisonByResultId,
+      (result) => resultHasError(result)
+    ),
+    missingActual: countResults(
+      state.results,
+      comparisonByResultId,
+      (result, comparison) => resultIsMissingActual(result, comparison)
+    )
+  }), [comparisonByResultId, state.results]);
 
   return (
     <main className="flex h-dvh min-h-0 flex-col overflow-hidden bg-[var(--chat-bg)] text-[var(--chat-text)]">
@@ -526,7 +821,17 @@ export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
             {state.resultsError ? <EmptyState label={state.resultsError} /> : null}
             {!state.resultsError && state.selectedEvalRun ? <EvalSummary evalRun={state.selectedEvalRun} /> : null}
             {!state.resultsError && state.results.length === 0 && !state.resultsLoading ? <EmptyState label="No results" /> : null}
-            {state.results.map((result) => (
+            {!state.resultsError && state.results.length > 0 ? (
+              <ResultFiltersPanel
+                filters={resultFilters}
+                totalCount={state.results.length}
+                visibleCount={filteredResults.length}
+                queueCounts={queueCounts}
+                onChange={setResultFilters}
+              />
+            ) : null}
+            {!state.resultsError && state.results.length > 0 && filteredResults.length === 0 ? <EmptyState label="No results match filters" /> : null}
+            {filteredResults.map((result) => (
               <ResultRow key={result.id} result={result} selected={result.id === state.selectedResultId} onSelect={state.selectResult} />
             ))}
           </div>
@@ -541,6 +846,7 @@ export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
             sourceExampleError={state.sourceExampleError}
             savingReview={state.savingReview}
             mutationError={state.mutationError}
+            hiddenByFilter={selectedResultHiddenByFilter}
             onSaveReview={state.saveResultReview}
           />
         </section>

@@ -15,6 +15,7 @@ const api = vi.hoisted(() => ({
   fetchDatasetEvalRunsResponse: vi.fn(),
   fetchDatasetsResponse: vi.fn(),
   fetchEvalExampleResultsResponse: vi.fn(),
+  fetchEvalRunResponse: vi.fn(),
   fetchThreadRunsResponse: vi.fn(),
   runEvalRunResponse: vi.fn(),
   updateEvalExampleResultReviewResponse: vi.fn()
@@ -39,6 +40,7 @@ vi.mock('@/features/durable-chat/repo/chat-api', () => ({
   fetchDatasetEvalRunsResponse: api.fetchDatasetEvalRunsResponse,
   fetchDatasetsResponse: api.fetchDatasetsResponse,
   fetchEvalExampleResultsResponse: api.fetchEvalExampleResultsResponse,
+  fetchEvalRunResponse: api.fetchEvalRunResponse,
   fetchThreadRunsResponse: api.fetchThreadRunsResponse,
   runEvalRunResponse: api.runEvalRunResponse,
   updateEvalExampleResultReviewResponse: api.updateEvalExampleResultReviewResponse
@@ -223,6 +225,12 @@ describe('EvalConsole', () => {
       error: null,
       data: { results: [result()] }
     });
+    api.fetchEvalRunResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: { evalRun: evalRun() }
+    });
     api.fetchDatasetExampleResponse.mockResolvedValue({
       ok: true,
       status: 200,
@@ -328,8 +336,8 @@ describe('EvalConsole', () => {
     await flush();
     await flush();
 
-    const select = document.body.querySelector('select')!;
-    const input = document.body.querySelector('input')!;
+    const select = document.body.querySelector('select[aria-label="Review decision"]') as HTMLSelectElement;
+    const input = document.body.querySelector('input[aria-label="Reviewer Note"]') as HTMLInputElement;
     const saveButton = [...document.body.querySelectorAll('button')].find((button) => button.textContent === 'Save');
     const inputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
 
@@ -350,6 +358,8 @@ describe('EvalConsole', () => {
         reviewerNote: `${status} note`
       });
     }
+
+    expect(api.fetchEvalRunResponse).toHaveBeenCalledWith('eval-run-1');
   });
 
   it('does not auto-select pass when the comparison text matches', async () => {
@@ -397,7 +407,7 @@ describe('EvalConsole', () => {
     expect(document.body.textContent).toContain('text match');
     expect(document.body.textContent).toContain('normalized text equal');
 
-    const select = document.body.querySelector('select') as HTMLSelectElement;
+    const select = document.body.querySelector('select[aria-label="Review decision"]') as HTMLSelectElement;
     expect(select.value).toBe('unreviewed');
   });
 
@@ -429,7 +439,7 @@ describe('EvalConsole', () => {
     expect(document.body.textContent).toContain('model timeout');
     expect(document.body.textContent).toContain('No text available.');
 
-    const select = document.body.querySelector('select') as HTMLSelectElement;
+    const select = document.body.querySelector('select[aria-label="Review decision"]') as HTMLSelectElement;
     expect(select.value).toBe('unreviewed');
   });
 
@@ -495,5 +505,229 @@ describe('EvalConsole', () => {
     expect(document.body.textContent).toContain('First answer');
     expect(document.body.textContent).toContain('Actual Message 2');
     expect(document.body.textContent).toContain('Second answer');
+  });
+
+  it('filters results locally by status, review, comparison outcome, errors, and missing actual', async () => {
+    const matchingActualOutput = {
+      schemaVersion: 1,
+      kind: 'eval_run_output',
+      outputRunId: 'output-run-1',
+      evalThreadId: 'eval-thread-1',
+      status: 'completed',
+      assistantMessages: [
+        {
+          id: 'assistant-1',
+          threadId: 'eval-thread-1',
+          runId: 'output-run-1',
+          role: 'assistant',
+          seq: 2,
+          status: 'completed',
+          metadata: null,
+          createdAt: '2026-01-01T00:00:02.000Z',
+          parts: [{ id: 'part-1', messageId: 'assistant-1', partIndex: 0, type: 'text', textValue: 'Expected answer', jsonValue: null, createdAt: '2026-01-01T00:00:02.000Z' }]
+        }
+      ]
+    };
+
+    api.fetchEvalExampleResultsResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        results: [
+          result({ id: 'result-match', datasetExampleId: 'example-match', actualOutputJson: matchingActualOutput, actualOutput: matchingActualOutput }),
+          result({
+            id: 'result-failed',
+            datasetExampleId: 'example-failed',
+            status: 'failed',
+            error: 'runtime failed',
+            actualOutputJson: null,
+            actualOutput: null
+          }),
+          result({
+            id: 'result-reviewed',
+            datasetExampleId: 'example-reviewed',
+            review: {
+              status: 'pass',
+              reviewerNote: 'already reviewed',
+              reviewedByActorId: 'user-1',
+              reviewedAt: '2026-01-01T00:00:03.000Z'
+            }
+          })
+        ]
+      }
+    });
+
+    await act(async () => {
+      root.render(<EvalConsole currentUser={{ id: 'user-1', email: 'user@example.com' }} />);
+    });
+    await flush();
+    await flush();
+
+    expect(document.body.textContent).toContain('Showing 3 of 3');
+    expect(document.body.textContent).toContain('#1 example-ma...');
+    expect(document.body.textContent).toContain('#1 example-fa...');
+    expect(document.body.textContent).toContain('#1 example-re...');
+
+    await act(async () => {
+      [...document.body.querySelectorAll('button')].find((button) => button.textContent === 'Failed 1')?.click();
+    });
+    await flush();
+
+    expect(document.body.textContent).toContain('Showing 1 of 3');
+    expect(document.body.textContent).toContain('#1 example-fa...');
+    expect(document.body.textContent).not.toContain('#1 example-ma...');
+
+    await act(async () => {
+      [...document.body.querySelectorAll('button')].find((button) => button.textContent === 'Clear')?.click();
+    });
+    await flush();
+
+    await act(async () => {
+      [...document.body.querySelectorAll('button')].find((button) => button.textContent === 'Unreviewed 2')?.click();
+    });
+    await flush();
+
+    expect(document.body.textContent).toContain('Showing 2 of 3');
+    expect(document.body.textContent).toContain('#1 example-ma...');
+    expect(document.body.textContent).toContain('#1 example-fa...');
+    expect(document.body.textContent).not.toContain('#1 example-re...');
+
+    await act(async () => {
+      [...document.body.querySelectorAll('button')].find((button) => button.textContent === 'Text Match 1')?.click();
+    });
+    await flush();
+
+    expect(document.body.textContent).toContain('Showing 1 of 3');
+    expect(document.body.textContent).toContain('#1 example-ma...');
+
+    await act(async () => {
+      [...document.body.querySelectorAll('button')].find((button) => button.textContent === 'Errors 1')?.click();
+    });
+    await flush();
+
+    expect(document.body.textContent).toContain('Showing 1 of 3');
+    expect(document.body.textContent).toContain('#1 example-fa...');
+
+    await act(async () => {
+      [...document.body.querySelectorAll('button')].find((button) => button.textContent === 'Missing Actual 1')?.click();
+    });
+    await flush();
+
+    expect(document.body.textContent).toContain('Showing 1 of 3');
+    expect(document.body.textContent).toContain('#1 example-fa...');
+
+    expect(navigation.replace).toHaveBeenLastCalledWith('/observability/evals?datasetId=dataset-1&evalRunId=eval-run-1&resultId=result-match', { scroll: false });
+  });
+
+  it('applies queue shortcuts and preserves selected detail when filters hide it', async () => {
+    api.fetchEvalExampleResultsResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        results: [
+          result({ id: 'result-selected', datasetExampleId: 'example-selected' }),
+          result({
+            id: 'result-failed',
+            datasetExampleId: 'example-failed',
+            status: 'failed',
+            error: 'runtime failed',
+            actualOutputJson: null,
+            actualOutput: null
+          })
+        ]
+      }
+    });
+
+    await act(async () => {
+      root.render(<EvalConsole currentUser={{ id: 'user-1', email: 'user@example.com' }} />);
+    });
+    await flush();
+    await flush();
+
+    const notComparableButton = [...document.body.querySelectorAll('button')].find((button) => button.textContent === 'Not Comparable 1');
+    await act(async () => {
+      notComparableButton?.click();
+    });
+
+    expect(document.body.textContent).toContain('Showing 1 of 2');
+    expect(document.body.textContent).toContain('#1 example-fa...');
+    expect(document.body.textContent).toContain('Selected result is hidden by the current filters.');
+    expect(document.body.textContent).toContain('result-selected');
+    expect(navigation.push).not.toHaveBeenCalledWith(expect.stringContaining('comparisonOutcome'), expect.anything());
+    expect(navigation.replace).not.toHaveBeenCalledWith(expect.stringContaining('comparisonOutcome'), expect.anything());
+  });
+
+  it('refreshes eval run summary after saving a review', async () => {
+    api.updateEvalExampleResultReviewResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        result: result({
+          review: {
+            status: 'pass',
+            reviewerNote: 'ok',
+            reviewedByActorId: 'user-1',
+            reviewedAt: '2026-01-01T00:00:03.000Z'
+          }
+        })
+      }
+    });
+    api.fetchEvalRunResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        evalRun: evalRun({
+          summaryJson: {
+            schemaVersion: 1,
+            kind: 'eval_run_summary',
+            selection: { eligibleCount: 1, ineligibleCount: 0, ineligibleReasonCounts: {}, selectedCount: 1 },
+            results: {
+              statusCounts: { queued: 0, running: 0, completed: 1, failed: 0, skipped: 0 },
+              reviewStatusCounts: { unreviewed: 0, pass: 1, fail: 0, needs_review: 0, not_applicable: 0 },
+              aggregateUsage: null,
+              durationMs: null
+            }
+          },
+          summary: {
+            schemaVersion: 1,
+            kind: 'eval_run_summary',
+            selection: { eligibleCount: 1, ineligibleCount: 0, ineligibleReasonCounts: {}, selectedCount: 1 },
+            results: {
+              statusCounts: { queued: 0, running: 0, completed: 1, failed: 0, skipped: 0 },
+              reviewStatusCounts: { unreviewed: 0, pass: 1, fail: 0, needs_review: 0, not_applicable: 0 },
+              aggregateUsage: null,
+              durationMs: null
+            }
+          }
+        })
+      }
+    });
+
+    await act(async () => {
+      root.render(<EvalConsole currentUser={{ id: 'user-1', email: 'user@example.com' }} />);
+    });
+    await flush();
+    await flush();
+
+    expect(document.body.textContent).toContain('Review status: unreviewed: 1');
+
+    const saveButton = [...document.body.querySelectorAll('button')].find((button) => button.textContent === 'Save');
+    const select = document.body.querySelector('select[aria-label="Review decision"]') as HTMLSelectElement;
+
+    await act(async () => {
+      select.value = 'pass';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await act(async () => {
+      saveButton?.click();
+    });
+    await flush();
+
+    expect(api.fetchEvalRunResponse).toHaveBeenCalledWith('eval-run-1');
+    expect(document.body.textContent).toContain('Review status: pass: 1');
   });
 });

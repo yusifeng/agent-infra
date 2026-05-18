@@ -16,6 +16,7 @@ import {
   fetchDatasetEvalRunsResponse,
   fetchDatasetsResponse,
   fetchEvalExampleResultsResponse,
+  fetchEvalRunResponse,
   runEvalRunResponse,
   updateEvalExampleResultReviewResponse
 } from '@/features/durable-chat/repo/chat-api';
@@ -340,6 +341,13 @@ export function useEvalConsole() {
           throw new Error(result.error ?? `Failed to save eval review (${result.status})`);
         }
         setResults((current) => current.map((item) => item.id === result.data.result?.id ? result.data.result : item));
+
+        const evalRunResult = await fetchEvalRunResponse(selectedEvalRunId);
+        if (evalRunResult.ok && evalRunResult.data.evalRun) {
+          setEvalRuns((current) => current.map((item) => item.id === evalRunResult.data.evalRun?.id ? evalRunResult.data.evalRun : item));
+        } else {
+          setMutationError(evalRunResult.error ?? `Saved review but failed to refresh eval run (${evalRunResult.status})`);
+        }
       } catch (error: unknown) {
         setMutationError(error instanceof Error ? error.message : 'Failed to save eval review');
       } finally {

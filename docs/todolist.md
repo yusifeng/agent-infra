@@ -28,8 +28,8 @@
 - [x] Keep comparison projection out of API response DTOs in the first implementation round.
 - [x] Implement comparison projection in a browser-safe shared client package helper.
 - [x] Improve `/observability/evals` result detail so reviewers can inspect expected text, actual text, diff, status, error, usage, and lineage without reading raw JSON first.
-- [ ] Add result filters / review queue affordances for common review tasks.
-- [ ] Fix or avoid stale eval run summary display after result review updates.
+- [x] Add result filters / review queue affordances for common review tasks.
+- [x] Fix or avoid stale eval run summary display after result review updates.
 
 ### 0.3 Non-goals
 
@@ -149,7 +149,7 @@
 - [x] Do not duplicate comparison semantics in Next route handlers.
 - [x] Do not require runtime services for read/list/detail/review routes.
 - [x] Preserve auth and dataset/eval access boundaries.
-- [ ] Fix stale eval run summary after review updates by refetching the selected eval run after review save.
+- [x] Fix stale eval run summary after review updates by refetching the selected eval run after review save.
 - [x] Do not change the review route response shape in the first implementation round.
 
 ## 3. Frontend Boundary
@@ -163,8 +163,8 @@
 - [x] Use durable-chat-client comparison projection helper.
 - [x] Keep page-local state limited to selection, filters, and form drafts.
 - [x] Do not compute durable comparison semantics only inside React components.
-- [ ] Keep filter state local to the component in v1.
-- [ ] Keep URL state limited to `datasetId`, `evalRunId`, and `resultId` in v1.
+- [x] Keep filter state local to the component in v1.
+- [x] Keep URL state limited to `datasetId`, `evalRunId`, and `resultId` in v1.
 
 ### 3.2 Compare / Diff View
 
@@ -191,26 +191,26 @@
 
 ### 3.3 Filters / Review Queue
 
-- [ ] Add result status filter.
-- [ ] Add review status filter.
-- [ ] Add comparison outcome filter.
-- [ ] Add error-only filter.
-- [ ] Add missing-actual filter.
-- [ ] Add unreviewed queue shortcut.
-- [ ] Add mismatch queue shortcut.
-- [ ] Add failed / not-comparable queue shortcut.
-- [ ] Make filtered counts visible enough for review progress.
-- [ ] Preserve selected result where possible when filters change.
-- [ ] If selected result becomes hidden by filters, either preserve detail with a hidden-by-filter notice or select the first visible result.
-- [ ] Avoid bulk review actions in v1.
-- [ ] Avoid assignment / multi-reviewer workflow in v1.
+- [x] Add result status filter.
+- [x] Add review status filter.
+- [x] Add comparison outcome filter.
+- [x] Add error-only filter.
+- [x] Add missing-actual filter.
+- [x] Add unreviewed queue shortcut.
+- [x] Add mismatch queue shortcut.
+- [x] Add failed / not-comparable queue shortcut.
+- [x] Make filtered counts visible enough for review progress.
+- [x] Preserve selected result where possible when filters change.
+- [x] If selected result becomes hidden by filters, either preserve detail with a hidden-by-filter notice or select the first visible result.
+- [x] Avoid bulk review actions in v1.
+- [x] Avoid assignment / multi-reviewer workflow in v1.
 
 ### 3.4 Review Save UX
 
 - [x] Preserve existing manual review statuses.
 - [x] Preserve reviewer note save flow.
-- [ ] Ensure save updates selected result.
-- [ ] Ensure save refetches eval run summary counts.
+- [x] Ensure save updates selected result.
+- [x] Ensure save refetches eval run summary counts.
 - [x] Keep comparator outcome unchanged by manual review.
 - [x] Avoid auto-writing `pass` / `fail` from comparator.
 
@@ -258,15 +258,15 @@
 - [x] Add UI tests for compare panel actual text.
 - [x] Add UI tests for comparison outcome badge.
 - [x] Add UI tests for missing actual / failed result display.
-- [ ] Add UI tests for result status filter.
-- [ ] Add UI tests for review status filter.
-- [ ] Add UI tests for comparison outcome filter.
-- [ ] Add UI tests for queue shortcuts.
-- [ ] Add UI tests proving review save updates result row and summary/progress display.
+- [x] Add UI tests for result status filter.
+- [x] Add UI tests for review status filter.
+- [x] Add UI tests for comparison outcome filter.
+- [x] Add UI tests for queue shortcuts.
+- [x] Add UI tests proving review save updates result row and summary/progress display.
 - [x] Add UI tests proving comparison match does not auto-select manual review `pass`.
 - [x] Add UI tests proving review save payload does not include comparator fields.
-- [ ] Add UI tests for local filter state without URL filter query params.
-- [ ] Add UI tests proving `/chat` is not part of this workflow.
+- [x] Add UI tests for local filter state without URL filter query params.
+- [x] Add UI tests proving `/chat` is not part of this workflow.
 
 ### 4.5 Targeted Verification
 
@@ -327,18 +327,18 @@
 
 ### Loop 3: Filters, Review Queue, And Summary Freshness
 
-- [ ] Add result status filter.
-- [ ] Add review status filter.
-- [ ] Add comparison outcome filter.
-- [ ] Add error / missing actual filters.
-- [ ] Add queue shortcuts.
-- [ ] Fix stale eval run summary display after review saves.
-- [ ] Add focused UI tests for filters, queue behavior, and summary freshness.
-- [ ] Run targeted `playground-next-web` UI tests.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] Run browser smoke test for review queue.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 3.
+- [x] Add result status filter.
+- [x] Add review status filter.
+- [x] Add comparison outcome filter.
+- [x] Add error / missing actual filters.
+- [x] Add queue shortcuts.
+- [x] Fix stale eval run summary display after review saves.
+- [x] Add focused UI tests for filters, queue behavior, and summary freshness.
+- [x] Run targeted `playground-next-web` UI tests.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run browser smoke test for review queue.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit Loop 3.
 
 ### Loop 4: Closeout
 
