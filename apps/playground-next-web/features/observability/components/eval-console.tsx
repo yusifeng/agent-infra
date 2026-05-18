@@ -384,68 +384,160 @@ function JsonBlock({ title, value, open = false }: { title: string; value: Recor
   );
 }
 
-function DatasetContextHeader({
+function EvalScopePanel({
   datasets,
   selectedDataset,
   datasetsLoading,
   datasetsError,
+  evalRuns,
+  evalRunsLoading,
+  evalRunsError,
+  selectedEvalRun,
+  selectedEvalRunId,
   creatingEvalRun,
+  runningEvalRun,
   onSelectDataset,
-  onCreateEvalRun
+  onCreateEvalRun,
+  onSelectEvalRun,
+  onRunEval
 }: {
   datasets: DatasetDto[];
   selectedDataset: DatasetDto | null;
   datasetsLoading: boolean;
   datasetsError: string | null;
+  evalRuns: EvalRunDto[];
+  evalRunsLoading: boolean;
+  evalRunsError: string | null;
+  selectedEvalRun: EvalRunDto | null;
+  selectedEvalRunId: string | null;
   creatingEvalRun: boolean;
+  runningEvalRun: boolean;
   onSelectDataset: (datasetId: string) => void;
   onCreateEvalRun: () => void;
+  onSelectEvalRun: (evalRunId: string) => void;
+  onRunEval: () => void;
 }) {
   return (
-    <section className="border-b border-[color:var(--chat-border)] bg-[var(--chat-surface)] px-4 py-3">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="min-w-[240px] flex-1">
-          <div className="mb-1 flex items-center gap-2">
+    <aside className="flex min-h-0 flex-col border-r border-[color:var(--chat-border)] bg-[var(--chat-bg)]">
+      <div className="border-b border-[color:var(--chat-border)] px-4 py-3">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <Database className="size-4 text-[var(--chat-muted)]" />
-            <span className="text-xs font-medium uppercase tracking-normal text-[var(--chat-muted)]">{EVAL_COPY.datasetContext}</span>
+            <h2 className="truncate text-sm font-semibold text-[var(--chat-text)]">{EVAL_COPY.datasetContext}</h2>
             {datasetsLoading ? <Loader2 className="size-3.5 animate-spin text-[var(--chat-muted)]" /> : null}
           </div>
-          <select
-            aria-label="Eval dataset"
-            className="h-9 w-full rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-3 text-sm text-[var(--chat-text)] outline-none focus:border-[color:var(--chat-border-strong)]"
-            value={selectedDataset?.id ?? ''}
-            disabled={datasetsLoading || datasets.length === 0}
-            onChange={(event) => onSelectDataset(event.target.value)}
-          >
-            {selectedDataset ? null : <option value="">{EVAL_COPY.selectDataset}</option>}
-            {datasets.map((dataset) => <option key={dataset.id} value={dataset.id}>{dataset.name}</option>)}
-          </select>
-          <div className="mt-1 flex flex-wrap gap-2 text-xs text-[var(--chat-muted)]">
-            {selectedDataset ? (
-              <>
-                <span>{selectedDataset.visibility}</span>
-                <span>{formatDateTime(selectedDataset.updatedAt)}</span>
-              </>
-            ) : (
-              <span>{datasetsError ?? EVAL_COPY.noDatasetSelected}</span>
-            )}
-          </div>
         </div>
+
+        <select
+          aria-label="Eval dataset"
+          className="h-9 w-full rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-3 text-sm text-[var(--chat-text)] outline-none focus:border-[color:var(--chat-border-strong)]"
+          value={selectedDataset?.id ?? ''}
+          disabled={datasetsLoading || datasets.length === 0}
+          onChange={(event) => onSelectDataset(event.target.value)}
+        >
+          {selectedDataset ? null : <option value="">{EVAL_COPY.selectDataset}</option>}
+          {datasets.map((dataset) => <option key={dataset.id} value={dataset.id}>{dataset.name}</option>)}
+        </select>
+
+        <div className="mt-2 flex min-h-4 flex-wrap gap-2 text-xs text-[var(--chat-muted)]">
+          {selectedDataset ? (
+            <>
+              <span>{selectedDataset.visibility}</span>
+              <span>{formatDateTime(selectedDataset.updatedAt)}</span>
+            </>
+          ) : (
+            <span>{datasetsError ?? EVAL_COPY.noDatasetSelected}</span>
+          )}
+        </div>
+
+        {datasetsError ? (
+          <div className="mt-2 rounded-md bg-[var(--chat-error-bg)] px-3 py-2 text-xs text-[var(--chat-error-text)]">{datasetsError}</div>
+        ) : null}
+
         <Button
           size="sm"
           aria-label="Create eval run"
           onClick={onCreateEvalRun}
           disabled={!selectedDataset || creatingEvalRun}
-          className="bg-blue-600 text-white hover:bg-blue-700"
+          className="mt-3 w-full bg-blue-600 text-white hover:bg-blue-700"
         >
           {creatingEvalRun ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
           {EVAL_COPY.createEvalRun}
         </Button>
       </div>
-      {datasetsError ? (
-        <div className="mt-2 rounded-md bg-[var(--chat-error-bg)] px-3 py-2 text-xs text-[var(--chat-error-text)]">{datasetsError}</div>
+
+      <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-[color:var(--chat-border)] px-4">
+        <h3 className="min-w-0 truncate text-sm font-semibold text-[var(--chat-text)]">{EVAL_COPY.evalRuns}</h3>
+        {evalRunsLoading ? <Loader2 className="size-4 animate-spin text-[var(--chat-muted)]" /> : null}
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-auto px-3 py-2">
+        {evalRunsError ? <ConsolePanelState title={evalRunsError} /> : null}
+        {!selectedDataset && !datasetsError ? <ConsolePanelState title={EVAL_COPY.selectDataset} /> : null}
+        {!evalRunsError && selectedDataset && evalRuns.length === 0 && !evalRunsLoading ? (
+          <ConsolePanelState title={EVAL_COPY.noEvalRuns} />
+        ) : null}
+        {evalRuns.map((evalRun, index) => (
+          <EvalRunRow
+            key={evalRun.id}
+            evalRun={evalRun}
+            index={index}
+            selected={evalRun.id === selectedEvalRunId}
+            onSelect={onSelectEvalRun}
+          />
+        ))}
+      </div>
+
+      {selectedEvalRun ? (
+        <div className="shrink-0 border-t border-[color:var(--chat-border)] px-4 py-3">
+          <div className="mb-2 flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold text-[var(--chat-text)]">
+                {selectedEvalRun.name?.trim() || EVAL_COPY.evalRunFallback}
+              </div>
+              <div className="mt-1 truncate text-[11px] text-[var(--chat-muted)]" title={selectedEvalRun.id}>
+                {EVAL_COPY.evalRunUuid} <span className="font-mono">{formatShortId(selectedEvalRun.id, 14)}</span>
+              </div>
+            </div>
+            <span className="shrink-0 rounded-md border border-[color:var(--chat-border)] px-2 py-0.5 text-[11px] text-[var(--chat-muted)]">
+              {formatEvalRunStatusLabel(selectedEvalRun.status)}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <div>
+              <div className="text-[var(--chat-muted)]">{EVAL_COPY.total}</div>
+              <div className="mt-0.5 font-semibold text-[var(--chat-text)]">{readEvalRunTotal(selectedEvalRun)}</div>
+            </div>
+            <div>
+              <div className="text-[var(--chat-muted)]">{EVAL_COPY.completed}</div>
+              <div className="mt-0.5 font-semibold text-[var(--chat-text)]">{readEvalRunCompleted(selectedEvalRun)}</div>
+            </div>
+            <div>
+              <div className="text-[var(--chat-muted)]">{EVAL_COPY.failed}</div>
+              <div className="mt-0.5 font-semibold text-[var(--chat-text)]">{readEvalRunFailed(selectedEvalRun)}</div>
+            </div>
+          </div>
+
+          <div className="mt-2 text-xs leading-5 text-[var(--chat-muted)]">
+            {EVAL_COPY.resultStatus}: {formatCountMap(selectedEvalRun.summary?.results.statusCounts)}
+            <br />
+            {EVAL_COPY.reviewStatus}: {formatCountMap(selectedEvalRun.summary?.results.reviewStatusCounts)}
+          </div>
+
+          <Button
+            size="sm"
+            aria-label="Run eval"
+            onClick={onRunEval}
+            disabled={runningEvalRun || selectedEvalRun.status !== 'queued'}
+            className="mt-3 w-full bg-blue-600 text-white hover:bg-blue-700"
+          >
+            {runningEvalRun ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
+            {EVAL_COPY.runEval}
+          </Button>
+        </div>
       ) : null}
-    </section>
+    </aside>
   );
 }
 
@@ -746,63 +838,6 @@ function ReviewEditor({
   );
 }
 
-function EvalSummary({
-  evalRun,
-  dataset,
-  running,
-  onRun
-}: {
-  evalRun: EvalRunDto;
-  dataset: DatasetDto | null;
-  running: boolean;
-  onRun: () => void;
-}) {
-  return (
-    <section className="border-b border-[color:var(--chat-border)] px-5 py-4">
-      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <h3 className="truncate text-base font-semibold text-[var(--chat-text)]">{dataset?.name ?? formatShortId(evalRun.datasetId, 12)}</h3>
-          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2 text-xs text-[var(--chat-muted)]">
-            <span>{EVAL_COPY.status} {formatEvalRunStatusLabel(evalRun.status)}</span>
-            <span>{EVAL_COPY.evalRunUuid} {evalRun.id}</span>
-          </div>
-        </div>
-        <Button
-          size="sm"
-          aria-label="Run eval"
-          onClick={onRun}
-          disabled={running || evalRun.status !== 'queued'}
-          className="bg-blue-600 text-white hover:bg-blue-700"
-        >
-          {running ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
-          {EVAL_COPY.runEval}
-        </Button>
-      </div>
-      <div className="grid gap-3 md:grid-cols-4">
-        <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
-          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.status}</div>
-          <div className="mt-1 text-sm font-semibold text-[var(--chat-text)]">{formatEvalRunStatusLabel(evalRun.status)}</div>
-        </div>
-        <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
-          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.selected}</div>
-          <div className="mt-1 text-sm font-semibold text-[var(--chat-text)]">{readEvalRunTotal(evalRun)}</div>
-        </div>
-        <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
-          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.completed}</div>
-          <div className="mt-1 text-sm font-semibold text-[var(--chat-text)]">{readEvalRunCompleted(evalRun)}</div>
-        </div>
-        <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
-          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.failed}</div>
-          <div className="mt-1 text-sm font-semibold text-[var(--chat-text)]">{readEvalRunFailed(evalRun)}</div>
-        </div>
-      </div>
-      <div className="mt-3 text-xs leading-5 text-[var(--chat-muted)]">
-        {EVAL_COPY.resultStatus}: {formatCountMap(evalRun.summary?.results.statusCounts)} · {EVAL_COPY.reviewStatus}: {formatCountMap(evalRun.summary?.results.reviewStatusCounts)}
-      </div>
-    </section>
-  );
-}
-
 function ResultDetailPanel({
   evalRun,
   result,
@@ -977,103 +1012,83 @@ export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
       currentUser={currentUser}
       onRefresh={state.refresh}
     >
-      <div className="flex h-full min-h-0 flex-col overflow-hidden">
-        <DatasetContextHeader
+      <div className="grid h-full min-h-0 grid-cols-1 overflow-hidden xl:grid-cols-[320px_360px_minmax(0,1fr)]">
+        <EvalScopePanel
           datasets={state.datasets}
           selectedDataset={state.selectedDataset}
           datasetsLoading={state.datasetsLoading}
           datasetsError={state.datasetsError}
+          evalRuns={state.evalRuns}
+          evalRunsLoading={state.evalRunsLoading}
+          evalRunsError={state.evalRunsError}
+          selectedEvalRun={state.selectedEvalRun}
+          selectedEvalRunId={state.selectedEvalRunId}
           creatingEvalRun={state.creatingEvalRun}
+          runningEvalRun={state.runningEvalRun}
           onSelectDataset={state.selectDataset}
           onCreateEvalRun={state.createEvalRun}
+          onSelectEvalRun={state.selectEvalRun}
+          onRunEval={state.runSelectedEvalRun}
         />
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[320px_minmax(0,1fr)]">
-          <aside className="flex min-h-0 flex-col border-r border-[color:var(--chat-border)] bg-[var(--chat-bg)]">
+        <section className="flex min-h-0 flex-col border-r border-[color:var(--chat-border)] bg-[var(--chat-bg)]">
+          {state.selectedEvalRun ? (
+            <>
             <div className="flex h-12 items-center justify-between gap-2 border-b border-[color:var(--chat-border)] px-4">
-              <h2 className="min-w-0 truncate text-sm font-semibold">{EVAL_COPY.evalRuns}</h2>
-              {state.evalRunsLoading ? <Loader2 className="size-4 animate-spin text-[var(--chat-muted)]" /> : null}
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-[var(--chat-text)]">{EVAL_COPY.results}</h2>
+                <div className="text-xs text-[var(--chat-muted)]">
+                  {EVAL_COPY.showCount} {filteredResults.length}/{state.results.length}
+                </div>
+              </div>
+              {state.resultsLoading ? <Loader2 className="size-4 animate-spin text-[var(--chat-muted)]" /> : null}
             </div>
             <div className="min-h-0 flex-1 overflow-auto px-3 py-2">
-              {state.evalRunsError ? <ConsolePanelState title={state.evalRunsError} /> : null}
-              {!state.selectedDataset && !state.datasetsError ? <ConsolePanelState title={EVAL_COPY.selectDataset} /> : null}
-              {!state.evalRunsError && state.selectedDataset && state.evalRuns.length === 0 && !state.evalRunsLoading ? (
-                <ConsolePanelState title={EVAL_COPY.noEvalRuns} />
+              {state.resultsError ? <ConsolePanelState title={state.resultsError} /> : null}
+              {!state.resultsError && state.results.length === 0 && !state.resultsLoading ? (
+                <ConsolePanelState title={EVAL_COPY.noResults} />
               ) : null}
-              {state.evalRuns.map((evalRun, index) => (
-                <EvalRunRow
-                  key={evalRun.id}
-                  evalRun={evalRun}
-                  index={index}
-                  selected={evalRun.id === state.selectedEvalRunId}
-                  onSelect={state.selectEvalRun}
+              {!state.resultsError && state.results.length > 0 ? (
+                <ResultFiltersPanel
+                  filters={resultFilters}
+                  totalCount={state.results.length}
+                  visibleCount={filteredResults.length}
+                  queueCounts={queueCounts}
+                  onChange={setResultFilters}
                 />
-              ))}
+              ) : null}
+              {!state.resultsError && state.results.length > 0 && filteredResults.length === 0 ? <ConsolePanelState title={EVAL_COPY.noResultsMatchFilters} /> : null}
+              {filteredResults.map((result) => {
+                const comparison = comparisonByResultId.get(result.id);
+                return comparison ? (
+                  <ResultRow
+                    key={result.id}
+                    result={result}
+                    comparison={comparison}
+                    selected={result.id === state.selectedResultId}
+                    onSelect={state.selectResult}
+                  />
+                ) : null;
+              })}
             </div>
-          </aside>
+            </>
+          ) : (
+            <ConsolePanelState title={EVAL_COPY.selectEvalRun} />
+          )}
+        </section>
 
-          <section className="flex min-h-0 flex-col bg-[var(--chat-surface)]">
-            {state.selectedEvalRun ? (
-              <EvalSummary
-                evalRun={state.selectedEvalRun}
-                dataset={state.selectedDataset}
-                running={state.runningEvalRun}
-                onRun={state.runSelectedEvalRun}
-              />
-            ) : null}
-            {state.selectedEvalRun ? (
-              <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[360px_minmax(0,1fr)]">
-                <aside className="flex min-h-0 flex-col border-r border-[color:var(--chat-border)] bg-[var(--chat-bg)]">
-                  <div className="flex h-12 items-center justify-between gap-2 border-b border-[color:var(--chat-border)] px-4">
-                    <h2 className="text-sm font-semibold">{EVAL_COPY.results}</h2>
-                    {state.resultsLoading ? <Loader2 className="size-4 animate-spin text-[var(--chat-muted)]" /> : null}
-                  </div>
-                  <div className="min-h-0 flex-1 overflow-auto px-3 py-2">
-                    {state.resultsError ? <ConsolePanelState title={state.resultsError} /> : null}
-                    {!state.resultsError && state.results.length === 0 && !state.resultsLoading ? (
-                      <ConsolePanelState title={EVAL_COPY.noResults} />
-                    ) : null}
-                    {!state.resultsError && state.results.length > 0 ? (
-                      <ResultFiltersPanel
-                        filters={resultFilters}
-                        totalCount={state.results.length}
-                        visibleCount={filteredResults.length}
-                        queueCounts={queueCounts}
-                        onChange={setResultFilters}
-                      />
-                    ) : null}
-                    {!state.resultsError && state.results.length > 0 && filteredResults.length === 0 ? <ConsolePanelState title={EVAL_COPY.noResultsMatchFilters} /> : null}
-                    {filteredResults.map((result) => {
-                      const comparison = comparisonByResultId.get(result.id);
-                      return comparison ? (
-                        <ResultRow
-                          key={result.id}
-                          result={result}
-                          comparison={comparison}
-                          selected={result.id === state.selectedResultId}
-                          onSelect={state.selectResult}
-                        />
-                      ) : null;
-                    })}
-                  </div>
-                </aside>
-
-                <ResultDetailPanel
-                  evalRun={state.selectedEvalRun}
-                  result={state.selectedResult}
-                  sourceExample={state.sourceExample}
-                  sourceExampleLoading={state.sourceExampleLoading}
-                  sourceExampleError={state.sourceExampleError}
-                  savingReview={state.savingReview}
-                  hiddenByFilter={selectedResultHiddenByFilter}
-                  onSaveReview={state.saveResultReview}
-                />
-              </div>
-            ) : (
-              <ConsolePanelState title={EVAL_COPY.selectEvalRun} />
-            )}
-          </section>
-        </div>
+        <section className="min-h-0 bg-[var(--chat-surface)]">
+          <ResultDetailPanel
+            evalRun={state.selectedEvalRun}
+            result={state.selectedResult}
+            sourceExample={state.sourceExample}
+            sourceExampleLoading={state.sourceExampleLoading}
+            sourceExampleError={state.sourceExampleError}
+            savingReview={state.savingReview}
+            hiddenByFilter={selectedResultHiddenByFilter}
+            onSaveReview={state.saveResultReview}
+          />
+        </section>
       </div>
     </ObservabilityConsoleShell>
   );
