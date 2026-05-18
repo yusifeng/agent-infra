@@ -21,10 +21,10 @@
 - [x] Make Runs, Datasets, and Evals feel like sections of one management console instead of three unrelated tools.
 - [x] Make each detail surface answer: current object, upstream lineage, downstream links, object-scoped actions, and current review/execution state.
 - [x] Normalize global, section-level, object-level, and inline action placement.
-- [ ] Simplify the Evals page from a four-peer-object layout into a dataset-contextual eval run review workspace.
+- [x] Simplify the Evals page from a four-peer-object layout into a dataset-contextual eval run review workspace.
 - [x] Preserve the current durable semantics, data models, routes, query selection behavior, and review truth.
 - [x] Keep the first implementation conservative: shared shell and layout primitives are allowed, but broad generic abstraction is not the goal.
-- [ ] Leave a clean path for future `Eval Run Compare v1` without implementing or prematurely exposing compare UI.
+- [x] Leave a clean path for future `Eval Run Compare v1` without implementing or prematurely exposing compare UI.
 
 ### 0.3 Non-goals
 - [x] No DB schema changes.
@@ -118,15 +118,15 @@
 ### 3.4 Evals Section
 - [x] Display `/observability/evals` as `Evals` in the console nav and page header.
 - [x] Preserve existing `datasetId`, `evalRunId`, and `resultId` query behavior.
-- [ ] Keep Evals tied to selected dataset context.
-- [ ] Move away from a four-peer-column layout.
-- [ ] Make the main Evals workspace `dataset context + eval run list + eval run review workspace`.
-- [ ] Use a header/context dataset selector for Evals v1; do not keep dataset selection as a full peer column or introduce a collapsible dataset rail in this track.
-- [ ] Place `Create eval run` near the selected dataset context or in an EvalRun list header that explicitly says it is for the selected dataset.
-- [ ] Put eval run summary and local review filters inside the selected eval run workspace.
-- [ ] Keep results list and result detail as internal parts of the selected eval run workspace.
+- [x] Keep Evals tied to selected dataset context.
+- [x] Move away from a four-peer-column layout.
+- [x] Make the main Evals workspace `dataset context + eval run list + eval run review workspace`.
+- [x] Use a header/context dataset selector for Evals v1; do not keep dataset selection as a full peer column or introduce a collapsible dataset rail in this track.
+- [x] Place `Create eval run` near the selected dataset context or in an EvalRun list header that explicitly says it is for the selected dataset.
+- [x] Put eval run summary and local review filters inside the selected eval run workspace.
+- [x] Keep results list and result detail as internal parts of the selected eval run workspace.
 - [x] Place `Run eval` in the selected EvalRun workspace/detail header, not in the global page header or result list header.
-- [ ] Keep Comparison Assist inside result detail and do not promote it to a Compare tab.
+- [x] Keep Comparison Assist inside result detail and do not promote it to a Compare tab.
 - [x] Keep filter state local and out of URL.
 - [x] Preserve review save behavior that refetches the selected eval run summary.
 
@@ -189,23 +189,23 @@
 - [x] Run targeted `playground-next-web` tests for Runs, Datasets, and Evals.
 - [x] Run `pnpm --filter playground-next-web typecheck`.
 - [x] run `codex review` for this loop after targeted verification passes.
-- [ ] Commit the object context/action placement slice.
+- [x] Commit the object context/action placement slice.
 
 ### Loop 4 — Evals workspace simplification
-- [ ] If this loop becomes a broad rewrite of `EvalConsole`, split it into dataset selector/context plus EvalRun list first, then EvalRun review workspace second.
-- [ ] Refactor `/observability/evals` from four peer columns into `dataset context + eval run list + eval run review workspace`.
-- [ ] Keep dataset selection available as a header/context control without making dataset list a full peer column or collapsible rail.
-- [ ] Place eval run summary, local filters, results list, and result detail inside the selected eval run workspace.
-- [ ] Place `Create eval run` near selected dataset context and `Run eval` near selected EvalRun context.
-- [ ] Keep Comparison Assist inside result detail.
-- [ ] Do not introduce a Compare tab, disabled Compare tab, or Compare nav item.
-- [ ] Preserve `datasetId`, `evalRunId`, and `resultId` selection behavior.
-- [ ] Preserve local-only filter state.
-- [ ] Preserve review save summary refresh.
-- [ ] Update Evals tests for layout, query behavior, filters, and summary refresh.
-- [ ] Run targeted Evals component tests.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
-- [ ] run `codex review` for this loop after targeted verification passes.
+- [x] If this loop becomes a broad rewrite of `EvalConsole`, split it into dataset selector/context plus EvalRun list first, then EvalRun review workspace second.
+- [x] Refactor `/observability/evals` from four peer columns into `dataset context + eval run list + eval run review workspace`.
+- [x] Keep dataset selection available as a header/context control without making dataset list a full peer column or collapsible rail.
+- [x] Place eval run summary, local filters, results list, and result detail inside the selected eval run workspace.
+- [x] Place `Create eval run` near selected dataset context and `Run eval` near selected EvalRun context.
+- [x] Keep Comparison Assist inside result detail.
+- [x] Do not introduce a Compare tab, disabled Compare tab, or Compare nav item.
+- [x] Preserve `datasetId`, `evalRunId`, and `resultId` selection behavior.
+- [x] Preserve local-only filter state.
+- [x] Preserve review save summary refresh.
+- [x] Update Evals tests for layout, query behavior, filters, and summary refresh.
+- [x] Run targeted Evals component tests.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
+- [x] run `codex review` for this loop after targeted verification passes.
 - [ ] Commit the Evals workspace simplification slice.
 
 ### Loop 5 — Shared states, browser smoke, and closeout

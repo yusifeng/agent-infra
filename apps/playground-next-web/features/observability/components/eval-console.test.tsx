@@ -279,6 +279,42 @@ describe('EvalConsole', () => {
     expect(navigation.replace).toHaveBeenCalledWith('/observability/evals?datasetId=dataset-1&evalRunId=eval-run-1&resultId=result-1', { scroll: false });
   });
 
+  it('keeps dataset selection as eval context and updates only dataset query state', async () => {
+    api.fetchDatasetsResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        datasets: [
+          dataset(),
+          {
+            ...dataset(),
+            id: 'dataset-2',
+            name: 'Canary Regression',
+            updatedAt: '2026-01-02T00:00:00.000Z'
+          }
+        ]
+      }
+    });
+
+    await act(async () => {
+      root.render(<EvalConsole currentUser={{ id: 'user-1', email: 'user@example.com' }} />);
+    });
+    await flush();
+    await flush();
+
+    expect(document.body.textContent).toContain('Dataset context');
+    expect(document.body.textContent).toContain('Eval runs');
+
+    const selector = document.body.querySelector('select[aria-label="Eval dataset"]') as HTMLSelectElement;
+    await act(async () => {
+      selector.value = 'dataset-2';
+      selector.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    expect(navigation.push).toHaveBeenCalledWith('/observability/evals?datasetId=dataset-2', { scroll: false });
+  });
+
   it('starts an eval from the selected dataset and runs the queued eval', async () => {
     api.createEvalRunResponse.mockResolvedValue({
       ok: true,

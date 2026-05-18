@@ -275,23 +275,67 @@ function JsonBlock({ title, value, open = false }: { title: string; value: Recor
   );
 }
 
-function DatasetRow({ dataset, selected, onSelect }: { dataset: DatasetDto; selected: boolean; onSelect: (datasetId: string) => void }) {
+function DatasetContextHeader({
+  datasets,
+  selectedDataset,
+  datasetsLoading,
+  datasetsError,
+  creatingEvalRun,
+  onSelectDataset,
+  onCreateEvalRun
+}: {
+  datasets: DatasetDto[];
+  selectedDataset: DatasetDto | null;
+  datasetsLoading: boolean;
+  datasetsError: string | null;
+  creatingEvalRun: boolean;
+  onSelectDataset: (datasetId: string) => void;
+  onCreateEvalRun: () => void;
+}) {
   return (
-    <button
-      type="button"
-      className={`w-full border-b border-[color:var(--chat-border)] px-4 py-3 text-left transition-colors ${
-        selected ? 'bg-[var(--chat-brand-accent-soft)]' : 'hover:bg-[var(--chat-surface-muted)]'
-      }`}
-      onClick={() => onSelect(dataset.id)}
-    >
-      <div className="flex min-w-0 items-center justify-between gap-2">
-        <div className="min-w-0 truncate text-sm font-medium text-[var(--chat-text)]">{dataset.name}</div>
-        <span className="shrink-0 rounded-md border border-[color:var(--chat-border)] px-2 py-0.5 text-[11px] text-[var(--chat-muted)]">
-          {dataset.visibility}
-        </span>
+    <section className="border-b border-[color:var(--chat-border)] bg-[var(--chat-surface)] px-4 py-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-[240px] flex-1">
+          <div className="mb-1 flex items-center gap-2">
+            <Database className="size-4 text-[var(--chat-muted)]" />
+            <span className="text-xs font-medium uppercase tracking-normal text-[var(--chat-muted)]">Dataset context</span>
+            {datasetsLoading ? <Loader2 className="size-3.5 animate-spin text-[var(--chat-muted)]" /> : null}
+          </div>
+          <select
+            aria-label="Eval dataset"
+            className="h-9 w-full rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-3 text-sm text-[var(--chat-text)] outline-none focus:border-[color:var(--chat-border-strong)]"
+            value={selectedDataset?.id ?? ''}
+            disabled={datasetsLoading || datasets.length === 0}
+            onChange={(event) => onSelectDataset(event.target.value)}
+          >
+            {selectedDataset ? null : <option value="">Select dataset</option>}
+            {datasets.map((dataset) => <option key={dataset.id} value={dataset.id}>{dataset.name}</option>)}
+          </select>
+          <div className="mt-1 flex flex-wrap gap-2 text-xs text-[var(--chat-muted)]">
+            {selectedDataset ? (
+              <>
+                <span>{selectedDataset.visibility}</span>
+                <span>updated {formatDateTime(selectedDataset.updatedAt)}</span>
+              </>
+            ) : (
+              <span>{datasetsError ?? 'Select a dataset to review eval runs.'}</span>
+            )}
+          </div>
+        </div>
+        <Button
+          size="sm"
+          aria-label="Create eval run"
+          onClick={onCreateEvalRun}
+          disabled={!selectedDataset || creatingEvalRun}
+        >
+          {creatingEvalRun ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+          Create eval run
+        </Button>
       </div>
-      <div className="mt-1 truncate text-xs text-[var(--chat-muted)]">updated {formatDateTime(dataset.updatedAt)}</div>
-    </button>
+      {datasetsError ? (
+        <div className="mt-2 rounded-md bg-[var(--chat-error-bg)] px-3 py-2 text-xs text-[var(--chat-error-text)]">{datasetsError}</div>
+      ) : null}
+    </section>
   );
 }
 
@@ -783,42 +827,34 @@ export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
       icon={<ScrollText className="size-5" />}
       onRefresh={state.refresh}
     >
-      <div className="grid h-full min-h-0 grid-cols-1 overflow-hidden xl:grid-cols-[260px_320px_360px_minmax(0,1fr)]">
-        <aside className="min-h-0 border-r border-[color:var(--chat-border)] bg-[var(--chat-surface)]">
-          <div className="flex h-12 items-center justify-between border-b border-[color:var(--chat-border)] px-4">
-            <h2 className="text-sm font-semibold">Datasets</h2>
-            {state.datasetsLoading ? <Loader2 className="size-4 animate-spin text-[var(--chat-muted)]" /> : null}
-          </div>
-          <div className="h-[calc(100dvh-120px)] overflow-auto">
-            {state.datasetsError ? <EmptyState label={state.datasetsError} /> : null}
-            {!state.datasetsError && state.datasets.length === 0 && !state.datasetsLoading ? <EmptyState label="No datasets" /> : null}
-            {state.datasets.map((dataset) => (
-              <DatasetRow key={dataset.id} dataset={dataset} selected={dataset.id === state.selectedDatasetId} onSelect={state.selectDataset} />
-            ))}
-          </div>
-        </aside>
+      <div className="flex h-full min-h-0 flex-col overflow-hidden">
+        <DatasetContextHeader
+          datasets={state.datasets}
+          selectedDataset={state.selectedDataset}
+          datasetsLoading={state.datasetsLoading}
+          datasetsError={state.datasetsError}
+          creatingEvalRun={state.creatingEvalRun}
+          onSelectDataset={state.selectDataset}
+          onCreateEvalRun={state.createEvalRun}
+        />
 
-        <aside className="min-h-0 border-r border-[color:var(--chat-border)] bg-[var(--chat-bg)]">
-          <div className="flex h-12 items-center justify-between gap-2 border-b border-[color:var(--chat-border)] px-4">
-            <h2 className="min-w-0 truncate text-sm font-semibold">{state.selectedDataset?.name ?? 'Eval Runs'}</h2>
-            <Button size="icon-sm" aria-label="Create eval run" onClick={state.createEvalRun} disabled={!state.selectedDatasetId || state.creatingEvalRun}>
-              {state.creatingEvalRun ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
-            </Button>
-          </div>
-          <div className="h-[calc(100dvh-120px)] overflow-auto">
-            {state.evalRunsError ? <EmptyState label={state.evalRunsError} /> : null}
-            {!state.evalRunsError && state.evalRuns.length === 0 && !state.evalRunsLoading ? <EmptyState label="No eval runs" /> : null}
-            {state.evalRuns.map((evalRun) => (
-              <EvalRunRow key={evalRun.id} evalRun={evalRun} selected={evalRun.id === state.selectedEvalRunId} onSelect={state.selectEvalRun} />
-            ))}
-          </div>
-        </aside>
+        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[320px_minmax(0,1fr)]">
+          <aside className="min-h-0 border-r border-[color:var(--chat-border)] bg-[var(--chat-bg)]">
+            <div className="flex h-12 items-center justify-between gap-2 border-b border-[color:var(--chat-border)] px-4">
+              <h2 className="min-w-0 truncate text-sm font-semibold">Eval runs</h2>
+              {state.evalRunsLoading ? <Loader2 className="size-4 animate-spin text-[var(--chat-muted)]" /> : null}
+            </div>
+            <div className="h-full overflow-auto pb-12">
+              {state.evalRunsError ? <EmptyState label={state.evalRunsError} /> : null}
+              {!state.selectedDataset && !state.datasetsError ? <EmptyState label="Select a dataset to load eval runs" /> : null}
+              {!state.evalRunsError && state.selectedDataset && state.evalRuns.length === 0 && !state.evalRunsLoading ? <EmptyState label="No eval runs. Create an eval run for this dataset." /> : null}
+              {state.evalRuns.map((evalRun) => (
+                <EvalRunRow key={evalRun.id} evalRun={evalRun} selected={evalRun.id === state.selectedEvalRunId} onSelect={state.selectEvalRun} />
+              ))}
+            </div>
+          </aside>
 
-        <aside className="min-h-0 border-r border-[color:var(--chat-border)] bg-[var(--chat-bg)]">
-          <div className="flex h-12 items-center justify-between gap-2 border-b border-[color:var(--chat-border)] px-4">
-            <h2 className="text-sm font-semibold">Results</h2>
-          </div>
-          <div className="h-[calc(100dvh-120px)] overflow-auto">
+          <section className="flex min-h-0 flex-col bg-[var(--chat-surface)]">
             {state.selectedEvalRun ? (
               <EvalSummary
                 evalRun={state.selectedEvalRun}
@@ -827,37 +863,48 @@ export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
                 onRun={state.runSelectedEvalRun}
               />
             ) : null}
-            {state.resultsError ? <EmptyState label={state.resultsError} /> : null}
-            {!state.resultsError && state.results.length === 0 && !state.resultsLoading ? <EmptyState label="No results" /> : null}
-            {!state.resultsError && state.results.length > 0 ? (
-              <ResultFiltersPanel
-                filters={resultFilters}
-                totalCount={state.results.length}
-                visibleCount={filteredResults.length}
-                queueCounts={queueCounts}
-                onChange={setResultFilters}
-              />
-            ) : null}
-            {!state.resultsError && state.results.length > 0 && filteredResults.length === 0 ? <EmptyState label="No results match filters" /> : null}
-            {filteredResults.map((result) => (
-              <ResultRow key={result.id} result={result} selected={result.id === state.selectedResultId} onSelect={state.selectResult} />
-            ))}
-          </div>
-        </aside>
+            {state.selectedEvalRun ? (
+              <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[360px_minmax(0,1fr)]">
+                <aside className="min-h-0 border-r border-[color:var(--chat-border)] bg-[var(--chat-bg)]">
+                  <div className="flex h-12 items-center justify-between gap-2 border-b border-[color:var(--chat-border)] px-4">
+                    <h2 className="text-sm font-semibold">Results</h2>
+                  </div>
+                  <div className="h-full overflow-auto pb-12">
+                    {state.resultsError ? <EmptyState label={state.resultsError} /> : null}
+                    {!state.resultsError && state.results.length === 0 && !state.resultsLoading ? <EmptyState label="No results. Run this eval run to generate results." /> : null}
+                    {!state.resultsError && state.results.length > 0 ? (
+                      <ResultFiltersPanel
+                        filters={resultFilters}
+                        totalCount={state.results.length}
+                        visibleCount={filteredResults.length}
+                        queueCounts={queueCounts}
+                        onChange={setResultFilters}
+                      />
+                    ) : null}
+                    {!state.resultsError && state.results.length > 0 && filteredResults.length === 0 ? <EmptyState label="No results match filters" /> : null}
+                    {filteredResults.map((result) => (
+                      <ResultRow key={result.id} result={result} selected={result.id === state.selectedResultId} onSelect={state.selectResult} />
+                    ))}
+                  </div>
+                </aside>
 
-        <section className="min-h-0 bg-[var(--chat-surface)]">
-          <ResultDetailPanel
-            evalRun={state.selectedEvalRun}
-            result={state.selectedResult}
-            sourceExample={state.sourceExample}
-            sourceExampleLoading={state.sourceExampleLoading}
-            sourceExampleError={state.sourceExampleError}
-            savingReview={state.savingReview}
-            mutationError={state.mutationError}
-            hiddenByFilter={selectedResultHiddenByFilter}
-            onSaveReview={state.saveResultReview}
-          />
-        </section>
+                <ResultDetailPanel
+                  evalRun={state.selectedEvalRun}
+                  result={state.selectedResult}
+                  sourceExample={state.sourceExample}
+                  sourceExampleLoading={state.sourceExampleLoading}
+                  sourceExampleError={state.sourceExampleError}
+                  savingReview={state.savingReview}
+                  mutationError={state.mutationError}
+                  hiddenByFilter={selectedResultHiddenByFilter}
+                  onSaveReview={state.saveResultReview}
+                />
+              </div>
+            ) : (
+              <EmptyState label="Select an eval run to review results" />
+            )}
+          </section>
+        </div>
       </div>
     </ObservabilityConsoleShell>
   );
