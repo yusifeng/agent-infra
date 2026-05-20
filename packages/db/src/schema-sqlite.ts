@@ -262,6 +262,60 @@ export const evalExampleResults = sqliteTable(
   })
 );
 
+export const evalRunCompareTriage = sqliteTable(
+  'eval_run_compare_triage',
+  {
+    id: text('id').primaryKey(),
+    appId: text('app_id').notNull(),
+    datasetId: text('dataset_id')
+      .notNull()
+      .references(() => datasets.id),
+    baselineEvalRunId: text('baseline_eval_run_id')
+      .notNull()
+      .references(() => evalRuns.id),
+    candidateEvalRunId: text('candidate_eval_run_id')
+      .notNull()
+      .references(() => evalRuns.id),
+    datasetExampleId: text('dataset_example_id')
+      .notNull()
+      .references(() => datasetExamples.id),
+    triageStatus: text('triage_status').notNull(),
+    reviewerNote: text('reviewer_note'),
+    triagedByActorId: text('triaged_by_actor_id'),
+    triagedAt: integer('triaged_at', { mode: 'timestamp_ms' }).notNull(),
+    observedProjectionKind: text('observed_projection_kind').notNull(),
+    observedProjectionSchemaVersion: integer('observed_projection_schema_version').notNull(),
+    observedCompareStrategy: text('observed_compare_strategy'),
+    observedOutcome: text('observed_outcome').notNull(),
+    observedReason: text('observed_reason').notNull(),
+    observedBaselineResultId: text('observed_baseline_result_id'),
+    observedCandidateResultId: text('observed_candidate_result_id'),
+    observedBaselineResultStatus: text('observed_baseline_result_status'),
+    observedCandidateResultStatus: text('observed_candidate_result_status'),
+    observedBaselineReviewStatus: text('observed_baseline_review_status'),
+    observedCandidateReviewStatus: text('observed_candidate_review_status'),
+    observedBaselineSignal: text('observed_baseline_signal'),
+    observedCandidateSignal: text('observed_candidate_signal'),
+    observedBaselineComparisonOutcome: text('observed_baseline_comparison_outcome'),
+    observedCandidateComparisonOutcome: text('observed_candidate_comparison_outcome'),
+    observedBaselineComparisonReason: text('observed_baseline_comparison_reason'),
+    observedCandidateComparisonReason: text('observed_candidate_comparison_reason'),
+    observedResultComparisonStrategy: text('observed_result_comparison_strategy'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
+  },
+  (table) => ({
+    pairIdx: index('eval_run_compare_triage_pair_idx').on(table.baselineEvalRunId, table.candidateEvalRunId),
+    appDatasetIdx: index('eval_run_compare_triage_app_dataset_idx').on(table.appId, table.datasetId),
+    statusIdx: index('eval_run_compare_triage_status_idx').on(table.triageStatus),
+    pairExampleUnique: uniqueIndex('eval_run_compare_triage_pair_example_unique').on(
+      table.baselineEvalRunId,
+      table.candidateEvalRunId,
+      table.datasetExampleId
+    )
+  })
+);
+
 export const toolInvocations = sqliteTable(
   'tool_invocations',
   {
@@ -516,6 +570,42 @@ export const SQLITE_SCHEMA_STATEMENTS = [
   'CREATE INDEX IF NOT EXISTS eval_example_results_example_ordinal_idx ON eval_example_results(example_ordinal)',
   'CREATE UNIQUE INDEX IF NOT EXISTS eval_example_results_eval_run_dataset_example_unique ON eval_example_results(eval_run_id, dataset_example_id)',
   'CREATE UNIQUE INDEX IF NOT EXISTS eval_example_results_eval_run_example_ordinal_unique ON eval_example_results(eval_run_id, example_ordinal)',
+  `CREATE TABLE IF NOT EXISTS eval_run_compare_triage (
+    id TEXT PRIMARY KEY,
+    app_id TEXT NOT NULL,
+    dataset_id TEXT NOT NULL REFERENCES datasets(id),
+    baseline_eval_run_id TEXT NOT NULL REFERENCES eval_runs(id),
+    candidate_eval_run_id TEXT NOT NULL REFERENCES eval_runs(id),
+    dataset_example_id TEXT NOT NULL REFERENCES dataset_examples(id),
+    triage_status TEXT NOT NULL,
+    reviewer_note TEXT,
+    triaged_by_actor_id TEXT,
+    triaged_at INTEGER NOT NULL,
+    observed_projection_kind TEXT NOT NULL,
+    observed_projection_schema_version INTEGER NOT NULL,
+    observed_compare_strategy TEXT,
+    observed_outcome TEXT NOT NULL,
+    observed_reason TEXT NOT NULL,
+    observed_baseline_result_id TEXT,
+    observed_candidate_result_id TEXT,
+    observed_baseline_result_status TEXT,
+    observed_candidate_result_status TEXT,
+    observed_baseline_review_status TEXT,
+    observed_candidate_review_status TEXT,
+    observed_baseline_signal TEXT,
+    observed_candidate_signal TEXT,
+    observed_baseline_comparison_outcome TEXT,
+    observed_candidate_comparison_outcome TEXT,
+    observed_baseline_comparison_reason TEXT,
+    observed_candidate_comparison_reason TEXT,
+    observed_result_comparison_strategy TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  'CREATE INDEX IF NOT EXISTS eval_run_compare_triage_pair_idx ON eval_run_compare_triage(baseline_eval_run_id, candidate_eval_run_id)',
+  'CREATE INDEX IF NOT EXISTS eval_run_compare_triage_app_dataset_idx ON eval_run_compare_triage(app_id, dataset_id)',
+  'CREATE INDEX IF NOT EXISTS eval_run_compare_triage_status_idx ON eval_run_compare_triage(triage_status)',
+  'CREATE UNIQUE INDEX IF NOT EXISTS eval_run_compare_triage_pair_example_unique ON eval_run_compare_triage(baseline_eval_run_id, candidate_eval_run_id, dataset_example_id)',
   `CREATE TABLE IF NOT EXISTS message_parts (
     id TEXT PRIMARY KEY,
     message_id TEXT NOT NULL REFERENCES messages(id),

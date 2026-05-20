@@ -22,6 +22,13 @@
       "when": 1779036741429,
       "tag": "0002_regular_forge",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779309151599,
+      "tag": "0003_exotic_oracle",
+      "breakpoints": true
     }
   ]
 }

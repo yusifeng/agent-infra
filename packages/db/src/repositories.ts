@@ -17,6 +17,8 @@ import type {
   EvalExampleResult,
   EvalExampleResultRepository,
   EvalRun,
+  EvalRunCompareTriage,
+  EvalRunCompareTriageRepository,
   EvalRunRepository,
   Message,
   MessagePart,
@@ -41,6 +43,7 @@ import {
   datasetExamples,
   datasets,
   evalExampleResults,
+  evalRunCompareTriage,
   evalRuns,
   messageParts,
   messages,
@@ -547,6 +550,84 @@ export class DrizzleEvalExampleResultRepository implements EvalExampleResultRepo
     const row = await this.findById(id);
     if (!row) throw new Error(`eval example result ${id} not found`);
     return row;
+  }
+}
+
+export class DrizzleEvalRunCompareTriageRepository implements EvalRunCompareTriageRepository {
+  constructor(private readonly db: any) {}
+
+  async findByPairAndExample(input: {
+    baselineEvalRunId: string;
+    candidateEvalRunId: string;
+    datasetExampleId: string;
+  }): Promise<EvalRunCompareTriage | null> {
+    const [row] = await this.db
+      .select()
+      .from(evalRunCompareTriage)
+      .where(
+        and(
+          eq(evalRunCompareTriage.baselineEvalRunId, input.baselineEvalRunId),
+          eq(evalRunCompareTriage.candidateEvalRunId, input.candidateEvalRunId),
+          eq(evalRunCompareTriage.datasetExampleId, input.datasetExampleId)
+        )
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
+  async listByPair(input: {
+    baselineEvalRunId: string;
+    candidateEvalRunId: string;
+  }): Promise<EvalRunCompareTriage[]> {
+    return this.db
+      .select()
+      .from(evalRunCompareTriage)
+      .where(
+        and(
+          eq(evalRunCompareTriage.baselineEvalRunId, input.baselineEvalRunId),
+          eq(evalRunCompareTriage.candidateEvalRunId, input.candidateEvalRunId)
+        )
+      )
+      .orderBy(asc(evalRunCompareTriage.datasetExampleId), asc(evalRunCompareTriage.id));
+  }
+
+  async createOrUpdate(input: Omit<EvalRunCompareTriage, 'createdAt' | 'updatedAt'>): Promise<EvalRunCompareTriage> {
+    const existing = await this.findByPairAndExample(input);
+    const now = new Date();
+    if (existing) {
+      await this.db
+        .update(evalRunCompareTriage)
+        .set({
+          ...input,
+          id: existing.id,
+          createdAt: existing.createdAt,
+          updatedAt: now
+        })
+        .where(eq(evalRunCompareTriage.id, existing.id));
+      const row = await this.findByPairAndExample(input);
+      if (!row) throw new Error(`compare triage ${existing.id} not found after update`);
+      return row;
+    }
+
+    const created = { ...input, createdAt: now, updatedAt: now };
+    await this.db.insert(evalRunCompareTriage).values(created);
+    return created;
+  }
+
+  async deleteByPairAndExample(input: {
+    baselineEvalRunId: string;
+    candidateEvalRunId: string;
+    datasetExampleId: string;
+  }): Promise<void> {
+    await this.db
+      .delete(evalRunCompareTriage)
+      .where(
+        and(
+          eq(evalRunCompareTriage.baselineEvalRunId, input.baselineEvalRunId),
+          eq(evalRunCompareTriage.candidateEvalRunId, input.candidateEvalRunId),
+          eq(evalRunCompareTriage.datasetExampleId, input.datasetExampleId)
+        )
+      );
   }
 }
 

@@ -76,20 +76,20 @@
 
 ### 1.3 Data Model
 
-- [ ] Add a durable `EvalRunCompareTriage` domain shape.
-- [ ] Include stable identity and scope fields:
+- [x] Add a durable `EvalRunCompareTriage` domain shape.
+- [x] Include stable identity and scope fields:
   - `id`
   - `appId`
   - `datasetId`
   - `baselineEvalRunId`
   - `candidateEvalRunId`
   - `datasetExampleId`
-- [ ] Include review fields:
+- [x] Include review fields:
   - `triageStatus`
   - `reviewerNote`
   - `triagedByActorId`
   - `triagedAt`
-- [ ] Include observed fingerprint fields:
+- [x] Include observed fingerprint fields:
   - `observedProjectionKind`
   - `observedProjectionSchemaVersion`
   - `observedCompareStrategy` if implementation needs an explicit non-key strategy field
@@ -108,19 +108,19 @@
   - `observedBaselineComparisonReason`
   - `observedCandidateComparisonReason`
   - `observedResultComparisonStrategy`
-- [ ] Include timestamps:
+- [x] Include timestamps:
   - `createdAt`
   - `updatedAt`
-- [ ] Keep `untriaged` as a computed absence state, not a persisted status.
+- [x] Keep `untriaged` as a computed absence state, not a persisted status.
 - [ ] Normalize empty or whitespace-only reviewer notes to `null` at the app/server boundary.
 
 ### 1.4 Interfaces
 
-- [ ] Add a compare triage repository contract in the package layer.
-- [ ] Repository must support lookup by pair/example.
-- [ ] Repository must support listing all triage rows for a baseline/candidate pair.
-- [ ] Repository must support create-or-update by pair/example.
-- [ ] Repository must support deleting by pair/example to clear back to computed `untriaged`.
+- [x] Add a compare triage repository contract in the package layer.
+- [x] Repository must support lookup by pair/example.
+- [x] Repository must support listing all triage rows for a baseline/candidate pair.
+- [x] Repository must support create-or-update by pair/example.
+- [x] Repository must support deleting by pair/example to clear back to computed `untriaged`.
 - [ ] App layer must expose an update use case that owns actor/time assignment.
 - [ ] App layer must expose a delete use case that clears triage without touching result review.
 - [ ] App layer must reject caller-supplied `triagedByActorId` and `triagedAt`.
@@ -130,17 +130,17 @@
 
 ### 2.1 DB
 
-- [ ] Add compare triage table to SQLite schema.
-- [ ] Add compare triage table to Postgres schema.
-- [ ] Add unique constraint on `(baseline_eval_run_id, candidate_eval_run_id, dataset_example_id)`.
-- [ ] Add pair lookup index.
-- [ ] Add app/dataset lookup index if app-level listing or debugging needs it.
-- [ ] Add status index only if cheap and consistent with local schema style; do not expose server-side status filters in v1.
-- [ ] Add repository implementation for SQLite.
-- [ ] Add repository implementation for Postgres.
-- [ ] Add repository delete implementation for SQLite/Postgres.
-- [ ] Ensure bootstrap/migration behavior is idempotent.
-- [ ] Keep the table narrow: do not persist full compare row payloads or full text snapshots.
+- [x] Add compare triage table to SQLite schema.
+- [x] Add compare triage table to Postgres schema.
+- [x] Add unique constraint on `(baseline_eval_run_id, candidate_eval_run_id, dataset_example_id)`.
+- [x] Add pair lookup index.
+- [x] Add app/dataset lookup index if app-level listing or debugging needs it.
+- [x] Add status index only if cheap and consistent with local schema style; do not expose server-side status filters in v1.
+- [x] Add repository implementation for SQLite.
+- [x] Add repository implementation for Postgres.
+- [x] Add repository delete implementation for SQLite/Postgres.
+- [x] Ensure bootstrap/migration behavior is idempotent.
+- [x] Keep the table narrow: do not persist full compare row payloads or full text snapshots.
 
 ### 2.2 App Layer
 
@@ -233,12 +233,12 @@
 
 ### 4.2 DB Tests
 
-- [ ] SQLite test for table bootstrap and idempotence.
-- [ ] SQLite test for unique `(baselineEvalRunId, candidateEvalRunId, datasetExampleId)`.
-- [ ] SQLite test for create-or-update behavior.
-- [ ] SQLite test for delete-by-pair/example behavior.
-- [ ] SQLite test for deterministic `listByPair` ordering; app/UI must not rely on it for compare queue order.
-- [ ] Verify SQLite and Postgres schema fields stay aligned.
+- [x] SQLite test for table bootstrap and idempotence.
+- [x] SQLite test for unique `(baselineEvalRunId, candidateEvalRunId, datasetExampleId)`.
+- [x] SQLite test for create-or-update behavior.
+- [x] SQLite test for delete-by-pair/example behavior.
+- [x] SQLite test for deterministic `listByPair` ordering; app/UI must not rely on it for compare queue order.
+- [x] Verify SQLite and Postgres schema fields stay aligned.
 
 ### 4.3 App Tests
 
@@ -314,10 +314,10 @@
 
 ### Loop 2: Durable Triage Persistence
 
-- [ ] Add compare triage domain types and repository contract.
-- [ ] Add SQLite/Postgres schema and repository implementations.
-- [ ] Add DB tests for uniqueness, upsert, delete, deterministic list, and schema alignment.
-- [ ] Run targeted DB/package tests.
+- [x] Add compare triage domain types and repository contract.
+- [x] Add SQLite/Postgres schema and repository implementations.
+- [x] Add DB tests for uniqueness, upsert, delete, deterministic list, and schema alignment.
+- [x] Run targeted DB/package tests.
 - [ ] Run `codex review` for this loop after targeted verification passes.
 - [ ] Commit Loop 2.
 

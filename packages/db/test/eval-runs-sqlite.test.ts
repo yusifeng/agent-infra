@@ -6,6 +6,7 @@ import {
   SqliteDatasetExampleRepository,
   SqliteDatasetRepository,
   SqliteEvalExampleResultRepository,
+  SqliteEvalRunCompareTriageRepository,
   SqliteEvalRunRepository,
   SqliteThreadRepository
 } from '../src/repositories-sqlite';
@@ -17,6 +18,7 @@ describe('Sqlite eval repositories', () => {
   let datasetExampleRepo: SqliteDatasetExampleRepository;
   let evalRunRepo: SqliteEvalRunRepository;
   let evalResultRepo: SqliteEvalExampleResultRepository;
+  let evalRunCompareTriageRepo: SqliteEvalRunCompareTriageRepository;
   let threadRepo: SqliteThreadRepository;
 
   beforeEach(async () => {
@@ -32,6 +34,7 @@ describe('Sqlite eval repositories', () => {
     datasetExampleRepo = new SqliteDatasetExampleRepository(db);
     evalRunRepo = new SqliteEvalRunRepository(db);
     evalResultRepo = new SqliteEvalExampleResultRepository(db);
+    evalRunCompareTriageRepo = new SqliteEvalRunCompareTriageRepository(db);
     threadRepo = new SqliteThreadRepository(db);
 
     await datasetRepo.create({
@@ -76,6 +79,56 @@ describe('Sqlite eval repositories', () => {
       toolInvocationsSnapshotJson: null,
       createdByActorId: 'actor-1'
     });
+  }
+
+  async function createEvalRun(id: string) {
+    return evalRunRepo.create({
+      id,
+      appId: 'app-1',
+      datasetId: 'dataset-1',
+      status: 'completed',
+      name: null,
+      configJson: { schemaVersion: 1 },
+      summaryJson: { schemaVersion: 1 },
+      error: null,
+      createdByActorId: 'actor-1',
+      startedAt: null,
+      finishedAt: null
+    });
+  }
+
+  function triageInput(overrides: Partial<Parameters<typeof evalRunCompareTriageRepo.createOrUpdate>[0]> = {}) {
+    return {
+      id: 'triage-1',
+      appId: 'app-1',
+      datasetId: 'dataset-1',
+      baselineEvalRunId: 'baseline-run',
+      candidateEvalRunId: 'candidate-run',
+      datasetExampleId: 'example-1',
+      triageStatus: 'regression' as const,
+      reviewerNote: 'needs fix',
+      triagedByActorId: 'actor-1',
+      triagedAt: new Date('2026-05-20T00:00:00.000Z'),
+      observedProjectionKind: 'eval_run_compare' as const,
+      observedProjectionSchemaVersion: 1 as const,
+      observedCompareStrategy: null,
+      observedOutcome: 'regression',
+      observedReason: 'manual_pass_to_fail',
+      observedBaselineResultId: 'baseline-result',
+      observedCandidateResultId: 'candidate-result',
+      observedBaselineResultStatus: 'completed',
+      observedCandidateResultStatus: 'completed',
+      observedBaselineReviewStatus: 'pass',
+      observedCandidateReviewStatus: 'fail',
+      observedBaselineSignal: 'manual_pass',
+      observedCandidateSignal: 'manual_fail',
+      observedBaselineComparisonOutcome: 'match',
+      observedCandidateComparisonOutcome: 'mismatch',
+      observedBaselineComparisonReason: 'normalized_text_equal',
+      observedCandidateComparisonReason: 'normalized_text_different',
+      observedResultComparisonStrategy: 'normalized_text_v1',
+      ...overrides
+    };
   }
 
   it('creates, updates, finds, and lists eval runs by dataset', async () => {
@@ -316,9 +369,11 @@ describe('Sqlite eval repositories', () => {
     }
 
     const tableRows = sqlite
-      ?.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('eval_runs', 'eval_example_results') ORDER BY name")
+      ?.prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('eval_runs', 'eval_example_results', 'eval_run_compare_triage') ORDER BY name"
+      )
       .all();
-    expect(tableRows).toEqual([{ name: 'eval_example_results' }, { name: 'eval_runs' }]);
+    expect(tableRows).toEqual([{ name: 'eval_example_results' }, { name: 'eval_run_compare_triage' }, { name: 'eval_runs' }]);
 
     const resultIndexes = sqlite
       ?.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'eval_example_results' ORDER BY name")
@@ -333,6 +388,128 @@ describe('Sqlite eval repositories', () => {
       'eval_example_results_status_idx',
       'sqlite_autoindex_eval_example_results_1'
     ]);
+
+    const triageIndexes = sqlite
+      ?.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'eval_run_compare_triage' ORDER BY name")
+      .all()
+      .map((row: any) => row.name);
+    expect(triageIndexes).toEqual([
+      'eval_run_compare_triage_app_dataset_idx',
+      'eval_run_compare_triage_pair_example_unique',
+      'eval_run_compare_triage_pair_idx',
+      'eval_run_compare_triage_status_idx',
+      'sqlite_autoindex_eval_run_compare_triage_1'
+    ]);
+  });
+
+  it('creates, updates, lists, and deletes compare triage rows by ordered pair', async () => {
+    await createExample('example-1');
+    await createExample('example-2');
+    await createEvalRun('baseline-run');
+    await createEvalRun('candidate-run');
+
+    const created = await evalRunCompareTriageRepo.createOrUpdate(triageInput());
+    expect(created).toMatchObject({
+      id: 'triage-1',
+      baselineEvalRunId: 'baseline-run',
+      candidateEvalRunId: 'candidate-run',
+      datasetExampleId: 'example-1',
+      triageStatus: 'regression',
+      reviewerNote: 'needs fix',
+      observedCandidateComparisonReason: 'normalized_text_different'
+    });
+
+    await evalRunCompareTriageRepo.createOrUpdate(triageInput({
+      id: 'triage-2',
+      datasetExampleId: 'example-2',
+      triageStatus: 'accepted',
+      reviewerNote: null,
+      observedOutcome: 'same_pass',
+      observedReason: 'manual_same_pass'
+    }));
+
+    const updated = await evalRunCompareTriageRepo.createOrUpdate(triageInput({
+      id: 'ignored-new-id',
+      triageStatus: 'expected_changed',
+      reviewerNote: 'update expected output',
+      observedOutcome: 'changed_unresolved',
+      observedReason: 'unreviewed_text_changed'
+    }));
+    expect(updated).toMatchObject({
+      id: 'triage-1',
+      triageStatus: 'expected_changed',
+      reviewerNote: 'update expected output',
+      observedReason: 'unreviewed_text_changed'
+    });
+    expect(updated.createdAt.getTime()).toBe(created.createdAt.getTime());
+    expect(updated.updatedAt.getTime()).toBeGreaterThanOrEqual(created.updatedAt.getTime());
+
+    const listed = await evalRunCompareTriageRepo.listByPair({
+      baselineEvalRunId: 'baseline-run',
+      candidateEvalRunId: 'candidate-run'
+    });
+    expect(listed.map((row) => row.datasetExampleId)).toEqual(['example-1', 'example-2']);
+
+    await expect(evalRunCompareTriageRepo.findByPairAndExample({
+      baselineEvalRunId: 'candidate-run',
+      candidateEvalRunId: 'baseline-run',
+      datasetExampleId: 'example-1'
+    })).resolves.toBeNull();
+
+    await evalRunCompareTriageRepo.deleteByPairAndExample({
+      baselineEvalRunId: 'baseline-run',
+      candidateEvalRunId: 'candidate-run',
+      datasetExampleId: 'example-1'
+    });
+    await expect(evalRunCompareTriageRepo.findByPairAndExample({
+      baselineEvalRunId: 'baseline-run',
+      candidateEvalRunId: 'candidate-run',
+      datasetExampleId: 'example-1'
+    })).resolves.toBeNull();
+  });
+
+  it('enforces unique compare triage row per pair and dataset example in sqlite', async () => {
+    await createExample('example-1');
+    await createEvalRun('baseline-run');
+    await createEvalRun('candidate-run');
+
+    await evalRunCompareTriageRepo.createOrUpdate(triageInput());
+
+    expect(() => {
+      sqlite?.prepare(`
+        INSERT INTO eval_run_compare_triage (
+          id,
+          app_id,
+          dataset_id,
+          baseline_eval_run_id,
+          candidate_eval_run_id,
+          dataset_example_id,
+          triage_status,
+          triaged_at,
+          observed_projection_kind,
+          observed_projection_schema_version,
+          observed_outcome,
+          observed_reason,
+          created_at,
+          updated_at
+        ) VALUES (
+          'triage-duplicate',
+          'app-1',
+          'dataset-1',
+          'baseline-run',
+          'candidate-run',
+          'example-1',
+          'accepted',
+          1779300000000,
+          'eval_run_compare',
+          1,
+          'same_pass',
+          'manual_same_pass',
+          1779300000000,
+          1779300000000
+        )
+      `).run();
+    }).toThrow(/UNIQUE constraint failed/);
   });
 
   it('roundtrips eval-only thread metadata through existing thread storage', async () => {

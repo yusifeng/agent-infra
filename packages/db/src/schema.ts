@@ -262,6 +262,60 @@ export const evalExampleResults = pgTable(
   })
 );
 
+export const evalRunCompareTriage = pgTable(
+  'eval_run_compare_triage',
+  {
+    id: text('id').primaryKey(),
+    appId: text('app_id').notNull(),
+    datasetId: text('dataset_id')
+      .notNull()
+      .references(() => datasets.id),
+    baselineEvalRunId: text('baseline_eval_run_id')
+      .notNull()
+      .references(() => evalRuns.id),
+    candidateEvalRunId: text('candidate_eval_run_id')
+      .notNull()
+      .references(() => evalRuns.id),
+    datasetExampleId: text('dataset_example_id')
+      .notNull()
+      .references(() => datasetExamples.id),
+    triageStatus: text('triage_status').notNull(),
+    reviewerNote: text('reviewer_note'),
+    triagedByActorId: text('triaged_by_actor_id'),
+    triagedAt: timestamp('triaged_at', { withTimezone: true }).notNull(),
+    observedProjectionKind: text('observed_projection_kind').notNull(),
+    observedProjectionSchemaVersion: integer('observed_projection_schema_version').notNull(),
+    observedCompareStrategy: text('observed_compare_strategy'),
+    observedOutcome: text('observed_outcome').notNull(),
+    observedReason: text('observed_reason').notNull(),
+    observedBaselineResultId: text('observed_baseline_result_id'),
+    observedCandidateResultId: text('observed_candidate_result_id'),
+    observedBaselineResultStatus: text('observed_baseline_result_status'),
+    observedCandidateResultStatus: text('observed_candidate_result_status'),
+    observedBaselineReviewStatus: text('observed_baseline_review_status'),
+    observedCandidateReviewStatus: text('observed_candidate_review_status'),
+    observedBaselineSignal: text('observed_baseline_signal'),
+    observedCandidateSignal: text('observed_candidate_signal'),
+    observedBaselineComparisonOutcome: text('observed_baseline_comparison_outcome'),
+    observedCandidateComparisonOutcome: text('observed_candidate_comparison_outcome'),
+    observedBaselineComparisonReason: text('observed_baseline_comparison_reason'),
+    observedCandidateComparisonReason: text('observed_candidate_comparison_reason'),
+    observedResultComparisonStrategy: text('observed_result_comparison_strategy'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull()
+  },
+  (table) => ({
+    pairIdx: index('eval_run_compare_triage_pair_idx').on(table.baselineEvalRunId, table.candidateEvalRunId),
+    appDatasetIdx: index('eval_run_compare_triage_app_dataset_idx').on(table.appId, table.datasetId),
+    statusIdx: index('eval_run_compare_triage_status_idx').on(table.triageStatus),
+    pairExampleUnique: unique('eval_run_compare_triage_pair_example_unique').on(
+      table.baselineEvalRunId,
+      table.candidateEvalRunId,
+      table.datasetExampleId
+    )
+  })
+);
+
 export const toolInvocations = pgTable(
   'tool_invocations',
   {

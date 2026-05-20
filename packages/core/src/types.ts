@@ -26,6 +26,8 @@ export type EvalRunStatus = 'queued' | 'running' | 'completed' | 'failed';
 
 export type EvalExampleResultStatus = 'queued' | 'running' | 'completed' | 'failed' | 'skipped';
 
+export type EvalRunCompareTriageStatus = 'accepted' | 'regression' | 'expected_changed' | 'needs_review' | 'ignored';
+
 export interface RunUsageTokensV1 {
   input?: number;
   output?: number;
@@ -172,6 +174,39 @@ export interface EvalExampleResult {
   error?: string | null;
   startedAt?: Date | null;
   finishedAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface EvalRunCompareTriage {
+  id: string;
+  appId: string;
+  datasetId: string;
+  baselineEvalRunId: string;
+  candidateEvalRunId: string;
+  datasetExampleId: string;
+  triageStatus: EvalRunCompareTriageStatus;
+  reviewerNote?: string | null;
+  triagedByActorId?: string | null;
+  triagedAt: Date;
+  observedProjectionKind: 'eval_run_compare';
+  observedProjectionSchemaVersion: 1;
+  observedCompareStrategy?: string | null;
+  observedOutcome: string;
+  observedReason: string;
+  observedBaselineResultId?: string | null;
+  observedCandidateResultId?: string | null;
+  observedBaselineResultStatus?: string | null;
+  observedCandidateResultStatus?: string | null;
+  observedBaselineReviewStatus?: string | null;
+  observedCandidateReviewStatus?: string | null;
+  observedBaselineSignal?: string | null;
+  observedCandidateSignal?: string | null;
+  observedBaselineComparisonOutcome?: string | null;
+  observedCandidateComparisonOutcome?: string | null;
+  observedBaselineComparisonReason?: string | null;
+  observedCandidateComparisonReason?: string | null;
+  observedResultComparisonStrategy?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

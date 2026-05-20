@@ -13,6 +13,7 @@ import type {
   DatasetExampleRepository,
   DatasetRepository,
   EvalExampleResultRepository,
+  EvalRunCompareTriageRepository,
   EvalRunRepository,
   MessageRepository,
   RunFeedbackRepository,
@@ -30,6 +31,7 @@ import {
   DrizzleDatasetExampleRepository,
   DrizzleDatasetRepository,
   DrizzleEvalExampleResultRepository,
+  DrizzleEvalRunCompareTriageRepository,
   DrizzleEvalRunRepository,
   DrizzleMessageRepository,
   DrizzleRunFeedbackRepository,
@@ -46,6 +48,7 @@ import {
   SqliteDatasetExampleRepository,
   SqliteDatasetRepository,
   SqliteEvalExampleResultRepository,
+  SqliteEvalRunCompareTriageRepository,
   SqliteEvalRunRepository,
   SqliteMessageRepository,
   SqliteRunFeedbackRepository,
@@ -81,6 +84,7 @@ export interface AgentInfraRepositoryBundle {
   datasetExampleRepo: DatasetExampleRepository;
   evalRunRepo: EvalRunRepository;
   evalExampleResultRepo: EvalExampleResultRepository;
+  evalRunCompareTriageRepo: EvalRunCompareTriageRepository;
 }
 
 const sqliteTransactionQueues = new Map<string, Promise<void>>();
@@ -153,7 +157,8 @@ export function createAgentInfraRepositories(mode: DbMode, db: any): AgentInfraR
       datasetRepo: new SqliteDatasetRepository(db),
       datasetExampleRepo: new SqliteDatasetExampleRepository(db),
       evalRunRepo: new SqliteEvalRunRepository(db),
-      evalExampleResultRepo: new SqliteEvalExampleResultRepository(db)
+      evalExampleResultRepo: new SqliteEvalExampleResultRepository(db),
+      evalRunCompareTriageRepo: new SqliteEvalRunCompareTriageRepository(db)
     };
   }
 
@@ -171,7 +176,8 @@ export function createAgentInfraRepositories(mode: DbMode, db: any): AgentInfraR
     datasetRepo: new DrizzleDatasetRepository(db),
     datasetExampleRepo: new DrizzleDatasetExampleRepository(db),
     evalRunRepo: new DrizzleEvalRunRepository(db),
-    evalExampleResultRepo: new DrizzleEvalExampleResultRepository(db)
+    evalExampleResultRepo: new DrizzleEvalExampleResultRepository(db),
+    evalRunCompareTriageRepo: new DrizzleEvalRunCompareTriageRepository(db)
   };
 }
 

@@ -8,6 +8,7 @@ import type {
   DatasetExample,
   EvalExampleResult,
   EvalRun,
+  EvalRunCompareTriage,
   Message,
   MessagePart,
   RunFeedback,
@@ -133,6 +134,26 @@ export interface EvalExampleResultRepository {
     >,
     updatedAt: Date
   ): Promise<EvalExampleResult>;
+}
+
+export interface EvalRunCompareTriageRepository {
+  findByPairAndExample(input: {
+    baselineEvalRunId: string;
+    candidateEvalRunId: string;
+    datasetExampleId: string;
+  }): Promise<EvalRunCompareTriage | null>;
+  listByPair(input: {
+    baselineEvalRunId: string;
+    candidateEvalRunId: string;
+  }): Promise<EvalRunCompareTriage[]>;
+  createOrUpdate(
+    input: Omit<EvalRunCompareTriage, 'createdAt' | 'updatedAt'>
+  ): Promise<EvalRunCompareTriage>;
+  deleteByPairAndExample(input: {
+    baselineEvalRunId: string;
+    candidateEvalRunId: string;
+    datasetExampleId: string;
+  }): Promise<void>;
 }
 
 export interface RunEventRepository {
