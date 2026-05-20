@@ -112,7 +112,7 @@ Recent history favors short, imperative commit subjects, for example `Add Pi Nar
 
 ### Review Profile (Single Source of Truth)
 
-- Review command: `codex review --uncommitted -c model="gpt-5.3-codex" -c model_reasoning_effort="medium"`
+- Review command: `codex review --uncommitted -c model="gpt-5.5" -c model_reasoning_effort="medium"`
 - Tool-call timeout for review: `timeout_ms >= 1200000`
 - Apply this profile everywhere (skills/plans/docs). Do not redefine model/reasoning/timeout in other files.
 - For multi-loop implementation work, run `codex review` at the end of each meaningful functional slice instead of waiting for the entire todo to be finished.
