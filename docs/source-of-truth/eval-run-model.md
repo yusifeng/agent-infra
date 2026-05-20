@@ -461,6 +461,113 @@ such as:
 - expensive or server-only comparator execution
 - returned run-level comparison summaries
 
+## Eval Run Compare
+
+`Eval Run Compare v1` compares two eval runs from the same dataset. It is a
+read-time projection, not a durable model. It does not add database tables,
+migrations, persisted snapshots, or a compare HTTP route in v1.
+
+The projection lives in `packages/durable-chat-client` so validation UIs can
+consume shared browser-safe semantics without making `apps/playground-next-web`
+the source of truth. `/observability/evals` may expose compare mode as a
+management workflow, but it owns only labels, layout, local filters, sorting
+defaults, and URL query state.
+
+Compare v1 reuses existing DTOs:
+
+- `EvalRunDto`
+- `EvalExampleResultDto`
+- `EvalResultComparisonProjectionV1` for per-result expected/actual text assist
+
+Two eval runs are projection-compatible only when `baselineRun.datasetId ===
+candidateRun.datasetId`. A dataset mismatch returns a projection-level
+`not_comparable` error with no rows. V1 must not compare runs across datasets.
+
+Rows are aligned by unique `datasetExampleId`, not result id or ordinal. Result
+arrays that contain duplicate `datasetExampleId` values are classified as
+row-level `not_comparable`. Result arrays that contain an `evalRunId` different
+from the supplied baseline or candidate run are also defensive
+`not_comparable` rows.
+
+The projection shape is:
+
+```ts
+interface EvalRunCompareProjectionV1 {
+  schemaVersion: 1;
+  kind: 'eval_run_compare';
+  comparable: boolean;
+  datasetId: string | null;
+  baselineRunId: string;
+  candidateRunId: string;
+  summary: EvalRunCompareSummaryV1;
+  rows: EvalRunCompareRowV1[];
+  error?: {
+    outcome: 'not_comparable';
+    reason: 'different_dataset';
+  } | null;
+}
+```
+
+Row outcomes are:
+
+- `same_pass`
+- `same_fail`
+- `regression`
+- `improvement`
+- `same_unresolved`
+- `changed_unresolved`
+- `baseline_missing`
+- `candidate_missing`
+- `not_comparable`
+
+Manual human review is the only formal judgment truth:
+
+- baseline `pass` and candidate `fail` is `regression`
+- baseline `fail` and candidate `pass` is `improvement`
+- both `pass` is `same_pass`
+- both `fail` is `same_fail`
+
+Manual `pass` and `fail` outrank execution status and expected/actual text
+assistive comparison. A failed result that a human reviewed as `fail` can
+participate in formal `same_fail` or `regression` classification.
+
+Manual `needs_review`, manual `not_applicable`, unreviewed results, failed
+unreviewed results, and not-completed unreviewed results are unresolved for
+compare purposes. They must not become formal pass/fail, improvement, or
+regression outcomes. Existing text comparison may distinguish unchanged
+unresolved rows from changed unresolved rows, but it must not auto-write review
+truth.
+
+Missing rows are handled before result-level signal classification:
+
+- candidate present and baseline absent is `baseline_missing`
+- baseline present and candidate absent is `candidate_missing`
+
+The summary is derived from rows. `summary.outcomeCounts` must equal row outcome
+counts. Usage and duration deltas are null-safe: when either side has no finite
+aggregate value, the delta and percentage delta are `null`.
+
+V1 compare mode is intentionally not an experiment system. It does not define:
+
+- LLM-as-judge scoring
+- scorer configuration
+- experiment registry
+- release gates or CI gating
+- persisted compare snapshots
+- multi-baseline or multi-candidate matrices
+- parallel eval execution, cancellation, retry, or resume
+
+Persisted compare snapshots, server-side compare routes, or compare-specific
+query APIs should be considered only after concrete pressure appears, such as:
+
+- DB-level filtering, sorting, pagination, or historical reporting by compare
+  outcome
+- audit requirements for a specific compare projection version
+- expensive or server-only comparison work
+- multiple compare strategies or versions
+- CI/release workflows that need immutable comparison evidence
+- cross-run matrices or experiment-level aggregation
+
 ## Public V1 Surface
 
 The public app/contract surface is intentionally narrow:
