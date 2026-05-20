@@ -28,7 +28,7 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import type { AuthUserDto } from '@/features/auth/dto/project-auth-user-dto';
-import { useEvalConsole, type EvalResultReviewDraft } from '@/features/observability/runtime/use-eval-console';
+import { useEvalConsole, type EvalConsoleState, type EvalResultReviewDraft } from '@/features/observability/runtime/use-eval-console';
 
 import {
   buildDatasetExampleHref,
@@ -129,6 +129,14 @@ const EVAL_COPY = {
   exampleUuid: '样本 UUID',
   evalRunUuid: '评估运行 UUID',
   datasetUuid: '数据集 UUID',
+  mode: '模式',
+  reviewMode: '审核运行',
+  compareMode: '对比运行',
+  baselineRun: '基线运行',
+  candidateRun: '候选运行',
+  compareRow: '对比样本',
+  baselineResults: '基线结果',
+  candidateResults: '候选结果',
   usage: '用量',
   duration: '耗时',
   hiddenByFilter: '当前结果被筛选条件隐藏。',
@@ -948,6 +956,95 @@ function ResultDetailPanel({
   );
 }
 
+function ComparePlaceholder({ state }: { state: EvalConsoleState }) {
+  const loading = state.baselineCompareResultsLoading || state.candidateCompareResultsLoading;
+  const error = state.baselineCompareResultsError ?? state.candidateCompareResultsError;
+
+  return (
+    <section className="min-h-0 overflow-auto bg-[var(--chat-surface)] p-5">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.mode}</div>
+          <h2 className="mt-1 text-lg font-semibold text-[var(--chat-text)]">{EVAL_COPY.compareMode}</h2>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => state.selectMode('review')}
+        >
+          {EVAL_COPY.reviewMode}
+        </Button>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <label className="block rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
+          <div className="mb-2 text-xs text-[var(--chat-muted)]">{EVAL_COPY.baselineRun}</div>
+          <select
+            aria-label="Compare baseline eval run"
+            className="h-9 w-full rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-3 text-sm text-[var(--chat-text)] outline-none focus:border-[color:var(--chat-border-strong)]"
+            value={state.selectedBaselineEvalRunId ?? ''}
+            disabled={state.evalRuns.length === 0}
+            onChange={(event) => state.selectCompareEvalRun('baseline', event.target.value)}
+          >
+            {state.evalRuns.map((evalRun, index) => (
+              <option key={evalRun.id} value={evalRun.id}>
+                {evalRun.name?.trim() || `${EVAL_COPY.evalRunFallback} ${index + 1}`} · {formatShortId(evalRun.id, 10)}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
+          <div className="mb-2 text-xs text-[var(--chat-muted)]">{EVAL_COPY.candidateRun}</div>
+          <select
+            aria-label="Compare candidate eval run"
+            className="h-9 w-full rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-3 text-sm text-[var(--chat-text)] outline-none focus:border-[color:var(--chat-border-strong)]"
+            value={state.selectedCandidateEvalRunId ?? ''}
+            disabled={state.evalRuns.length === 0}
+            onChange={(event) => {
+              if (event.target.value) {
+                state.selectCompareEvalRun('candidate', event.target.value);
+              }
+            }}
+          >
+            {state.selectedCandidateEvalRunId ? null : <option value="">{EVAL_COPY.selectEvalRun}</option>}
+            {state.evalRuns.map((evalRun, index) => (
+              <option key={evalRun.id} value={evalRun.id}>
+                {evalRun.name?.trim() || `${EVAL_COPY.evalRunFallback} ${index + 1}`} · {formatShortId(evalRun.id, 10)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
+          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.baselineResults}</div>
+          <div className="mt-1 text-xl font-semibold text-[var(--chat-text)]">{state.baselineCompareResults.length}</div>
+        </div>
+        <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
+          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.candidateResults}</div>
+          <div className="mt-1 text-xl font-semibold text-[var(--chat-text)]">{state.candidateCompareResults.length}</div>
+        </div>
+        <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
+          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.compareRow}</div>
+          <div className="mt-1 truncate text-sm font-semibold text-[var(--chat-text)]" title={state.selectedCompareDatasetExampleId ?? undefined}>
+            {state.selectedCompareDatasetExampleId ? formatShortId(state.selectedCompareDatasetExampleId, 18) : EVAL_COPY.unknown}
+          </div>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="mt-4 flex items-center gap-2 text-sm text-[var(--chat-muted)]">
+          <Loader2 className="size-4 animate-spin" />
+          {EVAL_COPY.compareMode}
+        </div>
+      ) : null}
+      {error ? <div className="mt-4 rounded-lg bg-[var(--chat-error-bg)] px-3 py-2 text-sm text-[var(--chat-error-text)]">{error}</div> : null}
+    </section>
+  );
+}
+
 export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
   const state = useEvalConsole();
   const [resultFilters, setResultFilters] = useState<EvalResultFilters>(DEFAULT_RESULT_FILTERS);
@@ -1034,6 +1131,12 @@ export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
           onRunEval={state.runSelectedEvalRun}
         />
 
+        {state.isCompareMode ? (
+          <div className="min-h-0 xl:col-span-2">
+            <ComparePlaceholder state={state} />
+          </div>
+        ) : (
+        <>
         <section className="flex min-h-0 flex-col border-r border-[color:var(--chat-border)] bg-[var(--chat-bg)]">
           {state.selectedEvalRun ? (
             <>
@@ -1092,6 +1195,8 @@ export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
             onSaveReview={state.saveResultReview}
           />
         </section>
+        </>
+        )}
       </div>
     </ObservabilityConsoleShell>
   );

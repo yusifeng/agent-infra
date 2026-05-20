@@ -9,6 +9,10 @@ const navigation = vi.hoisted(() => ({
   replace: vi.fn()
 }));
 
+const routeState = vi.hoisted(() => ({
+  searchParams: ''
+}));
+
 const api = vi.hoisted(() => ({
   createEvalRunResponse: vi.fn(),
   fetchDatasetExampleResponse: vi.fn(),
@@ -31,7 +35,7 @@ vi.mock('next/navigation', () => ({
     push: navigation.push,
     replace: navigation.replace
   }),
-  useSearchParams: () => new URLSearchParams()
+  useSearchParams: () => new URLSearchParams(routeState.searchParams)
 }));
 
 vi.mock('@/components/chat-shell/use-playground-logout', () => ({
@@ -211,6 +215,7 @@ describe('EvalConsole', () => {
     root = createRoot(container);
     navigation.push.mockReset();
     navigation.replace.mockReset();
+    routeState.searchParams = '';
     for (const mock of Object.values(api)) {
       mock.mockReset();
     }
@@ -322,6 +327,255 @@ describe('EvalConsole', () => {
     });
 
     expect(navigation.push).toHaveBeenCalledWith('/observability/evals?datasetId=dataset-2', { scroll: false });
+  });
+
+  it('enters compare mode from URL state and fetches both eval result sets through existing result APIs', async () => {
+    routeState.searchParams = 'mode=compare&datasetId=dataset-1&baselineEvalRunId=eval-run-1&candidateEvalRunId=eval-run-2&compareDatasetExampleId=example-2';
+    api.fetchDatasetEvalRunsResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        evalRuns: [
+          evalRun({ id: 'eval-run-1', name: 'Baseline' }),
+          evalRun({ id: 'eval-run-2', name: 'Candidate' })
+        ]
+      }
+    });
+    api.fetchEvalExampleResultsResponse.mockImplementation((evalRunId: string) => Promise.resolve({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        results: [result({
+          id: `${evalRunId}-result-1`,
+          evalRunId,
+          datasetExampleId: evalRunId === 'eval-run-1' ? 'example-1' : 'example-2'
+        })]
+      }
+    }));
+
+    await act(async () => {
+      root.render(<EvalConsole currentUser={{ id: 'user-1', email: 'user@example.com' }} />);
+    });
+    await flush();
+    await flush();
+
+    expect(document.body.textContent).toContain('对比运行');
+    expect(document.body.textContent).toContain('基线结果');
+    expect(document.body.textContent).toContain('候选结果');
+    expect(api.fetchDatasetEvalRunsResponse).toHaveBeenCalledWith('dataset-1', expect.any(AbortSignal));
+    expect(api.fetchEvalExampleResultsResponse).toHaveBeenCalledWith('eval-run-1', expect.any(AbortSignal));
+    expect(api.fetchEvalExampleResultsResponse).toHaveBeenCalledWith('eval-run-2', expect.any(AbortSignal));
+    expect(api.fetchEvalRunResponse).not.toHaveBeenCalled();
+    expect(api.fetchThreadRunsResponse).not.toHaveBeenCalled();
+  });
+
+  it('preserves shared compare run IDs while eval runs are still loading', async () => {
+    routeState.searchParams = 'mode=compare&datasetId=dataset-1&baselineEvalRunId=eval-run-1&candidateEvalRunId=eval-run-2';
+    let resolveEvalRuns: ((value: {
+      ok: boolean;
+      status: number;
+      error: null;
+      data: { evalRuns: ReturnType<typeof evalRun>[] };
+    }) => void) | null = null;
+    api.fetchDatasetEvalRunsResponse.mockReturnValue(new Promise((resolve) => {
+      resolveEvalRuns = resolve;
+    }));
+    api.fetchEvalExampleResultsResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: { results: [] }
+    });
+
+    await act(async () => {
+      root.render(<EvalConsole currentUser={{ id: 'user-1', email: 'user@example.com' }} />);
+    });
+    await flush();
+
+    expect(navigation.replace).not.toHaveBeenCalledWith('/observability/evals?mode=compare&datasetId=dataset-1', { scroll: false });
+
+    await act(async () => {
+      resolveEvalRuns?.({
+        ok: true,
+        status: 200,
+        error: null,
+        data: {
+          evalRuns: [
+            evalRun({ id: 'eval-run-1' }),
+            evalRun({ id: 'eval-run-2' })
+          ]
+        }
+      });
+    });
+    await flush();
+
+    expect(api.fetchEvalExampleResultsResponse).toHaveBeenCalledWith('eval-run-1', expect.any(AbortSignal));
+    expect(api.fetchEvalExampleResultsResponse).toHaveBeenCalledWith('eval-run-2', expect.any(AbortSignal));
+  });
+
+  it('does not collapse compare baseline and candidate to the same eval run', async () => {
+    routeState.searchParams = 'mode=compare&datasetId=dataset-1&baselineEvalRunId=eval-run-1&candidateEvalRunId=eval-run-1';
+    api.fetchDatasetEvalRunsResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        evalRuns: [
+          evalRun({ id: 'eval-run-1' }),
+          evalRun({ id: 'eval-run-2' })
+        ]
+      }
+    });
+    api.fetchEvalExampleResultsResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: { results: [] }
+    });
+
+    await act(async () => {
+      root.render(<EvalConsole currentUser={{ id: 'user-1', email: 'user@example.com' }} />);
+    });
+    await flush();
+    await flush();
+
+    expect(navigation.replace).toHaveBeenCalledWith(
+      '/observability/evals?mode=compare&datasetId=dataset-1&baselineEvalRunId=eval-run-1&candidateEvalRunId=eval-run-2',
+      { scroll: false }
+    );
+    expect(api.fetchEvalExampleResultsResponse).toHaveBeenCalledWith('eval-run-1', expect.any(AbortSignal));
+    expect(api.fetchEvalExampleResultsResponse).toHaveBeenCalledWith('eval-run-2', expect.any(AbortSignal));
+  });
+
+  it('returns from compare mode to review mode on the compared baseline run', async () => {
+    routeState.searchParams = 'mode=compare&datasetId=dataset-1&baselineEvalRunId=eval-run-2&candidateEvalRunId=eval-run-3';
+    api.fetchDatasetEvalRunsResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        evalRuns: [
+          evalRun({ id: 'eval-run-1' }),
+          evalRun({ id: 'eval-run-2' }),
+          evalRun({ id: 'eval-run-3' })
+        ]
+      }
+    });
+    api.fetchEvalExampleResultsResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: { results: [] }
+    });
+
+    await act(async () => {
+      root.render(<EvalConsole currentUser={{ id: 'user-1', email: 'user@example.com' }} />);
+    });
+    await flush();
+    await flush();
+
+    await act(async () => {
+      [...document.body.querySelectorAll('button')].find((button) => button.textContent === '审核运行')?.click();
+    });
+
+    expect(navigation.push).toHaveBeenCalledWith('/observability/evals?datasetId=dataset-1&evalRunId=eval-run-2', { scroll: false });
+  });
+
+  it('defaults compare run query state without adding a compare API call', async () => {
+    routeState.searchParams = 'mode=compare&datasetId=dataset-1';
+    api.fetchDatasetEvalRunsResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        evalRuns: [
+          evalRun({ id: 'eval-run-1' }),
+          evalRun({ id: 'eval-run-2' })
+        ]
+      }
+    });
+    api.fetchEvalExampleResultsResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: { results: [] }
+    });
+
+    await act(async () => {
+      root.render(<EvalConsole currentUser={{ id: 'user-1', email: 'user@example.com' }} />);
+    });
+    await flush();
+    await flush();
+
+    expect(navigation.replace).toHaveBeenCalledWith(
+      '/observability/evals?mode=compare&datasetId=dataset-1&baselineEvalRunId=eval-run-1&candidateEvalRunId=eval-run-2',
+      { scroll: false }
+    );
+    expect(api.fetchEvalExampleResultsResponse).toHaveBeenCalledWith('eval-run-1', expect.any(AbortSignal));
+    expect(api.fetchEvalExampleResultsResponse).toHaveBeenCalledWith('eval-run-2', expect.any(AbortSignal));
+  });
+
+  it('preserves compare mode when changing datasets from the shared dataset selector', async () => {
+    routeState.searchParams = 'mode=compare&datasetId=dataset-1&baselineEvalRunId=eval-run-1&candidateEvalRunId=eval-run-2';
+    api.fetchDatasetsResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        datasets: [
+          dataset(),
+          {
+            ...dataset(),
+            id: 'dataset-2',
+            name: 'Second Dataset',
+            updatedAt: '2026-01-02T00:00:00.000Z'
+          }
+        ]
+      }
+    });
+    api.fetchDatasetEvalRunsResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        evalRuns: [
+          evalRun({ id: 'eval-run-1' }),
+          evalRun({ id: 'eval-run-2' })
+        ]
+      }
+    });
+    api.fetchEvalExampleResultsResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: { results: [] }
+    });
+
+    await act(async () => {
+      root.render(<EvalConsole currentUser={{ id: 'user-1', email: 'user@example.com' }} />);
+    });
+    await flush();
+    await flush();
+
+    const selector = document.body.querySelector('select[aria-label="Eval dataset"]') as HTMLSelectElement;
+    await act(async () => {
+      selector.value = 'dataset-2';
+      selector.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    expect(navigation.push).toHaveBeenCalledWith('/observability/evals?mode=compare&datasetId=dataset-2', { scroll: false });
+
+    navigation.replace.mockClear();
+    routeState.searchParams = 'mode=compare&datasetId=dataset-2';
+    await act(async () => {
+      root.render(<EvalConsole currentUser={{ id: 'user-1', email: 'user@example.com' }} />);
+    });
+    await flush();
+
+    expect(navigation.replace).not.toHaveBeenCalledWith(expect.stringContaining('eval-run-1'), expect.anything());
+    expect(navigation.replace).not.toHaveBeenCalledWith(expect.stringContaining('eval-run-2'), expect.anything());
   });
 
   it('starts an eval from the selected dataset and runs the queued eval', async () => {

@@ -16,8 +16,8 @@
 - [x] Preserve human review as the only source for formal regression/improvement judgment.
 - [x] Use existing expected/actual text comparison only as an assistive signal for unresolved rows without formal pass/fail review.
 - [x] Surface run-level summary counts and row-level outcomes/reasons.
-- [ ] Add compare mode to `/observability/evals` without introducing a new product taxonomy such as experiments.
-- [ ] Keep compare v1 shareable through URL query state.
+- [x] Add compare mode to `/observability/evals` without introducing a new product taxonomy such as experiments.
+- [x] Keep compare v1 shareable through URL query state.
 - [ ] Update source-of-truth docs after the projection semantics are implemented and tested.
 
 ### 0.3 Non-goals
@@ -110,16 +110,16 @@
 ## 3. Frontend Boundary
 
 ### 3.1 Runtime / State
-- [ ] Add compare query state to `/observability/evals`.
-- [ ] Use `mode=compare` to enter compare mode.
-- [ ] Use `baselineEvalRunId` and `candidateEvalRunId` for compare run selection.
-- [ ] Use a row-level query key based on `datasetExampleId` for compare row selection.
-- [ ] Reuse existing dataset eval runs API.
-- [ ] Reuse existing eval run results API for both baseline and candidate.
-- [ ] Do not add a new compare API call.
-- [ ] Keep existing single-run review mode behavior intact.
-- [ ] Keep result filters local unless a compare filter becomes part of shareable state intentionally.
-- [ ] Use `compareDatasetExampleId` as the compare row selection query parameter.
+- [x] Add compare query state to `/observability/evals`.
+- [x] Use `mode=compare` to enter compare mode.
+- [x] Use `baselineEvalRunId` and `candidateEvalRunId` for compare run selection.
+- [x] Use a row-level query key based on `datasetExampleId` for compare row selection.
+- [x] Reuse existing dataset eval runs API.
+- [x] Reuse existing eval run results API for both baseline and candidate.
+- [x] Do not add a new compare API call.
+- [x] Keep existing single-run review mode behavior intact.
+- [x] Keep result filters local unless a compare filter becomes part of shareable state intentionally.
+- [x] Use `compareDatasetExampleId` as the compare row selection query parameter.
 
 ### 3.2 UI Structure
 - [ ] Add a small mode toggle inside `/observability/evals`: review run vs compare runs.
@@ -169,21 +169,21 @@
 - [x] usage/duration deltas are null-safe.
 
 ### 4.2 Runtime / UI Tests
-- [ ] compare mode fetches baseline and candidate result sets through existing result APIs.
-- [ ] compare mode does not call a new compare route.
-- [ ] compare query state is URL-backed.
-- [ ] selecting a compare row uses `compareDatasetExampleId`.
+- [x] compare mode fetches baseline and candidate result sets through existing result APIs.
+- [x] compare mode does not call a new compare route.
+- [x] compare query state is URL-backed.
+- [x] selecting a compare row uses `compareDatasetExampleId`.
 - [ ] summary renders regression/improvement/missing/not comparable counts.
 - [ ] row detail renders baseline and candidate sides.
-- [ ] switching back to review mode preserves existing single-run behavior.
-- [ ] review save behavior remains unchanged in review mode.
-- [ ] mutation errors still surface through toast, not inline page errors.
+- [x] switching back to review mode preserves existing single-run behavior.
+- [x] review save behavior remains unchanged in review mode.
+- [x] mutation errors still surface through toast, not inline page errors.
 
 ### 4.3 Verification Commands
 - [x] Run focused durable-chat-client compare projection tests.
-- [ ] Run focused eval console component tests.
+- [x] Run focused eval console component tests.
 - [x] Run `pnpm --filter @agent-infra/durable-chat-client typecheck`.
-- [ ] Run `pnpm --filter playground-next-web typecheck`.
+- [x] Run `pnpm --filter playground-next-web typecheck`.
 - [x] Run `git diff --check` for touched files.
 - [ ] Run browser smoke for `/observability/evals` compare mode.
 
@@ -208,16 +208,16 @@
 - [x] Run `codex review` for this loop.
 
 ### Loop 2A: Compare Query And Fetching State
-- [ ] Extend eval console runtime to support `mode=compare`.
-- [ ] Add URL-backed `baselineEvalRunId`, `candidateEvalRunId`, and `compareDatasetExampleId`.
-- [ ] Reuse existing eval run/results fetchers for both sides.
-- [ ] Keep this loop focused on query state and fetching, with minimal placeholder UI only.
-- [ ] Keep single-run review mode unchanged.
-- [ ] Add runtime/component tests proving existing routes are reused.
-- [ ] Run focused eval console tests.
-- [ ] Run playground-next-web typecheck.
-- [ ] Run `git diff --check` for touched Next files.
-- [ ] Run `codex review` for this loop.
+- [x] Extend eval console runtime to support `mode=compare`.
+- [x] Add URL-backed `baselineEvalRunId`, `candidateEvalRunId`, and `compareDatasetExampleId`.
+- [x] Reuse existing eval run/results fetchers for both sides.
+- [x] Keep this loop focused on query state and fetching, with minimal placeholder UI only.
+- [x] Keep single-run review mode unchanged.
+- [x] Add runtime/component tests proving existing routes are reused.
+- [x] Run focused eval console tests.
+- [x] Run playground-next-web typecheck.
+- [x] Run `git diff --check` for touched Next files.
+- [x] Run `codex review` for this loop.
 
 ### Loop 2B: Derived Compare State
 - [ ] Compute `projectEvalRunCompareV1` from fetched baseline/candidate DTOs.

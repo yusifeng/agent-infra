@@ -23,27 +23,67 @@ import {
 
 import { normalizeObservabilityQueryValue, resolveObservabilitySelection } from '../service/selection';
 
+export type EvalConsoleMode = 'review' | 'compare';
+
 function buildEvalQuery(input: {
+  mode?: EvalConsoleMode;
   datasetId: string | null | undefined;
   evalRunId: string | null | undefined;
   resultId: string | null | undefined;
+  baselineEvalRunId?: string | null | undefined;
+  candidateEvalRunId?: string | null | undefined;
+  compareDatasetExampleId?: string | null | undefined;
 }) {
   const params = new URLSearchParams();
+  const mode = input.mode === 'compare' ? 'compare' : 'review';
   const datasetId = normalizeObservabilityQueryValue(input.datasetId);
   const evalRunId = normalizeObservabilityQueryValue(input.evalRunId);
   const resultId = normalizeObservabilityQueryValue(input.resultId);
+  const baselineEvalRunId = normalizeObservabilityQueryValue(input.baselineEvalRunId);
+  const candidateEvalRunId = normalizeObservabilityQueryValue(input.candidateEvalRunId);
+  const compareDatasetExampleId = normalizeObservabilityQueryValue(input.compareDatasetExampleId);
+  if (mode === 'compare') {
+    params.set('mode', mode);
+  }
   if (datasetId) {
     params.set('datasetId', datasetId);
   }
-  if (evalRunId) {
+  if (mode === 'compare') {
+    if (baselineEvalRunId) {
+      params.set('baselineEvalRunId', baselineEvalRunId);
+    }
+    if (candidateEvalRunId) {
+      params.set('candidateEvalRunId', candidateEvalRunId);
+    }
+    if (compareDatasetExampleId) {
+      params.set('compareDatasetExampleId', compareDatasetExampleId);
+    }
+  } else if (evalRunId) {
     params.set('evalRunId', evalRunId);
-  }
-  if (resultId) {
-    params.set('resultId', resultId);
+    if (resultId) {
+      params.set('resultId', resultId);
+    }
   }
 
   const query = params.toString();
   return query ? `?${query}` : '';
+}
+
+function normalizeEvalConsoleMode(value: string | null | undefined): EvalConsoleMode {
+  return value === 'compare' ? 'compare' : 'review';
+}
+
+function resolveCompareCandidateEvalRunId(evalRuns: EvalRunDto[], baselineEvalRunId: string | null, requestedCandidateEvalRunId: string | null) {
+  const normalizedRequestedId = normalizeObservabilityQueryValue(requestedCandidateEvalRunId);
+  if (
+    normalizedRequestedId &&
+    normalizedRequestedId !== baselineEvalRunId &&
+    evalRuns.some((evalRun) => evalRun.id === normalizedRequestedId)
+  ) {
+    return normalizedRequestedId;
+  }
+
+  return evalRuns.find((evalRun) => evalRun.id !== baselineEvalRunId)?.id ?? null;
 }
 
 export type EvalResultReviewDraft = {
@@ -71,6 +111,13 @@ export function useEvalConsole() {
   const [resultsLoading, setResultsLoading] = useState(false);
   const [resultsError, setResultsError] = useState<string | null>(null);
 
+  const [baselineCompareResults, setBaselineCompareResults] = useState<EvalExampleResultDto[]>([]);
+  const [baselineCompareResultsLoading, setBaselineCompareResultsLoading] = useState(false);
+  const [baselineCompareResultsError, setBaselineCompareResultsError] = useState<string | null>(null);
+  const [candidateCompareResults, setCandidateCompareResults] = useState<EvalExampleResultDto[]>([]);
+  const [candidateCompareResultsLoading, setCandidateCompareResultsLoading] = useState(false);
+  const [candidateCompareResultsError, setCandidateCompareResultsError] = useState<string | null>(null);
+
   const [sourceExample, setSourceExample] = useState<DatasetExampleDto | null>(null);
   const [sourceExampleLoading, setSourceExampleLoading] = useState(false);
   const [sourceExampleError, setSourceExampleError] = useState<string | null>(null);
@@ -80,9 +127,16 @@ export function useEvalConsole() {
   const [savingReview, setSavingReview] = useState(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
 
+  const mode = normalizeEvalConsoleMode(searchParams.get('mode'));
+  const isCompareMode = mode === 'compare';
   const requestedDatasetId = normalizeObservabilityQueryValue(searchParams.get('datasetId'));
   const requestedEvalRunId = normalizeObservabilityQueryValue(searchParams.get('evalRunId'));
   const requestedResultId = normalizeObservabilityQueryValue(searchParams.get('resultId'));
+  const requestedBaselineEvalRunId = normalizeObservabilityQueryValue(searchParams.get('baselineEvalRunId'));
+  const requestedCandidateEvalRunId = normalizeObservabilityQueryValue(searchParams.get('candidateEvalRunId'));
+  const selectedCompareDatasetExampleId = isCompareMode
+    ? normalizeObservabilityQueryValue(searchParams.get('compareDatasetExampleId'))
+    : null;
 
   const datasetSelection = useMemo(
     () => resolveObservabilitySelection(datasets, requestedDatasetId),
@@ -91,10 +145,22 @@ export function useEvalConsole() {
   const selectedDatasetId = datasetSelection.selectedId;
 
   const evalRunSelection = useMemo(
-    () => resolveObservabilitySelection(evalRuns, selectedDatasetId ? requestedEvalRunId : null),
-    [evalRuns, requestedEvalRunId, selectedDatasetId]
+    () => resolveObservabilitySelection(evalRuns, selectedDatasetId && !isCompareMode ? requestedEvalRunId : null),
+    [evalRuns, isCompareMode, requestedEvalRunId, selectedDatasetId]
   );
   const selectedEvalRunId = evalRunSelection.selectedId;
+
+  const baselineEvalRunSelection = useMemo(
+    () => resolveObservabilitySelection(evalRuns, selectedDatasetId && isCompareMode ? requestedBaselineEvalRunId : null),
+    [evalRuns, isCompareMode, requestedBaselineEvalRunId, selectedDatasetId]
+  );
+  const selectedBaselineEvalRunId = baselineEvalRunSelection.selectedId;
+  const selectedCandidateEvalRunId = useMemo(
+    () => selectedDatasetId && isCompareMode
+      ? resolveCompareCandidateEvalRunId(evalRuns, selectedBaselineEvalRunId, requestedCandidateEvalRunId)
+      : null,
+    [evalRuns, isCompareMode, requestedCandidateEvalRunId, selectedBaselineEvalRunId, selectedDatasetId]
+  );
 
   const resultSelection = useMemo(
     () => resolveObservabilitySelection(results, selectedEvalRunId ? requestedResultId : null),
@@ -104,6 +170,8 @@ export function useEvalConsole() {
 
   const selectedDataset = datasets.find((dataset) => dataset.id === selectedDatasetId) ?? null;
   const selectedEvalRun = evalRuns.find((evalRun) => evalRun.id === selectedEvalRunId) ?? null;
+  const selectedBaselineEvalRun = evalRuns.find((evalRun) => evalRun.id === selectedBaselineEvalRunId) ?? null;
+  const selectedCandidateEvalRun = evalRuns.find((evalRun) => evalRun.id === selectedCandidateEvalRunId) ?? null;
   const selectedResult = results.find((result) => result.id === selectedResultId) ?? null;
 
   useEffect(() => {
@@ -142,6 +210,10 @@ export function useEvalConsole() {
     setEvalRunsError(null);
     setResults([]);
     setResultsError(null);
+    setBaselineCompareResults([]);
+    setBaselineCompareResultsError(null);
+    setCandidateCompareResults([]);
+    setCandidateCompareResultsError(null);
     setSourceExample(null);
     setSourceExampleError(null);
 
@@ -177,7 +249,32 @@ export function useEvalConsole() {
   }, [refreshVersion, selectedDatasetId]);
 
   useEffect(() => {
-    const nextQuery = buildEvalQuery({ datasetId: selectedDatasetId, evalRunId: selectedEvalRunId, resultId: selectedResultId });
+    const hasEvalRunsForSelectedDataset = evalRuns.some((evalRun) => evalRun.datasetId === selectedDatasetId);
+    const baselineBelongsToSelectedDataset = selectedBaselineEvalRun?.datasetId === selectedDatasetId;
+    const candidateBelongsToSelectedDataset = selectedCandidateEvalRun?.datasetId === selectedDatasetId;
+    const nextBaselineEvalRunId = isCompareMode
+      ? baselineBelongsToSelectedDataset
+        ? selectedBaselineEvalRunId
+        : hasEvalRunsForSelectedDataset
+          ? null
+          : requestedBaselineEvalRunId
+      : null;
+    const nextCandidateEvalRunId = isCompareMode
+      ? candidateBelongsToSelectedDataset
+        ? selectedCandidateEvalRunId
+        : hasEvalRunsForSelectedDataset
+          ? null
+          : requestedCandidateEvalRunId
+      : null;
+    const nextQuery = buildEvalQuery({
+      mode,
+      datasetId: selectedDatasetId,
+      evalRunId: selectedEvalRunId,
+      resultId: selectedResultId,
+      baselineEvalRunId: nextBaselineEvalRunId,
+      candidateEvalRunId: nextCandidateEvalRunId,
+      compareDatasetExampleId: selectedCompareDatasetExampleId
+    });
     const currentQuery = searchParams.toString();
     const nextPath = `${pathname}${nextQuery}`;
     const currentPath = `${pathname}${currentQuery ? `?${currentQuery}` : ''}`;
@@ -185,7 +282,24 @@ export function useEvalConsole() {
     if (selectedDatasetId && nextPath !== currentPath) {
       router.replace(nextPath, { scroll: false });
     }
-  }, [pathname, router, searchParams, selectedDatasetId, selectedEvalRunId, selectedResultId]);
+  }, [
+    mode,
+    isCompareMode,
+    pathname,
+    router,
+    searchParams,
+    requestedBaselineEvalRunId,
+    requestedCandidateEvalRunId,
+    evalRuns,
+    selectedBaselineEvalRunId,
+    selectedBaselineEvalRun?.datasetId,
+    selectedCandidateEvalRunId,
+    selectedCandidateEvalRun?.datasetId,
+    selectedCompareDatasetExampleId,
+    selectedDatasetId,
+    selectedEvalRunId,
+    selectedResultId
+  ]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -194,7 +308,7 @@ export function useEvalConsole() {
     setSourceExample(null);
     setSourceExampleError(null);
 
-    if (!selectedEvalRunId) {
+    if (isCompareMode || !selectedEvalRunId || selectedEvalRun?.datasetId !== selectedDatasetId) {
       setResultsLoading(false);
       return () => controller.abort();
     }
@@ -223,14 +337,86 @@ export function useEvalConsole() {
       });
 
     return () => controller.abort();
-  }, [refreshVersion, selectedEvalRunId]);
+  }, [isCompareMode, refreshVersion, selectedDatasetId, selectedEvalRun?.datasetId, selectedEvalRunId]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setBaselineCompareResults([]);
+    setBaselineCompareResultsError(null);
+
+    if (!isCompareMode || !selectedBaselineEvalRunId || selectedBaselineEvalRun?.datasetId !== selectedDatasetId) {
+      setBaselineCompareResultsLoading(false);
+      return () => controller.abort();
+    }
+
+    setBaselineCompareResultsLoading(true);
+    fetchEvalExampleResultsResponse(selectedBaselineEvalRunId, controller.signal)
+      .then((result) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+        if (!result.ok) {
+          throw new Error(result.error ?? `Failed to load baseline eval results (${result.status})`);
+        }
+        setBaselineCompareResults(result.data.results);
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) {
+          setBaselineCompareResults([]);
+          setBaselineCompareResultsError(error instanceof Error ? error.message : 'Failed to load baseline eval results');
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setBaselineCompareResultsLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [isCompareMode, refreshVersion, selectedBaselineEvalRun?.datasetId, selectedBaselineEvalRunId, selectedDatasetId]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setCandidateCompareResults([]);
+    setCandidateCompareResultsError(null);
+
+    if (!isCompareMode || !selectedCandidateEvalRunId || selectedCandidateEvalRun?.datasetId !== selectedDatasetId) {
+      setCandidateCompareResultsLoading(false);
+      return () => controller.abort();
+    }
+
+    setCandidateCompareResultsLoading(true);
+    fetchEvalExampleResultsResponse(selectedCandidateEvalRunId, controller.signal)
+      .then((result) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+        if (!result.ok) {
+          throw new Error(result.error ?? `Failed to load candidate eval results (${result.status})`);
+        }
+        setCandidateCompareResults(result.data.results);
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) {
+          setCandidateCompareResults([]);
+          setCandidateCompareResultsError(error instanceof Error ? error.message : 'Failed to load candidate eval results');
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setCandidateCompareResultsLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [isCompareMode, refreshVersion, selectedCandidateEvalRun?.datasetId, selectedCandidateEvalRunId, selectedDatasetId]);
 
   useEffect(() => {
     const controller = new AbortController();
     setSourceExample(null);
     setSourceExampleError(null);
 
-    if (!selectedEvalRun?.datasetId || !selectedResult?.datasetExampleId) {
+    if (isCompareMode || !selectedEvalRun?.datasetId || !selectedResult?.datasetExampleId) {
       setSourceExampleLoading(false);
       return () => controller.abort();
     }
@@ -259,13 +445,45 @@ export function useEvalConsole() {
       });
 
     return () => controller.abort();
-  }, [selectedEvalRun?.datasetId, selectedResult?.datasetExampleId]);
+  }, [isCompareMode, selectedEvalRun?.datasetId, selectedResult?.datasetExampleId]);
+
+  const selectMode = useCallback(
+    (nextMode: EvalConsoleMode) => {
+      const nextBaselineEvalRunId = selectedBaselineEvalRunId ?? selectedEvalRunId ?? evalRuns[0]?.id ?? null;
+      const nextCandidateEvalRunId = selectedCandidateEvalRunId
+        ?? evalRuns.find((evalRun) => evalRun.id !== nextBaselineEvalRunId)?.id
+        ?? null;
+      const nextReviewEvalRunId = nextMode === 'review'
+        ? selectedBaselineEvalRunId ?? selectedCandidateEvalRunId ?? selectedEvalRunId
+        : selectedEvalRunId;
+      router.push(`${pathname}${buildEvalQuery({
+        mode: nextMode,
+        datasetId: selectedDatasetId,
+        evalRunId: nextReviewEvalRunId,
+        resultId: selectedResultId,
+        baselineEvalRunId: nextBaselineEvalRunId,
+        candidateEvalRunId: nextCandidateEvalRunId,
+        compareDatasetExampleId: selectedCompareDatasetExampleId
+      })}`, { scroll: false });
+    },
+    [
+      evalRuns,
+      pathname,
+      router,
+      selectedBaselineEvalRunId,
+      selectedCandidateEvalRunId,
+      selectedCompareDatasetExampleId,
+      selectedDatasetId,
+      selectedEvalRunId,
+      selectedResultId
+    ]
+  );
 
   const selectDataset = useCallback(
     (datasetId: string) => {
-      router.push(`${pathname}${buildEvalQuery({ datasetId, evalRunId: null, resultId: null })}`, { scroll: false });
+      router.push(`${pathname}${buildEvalQuery({ mode, datasetId, evalRunId: null, resultId: null })}`, { scroll: false });
     },
-    [pathname, router]
+    [mode, pathname, router]
   );
 
   const selectEvalRun = useCallback(
@@ -280,6 +498,36 @@ export function useEvalConsole() {
       router.push(`${pathname}${buildEvalQuery({ datasetId: selectedDatasetId, evalRunId: selectedEvalRunId, resultId })}`, { scroll: false });
     },
     [pathname, router, selectedDatasetId, selectedEvalRunId]
+  );
+
+  const selectCompareEvalRun = useCallback(
+    (side: 'baseline' | 'candidate', evalRunId: string) => {
+      router.push(`${pathname}${buildEvalQuery({
+        mode: 'compare',
+        datasetId: selectedDatasetId,
+        evalRunId: null,
+        resultId: null,
+        baselineEvalRunId: side === 'baseline' ? evalRunId : selectedBaselineEvalRunId,
+        candidateEvalRunId: side === 'candidate' ? evalRunId : selectedCandidateEvalRunId,
+        compareDatasetExampleId: selectedCompareDatasetExampleId
+      })}`, { scroll: false });
+    },
+    [pathname, router, selectedBaselineEvalRunId, selectedCandidateEvalRunId, selectedCompareDatasetExampleId, selectedDatasetId]
+  );
+
+  const selectCompareDatasetExample = useCallback(
+    (datasetExampleId: string) => {
+      router.push(`${pathname}${buildEvalQuery({
+        mode: 'compare',
+        datasetId: selectedDatasetId,
+        evalRunId: null,
+        resultId: null,
+        baselineEvalRunId: selectedBaselineEvalRunId,
+        candidateEvalRunId: selectedCandidateEvalRunId,
+        compareDatasetExampleId: datasetExampleId
+      })}`, { scroll: false });
+    },
+    [pathname, router, selectedBaselineEvalRunId, selectedCandidateEvalRunId, selectedDatasetId]
   );
 
   const createEvalRun = useCallback(async () => {
@@ -358,6 +606,8 @@ export function useEvalConsole() {
   );
 
   return {
+    mode,
+    isCompareMode,
     datasets,
     datasetsLoading,
     datasetsError,
@@ -368,6 +618,17 @@ export function useEvalConsole() {
     evalRunsError,
     selectedEvalRun,
     selectedEvalRunId,
+    selectedBaselineEvalRun,
+    selectedBaselineEvalRunId,
+    selectedCandidateEvalRun,
+    selectedCandidateEvalRunId,
+    selectedCompareDatasetExampleId,
+    baselineCompareResults,
+    baselineCompareResultsLoading,
+    baselineCompareResultsError,
+    candidateCompareResults,
+    candidateCompareResultsLoading,
+    candidateCompareResultsError,
     results,
     resultsLoading,
     resultsError,
@@ -380,9 +641,12 @@ export function useEvalConsole() {
     runningEvalRun,
     savingReview,
     mutationError,
+    selectMode,
     selectDataset,
     selectEvalRun,
     selectResult,
+    selectCompareEvalRun,
+    selectCompareDatasetExample,
     createEvalRun,
     runSelectedEvalRun,
     saveResultReview,
