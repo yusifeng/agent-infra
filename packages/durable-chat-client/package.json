@@ -11,7 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@agent-infra/contracts": "workspace:*"
+    "@agent-infra/contracts": "workspace:*",
+    "@agent-infra/core": "workspace:*"
   },
   "devDependencies": {
     "vitest": "^3.2.4"

@@ -463,15 +463,16 @@ such as:
 
 ## Eval Run Compare
 
-`Eval Run Compare v1` compares two eval runs from the same dataset. It is a
-read-time projection, not a durable model. It does not add database tables,
-migrations, persisted snapshots, or a compare HTTP route in v1.
+`Eval Run Compare v1` compares two eval runs from the same dataset. It started
+as a read-time projection, not a durable model. The projection itself still does
+not add persisted snapshots or a full compare query API in v1.
 
-The projection lives in `packages/durable-chat-client` so validation UIs can
-consume shared browser-safe semantics without making `apps/playground-next-web`
-the source of truth. `/observability/evals` may expose compare mode as a
-management workflow, but it owns only labels, layout, local filters, sorting
-defaults, and URL query state.
+The projection helper lives in `packages/core` as shared server-safe and
+browser-safe semantics. `packages/durable-chat-client` may re-export the helper
+for validation UIs, but it is not the only source of compare truth. This keeps
+future app/server stale detection from depending on UI-local or Next-only code.
+`/observability/evals` may expose compare mode as a management workflow, but it
+owns only labels, layout, local filters, sorting defaults, and URL query state.
 
 Compare v1 reuses existing DTOs:
 
@@ -567,6 +568,91 @@ query APIs should be considered only after concrete pressure appears, such as:
 - multiple compare strategies or versions
 - CI/release workflows that need immutable comparison evidence
 - cross-run matrices or experiment-level aggregation
+
+## Compare Triage
+
+`Compare Triage v1` turns an eval-run compare row into a durable human workflow
+decision. It is independent from `EvalExampleResult.review`.
+
+The stable triage key is:
+
+```text
+(baselineEvalRunId, candidateEvalRunId, datasetExampleId)
+```
+
+The baseline/candidate pair is ordered. `(A baseline, B candidate)` and
+`(B baseline, A candidate)` are different compare contexts because regression
+and improvement semantics reverse when the sides are swapped. Implementations
+must not canonicalize the pair.
+
+Same-run compare triage is invalid. App/API boundaries must reject
+`baselineEvalRunId === candidateEvalRunId`.
+
+Absence of a triage row means `untriaged`. `untriaged` is not a stored status.
+Clearing triage deletes the durable triage row and returns the compare row to
+computed `untriaged`.
+
+Triage statuses are:
+
+- `accepted`: candidate behavior is acceptable for this compare row.
+- `regression`: candidate behavior is unacceptable compared with baseline and
+  needs action.
+- `expected_changed`: expected output may be stale and should be handled through
+  dataset expected-output workflow.
+- `needs_review`: reviewer cannot decide from current context.
+- `ignored`: row is intentionally excluded from the current compare conclusion.
+
+Compare triage writes must not:
+
+- write or reinterpret `EvalExampleResult.metadataJson.review`
+- update eval run result review summary counts
+- modify expected output automatically
+- persist full expected/actual text snapshots
+- persist the full compare projection row payload
+
+`EvalExampleResult.review` answers whether one result is an acceptable answer for
+its expected output. Compare triage answers how to handle one baseline/candidate
+row for a dataset example. A candidate result can be compared against multiple
+baselines later, so compare triage cannot be stored as single-result review
+metadata.
+
+The v1 durable triage record stores the decision and a minimal observed
+fingerprint for stale detection:
+
+- `observedProjectionKind = 'eval_run_compare'`
+- `observedProjectionSchemaVersion = 1`
+- `observedOutcome`
+- `observedReason`
+- `observedBaselineResultId`
+- `observedCandidateResultId`
+- `observedBaselineResultStatus`
+- `observedCandidateResultStatus`
+- `observedBaselineReviewStatus`
+- `observedCandidateReviewStatus`
+- `observedBaselineSignal`
+- `observedCandidateSignal`
+- `observedBaselineComparisonOutcome`
+- `observedCandidateComparisonOutcome`
+- `observedBaselineComparisonReason`
+- `observedCandidateComparisonReason`
+- `observedResultComparisonStrategy`
+
+The v1 run-compare strategy is implicit in `eval_run_compare` schema version 1.
+If implementation pressure requires an explicit strategy field, it may be stored
+as a non-key observed fingerprint field. It must not be added to the v1 unique
+key.
+
+Stale detection is a read-time comparison between the stored observed
+fingerprint and the current compare row. If outcome, reason, result ids, result
+statuses, review statuses, side signals, or result-level comparison
+outcome/reason/strategy diverge, the triage row should be surfaced as stale.
+Stale triage is not automatically deleted or rewritten.
+
+The first triage API should be narrow: list persisted triage rows for a
+baseline/candidate pair, update one row, and delete one row. The UI can overlay
+those rows onto the current read-time compare projection. A merged server-side
+compare read model should wait until projection ownership, pagination, reporting,
+or CI evidence needs justify it.
 
 ## Public V1 Surface
 

@@ -388,6 +388,9 @@ importers:
       '@agent-infra/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@agent-infra/core':
+        specifier: workspace:*
+        version: link:../core
     devDependencies:
       vitest:
         specifier: ^3.2.4
