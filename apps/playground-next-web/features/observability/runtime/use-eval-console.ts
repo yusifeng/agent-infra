@@ -7,6 +7,7 @@ import type {
   EvalExampleResultReviewStatusDto,
   EvalRunDto
 } from '@agent-infra/contracts';
+import { projectEvalRunCompareV1 } from '@agent-infra/durable-chat-client';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -112,9 +113,11 @@ export function useEvalConsole() {
   const [resultsError, setResultsError] = useState<string | null>(null);
 
   const [baselineCompareResults, setBaselineCompareResults] = useState<EvalExampleResultDto[]>([]);
+  const [baselineCompareResultsLoaded, setBaselineCompareResultsLoaded] = useState(false);
   const [baselineCompareResultsLoading, setBaselineCompareResultsLoading] = useState(false);
   const [baselineCompareResultsError, setBaselineCompareResultsError] = useState<string | null>(null);
   const [candidateCompareResults, setCandidateCompareResults] = useState<EvalExampleResultDto[]>([]);
+  const [candidateCompareResultsLoaded, setCandidateCompareResultsLoaded] = useState(false);
   const [candidateCompareResultsLoading, setCandidateCompareResultsLoading] = useState(false);
   const [candidateCompareResultsError, setCandidateCompareResultsError] = useState<string | null>(null);
 
@@ -134,7 +137,7 @@ export function useEvalConsole() {
   const requestedResultId = normalizeObservabilityQueryValue(searchParams.get('resultId'));
   const requestedBaselineEvalRunId = normalizeObservabilityQueryValue(searchParams.get('baselineEvalRunId'));
   const requestedCandidateEvalRunId = normalizeObservabilityQueryValue(searchParams.get('candidateEvalRunId'));
-  const selectedCompareDatasetExampleId = isCompareMode
+  const requestedCompareDatasetExampleId = isCompareMode
     ? normalizeObservabilityQueryValue(searchParams.get('compareDatasetExampleId'))
     : null;
 
@@ -174,6 +177,53 @@ export function useEvalConsole() {
   const selectedCandidateEvalRun = evalRuns.find((evalRun) => evalRun.id === selectedCandidateEvalRunId) ?? null;
   const selectedResult = results.find((result) => result.id === selectedResultId) ?? null;
 
+  const compareProjection = useMemo(() => {
+    if (
+      !isCompareMode ||
+      !selectedBaselineEvalRun ||
+      !selectedCandidateEvalRun ||
+      selectedBaselineEvalRun.datasetId !== selectedDatasetId ||
+      selectedCandidateEvalRun.datasetId !== selectedDatasetId ||
+      !baselineCompareResultsLoaded ||
+      !candidateCompareResultsLoaded ||
+      baselineCompareResultsError ||
+      candidateCompareResultsError
+    ) {
+      return null;
+    }
+
+    return projectEvalRunCompareV1({
+      baselineRun: selectedBaselineEvalRun,
+      candidateRun: selectedCandidateEvalRun,
+      baselineResults: baselineCompareResults,
+      candidateResults: candidateCompareResults
+    });
+  }, [
+    baselineCompareResults,
+    baselineCompareResultsError,
+    baselineCompareResultsLoaded,
+    candidateCompareResults,
+    candidateCompareResultsError,
+    candidateCompareResultsLoaded,
+    isCompareMode,
+    selectedBaselineEvalRun,
+    selectedCandidateEvalRun,
+    selectedDatasetId
+  ]);
+
+  const selectedCompareRow = useMemo(() => {
+    if (!compareProjection) {
+      return null;
+    }
+
+    if (requestedCompareDatasetExampleId) {
+      return compareProjection.rows.find((row) => row.datasetExampleId === requestedCompareDatasetExampleId) ?? compareProjection.rows[0] ?? null;
+    }
+
+    return compareProjection.rows[0] ?? null;
+  }, [compareProjection, requestedCompareDatasetExampleId]);
+  const selectedCompareDatasetExampleId = selectedCompareRow?.datasetExampleId ?? requestedCompareDatasetExampleId;
+
   useEffect(() => {
     const controller = new AbortController();
     setDatasetsLoading(true);
@@ -211,8 +261,10 @@ export function useEvalConsole() {
     setResults([]);
     setResultsError(null);
     setBaselineCompareResults([]);
+    setBaselineCompareResultsLoaded(false);
     setBaselineCompareResultsError(null);
     setCandidateCompareResults([]);
+    setCandidateCompareResultsLoaded(false);
     setCandidateCompareResultsError(null);
     setSourceExample(null);
     setSourceExampleError(null);
@@ -342,6 +394,7 @@ export function useEvalConsole() {
   useEffect(() => {
     const controller = new AbortController();
     setBaselineCompareResults([]);
+    setBaselineCompareResultsLoaded(false);
     setBaselineCompareResultsError(null);
 
     if (!isCompareMode || !selectedBaselineEvalRunId || selectedBaselineEvalRun?.datasetId !== selectedDatasetId) {
@@ -359,10 +412,12 @@ export function useEvalConsole() {
           throw new Error(result.error ?? `Failed to load baseline eval results (${result.status})`);
         }
         setBaselineCompareResults(result.data.results);
+        setBaselineCompareResultsLoaded(true);
       })
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
           setBaselineCompareResults([]);
+          setBaselineCompareResultsLoaded(false);
           setBaselineCompareResultsError(error instanceof Error ? error.message : 'Failed to load baseline eval results');
         }
       })
@@ -378,6 +433,7 @@ export function useEvalConsole() {
   useEffect(() => {
     const controller = new AbortController();
     setCandidateCompareResults([]);
+    setCandidateCompareResultsLoaded(false);
     setCandidateCompareResultsError(null);
 
     if (!isCompareMode || !selectedCandidateEvalRunId || selectedCandidateEvalRun?.datasetId !== selectedDatasetId) {
@@ -395,10 +451,12 @@ export function useEvalConsole() {
           throw new Error(result.error ?? `Failed to load candidate eval results (${result.status})`);
         }
         setCandidateCompareResults(result.data.results);
+        setCandidateCompareResultsLoaded(true);
       })
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
           setCandidateCompareResults([]);
+          setCandidateCompareResultsLoaded(false);
           setCandidateCompareResultsError(error instanceof Error ? error.message : 'Failed to load candidate eval results');
         }
       })
@@ -623,10 +681,14 @@ export function useEvalConsole() {
     selectedCandidateEvalRun,
     selectedCandidateEvalRunId,
     selectedCompareDatasetExampleId,
+    compareProjection,
+    selectedCompareRow,
     baselineCompareResults,
+    baselineCompareResultsLoaded,
     baselineCompareResultsLoading,
     baselineCompareResultsError,
     candidateCompareResults,
+    candidateCompareResultsLoaded,
     candidateCompareResultsLoading,
     candidateCompareResultsError,
     results,

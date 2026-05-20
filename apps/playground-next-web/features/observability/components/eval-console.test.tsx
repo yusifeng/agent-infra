@@ -371,6 +371,51 @@ describe('EvalConsole', () => {
     expect(api.fetchThreadRunsResponse).not.toHaveBeenCalled();
   });
 
+  it('projects compare state and selects a row by compareDatasetExampleId', async () => {
+    routeState.searchParams = 'mode=compare&datasetId=dataset-1&baselineEvalRunId=eval-run-1&candidateEvalRunId=eval-run-2&compareDatasetExampleId=example-1';
+    api.fetchDatasetEvalRunsResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        evalRuns: [
+          evalRun({ id: 'eval-run-1', status: 'completed' }),
+          evalRun({ id: 'eval-run-2', status: 'completed' })
+        ]
+      }
+    });
+    api.fetchEvalExampleResultsResponse.mockImplementation((evalRunId: string) => Promise.resolve({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        results: [
+          result({
+            id: `${evalRunId}-result-1`,
+            evalRunId,
+            datasetExampleId: 'example-1',
+            review: {
+              status: evalRunId === 'eval-run-1' ? 'pass' : 'fail',
+              reviewerNote: null,
+              reviewedByActorId: 'user-1',
+              reviewedAt: '2026-01-01T00:00:03.000Z'
+            }
+          })
+        ]
+      }
+    }));
+
+    await act(async () => {
+      root.render(<EvalConsole currentUser={{ id: 'user-1', email: 'user@example.com' }} />);
+    });
+    await flush();
+    await flush();
+
+    expect(document.body.textContent).toContain('对比行');
+    expect(document.body.textContent).toContain('退化');
+    expect(document.body.textContent).toContain('example-1');
+  });
+
   it('preserves shared compare run IDs while eval runs are still loading', async () => {
     routeState.searchParams = 'mode=compare&datasetId=dataset-1&baselineEvalRunId=eval-run-1&candidateEvalRunId=eval-run-2';
     let resolveEvalRuns: ((value: {

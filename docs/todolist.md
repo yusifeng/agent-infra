@@ -220,15 +220,15 @@
 - [x] Run `codex review` for this loop.
 
 ### Loop 2B: Derived Compare State
-- [ ] Compute `projectEvalRunCompareV1` from fetched baseline/candidate DTOs.
-- [ ] Expose selected compare row by `compareDatasetExampleId`.
-- [ ] Expose projection-level non-comparable errors to UI state without reimplementing classification.
-- [ ] Preserve review mode selection behavior when switching between review and compare modes.
-- [ ] Add runtime/component tests for derived compare state and mode switching.
-- [ ] Run focused eval console tests.
-- [ ] Run playground-next-web typecheck.
-- [ ] Run `git diff --check` for touched Next files.
-- [ ] Run `codex review` for this loop.
+- [x] Compute `projectEvalRunCompareV1` from fetched baseline/candidate DTOs.
+- [x] Expose selected compare row by `compareDatasetExampleId`.
+- [x] Expose projection-level non-comparable errors to UI state without reimplementing classification.
+- [x] Preserve review mode selection behavior when switching between review and compare modes.
+- [x] Add runtime/component tests for derived compare state and mode switching.
+- [x] Run focused eval console tests.
+- [x] Run playground-next-web typecheck.
+- [x] Run `git diff --check` for touched Next files.
+- [x] Run `codex review` for this loop.
 
 ### Loop 3: Compare UI
 - [ ] Add review/compare mode toggle in `/observability/evals`.

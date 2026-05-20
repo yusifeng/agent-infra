@@ -9,6 +9,7 @@ import type {
 } from '@agent-infra/contracts';
 import {
   projectEvalExampleResultComparisonV1,
+  type EvalRunCompareOutcomeV1,
   type EvalResultComparisonOutcomeV1,
   type EvalResultComparisonProjectionV1
 } from '@agent-infra/durable-chat-client';
@@ -81,6 +82,18 @@ const COMPARISON_OUTCOME_CLASSES: Record<EvalResultComparisonOutcomeV1, string> 
   not_comparable: 'border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] text-[var(--chat-muted)]'
 };
 
+const COMPARE_RUN_OUTCOME_LABELS: Record<EvalRunCompareOutcomeV1, string> = {
+  same_pass: '同为通过',
+  same_fail: '同为失败',
+  regression: '退化',
+  improvement: '改进',
+  same_unresolved: '同为未定',
+  changed_unresolved: '未定变化',
+  baseline_missing: '缺少基线',
+  candidate_missing: '缺少候选',
+  not_comparable: '不可对比'
+};
+
 const EVAL_COPY = {
   datasetContext: '数据集',
   selectDataset: '选择数据集',
@@ -135,6 +148,8 @@ const EVAL_COPY = {
   baselineRun: '基线运行',
   candidateRun: '候选运行',
   compareRow: '对比样本',
+  compareRows: '对比行',
+  compareOutcome: '对比结果',
   baselineResults: '基线结果',
   candidateResults: '候选结果',
   usage: '用量',
@@ -1017,7 +1032,7 @@ function ComparePlaceholder({ state }: { state: EvalConsoleState }) {
         </label>
       </div>
 
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
+      <div className="mt-4 grid gap-3 md:grid-cols-5">
         <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
           <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.baselineResults}</div>
           <div className="mt-1 text-xl font-semibold text-[var(--chat-text)]">{state.baselineCompareResults.length}</div>
@@ -1027,9 +1042,19 @@ function ComparePlaceholder({ state }: { state: EvalConsoleState }) {
           <div className="mt-1 text-xl font-semibold text-[var(--chat-text)]">{state.candidateCompareResults.length}</div>
         </div>
         <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
+          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.compareRows}</div>
+          <div className="mt-1 text-xl font-semibold text-[var(--chat-text)]">{state.compareProjection?.rows.length ?? '-'}</div>
+        </div>
+        <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
           <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.compareRow}</div>
           <div className="mt-1 truncate text-sm font-semibold text-[var(--chat-text)]" title={state.selectedCompareDatasetExampleId ?? undefined}>
             {state.selectedCompareDatasetExampleId ? formatShortId(state.selectedCompareDatasetExampleId, 18) : EVAL_COPY.unknown}
+          </div>
+        </div>
+        <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
+          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.compareOutcome}</div>
+          <div className="mt-1 truncate text-sm font-semibold text-[var(--chat-text)]">
+            {state.selectedCompareRow ? COMPARE_RUN_OUTCOME_LABELS[state.selectedCompareRow.outcome] : EVAL_COPY.unknown}
           </div>
         </div>
       </div>
@@ -1041,6 +1066,11 @@ function ComparePlaceholder({ state }: { state: EvalConsoleState }) {
         </div>
       ) : null}
       {error ? <div className="mt-4 rounded-lg bg-[var(--chat-error-bg)] px-3 py-2 text-sm text-[var(--chat-error-text)]">{error}</div> : null}
+      {state.compareProjection?.error ? (
+        <div className="mt-4 rounded-lg bg-[var(--chat-error-bg)] px-3 py-2 text-sm text-[var(--chat-error-text)]">
+          {COMPARE_RUN_OUTCOME_LABELS[state.compareProjection.error.outcome]} · {state.compareProjection.error.reason}
+        </div>
+      ) : null}
     </section>
   );
 }
