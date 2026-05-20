@@ -6,6 +6,7 @@ import type {
   Dataset,
   DatasetExample,
   EvalExampleResult,
+  EvalRunCompareTriage,
   EvalRun,
   Message,
   MessagePart,
@@ -25,6 +26,7 @@ import type {
   DatasetExpectedOutputNormalizationDto,
   EvalActualOutputSnapshotV1Dto,
   EvalExampleResultDto,
+  EvalRunCompareTriageDto,
   EvalRunDto,
   MessageDto,
   MessagePartDto,
@@ -49,7 +51,7 @@ import {
   parseEvalRunConfigV1,
   parseEvalRunSummaryV1
 } from '@agent-infra/app';
-import type { PublicChatShareResult, SharedThreadSnapshotPayload } from '@agent-infra/app';
+import type { EvalRunCompareTriageRead, PublicChatShareResult, SharedThreadSnapshotPayload } from '@agent-infra/app';
 
 export type RuntimeMetaDtoInput = {
   dbMode: string;
@@ -370,6 +372,44 @@ export function toEvalExampleResultDto(result: EvalExampleResult): EvalExampleRe
     finishedAt: serializeDate(result.finishedAt),
     createdAt: result.createdAt.toISOString(),
     updatedAt: result.updatedAt.toISOString()
+  };
+}
+
+export function toEvalRunCompareTriageDto(input: EvalRunCompareTriageRead | EvalRunCompareTriage): EvalRunCompareTriageDto {
+  const triage = 'triage' in input ? input.triage : input;
+  const stale = 'stale' in input ? input.stale : false;
+  return {
+    id: triage.id,
+    appId: triage.appId,
+    datasetId: triage.datasetId,
+    baselineEvalRunId: triage.baselineEvalRunId,
+    candidateEvalRunId: triage.candidateEvalRunId,
+    datasetExampleId: triage.datasetExampleId,
+    triageStatus: triage.triageStatus,
+    reviewerNote: triage.reviewerNote ?? null,
+    triagedByActorId: triage.triagedByActorId ?? null,
+    triagedAt: triage.triagedAt.toISOString(),
+    observedProjectionKind: triage.observedProjectionKind,
+    observedProjectionSchemaVersion: triage.observedProjectionSchemaVersion,
+    observedCompareStrategy: triage.observedCompareStrategy ?? null,
+    observedOutcome: triage.observedOutcome,
+    observedReason: triage.observedReason,
+    observedBaselineResultId: triage.observedBaselineResultId ?? null,
+    observedCandidateResultId: triage.observedCandidateResultId ?? null,
+    observedBaselineResultStatus: triage.observedBaselineResultStatus ?? null,
+    observedCandidateResultStatus: triage.observedCandidateResultStatus ?? null,
+    observedBaselineReviewStatus: triage.observedBaselineReviewStatus ?? null,
+    observedCandidateReviewStatus: triage.observedCandidateReviewStatus ?? null,
+    observedBaselineSignal: triage.observedBaselineSignal ?? null,
+    observedCandidateSignal: triage.observedCandidateSignal ?? null,
+    observedBaselineComparisonOutcome: triage.observedBaselineComparisonOutcome ?? null,
+    observedCandidateComparisonOutcome: triage.observedCandidateComparisonOutcome ?? null,
+    observedBaselineComparisonReason: triage.observedBaselineComparisonReason ?? null,
+    observedCandidateComparisonReason: triage.observedCandidateComparisonReason ?? null,
+    observedResultComparisonStrategy: triage.observedResultComparisonStrategy ?? null,
+    stale,
+    createdAt: triage.createdAt.toISOString(),
+    updatedAt: triage.updatedAt.toISOString()
   };
 }
 

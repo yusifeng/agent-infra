@@ -65,6 +65,45 @@ function createEvalResult(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function createCompareTriage(overrides: Record<string, unknown> = {}) {
+  return {
+    triage: {
+      id: 'triage-1',
+      appId: 'playground-runtime-pi',
+      datasetId: 'dataset-1',
+      baselineEvalRunId: 'baseline-run-1',
+      candidateEvalRunId: 'candidate-run-1',
+      datasetExampleId: 'example-1',
+      triageStatus: 'regression' as const,
+      reviewerNote: 'candidate regressed',
+      triagedByActorId: 'user-1',
+      triagedAt: now(),
+      observedProjectionKind: 'eval_run_compare' as const,
+      observedProjectionSchemaVersion: 1 as const,
+      observedCompareStrategy: null,
+      observedOutcome: 'changed_unresolved',
+      observedReason: 'unreviewed_text_changed',
+      observedBaselineResultId: 'baseline-result-1',
+      observedCandidateResultId: 'candidate-result-1',
+      observedBaselineResultStatus: 'completed',
+      observedCandidateResultStatus: 'completed',
+      observedBaselineReviewStatus: 'unreviewed',
+      observedCandidateReviewStatus: 'unreviewed',
+      observedBaselineSignal: 'unreviewed_text_match',
+      observedCandidateSignal: 'unreviewed_text_mismatch',
+      observedBaselineComparisonOutcome: 'match',
+      observedCandidateComparisonOutcome: 'mismatch',
+      observedBaselineComparisonReason: 'normalized_text_equal',
+      observedCandidateComparisonReason: 'normalized_text_different',
+      observedResultComparisonStrategy: 'normalized_text_v1',
+      createdAt: now(),
+      updatedAt: now(),
+      ...overrides
+    },
+    stale: false
+  };
+}
+
 function mockThreadAccess(overrides: { requirePlaygroundUser?: ReturnType<typeof vi.fn>; loadAccessibleRun?: ReturnType<typeof vi.fn> } = {}) {
   const requirePlaygroundUser = overrides.requirePlaygroundUser ?? vi.fn().mockResolvedValue({ user, response: null });
   const loadAccessibleRun = overrides.loadAccessibleRun ?? vi.fn().mockRejectedValue(new Error('source unavailable'));
@@ -100,14 +139,21 @@ function mockEvalAppServices() {
   const listResults = vi.fn().mockResolvedValue([result]);
   const run = vi.fn().mockResolvedValue(completedEvalRun);
   const updateResultReview = vi.fn().mockResolvedValue(reviewedResult);
+  const triage = createCompareTriage();
+  const listCompareTriage = vi.fn().mockResolvedValue([triage]);
+  const updateCompareTriage = vi.fn().mockResolvedValue(triage);
+  const deleteCompareTriage = vi.fn().mockResolvedValue(undefined);
   const services = {
     app: {
       evals: {
         create,
         get,
+        deleteCompareTriage,
         listByDataset,
+        listCompareTriage,
         listResults,
         run,
+        updateCompareTriage,
         updateResultReview
       }
     }
@@ -128,8 +174,11 @@ function mockEvalAppServices() {
     getPlaygroundAppServices,
     getPlaygroundRuntimeServices,
     listByDataset,
+    listCompareTriage,
     listResults,
     run,
+    updateCompareTriage,
+    deleteCompareTriage,
     updateResultReview
   };
 }
@@ -329,6 +378,98 @@ describe('playground eval routes', () => {
     });
   });
 
+  it('lists, updates, and deletes compare triage through app services', async () => {
+    mockThreadAccess();
+    const {
+      deleteCompareTriage,
+      getPlaygroundAppServices,
+      getPlaygroundRuntimeServices,
+      listCompareTriage,
+      updateCompareTriage
+    } = mockEvalAppServices();
+    const listRoute = await import('../app/api/eval-runs/[evalRunId]/compare/[candidateEvalRunId]/triage/route');
+    const itemRoute = await import('../app/api/eval-runs/[evalRunId]/compare/[candidateEvalRunId]/triage/[datasetExampleId]/route');
+
+    const listResponse = await listRoute.GET(new Request('http://localhost/api/eval-runs/baseline-run-1/compare/candidate-run-1/triage'), {
+      params: Promise.resolve({ evalRunId: 'baseline-run-1', candidateEvalRunId: 'candidate-run-1' })
+    });
+    expect(listResponse.status).toBe(200);
+    await expect(listResponse.json()).resolves.toMatchObject({
+      triageRows: [
+        {
+          id: 'triage-1',
+          triageStatus: 'regression',
+          stale: false
+        }
+      ]
+    });
+    expect(listCompareTriage).toHaveBeenCalledWith({
+      appId: 'playground-runtime-pi',
+      baselineEvalRunId: 'baseline-run-1',
+      candidateEvalRunId: 'candidate-run-1',
+      actorId: 'user-1'
+    });
+
+    const patchResponse = await itemRoute.PATCH(new Request(
+      'http://localhost/api/eval-runs/baseline-run-1/compare/candidate-run-1/triage/example-1',
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'regression', reviewerNote: ' needs fix ' })
+      }
+    ), {
+      params: Promise.resolve({ evalRunId: 'baseline-run-1', candidateEvalRunId: 'candidate-run-1', datasetExampleId: 'example-1' })
+    });
+    expect(patchResponse.status).toBe(200);
+    await expect(patchResponse.json()).resolves.toMatchObject({
+      triage: { id: 'triage-1', triageStatus: 'regression' }
+    });
+    expect(updateCompareTriage).toHaveBeenCalledWith({
+      appId: 'playground-runtime-pi',
+      baselineEvalRunId: 'baseline-run-1',
+      candidateEvalRunId: 'candidate-run-1',
+      datasetExampleId: 'example-1',
+      actorId: 'user-1',
+      triage: { status: 'regression', reviewerNote: 'needs fix' }
+    });
+
+    const deleteResponse = await itemRoute.DELETE(new Request(
+      'http://localhost/api/eval-runs/baseline-run-1/compare/candidate-run-1/triage/example-1',
+      { method: 'DELETE' }
+    ), {
+      params: Promise.resolve({ evalRunId: 'baseline-run-1', candidateEvalRunId: 'candidate-run-1', datasetExampleId: 'example-1' })
+    });
+    expect(deleteResponse.status).toBe(200);
+    await expect(deleteResponse.json()).resolves.toEqual({ triage: null });
+    expect(deleteCompareTriage).toHaveBeenCalledWith({
+      appId: 'playground-runtime-pi',
+      baselineEvalRunId: 'baseline-run-1',
+      candidateEvalRunId: 'candidate-run-1',
+      datasetExampleId: 'example-1',
+      actorId: 'user-1'
+    });
+    expect(getPlaygroundAppServices).toHaveBeenCalledTimes(3);
+    expect(getPlaygroundRuntimeServices).not.toHaveBeenCalled();
+  });
+
+  it('rejects spoofed compare triage caller fields before app use case', async () => {
+    mockThreadAccess();
+    const { updateCompareTriage } = mockEvalAppServices();
+    const itemRoute = await import('../app/api/eval-runs/[evalRunId]/compare/[candidateEvalRunId]/triage/[datasetExampleId]/route');
+
+    const response = await itemRoute.PATCH(new Request(
+      'http://localhost/api/eval-runs/baseline-run-1/compare/candidate-run-1/triage/example-1',
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'regression', triagedByActorId: 'attacker' })
+      }
+    ), {
+      params: Promise.resolve({ evalRunId: 'baseline-run-1', candidateEvalRunId: 'candidate-run-1', datasetExampleId: 'example-1' })
+    });
+
+    expect(response.status).toBe(400);
+    expect(updateCompareTriage).not.toHaveBeenCalled();
+  });
+
   it('short-circuits unauthenticated eval requests before loading services', async () => {
     mockThreadAccess({
       requirePlaygroundUser: vi.fn().mockResolvedValue({
@@ -338,6 +479,7 @@ describe('playground eval routes', () => {
     const { getPlaygroundAppServices, getPlaygroundRuntimeServices } = mockEvalAppServices();
     const listRoute = await import('../app/api/datasets/[datasetId]/eval-runs/route');
     const runRoute = await import('../app/api/eval-runs/[evalRunId]/run/route');
+    const triageRoute = await import('../app/api/eval-runs/[evalRunId]/compare/[candidateEvalRunId]/triage/route');
 
     const listResponse = await listRoute.GET(new Request('http://localhost/api/datasets/dataset-1/eval-runs'), {
       params: Promise.resolve({ datasetId: 'dataset-1' })
@@ -345,9 +487,13 @@ describe('playground eval routes', () => {
     const runResponse = await runRoute.POST(new Request('http://localhost/api/eval-runs/eval-run-1/run', { method: 'POST' }), {
       params: Promise.resolve({ evalRunId: 'eval-run-1' })
     });
+    const triageResponse = await triageRoute.GET(new Request('http://localhost/api/eval-runs/baseline-run-1/compare/candidate-run-1/triage'), {
+      params: Promise.resolve({ evalRunId: 'baseline-run-1', candidateEvalRunId: 'candidate-run-1' })
+    });
 
     expect(listResponse.status).toBe(401);
     expect(runResponse.status).toBe(401);
+    expect(triageResponse.status).toBe(401);
     expect(getPlaygroundAppServices).not.toHaveBeenCalled();
     expect(getPlaygroundRuntimeServices).not.toHaveBeenCalled();
   });

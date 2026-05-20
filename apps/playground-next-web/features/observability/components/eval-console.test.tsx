@@ -19,9 +19,12 @@ const api = vi.hoisted(() => ({
   fetchDatasetEvalRunsResponse: vi.fn(),
   fetchDatasetsResponse: vi.fn(),
   fetchEvalExampleResultsResponse: vi.fn(),
+  fetchEvalRunCompareTriageResponse: vi.fn(),
   fetchEvalRunResponse: vi.fn(),
   fetchThreadRunsResponse: vi.fn(),
   runEvalRunResponse: vi.fn(),
+  deleteEvalRunCompareTriageResponse: vi.fn(),
+  updateEvalRunCompareTriageResponse: vi.fn(),
   updateEvalExampleResultReviewResponse: vi.fn()
 }));
 
@@ -48,9 +51,12 @@ vi.mock('@/features/durable-chat/repo/chat-api', () => ({
   fetchDatasetEvalRunsResponse: api.fetchDatasetEvalRunsResponse,
   fetchDatasetsResponse: api.fetchDatasetsResponse,
   fetchEvalExampleResultsResponse: api.fetchEvalExampleResultsResponse,
+  fetchEvalRunCompareTriageResponse: api.fetchEvalRunCompareTriageResponse,
   fetchEvalRunResponse: api.fetchEvalRunResponse,
   fetchThreadRunsResponse: api.fetchThreadRunsResponse,
   runEvalRunResponse: api.runEvalRunResponse,
+  deleteEvalRunCompareTriageResponse: api.deleteEvalRunCompareTriageResponse,
+  updateEvalRunCompareTriageResponse: api.updateEvalRunCompareTriageResponse,
   updateEvalExampleResultReviewResponse: api.updateEvalExampleResultReviewResponse
 }));
 
@@ -197,6 +203,43 @@ function sourceExample() {
   };
 }
 
+function compareTriage(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'triage-1',
+    appId: 'playground-runtime-pi',
+    datasetId: 'dataset-1',
+    baselineEvalRunId: 'eval-run-1',
+    candidateEvalRunId: 'eval-run-2',
+    datasetExampleId: 'example-2',
+    triageStatus: 'regression' as const,
+    reviewerNote: 'needs fix',
+    triagedByActorId: 'user-1',
+    triagedAt: '2026-01-01T00:00:00.000Z',
+    observedProjectionKind: 'eval_run_compare' as const,
+    observedProjectionSchemaVersion: 1 as const,
+    observedCompareStrategy: null,
+    observedOutcome: 'regression',
+    observedReason: 'manual_pass_to_fail',
+    observedBaselineResultId: 'eval-run-1-result-2',
+    observedCandidateResultId: 'eval-run-2-result-2',
+    observedBaselineResultStatus: 'completed',
+    observedCandidateResultStatus: 'completed',
+    observedBaselineReviewStatus: 'pass',
+    observedCandidateReviewStatus: 'fail',
+    observedBaselineSignal: 'manual_pass',
+    observedCandidateSignal: 'manual_fail',
+    observedBaselineComparisonOutcome: 'mismatch',
+    observedCandidateComparisonOutcome: 'mismatch',
+    observedBaselineComparisonReason: 'normalized_text_different',
+    observedCandidateComparisonReason: 'normalized_text_different',
+    observedResultComparisonStrategy: 'normalized_text_v1',
+    stale: false,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    ...overrides
+  };
+}
+
 async function flush() {
   await act(async () => {
     await Promise.resolve();
@@ -244,6 +287,12 @@ describe('EvalConsole', () => {
       status: 200,
       error: null,
       data: { evalRun: evalRun() }
+    });
+    api.fetchEvalRunCompareTriageResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: { triageRows: [] }
     });
     api.fetchDatasetExampleResponse.mockResolvedValue({
       ok: true,
@@ -367,6 +416,7 @@ describe('EvalConsole', () => {
     expect(api.fetchDatasetEvalRunsResponse).toHaveBeenCalledWith('dataset-1', expect.any(AbortSignal));
     expect(api.fetchEvalExampleResultsResponse).toHaveBeenCalledWith('eval-run-1', expect.any(AbortSignal));
     expect(api.fetchEvalExampleResultsResponse).toHaveBeenCalledWith('eval-run-2', expect.any(AbortSignal));
+    expect(api.fetchEvalRunCompareTriageResponse).toHaveBeenCalledWith('eval-run-1', 'eval-run-2', expect.any(AbortSignal));
     expect(api.fetchEvalRunResponse).not.toHaveBeenCalled();
     expect(api.fetchThreadRunsResponse).not.toHaveBeenCalled();
   });
@@ -499,6 +549,99 @@ describe('EvalConsole', () => {
     );
   });
 
+  it('loads compare triage rows and saves or clears selected row triage', async () => {
+    routeState.searchParams = 'mode=compare&datasetId=dataset-1&baselineEvalRunId=eval-run-1&candidateEvalRunId=eval-run-2&compareDatasetExampleId=example-2';
+    api.fetchDatasetEvalRunsResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        evalRuns: [
+          evalRun({ id: 'eval-run-1', status: 'completed', name: 'Baseline' }),
+          evalRun({ id: 'eval-run-2', status: 'completed', name: 'Candidate' })
+        ]
+      }
+    });
+    api.fetchEvalExampleResultsResponse.mockImplementation((evalRunId: string) => Promise.resolve({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        results: [
+          result({
+            id: `${evalRunId}-result-2`,
+            evalRunId,
+            datasetExampleId: 'example-2',
+            exampleOrdinal: 2,
+            review: {
+              status: evalRunId === 'eval-run-1' ? 'pass' : 'fail',
+              reviewerNote: null,
+              reviewedByActorId: 'user-1',
+              reviewedAt: '2026-01-01T00:00:03.000Z'
+            }
+          })
+        ]
+      }
+    }));
+    api.fetchEvalRunCompareTriageResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: { triageRows: [compareTriage()] }
+    });
+    api.updateEvalRunCompareTriageResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: { triage: compareTriage({ triageStatus: 'accepted', reviewerNote: 'ok now' }) }
+    });
+    api.deleteEvalRunCompareTriageResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: { triage: null }
+    });
+
+    await act(async () => {
+      root.render(<EvalConsole currentUser={{ id: 'user-1', email: 'user@example.com' }} />);
+    });
+    await flush();
+    await flush();
+
+    expect(document.body.textContent).toContain('需修复');
+    expect(document.body.textContent).toContain('标注备注');
+    expect(api.fetchEvalRunCompareTriageResponse).toHaveBeenCalledWith('eval-run-1', 'eval-run-2', expect.any(AbortSignal));
+
+    const statusSelect = [...document.body.querySelectorAll('select')].find((select) => select.value === 'regression') as HTMLSelectElement;
+    const note = document.body.querySelector('textarea') as HTMLTextAreaElement;
+    await act(async () => {
+      statusSelect.value = 'accepted';
+      statusSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      note.value = ' ok now ';
+      note.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    const saveButton = [...document.body.querySelectorAll('button')].find((button) => button.textContent?.includes('保存标注'));
+    await act(async () => {
+      saveButton?.click();
+    });
+    await flush();
+
+    expect(api.updateEvalRunCompareTriageResponse).toHaveBeenCalledWith(
+      'eval-run-1',
+      'eval-run-2',
+      'example-2',
+      { status: 'accepted', reviewerNote: 'needs fix' }
+    );
+
+    const clearButton = [...document.body.querySelectorAll('button')].find((button) => button.textContent?.includes('清除标注'));
+    await act(async () => {
+      clearButton?.click();
+    });
+    await flush();
+
+    expect(api.deleteEvalRunCompareTriageResponse).toHaveBeenCalledWith('eval-run-1', 'eval-run-2', 'example-2');
+  });
+
   it('preserves shared compare run IDs while eval runs are still loading', async () => {
     routeState.searchParams = 'mode=compare&datasetId=dataset-1&baselineEvalRunId=eval-run-1&candidateEvalRunId=eval-run-2';
     let resolveEvalRuns: ((value: {
@@ -611,7 +754,7 @@ describe('EvalConsole', () => {
     expect(navigation.push).toHaveBeenCalledWith('/observability/evals?datasetId=dataset-1&evalRunId=eval-run-2', { scroll: false });
   });
 
-  it('defaults compare run query state without adding a compare API call', async () => {
+  it('defaults compare run query state before loading pair-scoped triage', async () => {
     routeState.searchParams = 'mode=compare&datasetId=dataset-1';
     api.fetchDatasetEvalRunsResponse.mockResolvedValue({
       ok: true,
@@ -643,6 +786,7 @@ describe('EvalConsole', () => {
     );
     expect(api.fetchEvalExampleResultsResponse).toHaveBeenCalledWith('eval-run-1', expect.any(AbortSignal));
     expect(api.fetchEvalExampleResultsResponse).toHaveBeenCalledWith('eval-run-2', expect.any(AbortSignal));
+    expect(api.fetchEvalRunCompareTriageResponse).toHaveBeenCalledWith('eval-run-1', 'eval-run-2', expect.any(AbortSignal));
   });
 
   it('preserves compare mode when changing datasets from the shared dataset selector', async () => {

@@ -15,6 +15,12 @@ import type {
   EvalExampleResult,
   EvalExampleResultRepository,
   EvalExampleResultStatus,
+  EvalRunCompareOutcomeV1,
+  EvalRunCompareReasonV1,
+  EvalRunCompareResultSignalV1,
+  EvalRunCompareTriage,
+  EvalRunCompareTriageRepository,
+  EvalRunCompareTriageStatus,
   EvalRun,
   EvalRunRepository,
   Message,
@@ -49,6 +55,7 @@ export interface AgentInfraAppRepositories {
   datasetExampleRepo: DatasetExampleRepository;
   evalRunRepo: EvalRunRepository;
   evalExampleResultRepo: EvalExampleResultRepository;
+  evalRunCompareTriageRepo: EvalRunCompareTriageRepository;
 }
 
 export interface RuntimeSelection {
@@ -287,6 +294,55 @@ export interface ListEvalExampleResultsInput extends GetEvalRunInput {}
 export interface UpdateEvalExampleResultReviewInput extends GetEvalRunInput {
   resultId: string;
   review: EvalExampleResultReviewUpdateV1;
+}
+
+export interface EvalRunComparePairInput {
+  appId: string;
+  baselineEvalRunId: string;
+  candidateEvalRunId: string;
+  actorId?: string | null;
+}
+
+export interface ListEvalRunCompareTriageInput extends EvalRunComparePairInput {}
+
+export interface UpdateEvalRunCompareTriageInput extends EvalRunComparePairInput {
+  datasetExampleId: string;
+  triage: EvalRunCompareTriageUpdateV1;
+}
+
+export interface DeleteEvalRunCompareTriageInput extends EvalRunComparePairInput {
+  datasetExampleId: string;
+}
+
+export interface EvalRunCompareTriageUpdateV1 {
+  status: EvalRunCompareTriageStatus;
+  reviewerNote?: string | null;
+}
+
+export interface EvalRunCompareTriageFingerprintV1 {
+  observedProjectionKind: 'eval_run_compare';
+  observedProjectionSchemaVersion: 1;
+  observedCompareStrategy?: string | null;
+  observedOutcome: EvalRunCompareOutcomeV1;
+  observedReason: EvalRunCompareReasonV1;
+  observedBaselineResultId?: string | null;
+  observedCandidateResultId?: string | null;
+  observedBaselineResultStatus?: EvalExampleResultStatus | null;
+  observedCandidateResultStatus?: EvalExampleResultStatus | null;
+  observedBaselineReviewStatus?: EvalExampleResultReviewStatusV1 | null;
+  observedCandidateReviewStatus?: EvalExampleResultReviewStatusV1 | null;
+  observedBaselineSignal?: EvalRunCompareResultSignalV1 | null;
+  observedCandidateSignal?: EvalRunCompareResultSignalV1 | null;
+  observedBaselineComparisonOutcome?: string | null;
+  observedCandidateComparisonOutcome?: string | null;
+  observedBaselineComparisonReason?: string | null;
+  observedCandidateComparisonReason?: string | null;
+  observedResultComparisonStrategy?: string | null;
+}
+
+export interface EvalRunCompareTriageRead {
+  triage: EvalRunCompareTriage;
+  stale: boolean;
 }
 
 export type EvalRunSelectionPolicyV1 = 'effective_eligible_v1';
@@ -802,6 +858,9 @@ export interface AgentInfraApp {
     listResults(input: ListEvalExampleResultsInput): Promise<EvalExampleResult[]>;
     run(input: RunEvalRunInput): Promise<EvalRun>;
     updateResultReview(input: UpdateEvalExampleResultReviewInput): Promise<EvalExampleResult>;
+    listCompareTriage(input: ListEvalRunCompareTriageInput): Promise<EvalRunCompareTriageRead[]>;
+    updateCompareTriage(input: UpdateEvalRunCompareTriageInput): Promise<EvalRunCompareTriageRead>;
+    deleteCompareTriage(input: DeleteEvalRunCompareTriageInput): Promise<void>;
   };
   shares: {
     createThreadSnapshot(input: CreateThreadSnapshotShareInput): Promise<CreateThreadSnapshotShareResult>;

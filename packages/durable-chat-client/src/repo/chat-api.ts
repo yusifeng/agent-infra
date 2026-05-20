@@ -10,6 +10,8 @@ import type {
   DatasetsResponseDto,
   EvalExampleResultResponseDto,
   EvalExampleResultsResponseDto,
+  EvalRunCompareTriageListResponseDto,
+  EvalRunCompareTriageResponseDto,
   EvalRunResponseDto,
   EvalRunsResponseDto,
   RunTraceResponseDto,
@@ -21,7 +23,8 @@ import type {
   ThreadsResponseDto,
   UpdateDatasetExampleExpectedOutputRequestDto,
   UpdateDatasetExampleReviewRequestDto,
-  UpdateEvalExampleResultReviewRequestDto
+  UpdateEvalExampleResultReviewRequestDto,
+  UpdateEvalRunCompareTriageRequestDto
 } from '@agent-infra/contracts';
 
 import {
@@ -33,6 +36,8 @@ import {
   normalizeDatasetsResponse,
   normalizeEvalExampleResultResponse,
   normalizeEvalExampleResultsResponse,
+  normalizeEvalRunCompareTriageListResponse,
+  normalizeEvalRunCompareTriageResponse,
   normalizeEvalRunResponse,
   normalizeEvalRunsResponse,
   normalizeRunTraceResponse,
@@ -213,6 +218,49 @@ export async function updateEvalExampleResultReviewResponse(
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
+      signal
+    }
+  );
+}
+
+export async function fetchEvalRunCompareTriageResponse(baselineEvalRunId: string, candidateEvalRunId: string, signal?: AbortSignal) {
+  return fetchJson<EvalRunCompareTriageListResponseDto>(
+    `/api/eval-runs/${baselineEvalRunId}/compare/${candidateEvalRunId}/triage`,
+    normalizeEvalRunCompareTriageListResponse,
+    { signal }
+  );
+}
+
+export async function updateEvalRunCompareTriageResponse(
+  baselineEvalRunId: string,
+  candidateEvalRunId: string,
+  datasetExampleId: string,
+  body: UpdateEvalRunCompareTriageRequestDto,
+  signal?: AbortSignal
+) {
+  return fetchJson<EvalRunCompareTriageResponseDto>(
+    `/api/eval-runs/${baselineEvalRunId}/compare/${candidateEvalRunId}/triage/${datasetExampleId}`,
+    normalizeEvalRunCompareTriageResponse,
+    {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal
+    }
+  );
+}
+
+export async function deleteEvalRunCompareTriageResponse(
+  baselineEvalRunId: string,
+  candidateEvalRunId: string,
+  datasetExampleId: string,
+  signal?: AbortSignal
+) {
+  return fetchJson<EvalRunCompareTriageResponseDto>(
+    `/api/eval-runs/${baselineEvalRunId}/compare/${candidateEvalRunId}/triage/${datasetExampleId}`,
+    normalizeEvalRunCompareTriageResponse,
+    {
+      method: 'DELETE',
       signal
     }
   );

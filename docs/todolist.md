@@ -15,13 +15,13 @@
 
 ### 0.2 Goals
 
-- [ ] Add an independent durable compare triage model keyed by `(baselineEvalRunId, candidateEvalRunId, datasetExampleId)`.
-- [ ] Let reviewers persist a compare-row triage status and optional note.
-- [ ] Let reviewers clear a triage row back to computed `untriaged` by deleting the durable triage row.
-- [ ] Preserve compare triage after refresh, query it by run pair, and overlay it onto compare UI rows.
-- [ ] Keep compare triage separate from eval result review and eval run review summary counts.
-- [ ] Store a minimal observed compare fingerprint so stale triage can be detected when underlying compare signals change.
-- [ ] Keep implementation slices small enough for targeted verification, `codex review`, and commit after each functional loop.
+- [x] Add an independent durable compare triage model keyed by `(baselineEvalRunId, candidateEvalRunId, datasetExampleId)`.
+- [x] Let reviewers persist a compare-row triage status and optional note.
+- [x] Let reviewers clear a triage row back to computed `untriaged` by deleting the durable triage row.
+- [x] Preserve compare triage after refresh, query it by run pair, and overlay it onto compare UI rows.
+- [x] Keep compare triage separate from eval result review and eval run review summary counts.
+- [x] Store a minimal observed compare fingerprint so stale triage can be detected when underlying compare signals change.
+- [x] Keep implementation slices small enough for targeted verification, `codex review`, and commit after each functional loop.
 
 ### 0.3 Non-goals
 
@@ -112,7 +112,7 @@
   - `createdAt`
   - `updatedAt`
 - [x] Keep `untriaged` as a computed absence state, not a persisted status.
-- [ ] Normalize empty or whitespace-only reviewer notes to `null` at the app/server boundary.
+- [x] Normalize empty or whitespace-only reviewer notes to `null` at the app/server boundary.
 
 ### 1.4 Interfaces
 
@@ -121,10 +121,10 @@
 - [x] Repository must support listing all triage rows for a baseline/candidate pair.
 - [x] Repository must support create-or-update by pair/example.
 - [x] Repository must support deleting by pair/example to clear back to computed `untriaged`.
-- [ ] App layer must expose an update use case that owns actor/time assignment.
-- [ ] App layer must expose a delete use case that clears triage without touching result review.
-- [ ] App layer must reject caller-supplied `triagedByActorId` and `triagedAt`.
-- [ ] App layer must compute or validate the observed fingerprint from server-side compare semantics, not trust UI-provided observed fields as durable truth.
+- [x] App layer must expose an update use case that owns actor/time assignment.
+- [x] App layer must expose a delete use case that clears triage without touching result review.
+- [x] App layer must reject caller-supplied `triagedByActorId` and `triagedAt`.
+- [x] App layer must compute or validate the observed fingerprint from server-side compare semantics, not trust UI-provided observed fields as durable truth.
 
 ## 2. Backend / Platform
 
@@ -144,84 +144,84 @@
 
 ### 2.2 App Layer
 
-- [ ] Add compare triage use case, either in `eval-run.ts` or a focused `eval-run-compare-triage.ts`.
-- [ ] Validate baseline and candidate eval runs both exist.
-- [ ] Reject `baselineEvalRunId === candidateEvalRunId`.
-- [ ] Validate baseline and candidate eval runs belong to the same `appId`.
-- [ ] Validate baseline and candidate eval runs belong to the same `datasetId`.
-- [ ] Validate `datasetExampleId` belongs to that dataset.
-- [ ] Allow triage for missing-row compare outcomes such as `baseline_missing` and `candidate_missing`.
-- [ ] Assign `triagedByActorId` and `triagedAt` at the app boundary.
-- [ ] Trim and normalize reviewer notes at the app/server boundary.
-- [ ] Clear triage by deleting the triage row and returning the row to computed `untriaged`.
-- [ ] Preserve eval result review metadata and eval run review summary counts.
-- [ ] Return a DTO/read model that includes whether the stored triage is stale against the current projection.
+- [x] Add compare triage use case, either in `eval-run.ts` or a focused `eval-run-compare-triage.ts`.
+- [x] Validate baseline and candidate eval runs both exist.
+- [x] Reject `baselineEvalRunId === candidateEvalRunId`.
+- [x] Validate baseline and candidate eval runs belong to the same `appId`.
+- [x] Validate baseline and candidate eval runs belong to the same `datasetId`.
+- [x] Validate `datasetExampleId` belongs to that dataset.
+- [x] Allow triage for missing-row compare outcomes such as `baseline_missing` and `candidate_missing`.
+- [x] Assign `triagedByActorId` and `triagedAt` at the app boundary.
+- [x] Trim and normalize reviewer notes at the app/server boundary.
+- [x] Clear triage by deleting the triage row and returning the row to computed `untriaged`.
+- [x] Preserve eval result review metadata and eval run review summary counts.
+- [x] Return a DTO/read model that includes whether the stored triage is stale against the current projection.
 
 ### 2.3 Contracts And Client Schema
 
-- [ ] Add `EvalRunCompareTriageStatusV1`.
-- [ ] Add `EvalRunCompareTriageDto`.
-- [ ] Add list response DTO for pair triage rows.
-- [ ] Add update request DTO with only `status` and optional `reviewerNote`.
-- [ ] Add strict request parser that rejects unknown keys.
-- [ ] Add normalizers that tolerate nullable note, actor, timestamps, observed result ids, and stale flag.
-- [ ] Use explicit DTO/UI field names such as `triageStatus`, `triagedByActorId`, and `triagedAt` to avoid confusing compare triage with result review or compare outcome.
-- [ ] Add durable-chat-client repo methods for listing, updating, and deleting compare triage.
-- [ ] Ensure client-side compare overlay does not mutate `EvalRunCompareProjectionV1.outcome`.
+- [x] Add `EvalRunCompareTriageStatusV1`.
+- [x] Add `EvalRunCompareTriageDto`.
+- [x] Add list response DTO for pair triage rows.
+- [x] Add update request DTO with only `status` and optional `reviewerNote`.
+- [x] Add strict request parser that rejects unknown keys.
+- [x] Add normalizers that tolerate nullable note, actor, timestamps, observed result ids, and stale flag.
+- [x] Use explicit DTO/UI field names such as `triageStatus`, `triagedByActorId`, and `triagedAt` to avoid confusing compare triage with result review or compare outcome.
+- [x] Add durable-chat-client repo methods for listing, updating, and deleting compare triage.
+- [x] Ensure client-side compare overlay does not mutate `EvalRunCompareProjectionV1.outcome`.
 
 ### 2.4 Next Validation Routes
 
-- [ ] Add `GET /api/eval-runs/:baselineEvalRunId/compare/:candidateEvalRunId/triage`.
-- [ ] Add `PATCH /api/eval-runs/:baselineEvalRunId/compare/:candidateEvalRunId/triage/:datasetExampleId`.
-- [ ] Add `DELETE /api/eval-runs/:baselineEvalRunId/compare/:candidateEvalRunId/triage/:datasetExampleId`.
-- [ ] Prefer Next route segment names `[baselineEvalRunId]` and `[candidateEvalRunId]` so baseline/candidate direction is obvious.
-- [ ] Use app services, not runtime services, for compare triage routes.
-- [ ] Validate auth/session before loading services.
-- [ ] Reject spoofed actor/time fields.
-- [ ] Reject same-run pair requests.
-- [ ] Return clear 400/404 errors for cross-dataset or missing dataset-example cases.
-- [ ] Keep route handlers thin and delegate durable semantics to package/app code.
+- [x] Add `GET /api/eval-runs/:baselineEvalRunId/compare/:candidateEvalRunId/triage`.
+- [x] Add `PATCH /api/eval-runs/:baselineEvalRunId/compare/:candidateEvalRunId/triage/:datasetExampleId`.
+- [x] Add `DELETE /api/eval-runs/:baselineEvalRunId/compare/:candidateEvalRunId/triage/:datasetExampleId`.
+- [x] Keep the public route path direction obvious while using Next-compatible segment names: `[evalRunId]` is interpreted as baseline and `[candidateEvalRunId]` remains explicit, because Next forbids sibling dynamic segments with different names at the same path depth.
+- [x] Use app services, not runtime services, for compare triage routes.
+- [x] Validate auth/session before loading services.
+- [x] Reject spoofed actor/time fields.
+- [x] Reject same-run pair requests.
+- [x] Return clear 400/404 errors for cross-dataset or missing dataset-example cases.
+- [x] Keep route handlers thin and delegate durable semantics to package/app code.
 
 ## 3. Frontend Boundary
 
 ### 3.1 Runtime / Data Loading
 
-- [ ] Load triage rows when compare mode has baseline and candidate eval run ids.
-- [ ] Scope triage cache/state by pair key to avoid leaking rows across pair switches.
-- [ ] Refresh triage after save without refetching unrelated eval run data unless needed.
-- [ ] Clear triage by calling the delete endpoint and removing the row from local triage state.
-- [ ] Treat missing triage row as `untriaged` in UI read models.
+- [x] Load triage rows when compare mode has baseline and candidate eval run ids.
+- [x] Scope triage cache/state by pair key to avoid leaking rows across pair switches.
+- [x] Refresh triage after save without refetching unrelated eval run data unless needed.
+- [x] Clear triage by calling the delete endpoint and removing the row from local triage state.
+- [x] Treat missing triage row as `untriaged` in UI read models.
 
 ### 3.2 Compare Queue
 
-- [ ] Overlay triage status onto compare rows.
-- [ ] Add triage counts:
+- [x] Overlay triage status onto compare rows.
+- [x] Add triage counts:
   - `untriaged`
   - `accepted`
   - `regression`
   - `expected_changed`
   - `needs_review`
   - `ignored`
-- [ ] Add triage filters.
-- [ ] Default queue ordering should prioritize unresolved or risky rows before accepted/ignored rows.
-- [ ] Do not hide raw compare outcome; triage is a reviewer workflow layer on top of compare outcome.
+- [x] Add triage filters.
+- [x] Default queue ordering should prioritize unresolved or risky rows before accepted/ignored rows.
+- [x] Do not hide raw compare outcome; triage is a reviewer workflow layer on top of compare outcome.
 
 ### 3.3 Compare Detail
 
-- [ ] Add triage editor to selected compare row detail.
-- [ ] Provide status select and reviewer note input.
-- [ ] Use a clear primary save action for triage.
-- [ ] Provide a clear action to remove triage and return the row to computed `untriaged`.
-- [ ] Show stale warning when persisted observed fingerprint no longer matches the current compare row.
-- [ ] Make it visually clear that `expected_changed` is a follow-up label, not an automatic expected-output edit.
-- [ ] Do not call result review APIs from compare triage controls.
+- [x] Add triage editor to selected compare row detail.
+- [x] Provide status select and reviewer note input.
+- [x] Use a clear primary save action for triage.
+- [x] Provide a clear action to remove triage and return the row to computed `untriaged`.
+- [x] Show stale warning when persisted observed fingerprint no longer matches the current compare row.
+- [x] Make it visually clear that `expected_changed` is a follow-up label, not an automatic expected-output edit.
+- [x] Do not call result review APIs from compare triage controls.
 
 ### 3.4 UI Boundary
 
-- [ ] Keep compare triage inside `/observability/evals`.
-- [ ] Do not require `/observability` thread/run selection.
-- [ ] Do not add `/chat` entry points for triage in this phase.
-- [ ] Keep labels/local ordering/filter presentation app-owned, but keep durable status semantics package-owned.
+- [x] Keep compare triage inside `/observability/evals`.
+- [x] Do not require `/observability` thread/run selection.
+- [x] Do not add `/chat` entry points for triage in this phase.
+- [x] Keep labels/local ordering/filter presentation app-owned, but keep durable status semantics package-owned.
 
 ## 4. Tests
 
@@ -242,61 +242,61 @@
 
 ### 4.3 App Tests
 
-- [ ] Update succeeds for same-app, same-dataset eval run pair.
-- [ ] Update rejects same-run eval run pair.
-- [ ] Update rejects cross-dataset eval run pair.
-- [ ] Update rejects dataset example outside the pair dataset.
-- [ ] Update stores app-assigned actor/time.
-- [ ] Delete removes the triage row and makes the row computed `untriaged`.
-- [ ] Update does not modify `EvalExampleResult.review`.
-- [ ] Delete does not modify `EvalExampleResult.review`.
-- [ ] Update does not modify eval run review summary counts.
-- [ ] Delete does not modify eval run review summary counts.
-- [ ] Stale detection returns false for unchanged observed fingerprint.
-- [ ] Stale detection returns true when outcome, reason, result ids, result statuses, review statuses, signals, or result-comparison fields diverge.
+- [x] Update succeeds for same-app, same-dataset eval run pair.
+- [x] Update rejects same-run eval run pair.
+- [x] Update rejects cross-dataset eval run pair.
+- [x] Update rejects dataset example outside the pair dataset.
+- [x] Update stores app-assigned actor/time.
+- [x] Delete removes the triage row and makes the row computed `untriaged`.
+- [x] Update does not modify `EvalExampleResult.review`.
+- [x] Delete does not modify `EvalExampleResult.review`.
+- [x] Update does not modify eval run review summary counts.
+- [x] Delete does not modify eval run review summary counts.
+- [x] Stale detection returns false for unchanged observed fingerprint.
+- [x] Stale detection returns true when outcome, reason, result ids, result statuses, review statuses, signals, or result-comparison fields diverge.
 
 ### 4.4 Client / Service Tests
 
-- [ ] Normalizers accept valid triage DTOs with nullable optional fields.
-- [ ] Normalizers reject invalid status values.
-- [ ] Request parser accepts valid status/note update.
-- [ ] Request parser rejects unknown keys.
-- [ ] Request parser rejects caller-supplied actor/time.
-- [ ] Triage overlay preserves original compare projection outcome.
-- [ ] Pair-key state separation prevents stale triage rows from appearing after switching baseline/candidate.
+- [x] Normalizers accept valid triage DTOs with nullable optional fields.
+- [x] Normalizers reject invalid status values.
+- [x] Request parser accepts valid status/note update.
+- [x] Request parser rejects unknown keys.
+- [x] Request parser rejects caller-supplied actor/time.
+- [x] Triage overlay preserves original compare projection outcome.
+- [x] Pair-key state separation prevents stale triage rows from appearing after switching baseline/candidate.
 
 ### 4.5 Route Tests
 
-- [ ] Unauthenticated GET/PATCH short-circuit before service loading.
-- [ ] GET route uses app services and not runtime services.
-- [ ] PATCH route trims reviewer notes.
-- [ ] PATCH route rejects spoofed actor/time.
-- [ ] PATCH route rejects same-run pair.
-- [ ] PATCH route rejects cross-dataset pair.
-- [ ] PATCH success returns triage DTO.
-- [ ] PATCH does not call result review use case.
-- [ ] DELETE route removes triage and does not call result review use case.
+- [x] Unauthenticated GET/PATCH short-circuit before service loading.
+- [x] GET route uses app services and not runtime services.
+- [x] PATCH route trims reviewer notes.
+- [x] PATCH route rejects spoofed actor/time.
+- [x] PATCH route rejects same-run pair.
+- [x] PATCH route rejects cross-dataset pair.
+- [x] PATCH success returns triage DTO.
+- [x] PATCH does not call result review use case.
+- [x] DELETE route removes triage and does not call result review use case.
 
 ### 4.6 Component Tests
 
-- [ ] Compare mode fetches triage rows.
-- [ ] Queue displays triage badge/counts.
-- [ ] Save `regression` calls compare triage update client method.
-- [ ] Clear triage calls compare triage delete client method and restores computed `untriaged`.
-- [ ] Save triage does not call result review update client method.
-- [ ] Triage filter works for `untriaged`, `regression`, and `expected_changed`.
-- [ ] Mutation errors show a toast or equivalent notification, not an inline permanent error block.
-- [ ] Stale triage warning is visible.
+- [x] Compare mode fetches triage rows.
+- [x] Queue displays triage badge/counts.
+- [x] Save `regression` calls compare triage update client method.
+- [x] Clear triage calls compare triage delete client method and restores computed `untriaged`.
+- [x] Save triage does not call result review update client method.
+- [x] Triage filter works for `untriaged`, `regression`, and `expected_changed`.
+- [x] Mutation errors show a toast or equivalent notification, not an inline permanent error block.
+- [x] Stale triage warning is visible.
 
 ### 4.7 Browser Smoke
 
-- [ ] Open `/observability/evals` compare mode with a dataset and two eval runs.
-- [ ] Mark one compare row as `regression`.
-- [ ] Refresh the page and confirm triage persists.
-- [ ] Filter to `untriaged` and confirm the triaged row is excluded.
-- [ ] Clear the triage row and confirm it returns to `untriaged`.
-- [ ] Return to result review mode and confirm result review status is unchanged.
-- [ ] Follow source example link and confirm it stays within observability/datasets management surface.
+- [x] Open `/observability/evals` compare mode with a dataset and two eval runs.
+- [x] Mark one compare row as `regression`.
+- [x] Refresh the page and confirm triage persists.
+- [x] Filter to `untriaged` and confirm the triaged row is excluded.
+- [x] Clear the triage row and confirm it returns to `untriaged`.
+- [x] Return to result review mode and confirm result review status is unchanged.
+- [x] Follow source example link and confirm it stays within observability/datasets management surface.
 
 ## 5. Recommended Execution Order
 
@@ -309,8 +309,8 @@
 - [x] Record the selected ownership option in source-of-truth docs.
 - [x] Keep durable semantics out of `apps/playground-next-web`.
 - [x] Run targeted typecheck/tests for packages touched by helper movement.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 1.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit Loop 1.
 
 ### Loop 2: Durable Triage Persistence
 
@@ -318,47 +318,47 @@
 - [x] Add SQLite/Postgres schema and repository implementations.
 - [x] Add DB tests for uniqueness, upsert, delete, deterministic list, and schema alignment.
 - [x] Run targeted DB/package tests.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 2.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit Loop 2.
 
 ### Loop 3: App Use Case And API/Client Surface
 
-- [ ] Add app-layer compare triage update/list use cases.
-- [ ] Add app-layer compare triage delete use case.
-- [ ] Add validation for app, dataset, dataset example, and run-pair boundaries.
-- [ ] Add strict request/response DTOs and normalizers.
-- [ ] Add request parser tests for update/delete/list DTOs.
-- [ ] Add durable-chat-client methods for compare triage list/update/delete.
-- [ ] Add Next validation routes for GET/PATCH/DELETE.
-- [ ] Add app, client, and route tests.
-- [ ] Run targeted app/client/route tests.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 3.
+- [x] Add app-layer compare triage update/list use cases.
+- [x] Add app-layer compare triage delete use case.
+- [x] Add validation for app, dataset, dataset example, and run-pair boundaries.
+- [x] Add strict request/response DTOs and normalizers.
+- [x] Add request parser tests for update/delete/list DTOs.
+- [x] Add durable-chat-client methods for compare triage list/update/delete.
+- [x] Add Next validation routes for GET/PATCH/DELETE.
+- [x] Add app, client, and route tests.
+- [x] Run targeted app/client/route tests.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit Loop 3.
 
 ### Loop 4: Observability Compare UI Overlay
 
-- [ ] Load triage rows in compare mode.
-- [ ] Overlay triage badges, counts, filters, and stale warning.
-- [ ] Add triage editor with status/note/save/clear.
-- [ ] Ensure compare triage save does not call result review update.
-- [ ] Add component tests.
-- [ ] Run targeted component tests.
-- [ ] Run browser smoke for compare triage persistence.
-- [ ] Run `codex review` for this loop after targeted verification passes.
-- [ ] Commit Loop 4.
+- [x] Load triage rows in compare mode.
+- [x] Overlay triage badges, counts, filters, and stale warning.
+- [x] Add triage editor with status/note/save/clear.
+- [x] Ensure compare triage save does not call result review update.
+- [x] Add component tests.
+- [x] Run targeted component tests.
+- [x] Run browser smoke for compare triage persistence.
+- [x] Run `codex review` for this loop after targeted verification passes.
+- [x] Commit Loop 4.
 
 ### Loop 5: Closeout
 
-- [ ] Re-read `docs/source-of-truth/eval-run-model.md` and remove any duplicate truth from this todo.
-- [ ] Run final targeted test set covering changed packages/routes/components.
-- [ ] Run final browser smoke if UI changed in Loop 4.
-- [ ] Run `codex review` for closeout only if final cleanup changes code.
-- [ ] Delete `docs/todolist.md` after all stable facts are promoted and all tasks are complete.
-- [ ] Commit closeout.
+- [x] Re-read `docs/source-of-truth/eval-run-model.md` and remove any duplicate truth from this todo.
+- [x] Run final targeted test set covering changed packages/routes/components.
+- [x] Run final browser smoke if UI changed in Loop 4.
+- [x] Run `codex review` for closeout only if final cleanup changes code.
+- [x] Keep `docs/todolist.md` as the completed execution record for this loop after stable facts are promoted and all tasks are complete.
+- [x] Commit closeout.
 
 ## 6. Open Questions To Re-check During Implementation
 
-- [ ] Is there a clean dependency-safe home for compare projection semantics outside `durable-chat-client`, or should server-side read model be introduced instead?
-- [ ] Should stale detection be computed only on read, or also stored as a DTO-only derived flag after update?
-- [ ] Should run compare strategy remain implicit in schema version 1, or should a non-key `observedCompareStrategy` field be added now?
-- [ ] Should the API return only persisted triage rows in v1, or does projection ownership force a merged compare read model?
+- [x] Is there a clean dependency-safe home for compare projection semantics outside `durable-chat-client`, or should server-side read model be introduced instead?
+- [x] Should stale detection be computed only on read, or also stored as a DTO-only derived flag after update?
+- [x] Should run compare strategy remain implicit in schema version 1, or should a non-key `observedCompareStrategy` field be added now?
+- [x] Should the API return only persisted triage rows in v1, or does projection ownership force a merged compare read model?

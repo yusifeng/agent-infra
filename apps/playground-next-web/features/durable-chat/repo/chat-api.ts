@@ -8,6 +8,7 @@ export {
   fetchDatasetEvalRunsResponse,
   fetchDatasetsResponse,
   fetchEvalExampleResultsResponse,
+  fetchEvalRunCompareTriageResponse,
   fetchEvalRunResponse,
   fetchRunTraceResponse,
   fetchRunTimelineResponse,
@@ -18,9 +19,11 @@ export {
   openThreadRunAttachStream,
   openThreadRunStream,
   runEvalRunResponse,
+  deleteEvalRunCompareTriageResponse,
   updateDatasetExampleExpectedOutputResponse,
   updateDatasetExampleReviewResponse,
   updateEvalExampleResultReviewResponse,
+  updateEvalRunCompareTriageResponse,
   type ApiResult,
   type RunStreamOpenResult
 } from '@agent-infra/durable-chat-client';

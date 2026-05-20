@@ -4,6 +4,7 @@ import type {
   ChatShareStatus,
   DatasetVisibility,
   EvalExampleResultStatus,
+  EvalRunCompareTriageStatus,
   EvalRunStatus,
   AnswerCandidateKind,
   AnswerSelectionSource,
@@ -294,6 +295,42 @@ export interface EvalExampleResultDto {
   updatedAt: IsoDateString;
 }
 
+export type EvalRunCompareTriageStatusV1Dto = EvalRunCompareTriageStatus;
+
+export interface EvalRunCompareTriageDto {
+  id: string;
+  appId: string;
+  datasetId: string;
+  baselineEvalRunId: string;
+  candidateEvalRunId: string;
+  datasetExampleId: string;
+  triageStatus: EvalRunCompareTriageStatusV1Dto;
+  reviewerNote?: string | null;
+  triagedByActorId?: string | null;
+  triagedAt: IsoDateString;
+  observedProjectionKind: 'eval_run_compare';
+  observedProjectionSchemaVersion: 1;
+  observedCompareStrategy?: string | null;
+  observedOutcome: string;
+  observedReason: string;
+  observedBaselineResultId?: string | null;
+  observedCandidateResultId?: string | null;
+  observedBaselineResultStatus?: string | null;
+  observedCandidateResultStatus?: string | null;
+  observedBaselineReviewStatus?: string | null;
+  observedCandidateReviewStatus?: string | null;
+  observedBaselineSignal?: string | null;
+  observedCandidateSignal?: string | null;
+  observedBaselineComparisonOutcome?: string | null;
+  observedCandidateComparisonOutcome?: string | null;
+  observedBaselineComparisonReason?: string | null;
+  observedCandidateComparisonReason?: string | null;
+  observedResultComparisonStrategy?: string | null;
+  stale: boolean;
+  createdAt: IsoDateString;
+  updatedAt: IsoDateString;
+}
+
 export interface RunEventDto {
   id: string;
   threadId: string;
@@ -545,6 +582,11 @@ export interface UpdateEvalExampleResultReviewRequestDto {
   reviewerNote?: string | null;
 }
 
+export interface UpdateEvalRunCompareTriageRequestDto {
+  status: EvalRunCompareTriageStatusV1Dto;
+  reviewerNote?: string | null;
+}
+
 export interface AnswerSelectionResponseDto {
   answerSelection?: AnswerSelectionDto;
   error?: string;
@@ -593,6 +635,16 @@ export interface EvalExampleResultsResponseDto {
 
 export interface EvalExampleResultResponseDto {
   result?: EvalExampleResultDto;
+  error?: string;
+}
+
+export interface EvalRunCompareTriageListResponseDto {
+  triageRows: EvalRunCompareTriageDto[];
+  error?: string;
+}
+
+export interface EvalRunCompareTriageResponseDto {
+  triage?: EvalRunCompareTriageDto | null;
   error?: string;
 }
 

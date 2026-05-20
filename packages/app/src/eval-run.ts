@@ -1,4 +1,10 @@
-import type { DatasetExample, EvalExampleResult, EvalExampleResultStatus, RunUsageSummaryV1 } from '@agent-infra/core';
+import type {
+  DatasetExample,
+  EvalExampleResult,
+  EvalExampleResultStatus,
+  EvalRunCompareTriageStatus,
+  RunUsageSummaryV1
+} from '@agent-infra/core';
 
 import { InvalidEvalInputError } from './errors.js';
 import {
@@ -26,6 +32,15 @@ const EVAL_REVIEW_STATUSES = new Set<EvalExampleResultReviewStatusV1>([
 const EVAL_REVIEW_UPDATE_KEYS = new Set(['status', 'reviewerNote']);
 const EVAL_CALLER_ASSIGNED_REVIEW_KEYS = new Set(['reviewedByActorId', 'reviewedAt']);
 const EVAL_REVIEWER_NOTE_MAX_LENGTH = 4000;
+const EVAL_RUN_COMPARE_TRIAGE_STATUSES = new Set<EvalRunCompareTriageStatus>([
+  'accepted',
+  'regression',
+  'expected_changed',
+  'needs_review',
+  'ignored'
+]);
+const EVAL_RUN_COMPARE_TRIAGE_UPDATE_KEYS = new Set(['status', 'reviewerNote']);
+const EVAL_RUN_COMPARE_TRIAGE_REVIEWER_NOTE_MAX_LENGTH = 4000;
 
 const DEFAULT_EVAL_REVIEW: EvalExampleResultReviewV1 = {
   status: 'unreviewed',
@@ -50,6 +65,10 @@ function normalizeOptionalText(value: unknown, maxLength: number, field: string)
     throw new InvalidEvalInputError(`${field} is too long`, { field, maxLength });
   }
   return trimmed.length > 0 ? trimmed : null;
+}
+
+export function normalizeEvalRunCompareTriageReviewerNote(value: unknown) {
+  return normalizeOptionalText(value, EVAL_RUN_COMPARE_TRIAGE_REVIEWER_NOTE_MAX_LENGTH, 'eval run compare triage reviewer note');
 }
 
 function incrementCount(record: Record<string, number>, key: string, amount = 1) {
@@ -267,6 +286,33 @@ export function parseEvalExampleResultReviewUpdateV1(value: unknown): EvalExampl
   }
 
   return update;
+}
+
+export function parseEvalRunCompareTriageUpdateV1(value: unknown): {
+  status: EvalRunCompareTriageStatus;
+  reviewerNote?: string | null;
+} {
+  if (!isRecord(value)) {
+    throw new InvalidEvalInputError('eval run compare triage update must be an object');
+  }
+  for (const key of Object.keys(value)) {
+    if (key === 'triagedByActorId' || key === 'triagedAt') {
+      throw new InvalidEvalInputError(`eval run compare triage update cannot include caller-assigned field ${key}`, { key });
+    }
+    if (!EVAL_RUN_COMPARE_TRIAGE_UPDATE_KEYS.has(key)) {
+      throw new InvalidEvalInputError(`eval run compare triage update includes unknown field ${key}`, { key });
+    }
+  }
+  if (!EVAL_RUN_COMPARE_TRIAGE_STATUSES.has(value.status as EvalRunCompareTriageStatus)) {
+    throw new InvalidEvalInputError('invalid eval run compare triage status', { status: value.status });
+  }
+
+  return {
+    status: value.status as EvalRunCompareTriageStatus,
+    ...(Object.hasOwn(value, 'reviewerNote')
+      ? { reviewerNote: normalizeEvalRunCompareTriageReviewerNote(value.reviewerNote) }
+      : {})
+  };
 }
 
 export function mergeEvalExampleResultReviewMetadataV1(input: {

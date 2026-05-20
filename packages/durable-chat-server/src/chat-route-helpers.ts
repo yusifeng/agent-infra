@@ -1,11 +1,13 @@
 import {
   parseDatasetExampleReviewUpdateV1,
   parseDatasetExpectedOutputV1,
-  parseEvalExampleResultReviewUpdateV1
+  parseEvalExampleResultReviewUpdateV1,
+  parseEvalRunCompareTriageUpdateV1
 } from '@agent-infra/app';
 import type {
   CreateThreadSnapshotShareResult,
   CaptureDatasetExampleFromRunResult,
+  EvalRunCompareTriageRead,
   PublicChatShareResult,
   RunTextTurnResult,
   RunTimelineResult,
@@ -18,6 +20,7 @@ import type {
   Dataset,
   DatasetExample,
   EvalExampleResult,
+  EvalRunCompareTriageStatus,
   EvalRun,
   Message,
   MessagePageResult,
@@ -43,6 +46,8 @@ import type {
   EvalExampleResultResponseDto,
   EvalExampleResultsResponseDto,
   EvalRunResponseDto,
+  EvalRunCompareTriageListResponseDto,
+  EvalRunCompareTriageResponseDto,
   EvalRunsResponseDto,
   RenameThreadRequestDto,
   RunFeedbackResponseDto,
@@ -64,6 +69,7 @@ import type {
   ThreadMessagesPageInfoDto,
   ThreadRunsResponseDto,
   UpdateEvalExampleResultReviewRequestDto,
+  UpdateEvalRunCompareTriageRequestDto,
   UpdateThreadResponseDto,
   UpdateDatasetExampleExpectedOutputRequestDto,
   UpdateDatasetExampleReviewRequestDto,
@@ -77,6 +83,7 @@ import {
   toDatasetDto,
   toDatasetExampleDto,
   toEvalExampleResultDto,
+  toEvalRunCompareTriageDto,
   toEvalRunDto,
   toMessageDto,
   toPublicChatShareDto,
@@ -232,6 +239,24 @@ export function parseUpdateEvalExampleResultReviewInput(body: unknown): UpdateEv
   }
 }
 
+export function parseUpdateEvalRunCompareTriageInput(body: unknown): UpdateEvalRunCompareTriageRequestDto {
+  const record = asObject(body);
+  for (const key of Object.keys(record)) {
+    if (key !== 'status' && key !== 'reviewerNote') {
+      throw new InvalidRouteBodyError(`unexpected field ${key}`);
+    }
+  }
+  try {
+    const update = parseEvalRunCompareTriageUpdateV1(record);
+    return {
+      status: update.status as EvalRunCompareTriageStatus,
+      ...(Object.hasOwn(update, 'reviewerNote') ? { reviewerNote: update.reviewerNote ?? null } : {})
+    };
+  } catch (error) {
+    throw new InvalidRouteBodyError(error instanceof Error && error.message ? error.message : 'invalid eval run compare triage update');
+  }
+}
+
 export function buildDatasetsResponse(datasets: Dataset[]): DatasetsResponseDto {
   return {
     datasets: datasets.map(toDatasetDto)
@@ -340,6 +365,31 @@ export function buildEvalExampleResultResponse(result: EvalExampleResult): EvalE
 }
 
 export function buildEvalExampleResultErrorResponse(error: unknown, fallbackMessage: string): EvalExampleResultResponseDto {
+  return {
+    error: getRouteErrorMessage(error, fallbackMessage)
+  };
+}
+
+export function buildEvalRunCompareTriageListResponse(rows: EvalRunCompareTriageRead[]): EvalRunCompareTriageListResponseDto {
+  return {
+    triageRows: rows.map(toEvalRunCompareTriageDto)
+  };
+}
+
+export function buildEvalRunCompareTriageListErrorResponse(error: unknown, fallbackMessage: string): EvalRunCompareTriageListResponseDto {
+  return {
+    triageRows: [],
+    error: getRouteErrorMessage(error, fallbackMessage)
+  };
+}
+
+export function buildEvalRunCompareTriageResponse(row: EvalRunCompareTriageRead | null): EvalRunCompareTriageResponseDto {
+  return {
+    triage: row ? toEvalRunCompareTriageDto(row) : null
+  };
+}
+
+export function buildEvalRunCompareTriageErrorResponse(error: unknown, fallbackMessage: string): EvalRunCompareTriageResponseDto {
   return {
     error: getRouteErrorMessage(error, fallbackMessage)
   };

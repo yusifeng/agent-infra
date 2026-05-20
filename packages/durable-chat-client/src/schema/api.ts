@@ -18,6 +18,9 @@ import type {
   EvalExampleResultResponseDto,
   EvalExampleResultsResponseDto,
   EvalExampleResultReviewDto,
+  EvalRunCompareTriageDto,
+  EvalRunCompareTriageListResponseDto,
+  EvalRunCompareTriageResponseDto,
   EvalRunConfigV1Dto,
   EvalRunDto,
   EvalRunResponseDto,
@@ -712,6 +715,93 @@ function normalizeEvalExampleResult(value: unknown): EvalExampleResultDto | null
   };
 }
 
+function normalizeEvalRunCompareTriageStatus(value: unknown): EvalRunCompareTriageDto['triageStatus'] | null {
+  if (
+    value === 'accepted' ||
+    value === 'regression' ||
+    value === 'expected_changed' ||
+    value === 'needs_review' ||
+    value === 'ignored'
+  ) {
+    return value;
+  }
+  return null;
+}
+
+function normalizeEvalRunCompareTriage(value: unknown): EvalRunCompareTriageDto | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const id = asString(record.id);
+  const appId = asString(record.appId);
+  const datasetId = asString(record.datasetId);
+  const baselineEvalRunId = asString(record.baselineEvalRunId);
+  const candidateEvalRunId = asString(record.candidateEvalRunId);
+  const datasetExampleId = asString(record.datasetExampleId);
+  const triageStatus = normalizeEvalRunCompareTriageStatus(record.triageStatus);
+  const triagedAt = asString(record.triagedAt);
+  const observedOutcome = asString(record.observedOutcome);
+  const observedReason = asString(record.observedReason);
+  const createdAt = asString(record.createdAt);
+  const updatedAt = asString(record.updatedAt);
+  const stale = asBoolean(record.stale);
+  if (
+    !id ||
+    !appId ||
+    !datasetId ||
+    !baselineEvalRunId ||
+    !candidateEvalRunId ||
+    !datasetExampleId ||
+    !triageStatus ||
+    !triagedAt ||
+    record.observedProjectionKind !== 'eval_run_compare' ||
+    record.observedProjectionSchemaVersion !== 1 ||
+    !observedOutcome ||
+    !observedReason ||
+    !createdAt ||
+    !updatedAt ||
+    stale === null
+  ) {
+    return null;
+  }
+
+  return {
+    id,
+    appId,
+    datasetId,
+    baselineEvalRunId,
+    candidateEvalRunId,
+    datasetExampleId,
+    triageStatus,
+    reviewerNote: asNullableString(record.reviewerNote),
+    triagedByActorId: asNullableString(record.triagedByActorId),
+    triagedAt,
+    observedProjectionKind: 'eval_run_compare',
+    observedProjectionSchemaVersion: 1,
+    observedCompareStrategy: asNullableString(record.observedCompareStrategy),
+    observedOutcome,
+    observedReason,
+    observedBaselineResultId: asNullableString(record.observedBaselineResultId),
+    observedCandidateResultId: asNullableString(record.observedCandidateResultId),
+    observedBaselineResultStatus: asNullableString(record.observedBaselineResultStatus),
+    observedCandidateResultStatus: asNullableString(record.observedCandidateResultStatus),
+    observedBaselineReviewStatus: asNullableString(record.observedBaselineReviewStatus),
+    observedCandidateReviewStatus: asNullableString(record.observedCandidateReviewStatus),
+    observedBaselineSignal: asNullableString(record.observedBaselineSignal),
+    observedCandidateSignal: asNullableString(record.observedCandidateSignal),
+    observedBaselineComparisonOutcome: asNullableString(record.observedBaselineComparisonOutcome),
+    observedCandidateComparisonOutcome: asNullableString(record.observedCandidateComparisonOutcome),
+    observedBaselineComparisonReason: asNullableString(record.observedBaselineComparisonReason),
+    observedCandidateComparisonReason: asNullableString(record.observedCandidateComparisonReason),
+    observedResultComparisonStrategy: asNullableString(record.observedResultComparisonStrategy),
+    stale,
+    createdAt,
+    updatedAt
+  };
+}
+
 function normalizeThreadMessagesPageInfo(value: unknown): ThreadMessagesPageInfoDto | null {
   const record = asRecord(value);
   if (!record) {
@@ -1316,6 +1406,24 @@ export function normalizeEvalExampleResultResponse(value: unknown): EvalExampleR
   const record = asRecord(value) ?? {};
   return {
     result: normalizeEvalExampleResult(record.result) ?? undefined,
+    error: readApiError(record) ?? undefined
+  };
+}
+
+export function normalizeEvalRunCompareTriageListResponse(value: unknown): EvalRunCompareTriageListResponseDto {
+  const record = asRecord(value) ?? {};
+  return {
+    triageRows: Array.isArray(record.triageRows)
+      ? record.triageRows.map(normalizeEvalRunCompareTriage).filter((row): row is EvalRunCompareTriageDto => row !== null)
+      : [],
+    error: readApiError(record) ?? undefined
+  };
+}
+
+export function normalizeEvalRunCompareTriageResponse(value: unknown): EvalRunCompareTriageResponseDto {
+  const record = asRecord(value) ?? {};
+  return {
+    triage: Object.hasOwn(record, 'triage') ? normalizeEvalRunCompareTriage(record.triage) : undefined,
     error: readApiError(record) ?? undefined
   };
 }

@@ -6,6 +6,7 @@ import type {
   Dataset,
   DatasetExample,
   EvalExampleResult,
+  EvalRunCompareTriage,
   EvalRun,
   Message,
   MessagePart,
@@ -55,6 +56,7 @@ type InMemoryState = {
   datasetExamples: Map<string, DatasetExample>;
   evalRuns: Map<string, EvalRun>;
   evalExampleResults: Map<string, EvalExampleResult>;
+  evalRunCompareTriages: Map<string, EvalRunCompareTriage>;
 };
 
 function cloneState(state: InMemoryState): InMemoryState {
@@ -80,7 +82,8 @@ function cloneState(state: InMemoryState): InMemoryState {
     datasets: new Map([...state.datasets.entries()].map(([id, dataset]) => [id, structuredClone(dataset)])),
     datasetExamples: new Map([...state.datasetExamples.entries()].map(([id, example]) => [id, structuredClone(example)])),
     evalRuns: new Map([...state.evalRuns.entries()].map(([id, run]) => [id, structuredClone(run)])),
-    evalExampleResults: new Map([...state.evalExampleResults.entries()].map(([id, result]) => [id, structuredClone(result)]))
+    evalExampleResults: new Map([...state.evalExampleResults.entries()].map(([id, result]) => [id, structuredClone(result)])),
+    evalRunCompareTriages: new Map([...state.evalRunCompareTriages.entries()].map(([id, triage]) => [id, structuredClone(triage)]))
   };
 }
 
@@ -547,6 +550,45 @@ function createRepositories(stateRef: { current: InMemoryState }, snapshot?: InM
         getState().evalExampleResults.set(id, next);
         return next;
       }
+    },
+    evalRunCompareTriageRepo: {
+      async findByPairAndExample(input) {
+        return (
+          [...getState().evalRunCompareTriages.values()].find(
+            (triage) =>
+              triage.baselineEvalRunId === input.baselineEvalRunId &&
+              triage.candidateEvalRunId === input.candidateEvalRunId &&
+              triage.datasetExampleId === input.datasetExampleId
+          ) ?? null
+        );
+      },
+      async listByPair(input) {
+        return [...getState().evalRunCompareTriages.values()]
+          .filter(
+            (triage) =>
+              triage.baselineEvalRunId === input.baselineEvalRunId &&
+              triage.candidateEvalRunId === input.candidateEvalRunId
+          )
+          .sort((left, right) => left.datasetExampleId.localeCompare(right.datasetExampleId));
+      },
+      async createOrUpdate(input) {
+        const existing = await this.findByPairAndExample(input);
+        const now = new Date();
+        const triage = {
+          ...input,
+          id: existing?.id ?? input.id,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now
+        };
+        getState().evalRunCompareTriages.set(triage.id, triage);
+        return triage;
+      },
+      async deleteByPairAndExample(input) {
+        const existing = await this.findByPairAndExample(input);
+        if (existing) {
+          getState().evalRunCompareTriages.delete(existing.id);
+        }
+      }
     }
   };
 }
@@ -567,7 +609,8 @@ function createDependencies(runtime: AgentInfraRuntimePort) {
       datasets: new Map<string, Dataset>(),
       datasetExamples: new Map<string, DatasetExample>(),
       evalRuns: new Map<string, EvalRun>(),
-      evalExampleResults: new Map<string, EvalExampleResult>()
+      evalExampleResults: new Map<string, EvalExampleResult>(),
+      evalRunCompareTriages: new Map<string, EvalRunCompareTriage>()
     }
   };
 
@@ -2095,6 +2138,260 @@ describe('createAgentInfraApp', () => {
     expect(prepare).not.toHaveBeenCalled();
     expect(runTextTurn).not.toHaveBeenCalled();
     expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it('persists compare triage independently from result review and summary counts', async () => {
+    const { app, repositories } = createDependencies(createHappyRuntime());
+    const dataset = await app.datasets.create({
+      appId: 'playground-runtime-pi',
+      name: 'Compare triage',
+      createdByActorId: 'actor-1'
+    });
+    await createDatasetExampleFixture(repositories, {
+      id: 'triage-example',
+      datasetId: dataset.id,
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected answer' },
+      metadataJson: structuredClone(APPROVED_DEFAULT_EVAL_METADATA)
+    });
+    const baseline = await app.evals.create({
+      appId: 'playground-runtime-pi',
+      datasetId: dataset.id,
+      actorId: 'actor-1',
+      name: 'baseline'
+    });
+    const candidate = await app.evals.create({
+      appId: 'playground-runtime-pi',
+      datasetId: dataset.id,
+      actorId: 'actor-1',
+      name: 'candidate'
+    });
+    const baselineResult = (await app.evals.listResults({
+      appId: 'playground-runtime-pi',
+      evalRunId: baseline.id,
+      actorId: 'actor-1'
+    }))[0]!;
+    const candidateResult = (await app.evals.listResults({
+      appId: 'playground-runtime-pi',
+      evalRunId: candidate.id,
+      actorId: 'actor-1'
+    }))[0]!;
+
+    await repositories.evalExampleResultRepo.update(
+      baselineResult.id,
+      {
+        status: 'completed',
+        actualOutputJson: {
+          schemaVersion: 1,
+          kind: 'eval_run_output',
+          outputRunId: 'baseline-output-run',
+          evalThreadId: 'baseline-eval-thread',
+          status: 'completed',
+          assistantMessages: [
+            {
+              id: 'baseline-message',
+              threadId: 'baseline-eval-thread',
+              runId: 'baseline-output-run',
+              role: 'assistant',
+              seq: 1,
+              status: 'completed',
+              metadata: null,
+              createdAt: '2026-04-10T00:00:00.000Z',
+              parts: [
+                {
+                  id: 'baseline-part',
+                  messageId: 'baseline-message',
+                  partIndex: 0,
+                  type: 'text',
+                  textValue: 'Expected answer',
+                  jsonValue: null,
+                  createdAt: '2026-04-10T00:00:00.000Z'
+                }
+              ]
+            }
+          ]
+        }
+      },
+      new Date('2026-04-10T00:00:00.000Z')
+    );
+    await repositories.evalExampleResultRepo.update(
+      candidateResult.id,
+      {
+        status: 'completed',
+        actualOutputJson: {
+          schemaVersion: 1,
+          kind: 'eval_run_output',
+          outputRunId: 'candidate-output-run',
+          evalThreadId: 'candidate-eval-thread',
+          status: 'completed',
+          assistantMessages: [
+            {
+              id: 'candidate-message',
+              threadId: 'candidate-eval-thread',
+              runId: 'candidate-output-run',
+              role: 'assistant',
+              seq: 1,
+              status: 'completed',
+              metadata: null,
+              createdAt: '2026-04-10T00:00:00.000Z',
+              parts: [
+                {
+                  id: 'candidate-part',
+                  messageId: 'candidate-message',
+                  partIndex: 0,
+                  type: 'text',
+                  textValue: 'Different answer',
+                  jsonValue: null,
+                  createdAt: '2026-04-10T00:00:00.000Z'
+                }
+              ]
+            }
+          ]
+        }
+      },
+      new Date('2026-04-10T00:00:00.000Z')
+    );
+    const baselineSummaryBefore = (await app.evals.get({
+      appId: 'playground-runtime-pi',
+      evalRunId: baseline.id,
+      actorId: 'actor-1'
+    })).summaryJson;
+    const resultMetadataBefore = (await repositories.evalExampleResultRepo.findById(candidateResult.id))?.metadataJson;
+
+    const updated = await app.evals.updateCompareTriage({
+      appId: 'playground-runtime-pi',
+      baselineEvalRunId: baseline.id,
+      candidateEvalRunId: candidate.id,
+      datasetExampleId: 'triage-example',
+      actorId: 'actor-1',
+      triage: { status: 'regression', reviewerNote: '  candidate regressed  ' }
+    });
+
+    expect(updated).toMatchObject({
+      stale: false,
+      triage: {
+        appId: 'playground-runtime-pi',
+        datasetId: dataset.id,
+        baselineEvalRunId: baseline.id,
+        candidateEvalRunId: candidate.id,
+        datasetExampleId: 'triage-example',
+        triageStatus: 'regression',
+        reviewerNote: 'candidate regressed',
+        triagedByActorId: 'actor-1',
+        triagedAt: new Date('2026-04-10T00:00:00.000Z'),
+        observedProjectionKind: 'eval_run_compare',
+        observedProjectionSchemaVersion: 1,
+        observedOutcome: 'same_unresolved',
+        observedReason: 'unresolved_signal_same',
+        observedBaselineResultId: baselineResult.id,
+        observedCandidateResultId: candidateResult.id,
+        observedBaselineReviewStatus: 'unreviewed',
+        observedCandidateReviewStatus: 'unreviewed',
+        observedResultComparisonStrategy: 'normalized_text_v1'
+      }
+    });
+    await expect(app.evals.listCompareTriage({
+      appId: 'playground-runtime-pi',
+      baselineEvalRunId: baseline.id,
+      candidateEvalRunId: candidate.id,
+      actorId: 'actor-1'
+    })).resolves.toMatchObject([{ stale: false, triage: { triageStatus: 'regression' } }]);
+    expect((await app.evals.get({
+      appId: 'playground-runtime-pi',
+      evalRunId: baseline.id,
+      actorId: 'actor-1'
+    })).summaryJson).toEqual(baselineSummaryBefore);
+    expect((await repositories.evalExampleResultRepo.findById(candidateResult.id))?.metadataJson).toEqual(resultMetadataBefore);
+
+    await app.evals.updateResultReview({
+      appId: 'playground-runtime-pi',
+      evalRunId: candidate.id,
+      resultId: candidateResult.id,
+      actorId: 'actor-1',
+      review: { status: 'pass' }
+    });
+    await expect(app.evals.listCompareTriage({
+      appId: 'playground-runtime-pi',
+      baselineEvalRunId: baseline.id,
+      candidateEvalRunId: candidate.id,
+      actorId: 'actor-1'
+    })).resolves.toMatchObject([{ stale: true }]);
+
+    await app.evals.deleteCompareTriage({
+      appId: 'playground-runtime-pi',
+      baselineEvalRunId: baseline.id,
+      candidateEvalRunId: candidate.id,
+      datasetExampleId: 'triage-example',
+      actorId: 'actor-1'
+    });
+    await expect(app.evals.listCompareTriage({
+      appId: 'playground-runtime-pi',
+      baselineEvalRunId: baseline.id,
+      candidateEvalRunId: candidate.id,
+      actorId: 'actor-1'
+    })).resolves.toEqual([]);
+  });
+
+  it('validates compare triage pair and dataset example boundaries', async () => {
+    const { app, repositories } = createDependencies(createHappyRuntime());
+    const dataset = await app.datasets.create({
+      appId: 'playground-runtime-pi',
+      name: 'Triage boundaries',
+      createdByActorId: 'actor-1'
+    });
+    const otherDataset = await app.datasets.create({
+      appId: 'playground-runtime-pi',
+      name: 'Other triage boundaries',
+      createdByActorId: 'actor-1'
+    });
+    await createDatasetExampleFixture(repositories, {
+      id: 'triage-boundary-example',
+      datasetId: dataset.id,
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Expected answer' },
+      metadataJson: structuredClone(APPROVED_DEFAULT_EVAL_METADATA)
+    });
+    await createDatasetExampleFixture(repositories, {
+      id: 'outside-example',
+      datasetId: otherDataset.id,
+      expectedOutputJson: { schemaVersion: 1, kind: 'assistant_text', text: 'Other expected answer' },
+      metadataJson: structuredClone(APPROVED_DEFAULT_EVAL_METADATA)
+    });
+    const baseline = await app.evals.create({ appId: 'playground-runtime-pi', datasetId: dataset.id, actorId: 'actor-1' });
+    const candidate = await app.evals.create({ appId: 'playground-runtime-pi', datasetId: dataset.id, actorId: 'actor-1' });
+    const other = await app.evals.create({ appId: 'playground-runtime-pi', datasetId: otherDataset.id, actorId: 'actor-1' });
+
+    await expect(app.evals.updateCompareTriage({
+      appId: 'playground-runtime-pi',
+      baselineEvalRunId: baseline.id,
+      candidateEvalRunId: baseline.id,
+      datasetExampleId: 'triage-boundary-example',
+      actorId: 'actor-1',
+      triage: { status: 'accepted' }
+    })).rejects.toBeInstanceOf(InvalidEvalInputError);
+    await expect(app.evals.updateCompareTriage({
+      appId: 'playground-runtime-pi',
+      baselineEvalRunId: baseline.id,
+      candidateEvalRunId: other.id,
+      datasetExampleId: 'triage-boundary-example',
+      actorId: 'actor-1',
+      triage: { status: 'accepted' }
+    })).rejects.toBeInstanceOf(InvalidEvalInputError);
+    await expect(app.evals.updateCompareTriage({
+      appId: 'playground-runtime-pi',
+      baselineEvalRunId: baseline.id,
+      candidateEvalRunId: candidate.id,
+      datasetExampleId: 'outside-example',
+      actorId: 'actor-1',
+      triage: { status: 'accepted' }
+    })).rejects.toBeInstanceOf(DatasetNotFoundError);
+    await expect(app.evals.updateCompareTriage({
+      appId: 'playground-runtime-pi',
+      baselineEvalRunId: baseline.id,
+      candidateEvalRunId: candidate.id,
+      datasetExampleId: 'triage-boundary-example',
+      actorId: 'actor-1',
+      triage: { status: 'accepted' },
+      triagedByActorId: 'attacker'
+    } as Parameters<typeof app.evals.updateCompareTriage>[0])).rejects.toBeInstanceOf(InvalidEvalInputError);
   });
 
   it('runs eval results in isolated threads without mutating source threads', async () => {

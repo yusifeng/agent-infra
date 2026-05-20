@@ -1,10 +1,13 @@
 import crypto from 'node:crypto';
 
 import {
+  projectEvalRunCompareV1,
   projectCanonicalTranscript,
   type Dataset,
   type DatasetExample,
   type EvalExampleResult,
+  type EvalRunCompareRowV1,
+  type EvalRunCompareTriage,
   type EvalRun,
   type Message,
   type MessagePart,
@@ -49,7 +52,10 @@ import {
   buildEvalRunSummaryV1,
   buildExpectedOutputSnapshotFromDatasetExample,
   mergeEvalExampleResultReviewMetadataV1,
+  normalizeEvalExampleResultReviewV1,
+  normalizeEvalRunCompareTriageReviewerNote,
   parseEvalExampleResultReviewUpdateV1,
+  parseEvalRunCompareTriageUpdateV1,
   parseEvalRunConfigV1,
   parseEvalRunSummaryV1,
   selectEligibleDatasetExamplesV1
@@ -68,6 +74,8 @@ import type {
   DatasetMessageSnapshotV1,
   DatasetToolInvocationsSnapshotV1,
   EvalActualOutputSnapshotV1,
+  EvalRunCompareTriageFingerprintV1,
+  EvalRunCompareTriageRead,
   EvalRunSummaryV1,
   PublicChatShareResult,
   RunTraceResult,
@@ -211,6 +219,119 @@ async function refreshEvalRunSummary(
     input.evalRun.id,
     { summaryJson: nextSummary as unknown as Record<string, unknown> },
     input.updatedAt
+  );
+}
+
+function withEvalResultReview(result: EvalExampleResult) {
+  return {
+    ...result,
+    review: normalizeEvalExampleResultReviewV1(result.metadataJson ?? null)
+  };
+}
+
+async function loadEvalRunComparePairForAppOrThrow(
+  repositories: AgentInfraAppRepositories,
+  input: { appId: string; baselineEvalRunId: string; candidateEvalRunId: string; actorId?: string | null }
+) {
+  if (input.baselineEvalRunId === input.candidateEvalRunId) {
+    throw new InvalidEvalInputError('baseline and candidate eval runs must be different', {
+      baselineEvalRunId: input.baselineEvalRunId,
+      candidateEvalRunId: input.candidateEvalRunId
+    });
+  }
+
+  const [baselineEvalRun, candidateEvalRun] = await Promise.all([
+    loadEvalRunForAppOrThrow(repositories, {
+      appId: input.appId,
+      evalRunId: input.baselineEvalRunId,
+      actorId: input.actorId ?? null
+    }),
+    loadEvalRunForAppOrThrow(repositories, {
+      appId: input.appId,
+      evalRunId: input.candidateEvalRunId,
+      actorId: input.actorId ?? null
+    })
+  ]);
+
+  if (baselineEvalRun.appId !== candidateEvalRun.appId || baselineEvalRun.appId !== input.appId) {
+    throw new InvalidEvalInputError('baseline and candidate eval runs must belong to the same app', {
+      baselineEvalRunId: baselineEvalRun.id,
+      candidateEvalRunId: candidateEvalRun.id
+    });
+  }
+  if (baselineEvalRun.datasetId !== candidateEvalRun.datasetId) {
+    throw new InvalidEvalInputError('baseline and candidate eval runs must belong to the same dataset', {
+      baselineEvalRunId: baselineEvalRun.id,
+      candidateEvalRunId: candidateEvalRun.id,
+      baselineDatasetId: baselineEvalRun.datasetId,
+      candidateDatasetId: candidateEvalRun.datasetId
+    });
+  }
+
+  return { baselineEvalRun, candidateEvalRun };
+}
+
+async function projectEvalRunCompareRowsForPair(
+  repositories: AgentInfraAppRepositories,
+  input: { baselineEvalRun: EvalRun; candidateEvalRun: EvalRun }
+) {
+  const [baselineResults, candidateResults] = await Promise.all([
+    repositories.evalExampleResultRepo.listByEvalRun(input.baselineEvalRun.id),
+    repositories.evalExampleResultRepo.listByEvalRun(input.candidateEvalRun.id)
+  ]);
+
+  return projectEvalRunCompareV1({
+    baselineRun: input.baselineEvalRun,
+    baselineResults: baselineResults.map(withEvalResultReview),
+    candidateRun: input.candidateEvalRun,
+    candidateResults: candidateResults.map(withEvalResultReview)
+  }).rows;
+}
+
+function buildEvalRunCompareTriageFingerprint(row: EvalRunCompareRowV1): EvalRunCompareTriageFingerprintV1 {
+  const observedResultComparisonStrategy = row.baseline?.comparison.strategy ?? row.candidate?.comparison.strategy ?? null;
+  return {
+    observedProjectionKind: 'eval_run_compare',
+    observedProjectionSchemaVersion: 1,
+    observedCompareStrategy: null,
+    observedOutcome: row.outcome,
+    observedReason: row.reason,
+    observedBaselineResultId: row.baseline?.resultId ?? null,
+    observedCandidateResultId: row.candidate?.resultId ?? null,
+    observedBaselineResultStatus: row.baseline?.status ?? null,
+    observedCandidateResultStatus: row.candidate?.status ?? null,
+    observedBaselineReviewStatus: row.baseline?.reviewStatus ?? null,
+    observedCandidateReviewStatus: row.candidate?.reviewStatus ?? null,
+    observedBaselineSignal: row.baseline?.signal ?? null,
+    observedCandidateSignal: row.candidate?.signal ?? null,
+    observedBaselineComparisonOutcome: row.baseline?.comparison.outcome ?? null,
+    observedCandidateComparisonOutcome: row.candidate?.comparison.outcome ?? null,
+    observedBaselineComparisonReason: row.baseline?.comparison.reason ?? null,
+    observedCandidateComparisonReason: row.candidate?.comparison.reason ?? null,
+    observedResultComparisonStrategy
+  };
+}
+
+function isEvalRunCompareTriageStale(triage: EvalRunCompareTriage, fingerprint: EvalRunCompareTriageFingerprintV1) {
+  return (
+    triage.observedProjectionKind !== fingerprint.observedProjectionKind ||
+    triage.observedProjectionSchemaVersion !== fingerprint.observedProjectionSchemaVersion ||
+    (triage.observedCompareStrategy ?? null) !== (fingerprint.observedCompareStrategy ?? null) ||
+    triage.observedOutcome !== fingerprint.observedOutcome ||
+    triage.observedReason !== fingerprint.observedReason ||
+    (triage.observedBaselineResultId ?? null) !== (fingerprint.observedBaselineResultId ?? null) ||
+    (triage.observedCandidateResultId ?? null) !== (fingerprint.observedCandidateResultId ?? null) ||
+    (triage.observedBaselineResultStatus ?? null) !== (fingerprint.observedBaselineResultStatus ?? null) ||
+    (triage.observedCandidateResultStatus ?? null) !== (fingerprint.observedCandidateResultStatus ?? null) ||
+    (triage.observedBaselineReviewStatus ?? null) !== (fingerprint.observedBaselineReviewStatus ?? null) ||
+    (triage.observedCandidateReviewStatus ?? null) !== (fingerprint.observedCandidateReviewStatus ?? null) ||
+    (triage.observedBaselineSignal ?? null) !== (fingerprint.observedBaselineSignal ?? null) ||
+    (triage.observedCandidateSignal ?? null) !== (fingerprint.observedCandidateSignal ?? null) ||
+    (triage.observedBaselineComparisonOutcome ?? null) !== (fingerprint.observedBaselineComparisonOutcome ?? null) ||
+    (triage.observedCandidateComparisonOutcome ?? null) !== (fingerprint.observedCandidateComparisonOutcome ?? null) ||
+    (triage.observedBaselineComparisonReason ?? null) !== (fingerprint.observedBaselineComparisonReason ?? null) ||
+    (triage.observedCandidateComparisonReason ?? null) !== (fingerprint.observedCandidateComparisonReason ?? null) ||
+    (triage.observedResultComparisonStrategy ?? null) !== (fingerprint.observedResultComparisonStrategy ?? null)
   );
 }
 
@@ -2024,6 +2145,86 @@ export function createAgentInfraApp(dependencies: AgentInfraAppDependencies): Ag
           );
 
           return updated;
+        });
+      },
+      async listCompareTriage(input) {
+        const { baselineEvalRun, candidateEvalRun } = await loadEvalRunComparePairForAppOrThrow(dependencies.repositories, input);
+        const rows = await projectEvalRunCompareRowsForPair(dependencies.repositories, { baselineEvalRun, candidateEvalRun });
+        const rowsByExampleId = new Map(rows.map((row) => [row.datasetExampleId, row]));
+        const triageRows = await dependencies.repositories.evalRunCompareTriageRepo.listByPair({
+          baselineEvalRunId: baselineEvalRun.id,
+          candidateEvalRunId: candidateEvalRun.id
+        });
+
+        return triageRows.map((triage): EvalRunCompareTriageRead => {
+          const currentRow = rowsByExampleId.get(triage.datasetExampleId) ?? null;
+          return {
+            triage,
+            stale: currentRow ? isEvalRunCompareTriageStale(triage, buildEvalRunCompareTriageFingerprint(currentRow)) : true
+          };
+        });
+      },
+      async updateCompareTriage(input) {
+        const rawInput = input as unknown as Record<string, unknown>;
+        if (Object.hasOwn(rawInput, 'triagedByActorId')) {
+          throw new InvalidEvalInputError('triagedByActorId is assigned from actor context');
+        }
+        if (Object.hasOwn(rawInput, 'triagedAt')) {
+          throw new InvalidEvalInputError('triagedAt is assigned from app time');
+        }
+
+        return dependencies.transaction(async (repositories) => {
+          const { baselineEvalRun, candidateEvalRun } = await loadEvalRunComparePairForAppOrThrow(repositories, input);
+          await loadDatasetExampleForDatasetOrThrow(repositories, {
+            datasetId: baselineEvalRun.datasetId,
+            exampleId: input.datasetExampleId
+          });
+
+          const rows = await projectEvalRunCompareRowsForPair(repositories, { baselineEvalRun, candidateEvalRun });
+          const row = rows.find((item) => item.datasetExampleId === input.datasetExampleId) ?? null;
+          if (!row) {
+            throw new InvalidEvalInputError('dataset example is not present in the current compare projection', {
+              baselineEvalRunId: baselineEvalRun.id,
+              candidateEvalRunId: candidateEvalRun.id,
+              datasetExampleId: input.datasetExampleId
+            });
+          }
+
+          const update = parseEvalRunCompareTriageUpdateV1(input.triage);
+          const triagedAt = now();
+          const triage = await repositories.evalRunCompareTriageRepo.createOrUpdate({
+            id: generateId(),
+            appId: baselineEvalRun.appId,
+            datasetId: baselineEvalRun.datasetId,
+            baselineEvalRunId: baselineEvalRun.id,
+            candidateEvalRunId: candidateEvalRun.id,
+            datasetExampleId: input.datasetExampleId,
+            triageStatus: update.status,
+            reviewerNote: normalizeEvalRunCompareTriageReviewerNote(update.reviewerNote),
+            triagedByActorId: input.actorId ?? null,
+            triagedAt,
+            ...buildEvalRunCompareTriageFingerprint(row)
+          });
+
+          return {
+            triage,
+            stale: false
+          };
+        });
+      },
+      async deleteCompareTriage(input) {
+        return dependencies.transaction(async (repositories) => {
+          const { baselineEvalRun } = await loadEvalRunComparePairForAppOrThrow(repositories, input);
+          await loadDatasetExampleForDatasetOrThrow(repositories, {
+            datasetId: baselineEvalRun.datasetId,
+            exampleId: input.datasetExampleId
+          });
+
+          await repositories.evalRunCompareTriageRepo.deleteByPairAndExample({
+            baselineEvalRunId: input.baselineEvalRunId,
+            candidateEvalRunId: input.candidateEvalRunId,
+            datasetExampleId: input.datasetExampleId
+          });
         });
       }
     },

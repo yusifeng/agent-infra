@@ -5,6 +5,8 @@ import type {
   DatasetExampleDto,
   EvalExampleResultDto,
   EvalExampleResultReviewStatusDto,
+  EvalRunCompareTriageDto,
+  EvalRunCompareTriageStatusV1Dto,
   EvalRunDto
 } from '@agent-infra/contracts';
 import { projectEvalRunCompareV1 } from '@agent-infra/durable-chat-client';
@@ -17,8 +19,11 @@ import {
   fetchDatasetEvalRunsResponse,
   fetchDatasetsResponse,
   fetchEvalExampleResultsResponse,
+  fetchEvalRunCompareTriageResponse,
   fetchEvalRunResponse,
   runEvalRunResponse,
+  deleteEvalRunCompareTriageResponse,
+  updateEvalRunCompareTriageResponse,
   updateEvalExampleResultReviewResponse
 } from '@/features/durable-chat/repo/chat-api';
 
@@ -92,6 +97,11 @@ export type EvalResultReviewDraft = {
   reviewerNote: string;
 };
 
+export type EvalRunCompareTriageDraft = {
+  status: EvalRunCompareTriageStatusV1Dto;
+  reviewerNote: string;
+};
+
 export type EvalConsoleState = ReturnType<typeof useEvalConsole>;
 
 export function useEvalConsole() {
@@ -120,6 +130,10 @@ export function useEvalConsole() {
   const [candidateCompareResultsLoaded, setCandidateCompareResultsLoaded] = useState(false);
   const [candidateCompareResultsLoading, setCandidateCompareResultsLoading] = useState(false);
   const [candidateCompareResultsError, setCandidateCompareResultsError] = useState<string | null>(null);
+  const [compareTriageRows, setCompareTriageRows] = useState<EvalRunCompareTriageDto[]>([]);
+  const [compareTriageLoading, setCompareTriageLoading] = useState(false);
+  const [compareTriageSaving, setCompareTriageSaving] = useState(false);
+  const [compareTriageError, setCompareTriageError] = useState<string | null>(null);
 
   const [sourceExample, setSourceExample] = useState<DatasetExampleDto | null>(null);
   const [sourceExampleLoading, setSourceExampleLoading] = useState(false);
@@ -471,6 +485,42 @@ export function useEvalConsole() {
 
   useEffect(() => {
     const controller = new AbortController();
+    setCompareTriageRows([]);
+    setCompareTriageError(null);
+
+    if (!isCompareMode || !selectedBaselineEvalRunId || !selectedCandidateEvalRunId || selectedBaselineEvalRunId === selectedCandidateEvalRunId) {
+      setCompareTriageLoading(false);
+      return () => controller.abort();
+    }
+
+    setCompareTriageLoading(true);
+    fetchEvalRunCompareTriageResponse(selectedBaselineEvalRunId, selectedCandidateEvalRunId, controller.signal)
+      .then((result) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+        if (!result.ok) {
+          throw new Error(result.error ?? `Failed to load compare triage (${result.status})`);
+        }
+        setCompareTriageRows(result.data.triageRows);
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) {
+          setCompareTriageRows([]);
+          setCompareTriageError(error instanceof Error ? error.message : 'Failed to load compare triage');
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setCompareTriageLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [isCompareMode, refreshVersion, selectedBaselineEvalRunId, selectedCandidateEvalRunId]);
+
+  useEffect(() => {
+    const controller = new AbortController();
     setSourceExample(null);
     setSourceExampleError(null);
 
@@ -663,6 +713,63 @@ export function useEvalConsole() {
     [selectedEvalRunId, selectedResultId]
   );
 
+  const saveCompareTriage = useCallback(
+    async (datasetExampleId: string, draft: EvalRunCompareTriageDraft) => {
+      if (!selectedBaselineEvalRunId || !selectedCandidateEvalRunId) {
+        return;
+      }
+
+      setCompareTriageSaving(true);
+      setMutationError(null);
+      try {
+        const result = await updateEvalRunCompareTriageResponse(
+          selectedBaselineEvalRunId,
+          selectedCandidateEvalRunId,
+          datasetExampleId,
+          {
+            status: draft.status,
+            reviewerNote: draft.reviewerNote.trim() || null
+          }
+        );
+        if (!result.ok || !result.data.triage) {
+          throw new Error(result.error ?? `Failed to save compare triage (${result.status})`);
+        }
+        setCompareTriageRows((current) => [
+          result.data.triage as EvalRunCompareTriageDto,
+          ...current.filter((item) => item.datasetExampleId !== datasetExampleId)
+        ]);
+      } catch (error: unknown) {
+        setMutationError(error instanceof Error ? error.message : 'Failed to save compare triage');
+      } finally {
+        setCompareTriageSaving(false);
+      }
+    },
+    [selectedBaselineEvalRunId, selectedCandidateEvalRunId]
+  );
+
+  const clearCompareTriage = useCallback(
+    async (datasetExampleId: string) => {
+      if (!selectedBaselineEvalRunId || !selectedCandidateEvalRunId) {
+        return;
+      }
+
+      setCompareTriageSaving(true);
+      setMutationError(null);
+      try {
+        const result = await deleteEvalRunCompareTriageResponse(selectedBaselineEvalRunId, selectedCandidateEvalRunId, datasetExampleId);
+        if (!result.ok) {
+          throw new Error(result.error ?? `Failed to clear compare triage (${result.status})`);
+        }
+        setCompareTriageRows((current) => current.filter((item) => item.datasetExampleId !== datasetExampleId));
+      } catch (error: unknown) {
+        setMutationError(error instanceof Error ? error.message : 'Failed to clear compare triage');
+      } finally {
+        setCompareTriageSaving(false);
+      }
+    },
+    [selectedBaselineEvalRunId, selectedCandidateEvalRunId]
+  );
+
   return {
     mode,
     isCompareMode,
@@ -683,6 +790,10 @@ export function useEvalConsole() {
     selectedCompareDatasetExampleId,
     compareProjection,
     selectedCompareRow,
+    compareTriageRows,
+    compareTriageLoading,
+    compareTriageSaving,
+    compareTriageError,
     baselineCompareResults,
     baselineCompareResultsLoaded,
     baselineCompareResultsLoading,
@@ -712,6 +823,8 @@ export function useEvalConsole() {
     createEvalRun,
     runSelectedEvalRun,
     saveResultReview,
+    saveCompareTriage,
+    clearCompareTriage,
     refresh: () => setRefreshVersion((current) => current + 1)
   };
 }

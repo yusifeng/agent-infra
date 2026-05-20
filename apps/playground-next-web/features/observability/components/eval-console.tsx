@@ -5,6 +5,8 @@ import type {
   EvalExampleResultDto,
   EvalExampleResultReviewStatusDto,
   EvalExampleResultStatusDto,
+  EvalRunCompareTriageDto,
+  EvalRunCompareTriageStatusV1Dto,
   EvalRunDto
 } from '@agent-infra/contracts';
 import {
@@ -32,7 +34,13 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import type { AuthUserDto } from '@/features/auth/dto/project-auth-user-dto';
-import { useEvalConsole, type EvalConsoleMode, type EvalConsoleState, type EvalResultReviewDraft } from '@/features/observability/runtime/use-eval-console';
+import {
+  useEvalConsole,
+  type EvalConsoleMode,
+  type EvalConsoleState,
+  type EvalResultReviewDraft,
+  type EvalRunCompareTriageDraft
+} from '@/features/observability/runtime/use-eval-console';
 
 import {
   buildDatasetExampleHref,
@@ -57,6 +65,7 @@ type ResultStatusFilter = 'all' | EvalExampleResultStatusDto;
 type ReviewStatusFilter = 'all' | EvalExampleResultReviewStatusDto;
 type ComparisonOutcomeFilter = 'all' | EvalResultComparisonOutcomeV1;
 type CompareOutcomeFilter = 'all' | EvalRunCompareOutcomeV1;
+type CompareTriageFilter = 'all' | 'untriaged' | EvalRunCompareTriageStatusV1Dto;
 
 type EvalResultFilters = {
   resultStatus: ResultStatusFilter;
@@ -120,6 +129,32 @@ const COMPARE_RUN_OUTCOME_CLASSES: Record<EvalRunCompareOutcomeV1, string> = {
   baseline_missing: 'border-purple-200 bg-purple-50 text-purple-800',
   candidate_missing: 'border-purple-200 bg-purple-50 text-purple-800',
   not_comparable: 'border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] text-[var(--chat-muted)]'
+};
+
+const COMPARE_TRIAGE_STATUSES: EvalRunCompareTriageStatusV1Dto[] = [
+  'accepted',
+  'regression',
+  'expected_changed',
+  'needs_review',
+  'ignored'
+];
+
+const COMPARE_TRIAGE_LABELS: Record<EvalRunCompareTriageStatusV1Dto | 'untriaged', string> = {
+  untriaged: '未标注',
+  accepted: '可接受',
+  regression: '需修复',
+  expected_changed: '期望变化',
+  needs_review: '需复核',
+  ignored: '忽略'
+};
+
+const COMPARE_TRIAGE_CLASSES: Record<EvalRunCompareTriageStatusV1Dto | 'untriaged', string> = {
+  untriaged: 'border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] text-[var(--chat-muted)]',
+  accepted: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+  regression: 'border-red-200 bg-red-50 text-red-800',
+  expected_changed: 'border-blue-200 bg-blue-50 text-blue-800',
+  needs_review: 'border-amber-200 bg-amber-50 text-amber-800',
+  ignored: 'border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] text-[var(--chat-muted)]'
 };
 
 const COMPARE_REASON_LABELS: Record<string, string> = {
@@ -227,6 +262,12 @@ const EVAL_COPY = {
   compareRow: '对比样本',
   compareRows: '对比行',
   compareOutcome: '对比结果',
+  triage: '标注',
+  triageStatus: '标注状态',
+  triageNote: '标注备注',
+  saveTriage: '保存标注',
+  clearTriage: '清除标注',
+  staleTriage: '标注已过期',
   baselineResults: '基线结果',
   candidateResults: '候选结果',
   summary: '摘要',
@@ -468,6 +509,14 @@ function CompareOutcomeBadge({ outcome }: { outcome: EvalRunCompareOutcomeV1 }) 
   return (
     <span className={`shrink-0 rounded-md border px-2 py-0.5 text-xs font-medium ${COMPARE_RUN_OUTCOME_CLASSES[outcome]}`}>
       {COMPARE_RUN_OUTCOME_LABELS[outcome]}
+    </span>
+  );
+}
+
+function CompareTriageBadge({ status, stale = false }: { status: EvalRunCompareTriageStatusV1Dto | 'untriaged'; stale?: boolean }) {
+  return (
+    <span className={`shrink-0 rounded-md border px-2 py-0.5 text-xs font-medium ${COMPARE_TRIAGE_CLASSES[status]}`}>
+      {COMPARE_TRIAGE_LABELS[status]}{stale ? ` · ${EVAL_COPY.staleTriage}` : ''}
     </span>
   );
 }
@@ -1156,10 +1205,25 @@ function ComparePanelView({
   onOutcomeFilterChange: (filter: CompareOutcomeFilter) => void;
 }) {
   const loading = state.baselineCompareResultsLoading || state.candidateCompareResultsLoading;
-  const error = state.baselineCompareResultsError ?? state.candidateCompareResultsError;
+  const error = state.baselineCompareResultsError ?? state.candidateCompareResultsError ?? state.compareTriageError;
+  const [triageFilter, setTriageFilter] = useState<CompareTriageFilter>('all');
   const compareRuns = useMemo(() => sortedCompareEvalRuns(state.evalRuns), [state.evalRuns]);
   const rows = state.compareProjection?.rows ?? [];
-  const filteredRows = outcomeFilter === 'all' ? rows : rows.filter((row) => row.outcome === outcomeFilter);
+  const triageByExampleId = useMemo(
+    () => new Map(state.compareTriageRows.map((triage) => [triage.datasetExampleId, triage])),
+    [state.compareTriageRows]
+  );
+  const triageCounts = useMemo(() => countCompareTriageRows(rows, triageByExampleId), [rows, triageByExampleId]);
+  const filteredRows = rows
+    .filter((row) => outcomeFilter === 'all' || row.outcome === outcomeFilter)
+    .filter((row) => {
+      if (triageFilter === 'all') {
+        return true;
+      }
+      const triage = triageByExampleId.get(row.datasetExampleId) ?? null;
+      return triageFilter === 'untriaged' ? !triage : triage?.triageStatus === triageFilter;
+    })
+    .sort((left, right) => compareRowQueuePriority(left, right, triageByExampleId));
   const selectedRowVisible = Boolean(
     state.selectedCompareRow && filteredRows.some((row) => row.datasetExampleId === state.selectedCompareRow?.datasetExampleId)
   );
@@ -1231,8 +1295,13 @@ function ComparePanelView({
           rows={filteredRows}
           totalRows={rows.length}
           selectedDatasetExampleId={state.selectedCompareDatasetExampleId}
+          triageByExampleId={triageByExampleId}
+          triageCounts={triageCounts}
+          triageLoading={state.compareTriageLoading}
           outcomeFilter={outcomeFilter}
           onOutcomeFilterChange={onOutcomeFilterChange}
+          triageFilter={triageFilter}
+          onTriageFilterChange={setTriageFilter}
           onSelect={state.selectCompareDatasetExample}
         />
       </div>
@@ -1252,7 +1321,11 @@ function ComparePanelView({
             candidateRun={state.selectedCandidateEvalRun}
             baselineResults={state.baselineCompareResults}
             candidateResults={state.candidateCompareResults}
+            triage={triageByExampleId.get(state.selectedCompareRow.datasetExampleId) ?? null}
+            savingTriage={state.compareTriageSaving}
             hiddenByFilter={!selectedRowVisible}
+            onSaveTriage={state.saveCompareTriage}
+            onClearTriage={state.clearCompareTriage}
           />
         ) : (
           <ConsolePanelState title={EVAL_COPY.selectResult} />
@@ -1315,19 +1388,74 @@ function CompareSummaryMetric({ label, value }: { label: string; value: number |
   );
 }
 
+function countCompareTriageRows(rows: EvalRunCompareRowV1[], triageByExampleId: Map<string, EvalRunCompareTriageDto>) {
+  const counts: Record<EvalRunCompareTriageStatusV1Dto | 'untriaged', number> = {
+    untriaged: 0,
+    accepted: 0,
+    regression: 0,
+    expected_changed: 0,
+    needs_review: 0,
+    ignored: 0
+  };
+  for (const row of rows) {
+    const status = triageByExampleId.get(row.datasetExampleId)?.triageStatus ?? 'untriaged';
+    counts[status] += 1;
+  }
+  return counts;
+}
+
+function compareRowQueuePriority(
+  left: EvalRunCompareRowV1,
+  right: EvalRunCompareRowV1,
+  triageByExampleId: Map<string, EvalRunCompareTriageDto>
+) {
+  const triagePriority = (row: EvalRunCompareRowV1) => {
+    const status = triageByExampleId.get(row.datasetExampleId)?.triageStatus ?? 'untriaged';
+    if (status === 'untriaged' || status === 'needs_review' || status === 'regression' || status === 'expected_changed') {
+      return 0;
+    }
+    return 1;
+  };
+  const outcomePriority = (row: EvalRunCompareRowV1) => {
+    if (row.outcome === 'regression' || row.outcome === 'changed_unresolved' || row.outcome === 'not_comparable') {
+      return 0;
+    }
+    if (row.outcome === 'baseline_missing' || row.outcome === 'candidate_missing' || row.outcome === 'same_fail') {
+      return 1;
+    }
+    return 2;
+  };
+  return (
+    triagePriority(left) - triagePriority(right) ||
+    outcomePriority(left) - outcomePriority(right) ||
+    (left.exampleOrdinal ?? Number.MAX_SAFE_INTEGER) - (right.exampleOrdinal ?? Number.MAX_SAFE_INTEGER) ||
+    left.datasetExampleId.localeCompare(right.datasetExampleId)
+  );
+}
+
 function CompareRowQueue({
   rows,
   totalRows,
   selectedDatasetExampleId,
+  triageByExampleId,
+  triageCounts,
+  triageLoading,
   outcomeFilter,
   onOutcomeFilterChange,
+  triageFilter,
+  onTriageFilterChange,
   onSelect
 }: {
   rows: EvalRunCompareRowV1[];
   totalRows: number;
   selectedDatasetExampleId: string | null;
+  triageByExampleId: Map<string, EvalRunCompareTriageDto>;
+  triageCounts: Record<EvalRunCompareTriageStatusV1Dto | 'untriaged', number>;
+  triageLoading: boolean;
   outcomeFilter: CompareOutcomeFilter;
   onOutcomeFilterChange: (filter: CompareOutcomeFilter) => void;
+  triageFilter: CompareTriageFilter;
+  onTriageFilterChange: (filter: CompareTriageFilter) => void;
   onSelect: (datasetExampleId: string) => void;
 }) {
   return (
@@ -1337,40 +1465,61 @@ function CompareRowQueue({
           <h3 className="text-sm font-semibold text-[var(--chat-text)]">{EVAL_COPY.rowQueue}</h3>
           <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.showCount} {rows.length}/{totalRows}</div>
         </div>
-        <select
-          aria-label="Compare outcome filter"
-          className="h-8 rounded-md border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-2 text-xs text-[var(--chat-text)]"
-          value={outcomeFilter}
-          onChange={(event) => onOutcomeFilterChange(event.target.value as CompareOutcomeFilter)}
-        >
-          <option value="all">全部</option>
-          {COMPARE_RUN_OUTCOMES.map((outcome) => (
-            <option key={outcome} value={outcome}>{COMPARE_RUN_OUTCOME_LABELS[outcome]}</option>
-          ))}
-        </select>
+        <div className="flex shrink-0 items-center gap-2">
+          {triageLoading ? <Loader2 className="size-3 animate-spin text-[var(--chat-muted)]" /> : null}
+          <select
+            aria-label="Compare outcome filter"
+            className="h-8 rounded-md border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-2 text-xs text-[var(--chat-text)]"
+            value={outcomeFilter}
+            onChange={(event) => onOutcomeFilterChange(event.target.value as CompareOutcomeFilter)}
+          >
+            <option value="all">全部结果</option>
+            {COMPARE_RUN_OUTCOMES.map((outcome) => (
+              <option key={outcome} value={outcome}>{COMPARE_RUN_OUTCOME_LABELS[outcome]}</option>
+            ))}
+          </select>
+          <select
+            aria-label="Compare triage filter"
+            className="h-8 rounded-md border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-2 text-xs text-[var(--chat-text)]"
+            value={triageFilter}
+            onChange={(event) => onTriageFilterChange(event.target.value as CompareTriageFilter)}
+          >
+            <option value="all">全部标注</option>
+            <option value="untriaged">{COMPARE_TRIAGE_LABELS.untriaged} {triageCounts.untriaged}</option>
+            {COMPARE_TRIAGE_STATUSES.map((status) => (
+              <option key={status} value={status}>{COMPARE_TRIAGE_LABELS[status]} {triageCounts[status]}</option>
+            ))}
+          </select>
+        </div>
       </div>
       {rows.length === 0 ? <ConsolePanelState title={EVAL_COPY.noResultsMatchFilters} /> : null}
       <div className="grid gap-1">
-        {rows.map((row) => (
-          <button
-            key={row.datasetExampleId}
-            type="button"
-            className={`w-full rounded-[12px] px-3 py-2 text-left transition ${
-              row.datasetExampleId === selectedDatasetExampleId ? 'bg-[var(--chat-brand-accent-soft)]' : 'hover:bg-[var(--chat-hover)]'
-            }`}
-            onClick={() => onSelect(row.datasetExampleId)}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <div className="min-w-0 truncate text-sm font-medium text-[var(--chat-text)]">
-                {row.exampleOrdinal == null ? EVAL_COPY.selected : `${EVAL_COPY.selected} #${row.exampleOrdinal}`}
+        {rows.map((row) => {
+          const triage = triageByExampleId.get(row.datasetExampleId) ?? null;
+          return (
+            <button
+              key={row.datasetExampleId}
+              type="button"
+              className={`w-full rounded-[12px] px-3 py-2 text-left transition ${
+                row.datasetExampleId === selectedDatasetExampleId ? 'bg-[var(--chat-brand-accent-soft)]' : 'hover:bg-[var(--chat-hover)]'
+              }`}
+              onClick={() => onSelect(row.datasetExampleId)}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0 truncate text-sm font-medium text-[var(--chat-text)]">
+                  {row.exampleOrdinal == null ? EVAL_COPY.selected : `${EVAL_COPY.selected} #${row.exampleOrdinal}`}
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <CompareTriageBadge status={triage?.triageStatus ?? 'untriaged'} stale={triage?.stale ?? false} />
+                  <CompareOutcomeBadge outcome={row.outcome} />
+                </div>
               </div>
-              <CompareOutcomeBadge outcome={row.outcome} />
-            </div>
-            <div className="mt-1 truncate text-xs text-[var(--chat-muted)]">
-              {formatCompareReason(row.reason)} · {formatShortId(row.datasetExampleId, 14)}
-            </div>
-          </button>
-        ))}
+              <div className="mt-1 truncate text-xs text-[var(--chat-muted)]">
+                {formatCompareReason(row.reason)} · {formatShortId(row.datasetExampleId, 14)}
+              </div>
+            </button>
+          );
+        })}
       </div>
     </section>
   );
@@ -1383,7 +1532,11 @@ function CompareRowDetail({
   candidateRun,
   baselineResults,
   candidateResults,
-  hiddenByFilter
+  triage,
+  savingTriage,
+  hiddenByFilter,
+  onSaveTriage,
+  onClearTriage
 }: {
   row: EvalRunCompareRowV1;
   projection: EvalRunCompareProjectionV1 | null;
@@ -1391,7 +1544,11 @@ function CompareRowDetail({
   candidateRun: EvalRunDto | null;
   baselineResults: EvalExampleResultDto[];
   candidateResults: EvalExampleResultDto[];
+  triage: EvalRunCompareTriageDto | null;
+  savingTriage: boolean;
   hiddenByFilter: boolean;
+  onSaveTriage: (datasetExampleId: string, draft: EvalRunCompareTriageDraft) => void;
+  onClearTriage: (datasetExampleId: string) => void;
 }) {
   const baselineResult = row.baseline ? baselineResults.find((result) => result.id === row.baseline?.resultId) ?? null : null;
   const candidateResult = row.candidate ? candidateResults.find((result) => result.id === row.candidate?.resultId) ?? null : null;
@@ -1430,6 +1587,88 @@ function CompareRowDetail({
       <div className="grid gap-3 lg:grid-cols-2">
         <CompareSideCard title={EVAL_COPY.baseline} run={baselineRun} side={row.baseline} result={baselineResult} />
         <CompareSideCard title={EVAL_COPY.candidate} run={candidateRun} side={row.candidate} result={candidateResult} />
+      </div>
+
+      <CompareTriageEditor
+        datasetExampleId={row.datasetExampleId}
+        triage={triage}
+        saving={savingTriage}
+        onSave={onSaveTriage}
+        onClear={onClearTriage}
+      />
+    </section>
+  );
+}
+
+function CompareTriageEditor({
+  datasetExampleId,
+  triage,
+  saving,
+  onSave,
+  onClear
+}: {
+  datasetExampleId: string;
+  triage: EvalRunCompareTriageDto | null;
+  saving: boolean;
+  onSave: (datasetExampleId: string, draft: EvalRunCompareTriageDraft) => void;
+  onClear: (datasetExampleId: string) => void;
+}) {
+  const [status, setStatus] = useState<EvalRunCompareTriageStatusV1Dto>(triage?.triageStatus ?? 'needs_review');
+  const [reviewerNote, setReviewerNote] = useState(triage?.reviewerNote ?? '');
+
+  useEffect(() => {
+    setStatus(triage?.triageStatus ?? 'needs_review');
+    setReviewerNote(triage?.reviewerNote ?? '');
+  }, [datasetExampleId, triage?.reviewerNote, triage?.triageStatus]);
+
+  return (
+    <section className="mt-4 rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-[var(--chat-text)]">{EVAL_COPY.triage}</h3>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--chat-muted)]">
+            <CompareTriageBadge status={triage?.triageStatus ?? 'untriaged'} stale={triage?.stale ?? false} />
+            {triage?.triagedByActorId ? <span>{EVAL_COPY.by} {triage.triagedByActorId}</span> : null}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {triage ? (
+            <Button size="sm" variant="outline" disabled={saving} onClick={() => onClear(datasetExampleId)}>
+              {EVAL_COPY.clearTriage}
+            </Button>
+          ) : null}
+          <Button size="sm" disabled={saving} onClick={() => onSave(datasetExampleId, { status, reviewerNote })}>
+            {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+            {EVAL_COPY.saveTriage}
+          </Button>
+        </div>
+      </div>
+      {triage?.stale ? (
+        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          {EVAL_COPY.staleTriage}
+        </div>
+      ) : null}
+      <div className="grid gap-3 md:grid-cols-[220px_minmax(0,1fr)]">
+        <label className="block">
+          <div className="mb-1 text-xs text-[var(--chat-muted)]">{EVAL_COPY.triageStatus}</div>
+          <select
+            className="h-9 w-full rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-3 text-sm text-[var(--chat-text)] outline-none focus:border-[color:var(--chat-border-strong)]"
+            value={status}
+            onChange={(event) => setStatus(event.target.value as EvalRunCompareTriageStatusV1Dto)}
+          >
+            {COMPARE_TRIAGE_STATUSES.map((item) => (
+              <option key={item} value={item}>{COMPARE_TRIAGE_LABELS[item]}</option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <div className="mb-1 text-xs text-[var(--chat-muted)]">{EVAL_COPY.triageNote}</div>
+          <textarea
+            className="min-h-[72px] w-full rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-3 py-2 text-sm leading-6 text-[var(--chat-text)] outline-none focus:border-[color:var(--chat-border-strong)]"
+            value={reviewerNote}
+            onChange={(event) => setReviewerNote(event.target.value)}
+          />
+        </label>
       </div>
     </section>
   );
