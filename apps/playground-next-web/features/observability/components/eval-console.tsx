@@ -10,6 +10,9 @@ import type {
 import {
   projectEvalExampleResultComparisonV1,
   type EvalRunCompareOutcomeV1,
+  type EvalRunCompareProjectionV1,
+  type EvalRunCompareRowV1,
+  type EvalRunCompareSideV1,
   type EvalResultComparisonOutcomeV1,
   type EvalResultComparisonProjectionV1
 } from '@agent-infra/durable-chat-client';
@@ -29,7 +32,7 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import type { AuthUserDto } from '@/features/auth/dto/project-auth-user-dto';
-import { useEvalConsole, type EvalConsoleState, type EvalResultReviewDraft } from '@/features/observability/runtime/use-eval-console';
+import { useEvalConsole, type EvalConsoleMode, type EvalConsoleState, type EvalResultReviewDraft } from '@/features/observability/runtime/use-eval-console';
 
 import {
   buildDatasetExampleHref,
@@ -53,6 +56,7 @@ const RESULT_STATUSES: EvalExampleResultStatusDto[] = ['queued', 'running', 'com
 type ResultStatusFilter = 'all' | EvalExampleResultStatusDto;
 type ReviewStatusFilter = 'all' | EvalExampleResultReviewStatusDto;
 type ComparisonOutcomeFilter = 'all' | EvalResultComparisonOutcomeV1;
+type CompareOutcomeFilter = 'all' | EvalRunCompareOutcomeV1;
 
 type EvalResultFilters = {
   resultStatus: ResultStatusFilter;
@@ -82,6 +86,18 @@ const COMPARISON_OUTCOME_CLASSES: Record<EvalResultComparisonOutcomeV1, string> 
   not_comparable: 'border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] text-[var(--chat-muted)]'
 };
 
+const COMPARE_RUN_OUTCOMES: EvalRunCompareOutcomeV1[] = [
+  'regression',
+  'improvement',
+  'same_pass',
+  'same_fail',
+  'changed_unresolved',
+  'same_unresolved',
+  'baseline_missing',
+  'candidate_missing',
+  'not_comparable'
+];
+
 const COMPARE_RUN_OUTCOME_LABELS: Record<EvalRunCompareOutcomeV1, string> = {
   same_pass: '同为通过',
   same_fail: '同为失败',
@@ -92,6 +108,67 @@ const COMPARE_RUN_OUTCOME_LABELS: Record<EvalRunCompareOutcomeV1, string> = {
   baseline_missing: '缺少基线',
   candidate_missing: '缺少候选',
   not_comparable: '不可对比'
+};
+
+const COMPARE_RUN_OUTCOME_CLASSES: Record<EvalRunCompareOutcomeV1, string> = {
+  same_pass: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+  same_fail: 'border-rose-200 bg-rose-50 text-rose-800',
+  regression: 'border-red-200 bg-red-50 text-red-800',
+  improvement: 'border-blue-200 bg-blue-50 text-blue-800',
+  same_unresolved: 'border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] text-[var(--chat-muted)]',
+  changed_unresolved: 'border-amber-200 bg-amber-50 text-amber-800',
+  baseline_missing: 'border-purple-200 bg-purple-50 text-purple-800',
+  candidate_missing: 'border-purple-200 bg-purple-50 text-purple-800',
+  not_comparable: 'border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] text-[var(--chat-muted)]'
+};
+
+const COMPARE_REASON_LABELS: Record<string, string> = {
+  manual_same_pass: '两侧人工审核均通过',
+  manual_same_fail: '两侧人工审核均失败',
+  manual_pass_to_fail: '人工审核从通过变为失败',
+  manual_fail_to_pass: '人工审核从失败变为通过',
+  unreviewed_text_same: '未审核文本信号一致',
+  unreviewed_text_changed: '未审核文本信号变化',
+  unresolved_signal_same: '未定信号一致',
+  unresolved_signal_changed: '未定信号变化',
+  both_review_not_applicable: '两侧均不适用',
+  baseline_missing_result: '缺少基线结果',
+  candidate_missing_result: '缺少候选结果',
+  different_dataset: '数据集不同',
+  baseline_duplicate_dataset_example_result: '基线样本结果重复',
+  candidate_duplicate_dataset_example_result: '候选样本结果重复',
+  both_duplicate_dataset_example_result: '两侧样本结果重复',
+  baseline_result_eval_run_mismatch: '基线结果不属于该运行',
+  candidate_result_eval_run_mismatch: '候选结果不属于该运行',
+  baseline_needs_review_vs_candidate_pass: '基线需复核，候选通过',
+  baseline_needs_review_vs_candidate_fail: '基线需复核，候选失败',
+  candidate_needs_review_vs_baseline_pass: '候选需复核，基线通过',
+  candidate_needs_review_vs_baseline_fail: '候选需复核，基线失败',
+  baseline_not_applicable_vs_candidate_pass: '基线不适用，候选通过',
+  baseline_not_applicable_vs_candidate_fail: '基线不适用，候选失败',
+  candidate_not_applicable_vs_baseline_pass: '候选不适用，基线通过',
+  candidate_not_applicable_vs_baseline_fail: '候选不适用，基线失败',
+  baseline_unreviewed_vs_candidate_pass: '基线未审核，候选通过',
+  baseline_unreviewed_vs_candidate_fail: '基线未审核，候选失败',
+  candidate_unreviewed_vs_baseline_pass: '候选未审核，基线通过',
+  candidate_unreviewed_vs_baseline_fail: '候选未审核，基线失败',
+  baseline_result_unresolved_vs_candidate_pass: '基线结果未定，候选通过',
+  baseline_result_unresolved_vs_candidate_fail: '基线结果未定，候选失败',
+  candidate_result_unresolved_vs_baseline_pass: '候选结果未定，基线通过',
+  candidate_result_unresolved_vs_baseline_fail: '候选结果未定，基线失败'
+};
+
+const COMPARE_SIGNAL_LABELS: Record<string, string> = {
+  manual_pass: '人工通过',
+  manual_fail: '人工失败',
+  manual_needs_review: '人工需复核',
+  manual_not_applicable: '人工不适用',
+  unreviewed_text_match: '未审核文本一致',
+  unreviewed_text_mismatch: '未审核文本不同',
+  unreviewed_not_comparable: '未审核不可对比',
+  result_failed_unreviewed: '结果失败未审核',
+  result_not_completed_unreviewed: '结果未完成未审核',
+  invalid_eval_run: '运行不匹配'
 };
 
 const EVAL_COPY = {
@@ -152,6 +229,16 @@ const EVAL_COPY = {
   compareOutcome: '对比结果',
   baselineResults: '基线结果',
   candidateResults: '候选结果',
+  summary: '摘要',
+  rowQueue: '样本队列',
+  rowDetail: '样本详情',
+  missingRows: '缺失',
+  tokenDelta: 'Token 变化',
+  durationDelta: '耗时变化',
+  baseline: '基线',
+  candidate: '候选',
+  signal: '信号',
+  outputText: '输出文本',
   usage: '用量',
   duration: '耗时',
   hiddenByFilter: '当前结果被筛选条件隐藏。',
@@ -213,6 +300,14 @@ function formatComparisonLabel(value: string) {
   return COMPARISON_REASON_LABELS[value] ?? COMPARISON_DIAGNOSTIC_LABELS[value] ?? value.replaceAll('_', ' ');
 }
 
+function formatCompareReason(value: string) {
+  return COMPARE_REASON_LABELS[value] ?? value.replaceAll('_', ' ');
+}
+
+function formatCompareSignal(value: string) {
+  return COMPARE_SIGNAL_LABELS[value] ?? value.replaceAll('_', ' ');
+}
+
 function formatEvalRunStatusLabel(status: EvalRunDto['status']) {
   return EVAL_RUN_STATUS_LABELS[status] ?? status;
 }
@@ -268,6 +363,53 @@ function countResults(
   }, 0);
 }
 
+function sortedCompareEvalRuns(evalRuns: EvalRunDto[]) {
+  return [...evalRuns].sort((left, right) => {
+    if (left.status === 'completed' && right.status !== 'completed') {
+      return -1;
+    }
+    if (left.status !== 'completed' && right.status === 'completed') {
+      return 1;
+    }
+
+    return Date.parse(right.updatedAt) - Date.parse(left.updatedAt);
+  });
+}
+
+function formatRunOptionLabel(evalRun: EvalRunDto, index: number) {
+  const label = evalRun.name?.trim() || `${EVAL_COPY.evalRunFallback} ${index + 1}`;
+  return `${label} · ${formatEvalRunStatusLabel(evalRun.status)} · ${formatShortId(evalRun.id, 10)}`;
+}
+
+function formatOptionalNumber(value: number | null, suffix = '') {
+  return value === null ? '-' : `${value}${suffix}`;
+}
+
+function formatSignedNumber(value: number | null, suffix = '') {
+  if (value === null) {
+    return '-';
+  }
+
+  return `${value > 0 ? '+' : ''}${value}${suffix}`;
+}
+
+function formatDurationMsValue(value: number | null) {
+  return formatOptionalNumber(value, 'ms');
+}
+
+function formatSignedDurationMs(value: number | null) {
+  return formatSignedNumber(value, 'ms');
+}
+
+function formatPercentDelta(value: number | null) {
+  if (value === null) {
+    return null;
+  }
+
+  const percent = value * 100;
+  return `${percent > 0 ? '+' : ''}${percent.toFixed(1)}%`;
+}
+
 function splitComparisonTokens(text: string) {
   return text.match(/\S+|\s+/g) ?? [];
 }
@@ -318,6 +460,14 @@ function ComparisonBadge({ outcome }: { outcome: EvalResultComparisonOutcomeV1 }
   return (
     <span className={`shrink-0 rounded-md border px-2 py-0.5 text-xs font-medium ${COMPARISON_OUTCOME_CLASSES[outcome]}`}>
       {COMPARISON_OUTCOME_LABELS[outcome]}
+    </span>
+  );
+}
+
+function CompareOutcomeBadge({ outcome }: { outcome: EvalRunCompareOutcomeV1 }) {
+  return (
+    <span className={`shrink-0 rounded-md border px-2 py-0.5 text-xs font-medium ${COMPARE_RUN_OUTCOME_CLASSES[outcome]}`}>
+      {COMPARE_RUN_OUTCOME_LABELS[outcome]}
     </span>
   );
 }
@@ -408,6 +558,7 @@ function JsonBlock({ title, value, open = false }: { title: string; value: Recor
 }
 
 function EvalScopePanel({
+  mode,
   datasets,
   selectedDataset,
   datasetsLoading,
@@ -420,10 +571,12 @@ function EvalScopePanel({
   creatingEvalRun,
   runningEvalRun,
   onSelectDataset,
+  onSelectMode,
   onCreateEvalRun,
   onSelectEvalRun,
   onRunEval
 }: {
+  mode: EvalConsoleMode;
   datasets: DatasetDto[];
   selectedDataset: DatasetDto | null;
   datasetsLoading: boolean;
@@ -436,6 +589,7 @@ function EvalScopePanel({
   creatingEvalRun: boolean;
   runningEvalRun: boolean;
   onSelectDataset: (datasetId: string) => void;
+  onSelectMode: (mode: EvalConsoleMode) => void;
   onCreateEvalRun: () => void;
   onSelectEvalRun: (evalRunId: string) => void;
   onRunEval: () => void;
@@ -476,6 +630,27 @@ function EvalScopePanel({
         {datasetsError ? (
           <div className="mt-2 rounded-md bg-[var(--chat-error-bg)] px-3 py-2 text-xs text-[var(--chat-error-text)]">{datasetsError}</div>
         ) : null}
+
+        <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] p-1">
+          <button
+            type="button"
+            className={`h-8 rounded-md text-xs font-medium transition ${
+              mode === 'review' ? 'bg-[var(--chat-bg)] text-[var(--chat-text)] shadow-sm' : 'text-[var(--chat-muted)] hover:text-[var(--chat-text)]'
+            }`}
+            onClick={() => onSelectMode('review')}
+          >
+            {EVAL_COPY.reviewMode}
+          </button>
+          <button
+            type="button"
+            className={`h-8 rounded-md text-xs font-medium transition ${
+              mode === 'compare' ? 'bg-[var(--chat-bg)] text-[var(--chat-text)] shadow-sm' : 'text-[var(--chat-muted)] hover:text-[var(--chat-text)]'
+            }`}
+            onClick={() => onSelectMode('compare')}
+          >
+            {EVAL_COPY.compareMode}
+          </button>
+        </div>
 
         <Button
           size="sm"
@@ -971,113 +1146,369 @@ function ResultDetailPanel({
   );
 }
 
-function ComparePlaceholder({ state }: { state: EvalConsoleState }) {
+function ComparePanelView({
+  state,
+  outcomeFilter,
+  onOutcomeFilterChange
+}: {
+  state: EvalConsoleState;
+  outcomeFilter: CompareOutcomeFilter;
+  onOutcomeFilterChange: (filter: CompareOutcomeFilter) => void;
+}) {
   const loading = state.baselineCompareResultsLoading || state.candidateCompareResultsLoading;
   const error = state.baselineCompareResultsError ?? state.candidateCompareResultsError;
+  const compareRuns = useMemo(() => sortedCompareEvalRuns(state.evalRuns), [state.evalRuns]);
+  const rows = state.compareProjection?.rows ?? [];
+  const filteredRows = outcomeFilter === 'all' ? rows : rows.filter((row) => row.outcome === outcomeFilter);
+  const selectedRowVisible = Boolean(
+    state.selectedCompareRow && filteredRows.some((row) => row.datasetExampleId === state.selectedCompareRow?.datasetExampleId)
+  );
 
   return (
-    <section className="min-h-0 overflow-auto bg-[var(--chat-surface)] p-5">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.mode}</div>
-          <h2 className="mt-1 text-lg font-semibold text-[var(--chat-text)]">{EVAL_COPY.compareMode}</h2>
-        </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => state.selectMode('review')}
-        >
-          {EVAL_COPY.reviewMode}
-        </Button>
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-2">
-        <label className="block rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
-          <div className="mb-2 text-xs text-[var(--chat-muted)]">{EVAL_COPY.baselineRun}</div>
-          <select
-            aria-label="Compare baseline eval run"
-            className="h-9 w-full rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-3 text-sm text-[var(--chat-text)] outline-none focus:border-[color:var(--chat-border-strong)]"
-            value={state.selectedBaselineEvalRunId ?? ''}
-            disabled={state.evalRuns.length === 0}
-            onChange={(event) => state.selectCompareEvalRun('baseline', event.target.value)}
-          >
-            {state.evalRuns.map((evalRun, index) => (
-              <option key={evalRun.id} value={evalRun.id}>
-                {evalRun.name?.trim() || `${EVAL_COPY.evalRunFallback} ${index + 1}`} · {formatShortId(evalRun.id, 10)}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="block rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
-          <div className="mb-2 text-xs text-[var(--chat-muted)]">{EVAL_COPY.candidateRun}</div>
-          <select
-            aria-label="Compare candidate eval run"
-            className="h-9 w-full rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-3 text-sm text-[var(--chat-text)] outline-none focus:border-[color:var(--chat-border-strong)]"
-            value={state.selectedCandidateEvalRunId ?? ''}
-            disabled={state.evalRuns.length === 0}
-            onChange={(event) => {
-              if (event.target.value) {
-                state.selectCompareEvalRun('candidate', event.target.value);
-              }
-            }}
-          >
-            {state.selectedCandidateEvalRunId ? null : <option value="">{EVAL_COPY.selectEvalRun}</option>}
-            {state.evalRuns.map((evalRun, index) => (
-              <option key={evalRun.id} value={evalRun.id}>
-                {evalRun.name?.trim() || `${EVAL_COPY.evalRunFallback} ${index + 1}`} · {formatShortId(evalRun.id, 10)}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      <div className="mt-4 grid gap-3 md:grid-cols-5">
-        <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
-          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.baselineResults}</div>
-          <div className="mt-1 text-xl font-semibold text-[var(--chat-text)]">{state.baselineCompareResults.length}</div>
-        </div>
-        <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
-          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.candidateResults}</div>
-          <div className="mt-1 text-xl font-semibold text-[var(--chat-text)]">{state.candidateCompareResults.length}</div>
-        </div>
-        <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
-          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.compareRows}</div>
-          <div className="mt-1 text-xl font-semibold text-[var(--chat-text)]">{state.compareProjection?.rows.length ?? '-'}</div>
-        </div>
-        <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
-          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.compareRow}</div>
-          <div className="mt-1 truncate text-sm font-semibold text-[var(--chat-text)]" title={state.selectedCompareDatasetExampleId ?? undefined}>
-            {state.selectedCompareDatasetExampleId ? formatShortId(state.selectedCompareDatasetExampleId, 18) : EVAL_COPY.unknown}
+    <section className="grid h-full min-h-0 grid-cols-1 overflow-hidden bg-[var(--chat-surface)] xl:grid-cols-[360px_minmax(0,1fr)]">
+      <div className="min-h-0 overflow-auto border-r border-[color:var(--chat-border)] bg-[var(--chat-bg)]">
+        <div className="border-b border-[color:var(--chat-border)] px-4 py-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.mode}</div>
+              <h2 className="mt-1 text-sm font-semibold text-[var(--chat-text)]">{EVAL_COPY.compareMode}</h2>
+            </div>
+            {loading ? <Loader2 className="size-4 animate-spin text-[var(--chat-muted)]" /> : null}
           </div>
-        </div>
-        <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] p-3">
-          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.compareOutcome}</div>
-          <div className="mt-1 truncate text-sm font-semibold text-[var(--chat-text)]">
-            {state.selectedCompareRow ? COMPARE_RUN_OUTCOME_LABELS[state.selectedCompareRow.outcome] : EVAL_COPY.unknown}
+
+          <div className="grid gap-2">
+            <label className="block">
+              <div className="mb-1 text-xs text-[var(--chat-muted)]">{EVAL_COPY.baselineRun}</div>
+              <select
+                aria-label="Compare baseline eval run"
+                className="h-9 w-full rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-3 text-sm text-[var(--chat-text)] outline-none focus:border-[color:var(--chat-border-strong)]"
+                value={state.selectedBaselineEvalRunId ?? ''}
+                disabled={compareRuns.length === 0}
+                onChange={(event) => state.selectCompareEvalRun('baseline', event.target.value)}
+              >
+                {compareRuns.map((evalRun, index) => (
+                  <option key={evalRun.id} value={evalRun.id}>
+                    {formatRunOptionLabel(evalRun, index)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <div className="mb-1 text-xs text-[var(--chat-muted)]">{EVAL_COPY.candidateRun}</div>
+              <select
+                aria-label="Compare candidate eval run"
+                className="h-9 w-full rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-3 text-sm text-[var(--chat-text)] outline-none focus:border-[color:var(--chat-border-strong)]"
+                value={state.selectedCandidateEvalRunId ?? ''}
+                disabled={compareRuns.length === 0}
+                onChange={(event) => {
+                  if (event.target.value) {
+                    state.selectCompareEvalRun('candidate', event.target.value);
+                  }
+                }}
+              >
+                {state.selectedCandidateEvalRunId ? null : <option value="">{EVAL_COPY.selectEvalRun}</option>}
+                {compareRuns.map((evalRun, index) => (
+                  <option key={evalRun.id} value={evalRun.id}>
+                    {formatRunOptionLabel(evalRun, index)}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
+
+          {error ? <div className="mt-3 rounded-lg bg-[var(--chat-error-bg)] px-3 py-2 text-sm text-[var(--chat-error-text)]">{error}</div> : null}
+          {state.compareProjection?.error ? (
+            <div className="mt-3 rounded-lg bg-[var(--chat-error-bg)] px-3 py-2 text-sm text-[var(--chat-error-text)]">
+              {COMPARE_RUN_OUTCOME_LABELS[state.compareProjection.error.outcome]} · {formatCompareReason(state.compareProjection.error.reason)}
+            </div>
+          ) : null}
         </div>
+
+        <CompareSummary projection={state.compareProjection} />
+
+        <CompareRowQueue
+          rows={filteredRows}
+          totalRows={rows.length}
+          selectedDatasetExampleId={state.selectedCompareDatasetExampleId}
+          outcomeFilter={outcomeFilter}
+          onOutcomeFilterChange={onOutcomeFilterChange}
+          onSelect={state.selectCompareDatasetExample}
+        />
       </div>
 
-      {loading ? (
-        <div className="mt-4 flex items-center gap-2 text-sm text-[var(--chat-muted)]">
-          <Loader2 className="size-4 animate-spin" />
-          {EVAL_COPY.compareMode}
-        </div>
-      ) : null}
-      {error ? <div className="mt-4 rounded-lg bg-[var(--chat-error-bg)] px-3 py-2 text-sm text-[var(--chat-error-text)]">{error}</div> : null}
-      {state.compareProjection?.error ? (
-        <div className="mt-4 rounded-lg bg-[var(--chat-error-bg)] px-3 py-2 text-sm text-[var(--chat-error-text)]">
-          {COMPARE_RUN_OUTCOME_LABELS[state.compareProjection.error.outcome]} · {state.compareProjection.error.reason}
-        </div>
-      ) : null}
+      <div className="min-h-0 overflow-auto px-5 py-4">
+        {!state.compareProjection && loading ? (
+          <div className="flex items-center gap-2 text-sm text-[var(--chat-muted)]">
+            <Loader2 className="size-4 animate-spin" />
+            {EVAL_COPY.compareMode}
+          </div>
+        ) : null}
+        {state.selectedCompareRow ? (
+          <CompareRowDetail
+            row={state.selectedCompareRow}
+            projection={state.compareProjection}
+            baselineRun={state.selectedBaselineEvalRun}
+            candidateRun={state.selectedCandidateEvalRun}
+            baselineResults={state.baselineCompareResults}
+            candidateResults={state.candidateCompareResults}
+            hiddenByFilter={!selectedRowVisible}
+          />
+        ) : (
+          <ConsolePanelState title={EVAL_COPY.selectResult} />
+        )}
+      </div>
     </section>
+  );
+}
+
+function CompareSummary({ projection }: { projection: EvalRunCompareProjectionV1 | null }) {
+  const summary = projection?.summary;
+  const counts = summary?.outcomeCounts;
+  const missing = (counts?.baseline_missing ?? 0) + (counts?.candidate_missing ?? 0);
+  const percentTokens = formatPercentDelta(summary?.usageDelta.percentDelta ?? null);
+  const percentDuration = formatPercentDelta(summary?.durationDelta.percentDelta ?? null);
+
+  return (
+    <section className="border-b border-[color:var(--chat-border)] px-4 py-3">
+      <div className="mb-2 text-sm font-semibold text-[var(--chat-text)]">{EVAL_COPY.summary}</div>
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <CompareSummaryMetric label={COMPARE_RUN_OUTCOME_LABELS.regression} value={counts?.regression ?? 0} />
+        <CompareSummaryMetric label={COMPARE_RUN_OUTCOME_LABELS.improvement} value={counts?.improvement ?? 0} />
+        <CompareSummaryMetric label={COMPARE_RUN_OUTCOME_LABELS.same_pass} value={counts?.same_pass ?? 0} />
+        <CompareSummaryMetric label={COMPARE_RUN_OUTCOME_LABELS.same_fail} value={counts?.same_fail ?? 0} />
+        <CompareSummaryMetric label={COMPARE_RUN_OUTCOME_LABELS.changed_unresolved} value={counts?.changed_unresolved ?? 0} />
+        <CompareSummaryMetric label={EVAL_COPY.missingRows} value={missing} />
+        <CompareSummaryMetric label={COMPARE_RUN_OUTCOME_LABELS.not_comparable} value={counts?.not_comparable ?? 0} />
+        <CompareSummaryMetric label={EVAL_COPY.compareRows} value={summary?.totalRows ?? '-'} />
+      </div>
+      <div className="mt-3 grid gap-2 text-xs">
+        <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] p-2">
+          <div className="text-[var(--chat-muted)]">{EVAL_COPY.tokenDelta}</div>
+          <div className="mt-1 font-semibold text-[var(--chat-text)]">
+            {formatOptionalNumber(summary?.usageDelta.candidate ?? null, ' tokens')}
+          </div>
+          <div className="mt-0.5 text-[var(--chat-muted)]">
+            {formatSignedNumber(summary?.usageDelta.absoluteDelta ?? null, ' tokens')}{percentTokens ? ` · ${percentTokens}` : ''}
+          </div>
+        </div>
+        <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] p-2">
+          <div className="text-[var(--chat-muted)]">{EVAL_COPY.durationDelta}</div>
+          <div className="mt-1 font-semibold text-[var(--chat-text)]">
+            {formatDurationMsValue(summary?.durationDelta.candidate ?? null)}
+          </div>
+          <div className="mt-0.5 text-[var(--chat-muted)]">
+            {formatSignedDurationMs(summary?.durationDelta.absoluteDelta ?? null)}{percentDuration ? ` · ${percentDuration}` : ''}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CompareSummaryMetric({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] p-2">
+      <div className="text-[var(--chat-muted)]">{label}</div>
+      <div className="mt-1 text-lg font-semibold text-[var(--chat-text)]">{value}</div>
+    </div>
+  );
+}
+
+function CompareRowQueue({
+  rows,
+  totalRows,
+  selectedDatasetExampleId,
+  outcomeFilter,
+  onOutcomeFilterChange,
+  onSelect
+}: {
+  rows: EvalRunCompareRowV1[];
+  totalRows: number;
+  selectedDatasetExampleId: string | null;
+  outcomeFilter: CompareOutcomeFilter;
+  onOutcomeFilterChange: (filter: CompareOutcomeFilter) => void;
+  onSelect: (datasetExampleId: string) => void;
+}) {
+  return (
+    <section className="px-3 py-2">
+      <div className="mb-2 flex items-center justify-between gap-2 px-1">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-[var(--chat-text)]">{EVAL_COPY.rowQueue}</h3>
+          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.showCount} {rows.length}/{totalRows}</div>
+        </div>
+        <select
+          aria-label="Compare outcome filter"
+          className="h-8 rounded-md border border-[color:var(--chat-border)] bg-[var(--chat-bg)] px-2 text-xs text-[var(--chat-text)]"
+          value={outcomeFilter}
+          onChange={(event) => onOutcomeFilterChange(event.target.value as CompareOutcomeFilter)}
+        >
+          <option value="all">全部</option>
+          {COMPARE_RUN_OUTCOMES.map((outcome) => (
+            <option key={outcome} value={outcome}>{COMPARE_RUN_OUTCOME_LABELS[outcome]}</option>
+          ))}
+        </select>
+      </div>
+      {rows.length === 0 ? <ConsolePanelState title={EVAL_COPY.noResultsMatchFilters} /> : null}
+      <div className="grid gap-1">
+        {rows.map((row) => (
+          <button
+            key={row.datasetExampleId}
+            type="button"
+            className={`w-full rounded-[12px] px-3 py-2 text-left transition ${
+              row.datasetExampleId === selectedDatasetExampleId ? 'bg-[var(--chat-brand-accent-soft)]' : 'hover:bg-[var(--chat-hover)]'
+            }`}
+            onClick={() => onSelect(row.datasetExampleId)}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 truncate text-sm font-medium text-[var(--chat-text)]">
+                {row.exampleOrdinal == null ? EVAL_COPY.selected : `${EVAL_COPY.selected} #${row.exampleOrdinal}`}
+              </div>
+              <CompareOutcomeBadge outcome={row.outcome} />
+            </div>
+            <div className="mt-1 truncate text-xs text-[var(--chat-muted)]">
+              {formatCompareReason(row.reason)} · {formatShortId(row.datasetExampleId, 14)}
+            </div>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function CompareRowDetail({
+  row,
+  projection,
+  baselineRun,
+  candidateRun,
+  baselineResults,
+  candidateResults,
+  hiddenByFilter
+}: {
+  row: EvalRunCompareRowV1;
+  projection: EvalRunCompareProjectionV1 | null;
+  baselineRun: EvalRunDto | null;
+  candidateRun: EvalRunDto | null;
+  baselineResults: EvalExampleResultDto[];
+  candidateResults: EvalExampleResultDto[];
+  hiddenByFilter: boolean;
+}) {
+  const baselineResult = row.baseline ? baselineResults.find((result) => result.id === row.baseline?.resultId) ?? null : null;
+  const candidateResult = row.candidate ? candidateResults.find((result) => result.id === row.candidate?.resultId) ?? null : null;
+  const sourceHref = buildDatasetExampleHref({ datasetId: projection?.datasetId, exampleId: row.datasetExampleId });
+
+  return (
+    <section>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-[color:var(--chat-border)] pb-4">
+        <div className="min-w-0">
+          <div className="text-xs text-[var(--chat-muted)]">{EVAL_COPY.rowDetail}</div>
+          <h2 className="mt-1 truncate text-base font-semibold text-[var(--chat-text)]">
+            {row.exampleOrdinal == null ? EVAL_COPY.compareRow : `${EVAL_COPY.selected} #${row.exampleOrdinal}`}
+          </h2>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--chat-muted)]">
+            <CompareOutcomeBadge outcome={row.outcome} />
+            <span>{formatCompareReason(row.reason)}</span>
+            <span className="font-mono">{formatShortId(row.datasetExampleId, 16)}</span>
+          </div>
+        </div>
+        {sourceHref ? (
+          <Button asChild size="sm" variant="outline">
+            <a href={sourceHref}>
+              <Database className="size-4" />
+              {EVAL_COPY.sourceExample}
+            </a>
+          </Button>
+        ) : null}
+      </div>
+
+      {hiddenByFilter ? (
+        <div className="mb-4 rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] px-3 py-2 text-sm text-[var(--chat-muted)]">
+          {EVAL_COPY.hiddenByFilter}
+        </div>
+      ) : null}
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        <CompareSideCard title={EVAL_COPY.baseline} run={baselineRun} side={row.baseline} result={baselineResult} />
+        <CompareSideCard title={EVAL_COPY.candidate} run={candidateRun} side={row.candidate} result={candidateResult} />
+      </div>
+    </section>
+  );
+}
+
+function CompareSideCard({
+  title,
+  run,
+  side,
+  result
+}: {
+  title: string;
+  run: EvalRunDto | null;
+  side: EvalRunCompareSideV1 | null;
+  result: EvalExampleResultDto | null;
+}) {
+  const outputHref = buildOutputRunHref(result);
+
+  return (
+    <section className="rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-bg)]">
+      <div className="flex flex-wrap items-start justify-between gap-2 border-b border-[color:var(--chat-border)] p-3">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-[var(--chat-text)]">{title}</h3>
+          <div className="mt-1 truncate text-xs text-[var(--chat-muted)]" title={run?.id ?? undefined}>
+            {run ? `${run.name?.trim() || EVAL_COPY.evalRunFallback} · ${formatShortId(run.id, 12)}` : '-'}
+          </div>
+        </div>
+        {outputHref ? (
+          <Button asChild size="sm" variant="outline">
+            <a href={outputHref}>
+              <Link2 className="size-4" />
+              {EVAL_COPY.outputRun}
+            </a>
+          </Button>
+        ) : null}
+      </div>
+
+      {side && result ? (
+        <div className="grid gap-3 p-3">
+          <div className="grid grid-cols-2 gap-2 text-xs md:grid-cols-4 lg:grid-cols-2 2xl:grid-cols-4">
+            <CompareSideMetric label={EVAL_COPY.status} value={formatResultStatusLabel(side.status)} />
+            <CompareSideMetric label={EVAL_COPY.reviewStatus} value={formatReviewStatusLabel(side.reviewStatus)} />
+            <CompareSideMetric label={EVAL_COPY.signal} value={formatCompareSignal(side.signal)} />
+            <CompareSideMetric label={EVAL_COPY.usage} value={side.usage.totalTokens === null ? '-' : `${side.usage.totalTokens} tokens`} />
+            <CompareSideMetric label={EVAL_COPY.duration} value={formatDurationMsValue(side.durationMs)} />
+            <CompareSideMetric label={EVAL_COPY.resultUuid} value={formatShortId(side.resultId, 14)} />
+          </div>
+          {result.error ? <div className="rounded-lg bg-[var(--chat-error-bg)] px-3 py-2 text-sm text-[var(--chat-error-text)]">{result.error}</div> : null}
+          <div>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h4 className="text-xs font-medium text-[var(--chat-muted)]">{EVAL_COPY.outputComparison}</h4>
+              <ComparisonBadge outcome={side.comparison.outcome} />
+            </div>
+            <div className="grid gap-2">
+              <TextBlock label={EVAL_COPY.expectedText} text={side.comparison.expectedText} />
+              <TextBlock label={EVAL_COPY.actualText} text={side.comparison.actualText} />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="p-3 text-sm text-[var(--chat-muted)]">{EVAL_COPY.noResults}</div>
+      )}
+    </section>
+  );
+}
+
+function CompareSideMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-lg border border-[color:var(--chat-border)] bg-[var(--chat-surface-muted)] p-2">
+      <div className="text-[var(--chat-muted)]">{label}</div>
+      <div className="mt-1 truncate font-medium text-[var(--chat-text)]" title={value}>{value}</div>
+    </div>
   );
 }
 
 export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
   const state = useEvalConsole();
   const [resultFilters, setResultFilters] = useState<EvalResultFilters>(DEFAULT_RESULT_FILTERS);
+  const [compareOutcomeFilter, setCompareOutcomeFilter] = useState<CompareOutcomeFilter>('all');
   const comparisonByResultId = useMemo(() => {
     return new Map(state.results.map((result) => [result.id, projectEvalExampleResultComparisonV1(result)]));
   }, [state.results]);
@@ -1144,6 +1575,7 @@ export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
     >
       <div className="grid h-full min-h-0 grid-cols-1 overflow-hidden xl:grid-cols-[320px_360px_minmax(0,1fr)]">
         <EvalScopePanel
+          mode={state.mode}
           datasets={state.datasets}
           selectedDataset={state.selectedDataset}
           datasetsLoading={state.datasetsLoading}
@@ -1156,6 +1588,7 @@ export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
           creatingEvalRun={state.creatingEvalRun}
           runningEvalRun={state.runningEvalRun}
           onSelectDataset={state.selectDataset}
+          onSelectMode={state.selectMode}
           onCreateEvalRun={state.createEvalRun}
           onSelectEvalRun={state.selectEvalRun}
           onRunEval={state.runSelectedEvalRun}
@@ -1163,7 +1596,11 @@ export function EvalConsole({ currentUser }: { currentUser: AuthUserDto }) {
 
         {state.isCompareMode ? (
           <div className="min-h-0 xl:col-span-2">
-            <ComparePlaceholder state={state} />
+            <ComparePanelView
+              state={state}
+              outcomeFilter={compareOutcomeFilter}
+              onOutcomeFilterChange={setCompareOutcomeFilter}
+            />
           </div>
         ) : (
         <>

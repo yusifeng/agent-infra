@@ -416,6 +416,89 @@ describe('EvalConsole', () => {
     expect(document.body.textContent).toContain('example-1');
   });
 
+  it('renders compare summary, queue, row selection, and side-by-side detail', async () => {
+    routeState.searchParams = 'mode=compare&datasetId=dataset-1&baselineEvalRunId=eval-run-1&candidateEvalRunId=eval-run-2&compareDatasetExampleId=example-2';
+    api.fetchDatasetEvalRunsResponse.mockResolvedValue({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        evalRuns: [
+          evalRun({ id: 'eval-run-1', status: 'completed', name: 'Baseline' }),
+          evalRun({ id: 'eval-run-2', status: 'completed', name: 'Candidate' })
+        ]
+      }
+    });
+    api.fetchEvalExampleResultsResponse.mockImplementation((evalRunId: string) => Promise.resolve({
+      ok: true,
+      status: 200,
+      error: null,
+      data: {
+        results: [
+          result({
+            id: `${evalRunId}-result-1`,
+            evalRunId,
+            datasetExampleId: 'example-1',
+            exampleOrdinal: 1,
+            review: {
+              status: evalRunId === 'eval-run-1' ? 'pass' : 'fail',
+              reviewerNote: null,
+              reviewedByActorId: 'user-1',
+              reviewedAt: '2026-01-01T00:00:03.000Z'
+            }
+          }),
+          result({
+            id: `${evalRunId}-result-2`,
+            evalRunId,
+            datasetExampleId: 'example-2',
+            exampleOrdinal: 2,
+            review: {
+              status: evalRunId === 'eval-run-1' ? 'fail' : 'pass',
+              reviewerNote: null,
+              reviewedByActorId: 'user-1',
+              reviewedAt: '2026-01-01T00:00:03.000Z'
+            }
+          })
+        ]
+      }
+    }));
+
+    await act(async () => {
+      root.render(<EvalConsole currentUser={{ id: 'user-1', email: 'user@example.com' }} />);
+    });
+    await flush();
+    await flush();
+
+    expect(document.body.textContent).toContain('摘要');
+    expect(document.body.textContent).toContain('样本队列');
+    expect(document.body.textContent).toContain('样本详情');
+    expect(document.body.textContent).toContain('退化');
+    expect(document.body.textContent).toContain('改进');
+    expect(document.body.textContent).toContain('样本 #2');
+    expect(document.body.textContent).toContain('基线');
+    expect(document.body.textContent).toContain('候选');
+    expect(document.body.textContent).toContain('人工失败');
+    expect(document.body.textContent).toContain('人工通过');
+
+    const filter = document.body.querySelector('select[aria-label="Compare outcome filter"]') as HTMLSelectElement;
+    await act(async () => {
+      filter.value = 'regression';
+      filter.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    expect(document.body.textContent).toContain('显示 1/2');
+
+    const firstRow = [...document.body.querySelectorAll('button')].find((button) => button.textContent?.includes('样本 #1'));
+    await act(async () => {
+      firstRow?.click();
+    });
+
+    expect(navigation.push).toHaveBeenCalledWith(
+      '/observability/evals?mode=compare&datasetId=dataset-1&baselineEvalRunId=eval-run-1&candidateEvalRunId=eval-run-2&compareDatasetExampleId=example-1',
+      { scroll: false }
+    );
+  });
+
   it('preserves shared compare run IDs while eval runs are still loading', async () => {
     routeState.searchParams = 'mode=compare&datasetId=dataset-1&baselineEvalRunId=eval-run-1&candidateEvalRunId=eval-run-2';
     let resolveEvalRuns: ((value: {

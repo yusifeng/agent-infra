@@ -173,8 +173,8 @@
 - [x] compare mode does not call a new compare route.
 - [x] compare query state is URL-backed.
 - [x] selecting a compare row uses `compareDatasetExampleId`.
-- [ ] summary renders regression/improvement/missing/not comparable counts.
-- [ ] row detail renders baseline and candidate sides.
+- [x] summary renders regression/improvement/missing/not comparable counts.
+- [x] row detail renders baseline and candidate sides.
 - [x] switching back to review mode preserves existing single-run behavior.
 - [x] review save behavior remains unchanged in review mode.
 - [x] mutation errors still surface through toast, not inline page errors.
@@ -231,18 +231,18 @@
 - [x] Run `codex review` for this loop.
 
 ### Loop 3: Compare UI
-- [ ] Add review/compare mode toggle in `/observability/evals`.
-- [ ] Add baseline/candidate run selectors in compare mode.
-- [ ] Add compare summary section.
-- [ ] Add compare row queue with outcome filters.
-- [ ] Add compare row detail with baseline/candidate side-by-side result summaries.
-- [ ] Keep source example/output run/result links available.
-- [ ] Keep compare UI read-only with respect to review truth.
-- [ ] Add focused UI tests for summary, queue, row selection, and detail.
-- [ ] Run focused eval console tests.
-- [ ] Run playground-next-web typecheck.
-- [ ] Run `git diff --check` for touched UI files.
-- [ ] Run `codex review` for this loop.
+- [x] Add review/compare mode toggle in `/observability/evals`.
+- [x] Add baseline/candidate run selectors in compare mode.
+- [x] Add compare summary section.
+- [x] Add compare row queue with outcome filters.
+- [x] Add compare row detail with baseline/candidate side-by-side result summaries.
+- [x] Keep source example/output run/result links available.
+- [x] Keep compare UI read-only with respect to review truth.
+- [x] Add focused UI tests for summary, queue, row selection, and detail.
+- [x] Run focused eval console tests.
+- [x] Run playground-next-web typecheck.
+- [x] Run `git diff --check` for touched UI files.
+- [x] Run `codex review` for this loop.
 
 ### Loop 4: Source Of Truth And Browser Verification
 - [ ] Update `docs/source-of-truth/eval-run-model.md` with compare v1 semantics.
