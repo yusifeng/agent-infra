@@ -2,6 +2,7 @@ import clsx from 'clsx';
 import {
   Archive,
   ChevronDown,
+  ExternalLink,
   LogOut,
   PanelLeft,
   MoreHorizontal,
@@ -358,6 +359,10 @@ function ThreadRow({
           <DropdownMenuItem onSelect={() => onShareThread(thread.id)}>
             <Share2 className="h-4 w-4" />
             <span>分享</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => window.open(`/replay/${encodeURIComponent(thread.id)}`, '_blank', 'noopener,noreferrer')}>
+            <ExternalLink className="h-4 w-4" />
+            <span>打开回放</span>
           </DropdownMenuItem>
           <DropdownMenuItem variant="destructive" onSelect={() => onArchiveThread(thread.id)}>
             <Archive className="h-4 w-4" />
