@@ -7,7 +7,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import { collectCompletedLiveSearchToolCallIds } from '@/features/durable-chat/service/research-activity';
 import type { LiveAssistantDraft } from '@/features/durable-chat/types/live-assistant-draft';
 
-const DEFAULT_DOCUMENT_TITLE = 'playground-next-web';
+const DEFAULT_DOCUMENT_TITLE = 'DeepSeek - 探索未至之境';
 const MOBILE_SIDEBAR_BREAKPOINT = 1024;
 
 type ChatShellEffectsOptions = {
