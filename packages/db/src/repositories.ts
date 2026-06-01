@@ -54,16 +54,21 @@ import {
   toolInvocations
 } from './schema.js';
 
-function isMessageSeqUniqueConstraintError(error: unknown) {
+function isMessageSeqUniqueConstraintError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   const code = 'code' in error ? String((error as { code?: unknown }).code) : '';
   const constraint = 'constraint' in error ? String((error as { constraint?: unknown }).constraint) : '';
   if (code === '23505' && constraint === 'messages_thread_id_seq_unique') return true;
   const message = error instanceof Error ? error.message : '';
-  return (
+  if (
     message.includes('messages_thread_id_seq_unique') ||
     message.includes('UNIQUE constraint failed: messages.thread_id, messages.seq')
-  );
+  ) {
+    return true;
+  }
+
+  const cause = 'cause' in error ? (error as { cause?: unknown }).cause : null;
+  return cause ? isMessageSeqUniqueConstraintError(cause) : false;
 }
 
 export class DrizzleThreadRepository implements ThreadRepository {
