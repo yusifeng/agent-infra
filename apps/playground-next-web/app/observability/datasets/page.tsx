@@ -2,6 +2,8 @@ import { ChatThemeProvider } from '@/components/chat-theme-provider';
 import { DatasetReviewConsole } from '@/features/observability/components/dataset-review-console';
 import { requireCurrentAuthUser } from '@/lib/playground-auth-server';
 
+export const dynamic = 'force-dynamic';
+
 type DatasetReviewPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };

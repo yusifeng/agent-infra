@@ -94,6 +94,8 @@ function buildProductionEnv(rootEnv, options) {
     OPENAI_API_KEY: rootEnv.OPENAI_API_KEY,
     OPENAI_MODEL: rootEnv.OPENAI_MODEL,
     TAVILY_API_KEY: rootEnv.TAVILY_API_KEY,
+    PLAYGROUND_DUAL_ANSWER_ENABLED: rootEnv.PLAYGROUND_DUAL_ANSWER_ENABLED,
+    NEXT_PUBLIC_PLAYGROUND_DUAL_ANSWER_ENABLED: rootEnv.NEXT_PUBLIC_PLAYGROUND_DUAL_ANSWER_ENABLED,
     AUTH_CODE_SECRET: rootEnv.AUTH_CODE_SECRET,
     AUTH_ALLOWED_ORIGINS: origins.join(','),
     RESEND_API_KEY: rootEnv.RESEND_API_KEY,
@@ -125,7 +127,14 @@ function buildProductionEnv(rootEnv, options) {
 }
 
 function isSensitiveEnvKey(key) {
-  return !['PLAYGROUND_DB_MODE', 'AUTH_ALLOWED_ORIGINS', 'AUTH_EMAIL_FROM', 'OPENAI_MODEL'].includes(key);
+  return ![
+    'PLAYGROUND_DB_MODE',
+    'AUTH_ALLOWED_ORIGINS',
+    'AUTH_EMAIL_FROM',
+    'OPENAI_MODEL',
+    'PLAYGROUND_DUAL_ANSWER_ENABLED',
+    'NEXT_PUBLIC_PLAYGROUND_DUAL_ANSWER_ENABLED'
+  ].includes(key);
 }
 
 function run(command, args, options = {}) {
@@ -255,7 +264,9 @@ async function main() {
       env: {
         PLAYGROUND_DB_MODE: 'turso',
         TURSO_DATABASE_URL: productionEnv.TURSO_DATABASE_URL,
-        TURSO_AUTH_TOKEN: productionEnv.TURSO_AUTH_TOKEN
+        TURSO_AUTH_TOKEN: productionEnv.TURSO_AUTH_TOKEN,
+        PLAYGROUND_DUAL_ANSWER_ENABLED: productionEnv.PLAYGROUND_DUAL_ANSWER_ENABLED,
+        NEXT_PUBLIC_PLAYGROUND_DUAL_ANSWER_ENABLED: productionEnv.NEXT_PUBLIC_PLAYGROUND_DUAL_ANSWER_ENABLED
       },
       label: `${appName} production build`
     });

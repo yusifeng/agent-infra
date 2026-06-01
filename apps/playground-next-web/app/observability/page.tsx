@@ -2,6 +2,8 @@ import { ChatThemeProvider } from '@/components/chat-theme-provider';
 import { ObservabilityConsole } from '@/features/observability/components/observability-console';
 import { requireCurrentAuthUser } from '@/lib/playground-auth-server';
 
+export const dynamic = 'force-dynamic';
+
 type ObservabilityPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
