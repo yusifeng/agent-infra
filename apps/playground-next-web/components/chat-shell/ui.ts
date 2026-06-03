@@ -16,7 +16,7 @@ export const ui = {
     'rounded-xl text-[color:var(--chat-text-secondary)] transition-colors hover:bg-[var(--chat-hover)] hover:text-[color:var(--chat-text)]',
   chatHeaderTitle: 'overflow-hidden text-ellipsis whitespace-nowrap text-sm font-bold leading-[1.2] text-[color:var(--chat-text)]',
   chatPane: 'bg-[var(--chat-bg)]',
-  messageViewport: 'bg-[var(--chat-bg)] [overscroll-behavior:contain] [scroll-padding-block-end:220px]',
+  messageViewport: 'bg-[var(--chat-bg)] [overscroll-behavior:contain]',
   assistantBubble: 'text-[color:var(--chat-text)]',
   userBubble: 'bg-[var(--chat-user-bubble)] text-[color:var(--chat-text)]',
   subtlePanel: 'border border-[color:var(--chat-border)] bg-[var(--chat-surface)]',
