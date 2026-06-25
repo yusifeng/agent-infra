@@ -8,11 +8,25 @@ export function readServerEnv(): Record<string, string | undefined> {
     return cachedServerEnv;
   }
 
-  cachedServerEnv = {
+  cachedServerEnv = applyForcedProcessEnvKeys({
     ...process.env,
     ...readDotEnvLocal()
-  };
+  });
   return cachedServerEnv;
+}
+
+function applyForcedProcessEnvKeys(env: Record<string, string | undefined>): Record<string, string | undefined> {
+  const forcedKeys = process.env.CLOUD_AGENT_ENV_FORCE_KEYS?.split(',')
+    .map((key) => key.trim())
+    .filter(Boolean) ?? [];
+
+  for (const key of forcedKeys) {
+    if (Object.prototype.hasOwnProperty.call(process.env, key)) {
+      env[key] = process.env[key];
+    }
+  }
+
+  return env;
 }
 
 function readDotEnvLocal(): Record<string, string> {

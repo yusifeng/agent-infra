@@ -175,6 +175,20 @@ Codex 的工具能力、sandbox policy、approval policy 由 Codex SDK/runtime c
 Runtime adapter 的职责是把 Codex thread events 归一成我们的 runtime events，而不是把
 Codex 强行伪装成 Claude 的 tool-list 模型。
 
+## Run Queue And Worker Modes
+
+当前 app host 支持三类已实现执行模式：
+
+- `in-process`: request-owned local development path。route 创建 run 后在同一请求进程
+  启动执行，不是隔离 worker 后端。
+- `db-queue`: SQL-backed worker path。route 只创建 durable run，独立 worker 通过
+  DB claim/lease 领取 run 并执行，适合本机 worker 和简单 VPS worker。
+- `bullmq`: Redis/BullMQ worker path。route 创建 durable run 并入 Redis job，独立
+  BullMQ worker 执行，适合更接近生产的多 worker 部署。
+
+`db-poll` 是旧 external/worker dispatch 的兼容别名形态，保留用于迁移。`temporal`
+是规划中的 durable workflow backend，当前不是已实现执行路径。
+
 ## Secrets, MCP, And Skills
 
 Secrets 是 runtime-only 配置，不属于 product messages，也不应写入 workspace。
@@ -209,6 +223,10 @@ provider session materialization 策略。
   `runc`），Linux host 可用 `CLOUD_AGENT_DOCKER_RUNTIME=runsc` 选择
   gVisor/runsc。KubernetesPodSandboxProvider + RuntimeClass 是后续生产部署
   路径，不是本机阶段的第一目标。
+- 本机 worker 可以和本机 Next dev server 共享 local SQLite；但远程 Next
+  控制面（例如 Vercel）无法访问个人电脑上的 SQLite 文件。远程控制面 + 本机
+  worker 必须使用共享 durable DB/queue，并在跨机器恢复前把 workspace/artifact
+  持久化到共享存储。
 - Codex SDK 需要 Responses-compatible endpoint；DeepSeek Chat Completions-compatible
   endpoint 不能直接满足 Codex SDK 的 `/responses` protocol。
 - `apps/cloud-agent-next-web` 是验证 surface，不是永久产品边界。

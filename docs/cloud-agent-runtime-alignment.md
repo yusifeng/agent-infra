@@ -1674,6 +1674,60 @@ agent SDK process 和 stdio MCP/tool command 都应该在 sandbox/worker 执行�
 config 挂载到 `/agent-home`。这不是最终 worker pool，但它已经把 `pwd` 和
 Bash 工具执行位置从宿主机推进到容器内。
 
+### 本机 Worker 路径
+
+个人使用阶段优先把“执行机器”理解成一台本机或家里的常开机器，而不是直接上
+Kubernetes。控制面可以继续是 Next app，真正的 Claude/Codex SDK 和 Docker
+sandbox 由本机 worker 执行。
+
+本机开发最小形态：
+
+```txt
+Next dev server + local SQLite + local Docker worker
+```
+
+这时可以用：
+
+```bash
+pnpm --filter cloud-agent-next-web dev:local-worker
+pnpm --filter cloud-agent-next-web worker:local
+```
+
+这两个命令需要成对理解：`dev:local-worker` 让 Next route/control-plane
+进程强制使用 `db-queue`，只创建 durable run 并暴露 stream/follow；`worker:local`
+让 worker 进程也默认并强制使用 `db-queue`，再从 DB queue claim run 并执行。
+这里的“强制”只针对 `CLOUD_AGENT_RUN_QUEUE_PROVIDER`，用于避免旧 `.env.local`
+把某一侧静默切回 `in-process`。
+如果不用 `dev:local-worker`，也可以在 `.env.local` 里显式设置
+`CLOUD_AGENT_RUN_QUEUE_PROVIDER=db-queue` 后继续用普通 `dev` 命令。默认 Docker
+runtime 仍然不传参数，通常走 Docker 自带 `runc`；Linux host 已安装 gVisor
+时才设置 `CLOUD_AGENT_DOCKER_RUNTIME=runsc`。
+
+`bullmq` 是 Redis/BullMQ worker 后端，适合更接近生产的多 worker 部署。它和
+`db-queue` 一样把执行从 request process 移到 worker process，但 queue claim
+由 Redis job 驱动，而不是 SQL polling/lease。它需要 `REDIS_URL`，并通过
+`worker:bullmq` 启动独立 worker。
+
+排查当前 runtime 配置时可以运行：
+
+```bash
+pnpm --filter cloud-agent-next-web runtime:diagnostics
+```
+
+它会输出 queue provider、worker 参数、provider execution mode、Docker runtime
+和本机 worker 的已知部署限制。
+
+远程控制面 + 本机 worker 的形态需要额外注意：
+
+```txt
+Vercel/remote Next app + shared managed DB/queue + local Docker worker
+```
+
+Vercel 上的 Next app 无法访问你电脑上的 SQLite 文件，所以这条路径不能依赖
+本地 SQLite。它需要共享的 durable database 或 queue，例如 managed Postgres
+或 Redis/BullMQ。对象存储同理，workspace/artifact 若要跨机器恢复，也要进入
+R2/S3/MinIO 这类共享存储，而不是只存在本机目录。
+
 ### 默认安全姿态
 
 第一版明确是“可信内部 MVP”，不是面向公共不可信用户的 SaaS 隔离承诺。但即便在

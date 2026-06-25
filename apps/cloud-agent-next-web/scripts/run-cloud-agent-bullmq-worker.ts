@@ -1,5 +1,7 @@
 import { createCloudAgentBullMqWorker } from '../lib/bullmq-run-queue';
+import { readDockerRuntime } from '../lib/agent-runtime-config';
 import { readCloudAgentWorkerQueueOptions } from '../lib/run-queue-provider';
+import { readServerEnv } from '../lib/server-env';
 import { heartbeatCloudAgentWorker, markCloudAgentWorkerStopped } from '../lib/worker-registry';
 
 const workerOptions = readCloudAgentWorkerQueueOptions();
@@ -92,7 +94,23 @@ worker.on('failed', (job, error) => {
   );
 });
 
-console.log(JSON.stringify({ concurrency: workerOptions.concurrency, queueProvider: 'bullmq', ready: true, workerId }, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      concurrency: workerOptions.concurrency,
+      dockerRuntime: readDockerRuntime(readServerEnv()) ?? 'default',
+      leaseMs: workerOptions.leaseMs,
+      maxAttempts: workerOptions.maxAttempts ?? null,
+      pollMs: workerOptions.pollMs,
+      queueProvider: 'bullmq',
+      ready: true,
+      retryBaseMs: workerOptions.retryBaseMs ?? null,
+      workerId
+    },
+    null,
+    2
+  )
+);
 
 async function heartbeatWorker(status: 'active' | 'draining'): Promise<'active' | 'draining' | 'stopped' | null> {
   const worker = await heartbeatCloudAgentWorker({

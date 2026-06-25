@@ -1,8 +1,10 @@
 import { runCloudAgentRunJob } from '../lib/agent-run-worker';
+import { readDockerRuntime } from '../lib/agent-runtime-config';
 import {
   getCloudAgentWorkerRunQueueProvider,
   readCloudAgentWorkerQueueOptions
 } from '../lib/run-queue-provider';
+import { readServerEnv } from '../lib/server-env';
 import { heartbeatCloudAgentWorker, markCloudAgentWorkerStopped } from '../lib/worker-registry';
 
 const workerOptions = readCloudAgentWorkerQueueOptions();
@@ -22,6 +24,25 @@ const queueProvider = getCloudAgentWorkerRunQueueProvider();
 const active = new Map<string, Promise<void>>();
 const heartbeatIntervalMs = Math.max(1000, Math.min(pollMs, Math.floor(leaseMs / 2)));
 let lastHeartbeatAt = 0;
+
+console.log(
+  JSON.stringify(
+    {
+      concurrency,
+      dockerRuntime: readDockerRuntime(readServerEnv()) ?? 'default',
+      leaseMs,
+      maxAttempts: maxAttempts ?? null,
+      maxIdleMs: maxIdleMs ?? null,
+      pollMs,
+      queueProvider: queueProvider.kind,
+      ready: true,
+      retryBaseMs: retryBaseMs ?? null,
+      workerId
+    },
+    null,
+    2
+  )
+);
 
 await heartbeatWorker('active');
 
