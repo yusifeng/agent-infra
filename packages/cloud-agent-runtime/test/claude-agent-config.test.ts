@@ -80,6 +80,28 @@ describe('resolveClaudeAgentConfig', () => {
     expect(config.adapterOptions.env?.ANTHROPIC_API_KEY).toBeUndefined();
   });
 
+  it('exposes redacted diagnostics without auth token values', () => {
+    const config = resolveClaudeAgentConfig({
+      clientApp: 'test-app',
+      configDir: '/tmp/claude-config',
+      env: {
+        ANTHROPIC_API_KEY: 'sk-secret',
+        ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic'
+      }
+    });
+
+    expect(config.diagnostics).toMatchObject({
+      baseUrl: 'https://api.deepseek.com/anthropic',
+      configured: true,
+      isDeepSeek: true,
+      model: 'deepseek-v4-flash',
+      permissionMode: 'acceptEdits',
+      timeoutMs: 5_000,
+      tokenSource: 'ANTHROPIC_API_KEY'
+    });
+    expect(JSON.stringify(config.diagnostics)).not.toContain('sk-secret');
+  });
+
   it('enables the minimal workspace file tool set for agent runs', () => {
     const config = resolveClaudeAgentConfig({
       clientApp: 'test-app',

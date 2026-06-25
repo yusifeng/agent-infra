@@ -110,4 +110,56 @@ describe('resolveCodexAgentConfig', () => {
     expect(config.adapterOptions.networkAccessEnabled).toBe(false);
     expect(config.adapterOptions.sandboxMode).toBe('workspace-write');
   });
+
+  it('allows a dev-only Codex home auth cache without an API key', () => {
+    const config = resolveCodexAgentConfig({
+      configDir: '/tmp/runtime-codex-home',
+      env: {
+        CODEX_AUTH_MODE: 'codex-home',
+        CODEX_HOME: '/Users/test/.codex',
+        CODEX_MODEL: 'gpt-5.4',
+        ANTHROPIC_AUTH_TOKEN: 'sk-deepseek',
+        ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic'
+      }
+    });
+
+    expect(config.configured).toBe(true);
+    expect(config.apiKeySource).toBe('CODEX_HOME_AUTH');
+    expect(config.authMode).toBe('codex-home');
+    expect(config.codexHomeAuthSource).toBe('/Users/test/.codex');
+    expect(config.baseUrl).toBeNull();
+    expect(config.isDeepSeek).toBe(false);
+    expect(config.adapterOptions.apiKey).toBeUndefined();
+    expect(config.adapterOptions.env).toMatchObject({
+      CODEX_HOME: '/tmp/runtime-codex-home'
+    });
+    expect(config.model).toBe('gpt-5.4');
+  });
+
+  it('exposes redacted diagnostics without API key or codex home paths', () => {
+    const config = resolveCodexAgentConfig({
+      configDir: '/tmp/runtime-codex-home',
+      env: {
+        CODEX_AUTH_MODE: 'codex-home',
+        CODEX_HOME: '/Users/test/.codex',
+        CODEX_MODEL: 'gpt-5.4',
+        OPENAI_API_KEY: 'sk-openai-secret'
+      }
+    });
+
+    expect(config.diagnostics).toMatchObject({
+      apiKeySource: 'OPENAI_API_KEY',
+      approvalPolicy: 'never',
+      authMode: 'api-key',
+      codexHomeAuthSourceConfigured: true,
+      configured: true,
+      model: 'gpt-5.4',
+      sandboxMode: 'workspace-write',
+      timeoutMs: 5_000
+    });
+    const diagnosticsJson = JSON.stringify(config.diagnostics);
+    expect(diagnosticsJson).not.toContain('sk-openai-secret');
+    expect(diagnosticsJson).not.toContain('/Users/test/.codex');
+    expect(diagnosticsJson).not.toContain('/tmp/runtime-codex-home');
+  });
 });

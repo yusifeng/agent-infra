@@ -1,6 +1,7 @@
 import type { ApprovalMode, ModelReasoningEffort, SandboxMode, WebSearchMode } from '@openai/codex-sdk';
 
 import type { CodexAgentAdapterOptions } from './codex-agent-adapter.js';
+import { compactConfig, compactEnv, readBooleanEnv, readEnv } from './provider-config-env.js';
 
 export const DEFAULT_CODEX_DEEPSEEK_BASE_URL = 'https://api.deepseek.com';
 export const DEFAULT_CODEX_DEEPSEEK_MODEL = 'deepseek-v4-flash';
@@ -21,17 +22,39 @@ export interface ResolvedCodexAgentConfig {
     | 'DEEPSEEK_API_KEY'
     | 'ANTHROPIC_AUTH_TOKEN'
     | 'ANTHROPIC_API_KEY'
+    | 'CODEX_HOME_AUTH'
     | null;
+  authMode: 'api-key' | 'codex-home' | null;
+  codexHomeAuthSource: string | null;
   baseUrl: string | null;
   configured: boolean;
+  diagnostics: {
+    apiKeySource: ResolvedCodexAgentConfig['apiKeySource'];
+    approvalPolicy: ApprovalMode;
+    authMode: ResolvedCodexAgentConfig['authMode'];
+    baseUrl: string | null;
+    codexHomeAuthSourceConfigured: boolean;
+    configured: boolean;
+    isDeepSeek: boolean;
+    model: string | null;
+    modelReasoningEffort: ModelReasoningEffort | null;
+    networkAccessEnabled: boolean | null;
+    sandboxMode: SandboxMode;
+    timeoutMs: number;
+  };
   isDeepSeek: boolean;
   model?: string;
 }
 
 export function resolveCodexAgentConfig(input: CodexAgentConfigInput): ResolvedCodexAgentConfig {
   const defaultDeepSeekModel = input.defaultDeepSeekModel ?? DEFAULT_CODEX_DEEPSEEK_MODEL;
-  const apiKey = resolveApiKey(input.env);
-  const baseUrl = resolveBaseUrl(input.env, apiKey.source);
+  const codexHomeAuthSource = resolveCodexHomeAuthSource(input.env);
+  const apiKey = resolveApiKey(input.env, {
+    allowAnthropicDeepSeekFallback: !codexHomeAuthSource
+  });
+  const baseUrl = resolveBaseUrl(input.env, apiKey.source, {
+    allowAnthropicDeepSeekFallback: !codexHomeAuthSource
+  });
   const isDeepSeek = Boolean(baseUrl?.includes('api.deepseek.com'));
   const model = readEnv(input.env, 'CODEX_MODEL') ?? readEnv(input.env, 'OPENAI_MODEL') ?? (isDeepSeek ? defaultDeepSeekModel : undefined);
   const modelReasoningEffort = readModelReasoningEffort(input.env);
@@ -39,6 +62,10 @@ export function resolveCodexAgentConfig(input: CodexAgentConfigInput): ResolvedC
   const approvalPolicy = readApprovalPolicy(input.env);
   const networkAccessEnabled = readBooleanEnv(input.env, 'CODEX_NETWORK_ACCESS_ENABLED');
   const webSearchMode = readWebSearchMode(input.env);
+  const timeoutMs = readTimeoutMs(input.env, input.defaultTimeoutMs ?? DEFAULT_CODEX_AGENT_TIMEOUT_MS);
+  const apiKeySource = apiKey.source ?? (codexHomeAuthSource ? 'CODEX_HOME_AUTH' : null);
+  const authMode = apiKey.value ? 'api-key' : codexHomeAuthSource ? 'codex-home' : null;
+  const configured = Boolean(apiKey.value || codexHomeAuthSource);
 
   return {
     adapterOptions: {
@@ -60,11 +87,27 @@ export function resolveCodexAgentConfig(input: CodexAgentConfigInput): ResolvedC
       networkAccessEnabled,
       sandboxMode,
       skipGitRepoCheck: readBooleanEnv(input.env, 'CODEX_SKIP_GIT_REPO_CHECK') ?? true,
-      timeoutMs: readTimeoutMs(input.env, input.defaultTimeoutMs ?? DEFAULT_CODEX_AGENT_TIMEOUT_MS)
+      timeoutMs
     },
-    apiKeySource: apiKey.source,
+    apiKeySource,
+    authMode,
+    codexHomeAuthSource,
     baseUrl,
-    configured: Boolean(apiKey.value),
+    configured,
+    diagnostics: {
+      apiKeySource,
+      approvalPolicy,
+      authMode,
+      baseUrl,
+      codexHomeAuthSourceConfigured: Boolean(codexHomeAuthSource),
+      configured,
+      isDeepSeek,
+      model: model ?? null,
+      modelReasoningEffort: modelReasoningEffort ?? null,
+      networkAccessEnabled: networkAccessEnabled ?? null,
+      sandboxMode,
+      timeoutMs
+    },
     isDeepSeek,
     model
   };
@@ -82,7 +125,12 @@ function buildCodexProcessEnv(input: {
   });
 }
 
-function resolveApiKey(env: Record<string, string | undefined>): {
+function resolveApiKey(
+  env: Record<string, string | undefined>,
+  options: {
+    allowAnthropicDeepSeekFallback: boolean;
+  }
+): {
   source: ResolvedCodexAgentConfig['apiKeySource'];
   value: string | null;
 } {
@@ -95,7 +143,7 @@ function resolveApiKey(env: Record<string, string | undefined>): {
   const deepSeekApiKey = readEnv(env, 'DEEPSEEK_API_KEY');
   if (deepSeekApiKey) return { source: 'DEEPSEEK_API_KEY', value: deepSeekApiKey };
 
-  if (readEnv(env, 'ANTHROPIC_BASE_URL')?.includes('api.deepseek.com')) {
+  if (options.allowAnthropicDeepSeekFallback && readEnv(env, 'ANTHROPIC_BASE_URL')?.includes('api.deepseek.com')) {
     const anthropicAuthToken = readEnv(env, 'ANTHROPIC_AUTH_TOKEN');
     if (anthropicAuthToken) return { source: 'ANTHROPIC_AUTH_TOKEN', value: anthropicAuthToken };
 
@@ -106,9 +154,20 @@ function resolveApiKey(env: Record<string, string | undefined>): {
   return { source: null, value: null };
 }
 
+function resolveCodexHomeAuthSource(env: Record<string, string | undefined>): string | null {
+  if (readEnv(env, 'CODEX_AUTH_MODE') !== 'codex-home') {
+    return null;
+  }
+
+  return readEnv(env, 'CODEX_AUTH_HOME') ?? readEnv(env, 'CODEX_HOME');
+}
+
 function resolveBaseUrl(
   env: Record<string, string | undefined>,
-  apiKeySource: ResolvedCodexAgentConfig['apiKeySource']
+  apiKeySource: ResolvedCodexAgentConfig['apiKeySource'],
+  options: {
+    allowAnthropicDeepSeekFallback: boolean;
+  }
 ): string | null {
   const explicit =
     readEnv(env, 'CODEX_BASE_URL') ?? readEnv(env, 'OPENAI_BASE_URL') ?? readEnv(env, 'DEEPSEEK_BASE_URL');
@@ -120,7 +179,7 @@ function resolveBaseUrl(
     apiKeySource === 'DEEPSEEK_API_KEY' ||
     apiKeySource === 'ANTHROPIC_API_KEY' ||
     apiKeySource === 'ANTHROPIC_AUTH_TOKEN' ||
-    readEnv(env, 'ANTHROPIC_BASE_URL')?.includes('api.deepseek.com')
+    (options.allowAnthropicDeepSeekFallback && readEnv(env, 'ANTHROPIC_BASE_URL')?.includes('api.deepseek.com'))
   ) {
     return DEFAULT_CODEX_DEEPSEEK_BASE_URL;
   }
@@ -157,13 +216,6 @@ function readWebSearchMode(env: Record<string, string | undefined>): WebSearchMo
   return value && isWebSearchMode(value) ? value : undefined;
 }
 
-function readBooleanEnv(env: Record<string, string | undefined>, key: string): boolean | undefined {
-  const value = readEnv(env, key)?.toLowerCase();
-  if (value === '1' || value === 'true' || value === 'yes') return true;
-  if (value === '0' || value === 'false' || value === 'no') return false;
-  return undefined;
-}
-
 function isModelReasoningEffort(value: string): value is ModelReasoningEffort {
   return value === 'minimal' || value === 'low' || value === 'medium' || value === 'high' || value === 'xhigh';
 }
@@ -178,19 +230,4 @@ function isApprovalMode(value: string): value is ApprovalMode {
 
 function isWebSearchMode(value: string): value is WebSearchMode {
   return value === 'disabled' || value === 'cached' || value === 'live';
-}
-
-function readEnv(env: Record<string, string | undefined>, key: string): string | null {
-  const value = env[key]?.trim();
-  return value ? value : null;
-}
-
-function compactEnv(env: Record<string, string | undefined>): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(env).filter((entry): entry is [string, string] => entry[1] !== undefined)
-  );
-}
-
-function compactConfig<T extends Record<string, unknown>>(config: T): T | undefined {
-  return Object.keys(config).length > 0 ? config : undefined;
 }

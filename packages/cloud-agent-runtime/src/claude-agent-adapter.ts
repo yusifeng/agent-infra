@@ -15,6 +15,8 @@ import {
   extractClaudeToolRuntimeEvents
 } from './claude-tool-events.js';
 import { buildAgentPrompt } from './agent-continuity.js';
+import { appendProviderTranscriptEntry } from './provider-transcript.js';
+import { runtimeEvents } from './runtime-events.js';
 import type {
   AgentAdapter,
   AgentRunInput,
@@ -129,14 +131,11 @@ export class ClaudeAgentAdapter implements AgentAdapter {
       tools: this.tools
     };
 
-    yield {
-      type: 'agent_start',
-      payload: {
-        provider: this.provider,
-        cwd,
-        threadId: input.scope.threadId ?? null
-      }
-    };
+    yield runtimeEvents.agentStart({
+      provider: this.provider,
+      cwd,
+      threadId: input.scope.threadId ?? null
+    });
 
     let resultText = '';
     let sawPartialText = false;
@@ -172,29 +171,23 @@ export class ClaudeAgentAdapter implements AgentAdapter {
         providerSessionId = extractSessionId(message) ?? providerSessionId;
         if (providerSessionId && providerSessionId !== lastEmittedProviderSessionId) {
           lastEmittedProviderSessionId = providerSessionId;
-          yield {
-            type: 'provider_session_bound',
-            payload: {
-              provider: this.provider,
-              providerSessionId,
-              threadId: input.scope.threadId ?? null,
-              workspaceId: input.scope.workspaceId
-            }
-          };
+          yield runtimeEvents.providerSessionBound({
+            provider: this.provider,
+            providerSessionId,
+            threadId: input.scope.threadId ?? null,
+            workspaceId: input.scope.workspaceId
+          });
         }
         await this.appendTranscriptEntry(input, providerSessionId, message);
 
         const providerError = extractProviderError(message);
         if (providerError) {
           closeQuery(claudeQuery);
-          yield {
-            type: 'agent_failed',
-            payload: {
-              provider: this.provider,
-              error: providerError,
-              providerSessionId
-            }
-          };
+          yield runtimeEvents.agentFailed({
+            provider: this.provider,
+            error: providerError,
+            providerSessionId
+          });
           return;
         }
 
@@ -209,13 +202,7 @@ export class ClaudeAgentAdapter implements AgentAdapter {
         const delta = partialText ?? (sawPartialText ? null : extractAssistantText(message));
         if (delta) {
           resultText += delta;
-          yield {
-            type: 'agent_message_delta',
-            payload: {
-              provider: this.provider,
-              content: delta
-            }
-          };
+          yield runtimeEvents.agentMessageDelta(this.provider, delta);
         }
 
         if (message.type === 'result') {
@@ -223,14 +210,11 @@ export class ClaudeAgentAdapter implements AgentAdapter {
             resultText = message.result || resultText;
           } else {
             const errorMessage = message.errors.join('\n');
-            yield {
-              type: 'agent_failed',
-              payload: {
-                provider: this.provider,
-                error: errorMessage,
-                providerSessionId
-              }
-            };
+            yield runtimeEvents.agentFailed({
+              provider: this.provider,
+              error: errorMessage,
+              providerSessionId
+            });
             return;
           }
         }
@@ -241,26 +225,20 @@ export class ClaudeAgentAdapter implements AgentAdapter {
       for (const event of permissionEvents.drain()) {
         yield event;
       }
-      yield {
-        type: 'agent_completed',
-        payload: {
-          provider: this.provider,
-          content: resultText.trim(),
-          providerSessionId
-        }
-      };
+      yield runtimeEvents.agentCompleted({
+        provider: this.provider,
+        content: resultText.trim(),
+        providerSessionId
+      });
     } catch (error) {
       for (const event of permissionEvents.drain()) {
         yield event;
       }
-      yield {
-        type: 'agent_failed',
-        payload: {
-          provider: this.provider,
-          error: timedOut ? `Claude agent timed out after ${this.timeoutMs}ms` : errorMessage(error),
-          providerSessionId
-        }
-      };
+      yield runtimeEvents.agentFailed({
+        provider: this.provider,
+        error: timedOut ? `Claude agent timed out after ${this.timeoutMs}ms` : errorMessage(error),
+        providerSessionId
+      });
     } finally {
       permissionEvents.close();
       if (timeout) {
@@ -274,24 +252,14 @@ export class ClaudeAgentAdapter implements AgentAdapter {
     providerSessionId: string | null,
     message: SDKMessage
   ): Promise<void> {
-    if (!this.transcriptStore || !providerSessionId) {
-      return;
-    }
-
-    await this.transcriptStore.append({
+    await appendProviderTranscriptEntry({
+      entryType: message.type,
+      provider: this.provider,
+      providerEntryId: extractProviderEntryId(message),
+      providerSessionId,
+      rawJson: message as unknown as JsonValue,
       scope: input.scope,
-      key: {
-        provider: this.provider,
-        providerSessionId
-      },
-      entries: [
-        {
-          entryType: message.type,
-          providerEntryId: extractProviderEntryId(message),
-          rawJson: message as unknown as JsonValue,
-          runId: input.scope.runId ?? null
-        }
-      ]
+      transcriptStore: this.transcriptStore
     });
   }
 }
@@ -307,9 +275,8 @@ function createCanUseTool({ broker, eventQueue, input, provider }: CreateCanUseT
   return async (toolName, toolInput, options) => {
     const permissionRequestId = options.toolUseID;
     const requestInput = toJsonObject(toolInput);
-    eventQueue.push({
-      type: 'permission_requested',
-      payload: {
+    eventQueue.push(
+      runtimeEvents.permissionRequested({
         provider,
         permissionRequestId,
         action: toolName,
@@ -324,8 +291,8 @@ function createCanUseTool({ broker, eventQueue, input, provider }: CreateCanUseT
           title: options.title ?? null,
           toolName
         }
-      }
-    });
+      })
+    );
 
     const decision = await broker.resolve({
       scope: input.scope,
@@ -342,17 +309,16 @@ function createCanUseTool({ broker, eventQueue, input, provider }: CreateCanUseT
       agentId: options.agentID ?? null
     });
 
-    eventQueue.push({
-      type: 'approval_resolved',
-      payload: {
+    eventQueue.push(
+      runtimeEvents.approvalResolved({
         provider,
         permissionRequestId,
         decision: decision.decision,
         status: decision.approvalStatus ?? decision.decision,
         reason: decision.reason ?? null,
         resolvedByActorId: decision.resolvedByActorId ?? null
-      }
-    });
+      })
+    );
 
     return toClaudePermissionResult(permissionRequestId, decision);
   };

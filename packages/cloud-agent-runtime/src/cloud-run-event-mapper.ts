@@ -120,6 +120,17 @@ export function mapAgentRuntimeEventToCloudRunEvent(
         }
       };
     }
+    case 'usage_updated': {
+      const usage = readObject(event.payload, 'usage');
+      if (!usage) return null;
+      return {
+        type: 'usage_updated',
+        payload: {
+          ...basePayload('usage_updated', context),
+          usage
+        }
+      };
+    }
     case 'provider_session_bound': {
       const providerSessionId = readString(event.payload, 'providerSessionId');
       if (!providerSessionId) return null;

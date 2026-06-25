@@ -1,8 +1,6 @@
-import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import {
   AdapterAgentRunner,
@@ -13,12 +11,19 @@ import {
   type RuntimeScope,
   type SandboxSession
 } from '../src/index.js';
+import {
+  defaultEnvFile,
+  defaultSmokeRoot,
+  ensureDockerAvailable,
+  ensureDockerImage,
+  loadEnvFile,
+  packageRoot,
+  prepareCleanDirectories,
+  repoRoot
+} from './smoke-helpers.js';
 
-const packageRoot = path.resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
-const repoRoot = path.resolve(packageRoot, '../..');
-const defaultEnvFile = path.join(repoRoot, 'apps/cloud-agent-next-web/.env.local');
 const envFile = process.env.CLOUD_AGENT_ENV_FILE?.trim() || defaultEnvFile;
-const smokeRoot = path.join(packageRoot, '.tmp/docker-claude-agent-smoke');
+const smokeRoot = process.env.CLOUD_AGENT_SMOKE_ROOT?.trim() || defaultSmokeRoot('docker-claude-agent-smoke');
 const workspacePath = path.join(smokeRoot, 'workspace');
 const configDir = path.join(smokeRoot, 'claude-config');
 const credentialsDir = path.join(smokeRoot, 'credentials');
@@ -34,13 +39,8 @@ main().catch((error: unknown) => {
 async function main(): Promise<void> {
   await loadEnvFile(envFile);
   await ensureDockerAvailable();
-  await ensureImage(image);
-  await rm(smokeRoot, { force: true, recursive: true });
-  await Promise.all([
-    mkdir(workspacePath, { recursive: true }),
-    mkdir(configDir, { recursive: true }),
-    mkdir(credentialsDir, { recursive: true })
-  ]);
+  await ensureDockerImage({ dockerfile: 'Dockerfile.claude-agent', imageName: image });
+  await prepareCleanDirectories(smokeRoot, [workspacePath, configDir, credentialsDir]);
   await writeFile(path.join(workspacePath, 'read-edit-target.txt'), 'before-edit\n');
 
   const config = resolveClaudeAgentConfig({
@@ -189,53 +189,6 @@ async function main(): Promise<void> {
   );
 }
 
-async function loadEnvFile(filePath: string): Promise<void> {
-  if (!existsSync(filePath)) {
-    return;
-  }
-
-  const raw = await readFile(filePath, 'utf8');
-  for (const line of raw.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) {
-      continue;
-    }
-
-    const separatorIndex = trimmed.indexOf('=');
-    if (separatorIndex === -1) {
-      continue;
-    }
-
-    const key = trimmed.slice(0, separatorIndex).trim();
-    const value = trimmed.slice(separatorIndex + 1).trim().replace(/^["']|["']$/g, '');
-    process.env[key] = value;
-  }
-}
-
-async function ensureDockerAvailable(): Promise<void> {
-  await runCommand('docker', ['info', '--format', '{{.ServerVersion}}'], {
-    errorMessage: 'Docker CLI is not available or Docker is not running.'
-  });
-}
-
-async function ensureImage(imageName: string): Promise<void> {
-  const inspected = await runCommand('docker', ['image', 'inspect', imageName], {
-    allowFailure: true
-  });
-  if (inspected.exitCode === 0) {
-    return;
-  }
-
-  await runCommand('docker', [
-    'build',
-    '-t',
-    imageName,
-    '-f',
-    path.join(packageRoot, 'docker/Dockerfile.claude-agent'),
-    path.join(packageRoot, 'docker')
-  ]);
-}
-
 function readTimeoutMs(): number {
   const raw = process.env.CLOUD_AGENT_DOCKER_CLAUDE_SMOKE_TIMEOUT_MS?.trim();
   const parsed = raw ? Number(raw) : 60_000;
@@ -277,45 +230,4 @@ function assertNoHostPathLeak(toolEvents: Array<{ payload: unknown; type: string
   if (serializedEvents.includes(smokeRoot) || serializedEvents.includes(packageRoot) || serializedEvents.includes(repoRoot)) {
     throw new Error(`Docker Claude smoke leaked a host path in tool events: ${serializedEvents}`);
   }
-}
-
-function runCommand(
-  command: string,
-  args: string[],
-  options: { allowFailure?: boolean; errorMessage?: string } = {}
-): Promise<{ exitCode: number; stdout: string; stderr: string }> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
-      stdio: ['ignore', 'pipe', 'pipe']
-    });
-    const stdoutChunks: Buffer[] = [];
-    const stderrChunks: Buffer[] = [];
-
-    child.stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
-    child.stderr.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
-    child.on('error', (error) => {
-      if (options.allowFailure) {
-        resolve({ exitCode: 1, stdout: '', stderr: error.message });
-        return;
-      }
-      reject(error);
-    });
-    child.on('close', (exitCode) => {
-      const result = {
-        exitCode: exitCode ?? 1,
-        stdout: Buffer.concat(stdoutChunks).toString('utf8'),
-        stderr: Buffer.concat(stderrChunks).toString('utf8')
-      };
-      if (result.exitCode !== 0 && !options.allowFailure) {
-        reject(
-          new Error(
-            options.errorMessage ??
-              `${command} ${args.join(' ')} failed with exit code ${result.exitCode}: ${result.stderr.trim()}`
-          )
-        );
-        return;
-      }
-      resolve(result);
-    });
-  });
 }

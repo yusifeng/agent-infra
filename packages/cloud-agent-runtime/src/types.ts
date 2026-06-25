@@ -253,11 +253,106 @@ export type AgentRuntimeEventType =
   | 'tool_call_failed'
   | 'permission_requested'
   | 'approval_resolved'
+  | 'usage_updated'
   | 'provider_session_bound'
   | 'provider_session_recovery'
   | 'provider_transcript_mirrored'
   | 'agent_completed'
   | 'agent_failed';
+
+export interface AgentRuntimeEventPayloadByType {
+  agent_start: JsonObject & {
+    cwd?: string | null;
+    provider: string;
+    runId?: string | null;
+    threadId?: string | null;
+  };
+  agent_message_delta: JsonObject & {
+    content: string;
+    provider: string;
+  };
+  agent_message_completed: JsonObject & {
+    content?: string | null;
+    provider: string;
+    providerSessionId?: string | null;
+  };
+  tool_call_started: JsonObject & {
+    command?: string | null;
+    input?: JsonObject | null;
+    inputSummary?: string | null;
+    provider: string;
+    toolCallId: string;
+    toolName: string;
+  };
+  file_change_detected: JsonObject & {
+    changeType: WorkspaceChangeType;
+    path: string;
+    provider: string;
+    toolCallId?: string | null;
+  };
+  tool_call_completed: JsonObject & {
+    command?: string | null;
+    exitCode?: number | null;
+    filePath?: string | null;
+    output?: JsonObject | null;
+    provider: string;
+    resultSummary?: string | null;
+    toolCallId: string;
+    toolName?: string | null;
+  };
+  tool_call_failed: JsonObject & {
+    command?: string | null;
+    error?: string | null;
+    filePath?: string | null;
+    provider: string;
+    resultSummary?: string | null;
+    toolCallId: string;
+    toolName?: string | null;
+  };
+  permission_requested: JsonObject & {
+    action: string;
+    details?: JsonObject | null;
+    permissionRequestId: string;
+    provider: string;
+  };
+  approval_resolved: JsonObject & {
+    decision: PermissionDecision['decision'];
+    permissionRequestId: string;
+    provider: string;
+    reason?: string | null;
+    resolvedByActorId?: string | null;
+    status?: string | null;
+  };
+  usage_updated: JsonObject & {
+    provider: string;
+    usage: JsonObject;
+  };
+  provider_session_bound: JsonObject & {
+    provider: string;
+    providerSessionId: string;
+    threadId?: string | null;
+    workspaceId?: string | null;
+  };
+  provider_session_recovery: JsonObject;
+  provider_transcript_mirrored: JsonObject;
+  agent_completed: JsonObject & {
+    content: string;
+    provider: string;
+    providerSessionId?: string | null;
+  };
+  agent_failed: JsonObject & {
+    error: string;
+    provider: string;
+    providerSessionId?: string | null;
+  };
+}
+
+export type TypedAgentRuntimeEvent<TType extends AgentRuntimeEventType = AgentRuntimeEventType> = {
+  [K in TType]: {
+    type: K;
+    payload: AgentRuntimeEventPayloadByType[K] | null;
+  };
+}[TType];
 
 export interface AgentRuntimeEvent {
   type: AgentRuntimeEventType;

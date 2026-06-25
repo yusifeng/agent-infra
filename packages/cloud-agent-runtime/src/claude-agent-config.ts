@@ -1,6 +1,7 @@
 import type { McpServerConfig, PermissionMode, SettingSource } from '@anthropic-ai/claude-agent-sdk';
 
 import type { ClaudeAgentAdapterOptions } from './claude-agent-adapter.js';
+import { compactEnv, readEnv } from './provider-config-env.js';
 
 export const DEFAULT_CLAUDE_AGENT_TIMEOUT_MS = 5_000;
 export const DEFAULT_DEEPSEEK_MODEL = 'deepseek-v4-flash';
@@ -23,6 +24,16 @@ export interface ResolvedClaudeAgentConfig {
   adapterOptions: Omit<ClaudeAgentAdapterOptions, 'cwd' | 'query'>;
   baseUrl: string | null;
   configured: boolean;
+  diagnostics: {
+    baseUrl: string | null;
+    configured: boolean;
+    isCustomBaseUrl: boolean;
+    isDeepSeek: boolean;
+    model: string | null;
+    permissionMode: PermissionMode;
+    timeoutMs: number;
+    tokenSource: ResolvedClaudeAgentConfig['tokenSource'];
+  };
   isCustomBaseUrl: boolean;
   isDeepSeek: boolean;
   model?: string;
@@ -38,6 +49,7 @@ export function resolveClaudeAgentConfig(input: ClaudeAgentConfigInput): Resolve
   const model = readEnv(input.env, 'ANTHROPIC_MODEL') ?? (isDeepSeek ? defaultDeepSeekModel : undefined);
   const workspaceTools = input.toolAllowlist?.length ? input.toolAllowlist : [...DEFAULT_CLAUDE_WORKSPACE_TOOLS];
   const permissionMode = readPermissionMode(input.env);
+  const timeoutMs = readTimeoutMs(input.env, input.defaultTimeoutMs ?? DEFAULT_CLAUDE_AGENT_TIMEOUT_MS);
 
   return {
     adapterOptions: {
@@ -59,7 +71,7 @@ export function resolveClaudeAgentConfig(input: ClaudeAgentConfigInput): Resolve
       skills: input.skills ?? undefined,
       strictMcpConfig: input.strictMcpConfig,
       thinking: isDeepSeek ? { type: 'disabled' } : undefined,
-      timeoutMs: readTimeoutMs(input.env, input.defaultTimeoutMs ?? DEFAULT_CLAUDE_AGENT_TIMEOUT_MS),
+      timeoutMs,
       ...(input.enableBashTool
         ? {
             allowedTools: permissionMode === 'default' ? undefined : workspaceTools,
@@ -72,6 +84,16 @@ export function resolveClaudeAgentConfig(input: ClaudeAgentConfigInput): Resolve
     },
     baseUrl,
     configured: Boolean(token.value),
+    diagnostics: {
+      baseUrl,
+      configured: Boolean(token.value),
+      isCustomBaseUrl,
+      isDeepSeek,
+      model: model ?? null,
+      permissionMode,
+      timeoutMs,
+      tokenSource: token.source
+    },
     isCustomBaseUrl,
     isDeepSeek,
     model,
@@ -169,11 +191,6 @@ function readTimeoutMs(env: Record<string, string | undefined>, fallback: number
   return Number.isFinite(configured) && configured > 0 ? configured : fallback;
 }
 
-function readEnv(env: Record<string, string | undefined>, key: string): string | null {
-  const value = env[key]?.trim();
-  return value ? value : null;
-}
-
 function isOfficialAnthropicBaseUrl(baseUrl: string): boolean {
   try {
     const { hostname } = new URL(baseUrl);
@@ -181,8 +198,4 @@ function isOfficialAnthropicBaseUrl(baseUrl: string): boolean {
   } catch {
     return false;
   }
-}
-
-function compactEnv(env: Record<string, string | undefined>): Record<string, string | undefined> {
-  return Object.fromEntries(Object.entries(env).filter(([, value]) => value !== undefined));
 }

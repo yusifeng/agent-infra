@@ -1,6 +1,7 @@
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 
 import type { AgentRuntimeEvent, JsonObject } from './types.js';
+import { runtimeEvents } from './runtime-events.js';
 
 export interface ClaudeToolEventState {
   calls: Map<string, ToolCallContext>;
@@ -63,17 +64,16 @@ export function extractClaudeToolRuntimeEvents(
       filePath: extractToolFilePath(call.input),
       toolName: call.toolName
     });
-    events.push({
-      type: 'tool_call_started',
-      payload: {
+    events.push(
+      runtimeEvents.toolCallStarted({
         provider,
         toolCallId: call.toolCallId,
         toolName: call.toolName,
         input: normalizeToolInput(call.input),
         inputSummary: summarizeToolInput(call.toolName, call.input),
-        ...extractCommonToolInputFields(call.input)
-      }
-    });
+        extra: extractCommonToolInputFields(call.input)
+      })
+    );
   }
 
   for (const delta of extractToolInputJsonDeltas(message)) {
@@ -104,56 +104,59 @@ export function extractClaudeToolRuntimeEvents(
     state.completed.add(result.toolCallId);
     const context = state.calls.get(result.toolCallId);
     const resultSummary = summarizeToolResult(result.result);
-    events.push({
-      type: result.isError ? 'tool_call_failed' : 'tool_call_completed',
-      payload: {
-        provider,
-        toolCallId: result.toolCallId,
-        ...(context?.toolName ? { toolName: context.toolName } : {}),
-        ...(context?.filePath ? { filePath: context.filePath } : {}),
-        ...(result.isError
-          ? { error: resultSummary }
-          : { output: normalizeToolResult(result.result) }),
-        resultSummary
-      }
-    });
+    events.push(
+      result.isError
+        ? runtimeEvents.toolCallFailed({
+            provider,
+            toolCallId: result.toolCallId,
+            toolName: context?.toolName ?? null,
+            filePath: context?.filePath ?? null,
+            error: resultSummary,
+            resultSummary
+          })
+        : runtimeEvents.toolCallCompleted({
+            provider,
+            toolCallId: result.toolCallId,
+            toolName: context?.toolName ?? null,
+            filePath: context?.filePath ?? null,
+            output: normalizeToolResult(result.result),
+            resultSummary
+          })
+    );
 
     if (!result.isError && context?.filePath && isFileWritingTool(context.toolName)) {
-      events.push({
-        type: 'file_change_detected',
-        payload: {
+      events.push(
+        runtimeEvents.fileChangeDetected({
           provider,
           toolCallId: result.toolCallId,
           path: context.filePath,
           changeType: 'modified'
-        }
-      });
+        })
+      );
     }
   }
 
   if (message.type === 'system' && message.subtype === 'permission_denied') {
-    events.push({
-      type: 'tool_call_failed',
-      payload: {
+    events.push(
+      runtimeEvents.toolCallFailed({
         provider,
         toolCallId: message.tool_use_id,
         toolName: message.tool_name,
         resultSummary: message.message
-      }
-    });
+      })
+    );
   }
 
   if (message.type === 'tool_progress' && !state.started.has(message.tool_use_id)) {
     state.started.add(message.tool_use_id);
-    events.push({
-      type: 'tool_call_started',
-      payload: {
+    events.push(
+      runtimeEvents.toolCallStarted({
         provider,
         toolCallId: message.tool_use_id,
         toolName: message.tool_name,
         inputSummary: `${message.tool_name} running`
-      }
-    });
+      })
+    );
   }
 
   return events;

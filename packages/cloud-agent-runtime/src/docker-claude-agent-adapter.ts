@@ -1,6 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { spawn } from 'node:child_process';
-import path from 'node:path';
 
 import type { Options, PermissionMode, SDKMessage, SettingSource } from '@anthropic-ai/claude-agent-sdk';
 
@@ -10,6 +8,17 @@ import {
   type ClaudeToolEventState
 } from './claude-tool-events.js';
 import { buildAgentPrompt } from './agent-continuity.js';
+import { appendProviderTranscriptEntry } from './provider-transcript.js';
+import { runtimeEvents } from './runtime-events.js';
+import {
+  buildDockerContainerName,
+  buildDockerRunArgs,
+  normalizeGuestWorkspaceRelativePath,
+  streamDockerProcess,
+  type DockerProcessInput,
+  type DockerProcessResult,
+  type DockerProcessRunner
+} from './docker-agent-process.js';
 import type {
   AgentAdapter,
   AgentRunInput,
@@ -49,20 +58,7 @@ export interface DockerClaudeAgentAdapterOptions {
   transcriptStore?: ProviderTranscriptStore;
 }
 
-export interface DockerProcessInput {
-  args: string[];
-  keepStdinOpen?: boolean;
-  stdin?: string;
-  timeoutMs?: number;
-}
-
-export interface DockerProcessResult {
-  stdout: string;
-  stderr: string;
-  exitCode: number;
-}
-
-export type DockerProcessRunner = (input: DockerProcessInput) => Promise<DockerProcessResult>;
+export type { DockerProcessInput, DockerProcessResult, DockerProcessRunner } from './docker-agent-process.js';
 
 export class DockerClaudeAgentAdapter implements AgentAdapter {
   readonly provider = 'claude';
@@ -118,15 +114,12 @@ export class DockerClaudeAgentAdapter implements AgentAdapter {
   async *run(input: AgentRunInput): AsyncIterable<AgentRuntimeEvent> {
     const runId = input.scope.runId ?? randomUUID();
     const resumeSessionId = input.providerSession?.providerSessionId;
-    yield {
-      type: 'agent_start',
-      payload: {
-        provider: this.provider,
-        cwd: this.guestWorkspacePath,
-        threadId: input.scope.threadId ?? null,
-        runId
-      }
-    };
+    yield runtimeEvents.agentStart({
+      provider: this.provider,
+      cwd: this.guestWorkspacePath,
+      threadId: input.scope.threadId ?? null,
+      runId
+    });
 
     const permissionBridge = Boolean(this.permissionBroker);
     const dockerInput: DockerProcessInput = {
@@ -166,13 +159,10 @@ export class DockerClaudeAgentAdapter implements AgentAdapter {
       const result = await this.docker(dockerInput);
 
       if (result.exitCode !== 0) {
-        yield {
-          type: 'agent_failed',
-          payload: {
-            provider: this.provider,
-            error: `Docker Claude agent failed with exit code ${result.exitCode}: ${result.stderr.trim() || result.stdout.trim()}`
-          }
-        };
+        yield runtimeEvents.agentFailed({
+          provider: this.provider,
+          error: `Docker Claude agent failed with exit code ${result.exitCode}: ${result.stderr.trim() || result.stdout.trim()}`
+        });
         return;
       }
 
@@ -220,26 +210,20 @@ export class DockerClaudeAgentAdapter implements AgentAdapter {
         }
 
         if (event.type === 'exit' && event.exitCode !== 0) {
-          yield {
-            type: 'agent_failed',
-            payload: {
-              provider: this.provider,
-              error: `Docker Claude agent failed with exit code ${event.exitCode}: ${stderr.trim()}`
-            }
-          };
+          yield runtimeEvents.agentFailed({
+            provider: this.provider,
+            error: `Docker Claude agent failed with exit code ${event.exitCode}: ${stderr.trim()}`
+          });
           return;
         }
       }
     }
 
-    yield {
-      type: 'agent_completed',
-      payload: {
-        provider: this.provider,
-        content: state.resultText.trim(),
-        providerSessionId: state.providerSessionId
-      }
-    };
+    yield runtimeEvents.agentCompleted({
+      provider: this.provider,
+      content: state.resultText.trim(),
+      providerSessionId: state.providerSessionId
+    });
   }
 
   private async resolveRunnerPermission(
@@ -284,64 +268,61 @@ export class DockerClaudeAgentAdapter implements AgentAdapter {
 
     return {
       decisionMessage,
-      resolvedEvent: {
-        type: 'approval_resolved',
-        payload: {
-          provider: this.provider,
-          permissionRequestId: event.permissionRequestId,
-          decision: decision.decision,
-          status: decision.approvalStatus ?? decision.decision,
-          reason: decision.reason ?? null,
-          resolvedByActorId: decision.resolvedByActorId ?? null
-        }
-      }
+      resolvedEvent: runtimeEvents.approvalResolved({
+        provider: this.provider,
+        permissionRequestId: event.permissionRequestId,
+        decision: decision.decision,
+        status: decision.approvalStatus ?? decision.decision,
+        reason: decision.reason ?? null,
+        resolvedByActorId: decision.resolvedByActorId ?? null
+      })
     };
   }
 
   private createRunnerPermissionRequestEvent(event: RunnerPermissionRequestedEvent): AgentRuntimeEvent {
-    return {
-      type: 'permission_requested',
-      payload: {
-        provider: this.provider,
-        permissionRequestId: event.permissionRequestId,
-        action: event.toolName,
-        details: event.details ?? {
-          input: event.input ?? {},
-          toolName: event.toolName
-        }
+    return runtimeEvents.permissionRequested({
+      provider: this.provider,
+      permissionRequestId: event.permissionRequestId,
+      action: event.toolName,
+      details: event.details ?? {
+        input: event.input ?? {},
+        toolName: event.toolName
       }
-    };
+    });
   }
 
   private buildDockerArgs(runId: string): string[] {
-    return [
-      'run',
-      '--rm',
-      '-i',
-      '--name',
-      `agent-infra-claude-${safeContainerSegment(runId)}`,
-      '--workdir',
-      this.guestWorkspacePath,
-      '--mount',
-      `type=bind,source=${path.resolve(this.hostWorkspacePath)},target=${this.guestWorkspacePath}`,
-      '--mount',
-      `type=bind,source=${path.resolve(this.hostConfigDir)},target=${this.guestConfigDir}`,
-      ...this.buildCredentialsMountArgs(),
-      ...buildContainerEnvArgs(this.env, this.guestConfigDir),
-      this.image,
-      'node',
-      '/opt/agent-runtime/claude-agent-runner.mjs'
-    ];
+    return buildDockerRunArgs({
+      command: ['node', '/opt/agent-runtime/claude-agent-runner.mjs'],
+      containerName: buildDockerContainerName('agent-infra-claude', runId),
+      env: buildContainerEnv(this.env, this.guestConfigDir),
+      image: this.image,
+      mounts: [
+        {
+          source: this.hostWorkspacePath,
+          target: this.guestWorkspacePath
+        },
+        {
+          source: this.hostConfigDir,
+          target: this.guestConfigDir
+        },
+        ...this.buildCredentialsMounts()
+      ],
+      workdir: this.guestWorkspacePath
+    });
   }
 
-  private buildCredentialsMountArgs(): string[] {
+  private buildCredentialsMounts(): Array<{ source: string; target: string; readonly?: boolean }> {
     if (!this.hostCredentialsDir) {
       return [];
     }
 
     return [
-      '--mount',
-      `type=bind,source=${path.resolve(this.hostCredentialsDir)},target=${this.guestCredentialsDir},readonly`
+      {
+        source: this.hostCredentialsDir,
+        target: this.guestCredentialsDir,
+        readonly: true
+      }
     ];
   }
 
@@ -368,14 +349,11 @@ export class DockerClaudeAgentAdapter implements AgentAdapter {
     if (event.type === 'runner_error') {
       return {
         events: [
-          {
-            type: 'agent_failed',
-            payload: {
-              provider: this.provider,
-              error: event.error,
-              providerSessionId: state.providerSessionId
-            }
-          }
+          runtimeEvents.agentFailed({
+            provider: this.provider,
+            error: event.error,
+            providerSessionId: state.providerSessionId
+          })
         ],
         failed: true
       };
@@ -386,25 +364,23 @@ export class DockerClaudeAgentAdapter implements AgentAdapter {
     state.providerSessionId = extractSessionId(message) ?? state.providerSessionId;
     if (state.providerSessionId && state.providerSessionId !== state.lastEmittedProviderSessionId) {
       state.lastEmittedProviderSessionId = state.providerSessionId;
-      events.push({
-        type: 'provider_session_bound',
-        payload: {
+      events.push(
+        runtimeEvents.providerSessionBound({
           provider: this.provider,
           providerSessionId: state.providerSessionId
-        }
-      });
+        })
+      );
     }
     await this.appendTranscriptEntry(input, state.providerSessionId ?? null, message);
     const providerError = extractProviderError(message);
     if (providerError) {
-      events.push({
-        type: 'agent_failed',
-        payload: {
+      events.push(
+        runtimeEvents.agentFailed({
           provider: this.provider,
           error: providerError,
           providerSessionId: state.providerSessionId
-        }
-      });
+        })
+      );
       return { events, failed: true };
     }
 
@@ -419,27 +395,20 @@ export class DockerClaudeAgentAdapter implements AgentAdapter {
     const delta = partialText ?? (state.sawPartialText ? null : extractAssistantText(message));
     if (delta) {
       state.resultText += delta;
-      events.push({
-        type: 'agent_message_delta',
-        payload: {
-          provider: this.provider,
-          content: delta
-        }
-      });
+      events.push(runtimeEvents.agentMessageDelta(this.provider, delta));
     }
 
     if (message.type === 'result') {
       if (message.subtype === 'success') {
         state.resultText = message.result || state.resultText;
       } else {
-        events.push({
-          type: 'agent_failed',
-          payload: {
+        events.push(
+          runtimeEvents.agentFailed({
             provider: this.provider,
             error: message.errors.join('\n'),
             providerSessionId: state.providerSessionId
-          }
-        });
+          })
+        );
         return { events, failed: true };
       }
     }
@@ -452,24 +421,14 @@ export class DockerClaudeAgentAdapter implements AgentAdapter {
     providerSessionId: string | null,
     message: SDKMessage
   ): Promise<void> {
-    if (!this.transcriptStore || !providerSessionId) {
-      return;
-    }
-
-    await this.transcriptStore.append({
+    await appendProviderTranscriptEntry({
+      entryType: message.type,
+      provider: this.provider,
+      providerEntryId: extractProviderEntryId(message),
+      providerSessionId,
+      rawJson: message as unknown as JsonValue,
       scope: input.scope,
-      key: {
-        provider: this.provider,
-        providerSessionId
-      },
-      entries: [
-        {
-          entryType: message.type,
-          providerEntryId: extractProviderEntryId(message),
-          rawJson: message as unknown as JsonValue,
-          runId: input.scope.runId ?? null
-        }
-      ]
+      transcriptStore: this.transcriptStore
     });
   }
 
@@ -572,28 +531,16 @@ function parseRunnerPermissionRequest(line: string): RunnerPermissionRequestedEv
     : null;
 }
 
-type DockerStreamEvent =
-  | {
-      type: 'stdout_line';
-      line: string;
-      writeStdin?: (line: string) => void;
-    }
-  | {
-      type: 'stderr';
-      chunk: string;
-    }
-  | {
-      type: 'exit';
-      exitCode: number;
-    };
-
-function buildContainerEnvArgs(env: Record<string, string | undefined> | undefined, guestConfigDir: string): string[] {
-  return Object.entries({
+function buildContainerEnv(
+  env: Record<string, string | undefined> | undefined,
+  guestConfigDir: string
+): Record<string, string> {
+  return {
     ...sanitizeClaudeEnv(env),
     HOME: guestConfigDir,
     CLAUDE_CONFIG_DIR: guestConfigDir,
     TMPDIR: '/tmp'
-  }).flatMap(([name, value]) => ['--env', `${name}=${value}`]);
+  };
 }
 
 function sanitizeClaudeEnv(env: Record<string, string | undefined> | undefined): Record<string, string> {
@@ -603,146 +550,6 @@ function sanitizeClaudeEnv(env: Record<string, string | undefined> | undefined):
       (entry): entry is [string, string] => Boolean(entry[1]) && !denied.has(entry[0])
     )
   );
-}
-
-function runDockerProcess(input: DockerProcessInput): Promise<DockerProcessResult> {
-  return new Promise((resolve, reject) => {
-    const child = spawn('docker', input.args, {
-      stdio: ['pipe', 'pipe', 'pipe']
-    });
-    const stdoutChunks: Buffer[] = [];
-    const stderrChunks: Buffer[] = [];
-    let timeout: NodeJS.Timeout | null = null;
-
-    if (typeof input.timeoutMs === 'number') {
-      timeout = setTimeout(() => {
-        child.kill('SIGKILL');
-      }, input.timeoutMs);
-    }
-
-    child.stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
-    child.stderr.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
-    child.on('error', reject);
-    child.on('close', (exitCode) => {
-      if (timeout) {
-        clearTimeout(timeout);
-      }
-
-      resolve({
-        stdout: Buffer.concat(stdoutChunks).toString('utf8'),
-        stderr: Buffer.concat(stderrChunks).toString('utf8'),
-        exitCode: exitCode ?? 1
-      });
-    });
-
-    if (input.stdin) {
-      child.stdin.write(input.stdin);
-    }
-    child.stdin.end();
-  });
-}
-
-async function* streamDockerProcess(input: DockerProcessInput): AsyncIterable<DockerStreamEvent> {
-  const child = spawn('docker', input.args, {
-    stdio: ['pipe', 'pipe', 'pipe']
-  });
-  let timeout: NodeJS.Timeout | null = null;
-  let stdoutBuffer = '';
-  const stderrChunks: Buffer[] = [];
-
-  if (typeof input.timeoutMs === 'number') {
-    timeout = setTimeout(() => {
-      child.kill('SIGKILL');
-    }, input.timeoutMs);
-  }
-
-  const closePromise = new Promise<number>((resolve, reject) => {
-    child.on('error', reject);
-    child.on('close', (exitCode) => resolve(exitCode ?? 1));
-  });
-
-  const stderrPromise = (async () => {
-    for await (const chunk of child.stderr) {
-      const buffer = Buffer.from(chunk);
-      stderrChunks.push(buffer);
-    }
-  })();
-
-  if (input.stdin) {
-    child.stdin.write(input.stdin);
-  }
-  if (!input.keepStdinOpen) {
-    child.stdin.end();
-  }
-
-  for await (const chunk of child.stdout) {
-    stdoutBuffer += Buffer.from(chunk).toString('utf8');
-    const lines = stdoutBuffer.split('\n');
-    stdoutBuffer = lines.pop() ?? '';
-
-    for (const line of lines) {
-      yield {
-        type: 'stdout_line',
-        line,
-        writeStdin(lineToWrite) {
-          child.stdin.write(lineToWrite);
-        }
-      };
-    }
-  }
-
-  if (stdoutBuffer.trim()) {
-    yield {
-      type: 'stdout_line',
-      line: stdoutBuffer,
-      writeStdin(lineToWrite) {
-        child.stdin.write(lineToWrite);
-      }
-    };
-  }
-
-  if (input.keepStdinOpen) {
-    child.stdin.end();
-  }
-
-  const exitCode = await closePromise;
-  await stderrPromise;
-  if (timeout) {
-    clearTimeout(timeout);
-  }
-
-  const stderr = Buffer.concat(stderrChunks).toString('utf8');
-  if (stderr) {
-    yield {
-      type: 'stderr',
-      chunk: stderr
-    };
-  }
-
-  yield {
-    type: 'exit',
-    exitCode
-  };
-}
-
-function safeContainerSegment(value: string): string {
-  return value.replace(/[^A-Za-z0-9_.-]/g, '-').slice(0, 48);
-}
-
-function normalizeGuestWorkspaceRelativePath(value: string, guestWorkspacePath: string): string | null {
-  const normalized = value.replaceAll('\\', '/');
-  const workspaceRoot = guestWorkspacePath.replace(/\/+$/, '') || '/workspace';
-  if (!normalized.startsWith(`${workspaceRoot}/`)) {
-    return null;
-  }
-
-  const relativePath = normalized.slice(workspaceRoot.length + 1);
-  const parts = relativePath.split('/').filter(Boolean);
-  if (parts.length === 0 || parts.some((part) => part === '.' || part === '..')) {
-    return null;
-  }
-
-  return parts.join('/');
 }
 
 function extractSessionId(message: SDKMessage): string | null {

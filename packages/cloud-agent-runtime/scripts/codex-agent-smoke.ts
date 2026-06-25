@@ -1,21 +1,18 @@
-import { existsSync } from 'node:fs';
-import { mkdir, readFile, rm } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import {
   AdapterAgentRunner,
   CodexAgentAdapter,
+  materializeCodexHomeAuth,
   resolveCodexAgentConfig,
   type RuntimeScope,
   type SandboxSession
 } from '../src/index.js';
+import { defaultEnvFile, defaultSmokeRoot, loadEnvFile } from './smoke-helpers.js';
 
-const packageRoot = path.resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
-const repoRoot = path.resolve(packageRoot, '../..');
-const defaultEnvFile = path.join(repoRoot, 'apps/cloud-agent-next-web/.env.local');
 const envFile = process.env.CLOUD_AGENT_ENV_FILE?.trim() || defaultEnvFile;
-const smokeRoot = path.join(packageRoot, '.tmp/codex-agent-smoke');
+const smokeRoot = process.env.CLOUD_AGENT_SMOKE_ROOT?.trim() || defaultSmokeRoot('codex-agent-smoke');
 const workspacePath = path.join(smokeRoot, 'workspace');
 const configDir = path.join(smokeRoot, 'codex-home');
 
@@ -25,14 +22,18 @@ await Promise.all([
   mkdir(workspacePath, { recursive: true }),
   mkdir(configDir, { recursive: true })
 ]);
-
 const config = resolveCodexAgentConfig({
   configDir,
   env: process.env
 });
+const authMaterialization = await materializeCodexHomeAuth({
+  authMode: config.authMode,
+  configDir,
+  sourceHome: config.codexHomeAuthSource
+});
 
 if (!config.configured) {
-  throw new Error('Codex SDK smoke requires CODEX_API_KEY, OPENAI_API_KEY, DEEPSEEK_API_KEY, or a DeepSeek Anthropic key.');
+  throw new Error('Codex SDK smoke requires CODEX_API_KEY, OPENAI_API_KEY, DEEPSEEK_API_KEY, a DeepSeek Anthropic key, or CODEX_AUTH_MODE=codex-home with CODEX_HOME.');
 }
 
 const scope: RuntimeScope = {
@@ -62,7 +63,7 @@ const result = await runner.run({
 });
 
 if (result.failure) {
-  throw new Error(result.failure);
+  throw new Error(formatFailure(result.failure, config.isDeepSeek));
 }
 
 if (!result.content.toLowerCase().includes('codex-sdk-smoke-ok')) {
@@ -78,6 +79,8 @@ console.log(
       baseUrl: config.baseUrl,
       isDeepSeek: config.isDeepSeek,
       model: config.model ?? null,
+      authMode: config.authMode,
+      codexHomeAuthCopied: authMaterialization.copied,
       providerSessionId: result.providerSessionId ?? null,
       timeoutMs: config.adapterOptions.timeoutMs
     },
@@ -86,25 +89,14 @@ console.log(
   )
 );
 
-async function loadEnvFile(filePath: string): Promise<void> {
-  if (!existsSync(filePath)) {
-    return;
+function formatFailure(failure: string, isDeepSeek: boolean): string {
+  if (isDeepSeek && failure.includes('/responses')) {
+    return [
+      failure,
+      'DeepSeek currently exposes OpenAI-compatible Chat Completions, while Codex SDK requests the Responses protocol.',
+      'Use a Responses-compatible endpoint/key or a gateway before treating this as an adapter failure.'
+    ].join('\n');
   }
 
-  const raw = await readFile(filePath, 'utf8');
-  for (const line of raw.split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) {
-      continue;
-    }
-
-    const separatorIndex = trimmed.indexOf('=');
-    if (separatorIndex === -1) {
-      continue;
-    }
-
-    const key = trimmed.slice(0, separatorIndex).trim();
-    const value = trimmed.slice(separatorIndex + 1).trim().replace(/^["']|["']$/g, '');
-    process.env[key] = value;
-  }
+  return failure;
 }

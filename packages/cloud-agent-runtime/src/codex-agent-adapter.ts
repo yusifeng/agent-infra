@@ -16,6 +16,8 @@ import type {
   ProviderTranscriptStore
 } from './types.js';
 import { buildAgentPrompt } from './agent-continuity.js';
+import { appendProviderTranscriptEntry } from './provider-transcript.js';
+import { runtimeEvents } from './runtime-events.js';
 
 export interface CodexThreadLike {
   readonly id: string | null;
@@ -109,14 +111,11 @@ export class CodexAgentAdapter implements AgentAdapter {
         }, this.timeoutMs)
       : null;
 
-    yield {
-      type: 'agent_start',
-      payload: {
-        provider: this.provider,
-        cwd: workingDirectory,
-        threadId: input.scope.threadId ?? null
-      }
-    };
+    yield runtimeEvents.agentStart({
+      provider: this.provider,
+      cwd: workingDirectory,
+      threadId: input.scope.threadId ?? null
+    });
 
     let providerSessionId = resumeThreadId ?? thread.id;
     let lastEmittedProviderSessionId = resumeThreadId ?? null;
@@ -131,18 +130,15 @@ export class CodexAgentAdapter implements AgentAdapter {
           throw new Error(`Codex agent timed out after ${this.timeoutMs}ms`);
         }
 
-        providerSessionId = readThreadId(event) ?? thread.id ?? providerSessionId;
+        providerSessionId = readCodexThreadId(event) ?? thread.id ?? providerSessionId;
         if (providerSessionId && providerSessionId !== lastEmittedProviderSessionId) {
           lastEmittedProviderSessionId = providerSessionId;
-          yield {
-            type: 'provider_session_bound',
-            payload: {
-              provider: this.provider,
-              providerSessionId,
-              threadId: input.scope.threadId ?? null,
-              workspaceId: input.scope.workspaceId
-            }
-          };
+          yield runtimeEvents.providerSessionBound({
+            provider: this.provider,
+            providerSessionId,
+            threadId: input.scope.threadId ?? null,
+            workspaceId: input.scope.workspaceId
+          });
         }
 
         await this.appendTranscriptEntry(input, providerSessionId ?? null, event);
@@ -156,47 +152,35 @@ export class CodexAgentAdapter implements AgentAdapter {
         }
 
         if (event.type === 'turn.completed') {
-          yield {
-            type: 'agent_completed',
-            payload: {
-              provider: this.provider,
-              content,
-              providerSessionId
-            }
-          };
+          yield runtimeEvents.agentCompleted({
+            provider: this.provider,
+            content,
+            providerSessionId
+          });
           return;
         }
 
         if (event.type === 'turn.failed' || event.type === 'error') {
-          yield {
-            type: 'agent_failed',
-            payload: {
-              provider: this.provider,
-              error: event.type === 'turn.failed' ? event.error.message : event.message,
-              providerSessionId
-            }
-          };
+          yield runtimeEvents.agentFailed({
+            provider: this.provider,
+            error: event.type === 'turn.failed' ? event.error.message : event.message,
+            providerSessionId
+          });
           return;
         }
       }
 
-      yield {
-        type: 'agent_completed',
-        payload: {
-          provider: this.provider,
-          content,
-          providerSessionId
-        }
-      };
+      yield runtimeEvents.agentCompleted({
+        provider: this.provider,
+        content,
+        providerSessionId
+      });
     } catch (error) {
-      yield {
-        type: 'agent_failed',
-        payload: {
-          provider: this.provider,
-          error: timedOut ? `Codex agent timed out after ${this.timeoutMs}ms` : errorMessage(error),
-          providerSessionId
-        }
-      };
+      yield runtimeEvents.agentFailed({
+        provider: this.provider,
+        error: timedOut ? `Codex agent timed out after ${this.timeoutMs}ms` : errorMessage(error),
+        providerSessionId
+      });
     } finally {
       if (timeout) {
         clearTimeout(timeout);
@@ -209,84 +193,66 @@ export class CodexAgentAdapter implements AgentAdapter {
     providerSessionId: string | null,
     event: ThreadEvent
   ): Promise<void> {
-    if (!this.transcriptStore || !providerSessionId) {
-      return;
-    }
-
-    await this.transcriptStore.append({
+    await appendProviderTranscriptEntry({
+      entryType: event.type,
+      provider: this.provider,
+      providerEntryId: readCodexEventId(event),
+      providerSessionId,
+      rawJson: event as unknown as JsonValue,
       scope: input.scope,
-      key: {
-        provider: this.provider,
-        providerSessionId
-      },
-      entries: [
-        {
-          entryType: event.type,
-          providerEntryId: readCodexEventId(event),
-          rawJson: event as unknown as JsonValue,
-          runId: input.scope.runId ?? null
-        }
-      ]
+      transcriptStore: this.transcriptStore
     });
   }
 }
 
-function mapCodexThreadEvent(event: ThreadEvent, provider: string): AgentRuntimeEvent[] {
+export function mapCodexThreadEvent(event: ThreadEvent, provider: string): AgentRuntimeEvent[] {
   if (!('item' in event)) {
     return [];
   }
 
   const item = event.item;
   if (item.type === 'agent_message' && event.type === 'item.completed') {
-    return [
-      {
-        type: 'agent_message_delta',
-        payload: {
-          provider,
-          content: item.text
-        }
-      }
-    ];
+    return [runtimeEvents.agentMessageDelta(provider, item.text)];
   }
 
   if (item.type === 'command_execution') {
     if (event.type === 'item.started') {
       return [
-        {
-          type: 'tool_call_started',
-          payload: {
-            provider,
-            toolCallId: item.id,
-            toolName: 'command_execution',
-            command: item.command,
-            input: {
-              command: item.command
-            },
-            inputSummary: item.command
-          }
-        }
+        runtimeEvents.toolCallStarted({
+          provider,
+          toolCallId: item.id,
+          toolName: 'command_execution',
+          command: item.command,
+          input: {
+            command: item.command
+          },
+          inputSummary: item.command
+        })
       ];
     }
 
     if (event.type === 'item.completed') {
       return [
-        {
-          type: item.status === 'failed' ? 'tool_call_failed' : 'tool_call_completed',
-          payload: {
-            provider,
-            toolCallId: item.id,
-            toolName: 'command_execution',
-            ...(item.status === 'failed'
-              ? { error: item.aggregated_output || 'Command failed.' }
-              : {
-                  output: {
-                    summary: item.aggregated_output
-                  }
-                }),
-            ...(typeof item.exit_code === 'number' ? { exitCode: item.exit_code } : {}),
-            resultSummary: item.aggregated_output
-          }
-        }
+        item.status === 'failed'
+          ? runtimeEvents.toolCallFailed({
+              provider,
+              toolCallId: item.id,
+              toolName: 'command_execution',
+              command: item.command,
+              error: item.aggregated_output || 'Command failed.',
+              resultSummary: item.aggregated_output
+            })
+          : runtimeEvents.toolCallCompleted({
+              provider,
+              toolCallId: item.id,
+              toolName: 'command_execution',
+              command: item.command,
+              output: {
+                summary: item.aggregated_output
+              },
+              exitCode: typeof item.exit_code === 'number' ? item.exit_code : null,
+              resultSummary: item.aggregated_output
+            })
       ];
     }
   }
@@ -295,65 +261,56 @@ function mapCodexThreadEvent(event: ThreadEvent, provider: string): AgentRuntime
     const toolName = `${item.server}.${item.tool}`;
     if (event.type === 'item.started') {
       return [
-        {
-          type: 'tool_call_started',
-          payload: {
-            provider,
-            toolCallId: item.id,
-            toolName,
-            input: isJsonObject(item.arguments) ? item.arguments : { value: stringifyUnknown(item.arguments) },
-            inputSummary: toolName
-          }
-        }
+        runtimeEvents.toolCallStarted({
+          provider,
+          toolCallId: item.id,
+          toolName,
+          input: isJsonObject(item.arguments) ? item.arguments : { value: stringifyUnknown(item.arguments) },
+          inputSummary: toolName
+        })
       ];
     }
 
     if (event.type === 'item.completed') {
       return [
-        {
-          type: item.status === 'failed' ? 'tool_call_failed' : 'tool_call_completed',
-          payload: {
-            provider,
-            toolCallId: item.id,
-            toolName,
-            ...(item.status === 'failed'
-              ? { error: item.error?.message ?? 'MCP tool failed.' }
-              : {
-                  output: {
-                    summary: stringifyUnknown(item.result?.structured_content ?? item.result?.content ?? null)
-                  }
-                }),
-            resultSummary:
-              item.status === 'failed'
-                ? item.error?.message ?? 'MCP tool failed.'
-                : stringifyUnknown(item.result?.structured_content ?? item.result?.content ?? null)
-          }
-        }
+        item.status === 'failed'
+          ? runtimeEvents.toolCallFailed({
+              provider,
+              toolCallId: item.id,
+              toolName,
+              error: item.error?.message ?? 'MCP tool failed.',
+              resultSummary: item.error?.message ?? 'MCP tool failed.'
+            })
+          : runtimeEvents.toolCallCompleted({
+              provider,
+              toolCallId: item.id,
+              toolName,
+              output: {
+                summary: stringifyUnknown(item.result?.structured_content ?? item.result?.content ?? null)
+              },
+              resultSummary: stringifyUnknown(item.result?.structured_content ?? item.result?.content ?? null)
+            })
       ];
     }
   }
 
   if (item.type === 'file_change' && event.type === 'item.completed' && item.status === 'completed') {
-    return item.changes.map((change) => ({
-      type: 'file_change_detected',
-      payload: {
+    return item.changes.map((change) =>
+      runtimeEvents.fileChangeDetected({
         provider,
         path: change.path,
         changeType: change.kind === 'add' ? 'created' : change.kind === 'delete' ? 'deleted' : 'modified',
         toolCallId: item.id
-      }
-    }));
+      })
+    );
   }
 
   if (item.type === 'error') {
     return [
-      {
-        type: 'agent_failed',
-        payload: {
-          provider,
-          error: item.message
-        }
-      }
+      runtimeEvents.agentFailed({
+        provider,
+        error: item.message
+      })
     ];
   }
 
@@ -370,11 +327,11 @@ async function createDefaultCodexClient(options: CodexAgentAdapterOptions): Prom
   });
 }
 
-function readThreadId(event: ThreadEvent): string | null {
+export function readCodexThreadId(event: ThreadEvent): string | null {
   return event.type === 'thread.started' ? event.thread_id : null;
 }
 
-function readCodexEventId(event: ThreadEvent): string | null {
+export function readCodexEventId(event: ThreadEvent): string | null {
   if (event.type === 'thread.started') {
     return event.thread_id;
   }

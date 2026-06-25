@@ -143,6 +143,39 @@ describe('mapAgentRuntimeEventToCloudRunEvent', () => {
     });
   });
 
+  it('maps usage update events', () => {
+    const usage = mapAgentRuntimeEventToCloudRunEvent(
+      {
+        type: 'usage_updated',
+        payload: {
+          provider: 'codex',
+          usage: {
+            inputTokens: 10,
+            outputTokens: 20
+          }
+        }
+      },
+      context
+    );
+
+    expect(usage).toEqual({
+      type: 'usage_updated',
+      payload: {
+        schemaVersion: 1,
+        type: 'usage_updated',
+        provider: 'claude',
+        model: 'deepseek-v4-flash',
+        workspaceId: 'workspace-1',
+        threadId: 'thread-1',
+        runId: 'run-1',
+        usage: {
+          inputTokens: 10,
+          outputTokens: 20
+        }
+      }
+    });
+  });
+
   it('maps permission and approval events', () => {
     const permission = mapAgentRuntimeEventToCloudRunEvent(
       {
