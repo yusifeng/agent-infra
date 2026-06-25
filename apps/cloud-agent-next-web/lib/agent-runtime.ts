@@ -3,8 +3,10 @@ import path from 'node:path';
 
 import {
   ClaudeAgentAdapter,
+  CodexAgentAdapter,
   DEFAULT_CLAUDE_AGENT_DOCKER_IMAGE,
   DockerClaudeAgentAdapter,
+  resolveCodexAgentConfig,
   resolveClaudeAgentConfig,
   type AgentAdapter,
   type AgentContinuityContext,
@@ -40,6 +42,7 @@ import { appendCloudRunEvent } from './run-store';
 import { publishCloudRunEvent } from './run-event-hub';
 
 const DEFAULT_WEB_CLAUDE_AGENT_TIMEOUT_MS = 120_000;
+const DEFAULT_WEB_CODEX_AGENT_TIMEOUT_MS = 120_000;
 const DOCKER_GUEST_CREDENTIALS_DIR = '/agent-credentials';
 const SKILL_MATERIALIZATION_MANIFEST_FILE = 'skill-materialization.json';
 
@@ -114,10 +117,6 @@ type PreparedCloudAgentTurn =
     };
 
 async function prepareCloudAgentTurn(input: RunCloudAgentTurnInput): Promise<PreparedCloudAgentTurn> {
-  if (input.provider === 'codex') {
-    return { fallbackContent: 'Codex adapter is planned but not connected in this slice.' };
-  }
-
   const env = readServerEnv();
   const runtimePaths = resolveCloudWorkspaceRuntimePaths({
     userId: input.user.id,
@@ -159,7 +158,56 @@ async function prepareCloudAgentTurn(input: RunCloudAgentTurnInput): Promise<Pre
     ...env,
     ...secretEnv
   };
-  const envWithProfile = applyAgentProfileEnv(envWithSecrets, agentProfile);
+  const envWithProfile = applyAgentProfileEnv(input.provider, envWithSecrets, agentProfile);
+  const sandbox: SandboxSession = {
+    id: `local-${input.thread.id}`,
+    provider: input.provider === 'claude' ? executionMode : 'local',
+    scope,
+    status: 'running',
+    workspacePath: runtimePaths.hostWorkspacePath,
+    createdAt: new Date()
+  };
+  const providerSession: ProviderSessionBinding | null = input.thread.providerSessionId
+    ? {
+        provider: input.provider,
+        metadata: isRecord(input.thread.providerSessionMetadata) ? (input.thread.providerSessionMetadata as JsonObject) : null,
+        providerProjectKey: input.thread.providerProjectKey ?? null,
+        providerSessionId: input.thread.providerSessionId,
+        status: 'active',
+        threadId: input.thread.id,
+        workspaceId: runtimePaths.workspaceId
+      }
+    : null;
+
+  if (input.provider === 'codex') {
+    const codexConfig = resolveCodexAgentConfig({
+      configDir: runtimePaths.providerConfigDir,
+      defaultTimeoutMs: readWebCodexAgentTimeoutMs(envWithProfile),
+      env: envWithProfile
+    });
+
+    if (!codexConfig.configured) {
+      return {
+        fallbackContent: [
+          'CodexAgentAdapter is wired, but CODEX_API_KEY / OPENAI_API_KEY / DEEPSEEK_API_KEY is empty.',
+          'For DeepSeek smoke, set DEEPSEEK_API_KEY or reuse ANTHROPIC_API_KEY with ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic, then restart the dev server.'
+        ].join('\n')
+      };
+    }
+
+    return {
+      adapter: new CodexAgentAdapter({
+        ...codexConfig.adapterOptions,
+        transcriptStore: createDbProviderTranscriptStore(),
+        workingDirectory: runtimePaths.hostWorkspacePath
+      }),
+      continuity: buildProviderSessionContinuity(input.thread),
+      providerSession,
+      sandbox,
+      scope
+    };
+  }
+
   const mcpRemoteHostAllowlist = readMcpRemoteHostAllowlist(envWithProfile);
   const mcpStdioCommandAllowlist = readMcpStdioCommandAllowlist(envWithProfile);
   const allowInlineMcpHeaders = readMcpInlineHeadersEnabled(envWithProfile);
@@ -220,25 +268,6 @@ async function prepareCloudAgentTurn(input: RunCloudAgentTurnInput): Promise<Pre
       ].join('\n')
     };
   }
-  const sandbox: SandboxSession = {
-    id: `local-${input.thread.id}`,
-    provider: executionMode,
-    scope,
-    status: 'running',
-    workspacePath: runtimePaths.hostWorkspacePath,
-    createdAt: new Date()
-  };
-  const providerSession: ProviderSessionBinding | null = input.thread.providerSessionId
-    ? {
-        provider: input.provider,
-        metadata: isRecord(input.thread.providerSessionMetadata) ? (input.thread.providerSessionMetadata as JsonObject) : null,
-        providerProjectKey: input.thread.providerProjectKey ?? null,
-        providerSessionId: input.thread.providerSessionId,
-        status: 'active',
-        threadId: input.thread.id,
-        workspaceId: runtimePaths.workspaceId
-      }
-    : null;
   const permissionBroker = shouldUseDurablePermissionBroker(env) ? createDurablePermissionBrokerFromEnv(env) : undefined;
   const adapter =
     executionMode === 'docker'
@@ -404,11 +433,21 @@ async function resolveAgentProfile(input: {
 }
 
 function applyAgentProfileEnv(
+  provider: AgentProviderId,
   env: Record<string, string | undefined>,
   profile: AgentProfile | null
 ): Record<string, string | undefined> {
   if (!profile) {
     return env;
+  }
+
+  if (provider === 'codex') {
+    return {
+      ...env,
+      CODEX_APPROVAL_POLICY: profile.approvalPolicy?.trim() || env.CODEX_APPROVAL_POLICY,
+      CODEX_MODEL: profile.model?.trim() || env.CODEX_MODEL,
+      CODEX_SANDBOX_MODE: profile.sandboxMode?.trim() || env.CODEX_SANDBOX_MODE
+    };
   }
 
   return {
@@ -776,6 +815,11 @@ function parseRemoteMcpTarget(rawUrl: string): { hostname: string; protocol: str
 function readWebClaudeAgentTimeoutMs(env: Record<string, string | undefined>): number {
   const configured = Number(env.CLOUD_AGENT_WEB_CLAUDE_TIMEOUT_MS?.trim());
   return Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_WEB_CLAUDE_AGENT_TIMEOUT_MS;
+}
+
+function readWebCodexAgentTimeoutMs(env: Record<string, string | undefined>): number {
+  const configured = Number(env.CLOUD_AGENT_WEB_CODEX_TIMEOUT_MS?.trim());
+  return Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_WEB_CODEX_AGENT_TIMEOUT_MS;
 }
 
 function readClaudeExecutionMode(env: Record<string, string | undefined>, profile: AgentProfile | null): 'docker' | 'local' {

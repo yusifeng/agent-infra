@@ -9,6 +9,7 @@ export * from './docker-sandbox-provider.js';
 export * from './docker-claude-agent-adapter.js';
 export * from './claude-agent-adapter.js';
 export * from './codex-agent-adapter.js';
+export * from './codex-agent-config.js';
 export * from './claude-agent-config.js';
 export * from './claude-tool-events.js';
 export * from './cloud-run-event-mapper.js';

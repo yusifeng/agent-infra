@@ -1,4 +1,7 @@
+import { resolveCodexAgentConfig } from '@agent-infra/cloud-agent-runtime';
+
 import { readServerEnv } from './server-env';
+import { resolveCloudWorkspaceRuntimePaths } from './workspace-runtime';
 
 export type AgentProviderId = 'claude' | 'codex';
 
@@ -11,6 +14,7 @@ export interface AgentProviderOption {
 
 export function getAgentProviderOptions(): AgentProviderOption[] {
   const env = readServerEnv();
+  const codexConfig = getCodexRuntimeConfig();
   return [
     {
       id: 'claude',
@@ -21,8 +25,8 @@ export function getAgentProviderOptions(): AgentProviderOption[] {
     {
       id: 'codex',
       label: 'Codex',
-      status: 'planned',
-      configured: false,
+      status: 'available',
+      configured: codexConfig.apiKeyConfigured,
     }
   ];
 }
@@ -38,5 +42,26 @@ export function getClaudeRuntimeConfig() {
     baseUrlConfigured: Boolean(env.ANTHROPIC_BASE_URL?.trim()),
     baseUrl: env.ANTHROPIC_BASE_URL?.trim() || null,
     model: env.ANTHROPIC_MODEL?.trim() || null
+  };
+}
+
+export function getCodexRuntimeConfig() {
+  const env = readServerEnv();
+  const runtimePaths = resolveCloudWorkspaceRuntimePaths({
+    userId: 'admin',
+    provider: 'codex'
+  });
+  const config = resolveCodexAgentConfig({
+    configDir: runtimePaths.providerConfigDir ?? '',
+    env
+  });
+
+  return {
+    apiKeyConfigured: config.configured,
+    apiKeySource: config.apiKeySource,
+    baseUrlConfigured: Boolean(config.baseUrl),
+    baseUrl: config.baseUrl,
+    isDeepSeek: config.isDeepSeek,
+    model: config.model ?? null
   };
 }

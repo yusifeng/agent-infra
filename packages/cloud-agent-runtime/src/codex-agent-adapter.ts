@@ -3,7 +3,8 @@ import type {
   ModelReasoningEffort,
   SandboxMode,
   ThreadEvent,
-  ThreadOptions
+  ThreadOptions,
+  TurnOptions
 } from '@openai/codex-sdk';
 
 import type {
@@ -18,7 +19,7 @@ import { buildAgentPrompt } from './agent-continuity.js';
 
 export interface CodexThreadLike {
   readonly id: string | null;
-  runStreamed(input: string): Promise<{ events: AsyncIterable<ThreadEvent> }>;
+  runStreamed(input: string, turnOptions?: TurnOptions): Promise<{ events: AsyncIterable<ThreadEvent> }>;
 }
 
 export interface CodexClientLike {
@@ -118,11 +119,13 @@ export class CodexAgentAdapter implements AgentAdapter {
     };
 
     let providerSessionId = resumeThreadId ?? thread.id;
-    let lastEmittedProviderSessionId = providerSessionId;
+    let lastEmittedProviderSessionId = resumeThreadId ?? null;
     let content = '';
 
     try {
-      const streamed = await thread.runStreamed(buildAgentPrompt(input));
+      const streamed = await thread.runStreamed(buildAgentPrompt(input), {
+        signal: abortController?.signal
+      });
       for await (const event of streamed.events) {
         if (abortController?.signal.aborted) {
           throw new Error(`Codex agent timed out after ${this.timeoutMs}ms`);

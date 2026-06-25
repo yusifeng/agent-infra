@@ -330,6 +330,15 @@ approval、sandbox 和 tracing 上发生大量重叠。
 - 如果先做 local/host Codex smoke，它只能证明 event mapping 和 provider binding，
   不能证明企业 runtime 的 sandbox 隔离。local 模式必须标记为开发逃生口，不能作为
   sandbox 主路径。
+- 2026-06-25 本地 smoke 已验证：`@openai/codex-sdk` 直连
+  `https://api.deepseek.com` 时，Codex CLI 会请求 Responses/WebSocket 路径
+  `wss://api.deepseek.com/responses`，DeepSeek 返回 404。结合 Codex 官方配置参考中
+  `model_providers.<id>.wire_api` 当前只支持 `responses`，以及 DeepSeek 官方文档当前
+  暴露的是 OpenAI Chat Completions `/chat/completions` 和 Anthropic-compatible API，
+  这应被视为协议不匹配，而不是 API key 错误。若要用 DeepSeek 跑 Codex SDK，需要
+  一个 Responses-compatible gateway/adapter；直接把 Claude 的
+  `https://api.deepseek.com/anthropic` 或 DeepSeek OpenAI Chat base URL 填给 Codex
+  不足以跑通。
 
 接下来代码切片建议：
 
