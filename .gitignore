@@ -75,3 +75,4 @@ chatgpt-response/
 repomix-output/
 repomix-output-history/
 .formax
+.tmp/
