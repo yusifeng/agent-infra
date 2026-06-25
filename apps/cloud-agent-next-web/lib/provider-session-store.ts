@@ -1,13 +1,11 @@
 import type {
   CloudRunEventPayloadV1,
   ProviderSessionBinding,
-  ProviderTranscriptEntry,
   Run,
   RunEvent
 } from '@agent-infra/core';
 import type {
   CloudRunEventDto,
-  ProviderSessionRecoveryProviderManifestDto,
   ProviderSessionBindingDto,
   ProviderSessionRecoveryReportDto,
   ProviderSessionRecommendedActionDto,
@@ -19,108 +17,23 @@ import type {
 
 import type { AgentProviderId } from './provider-config';
 import { getCloudAgentRepositories } from './db';
+import { PROVIDER_RECOVERY_MANIFESTS } from './provider-session-manifest';
+import {
+  buildProviderTranscriptReplayPlan,
+  summarizeProviderTranscript,
+  type ProviderTranscriptReplayPlan,
+  type ProviderTranscriptSummary
+} from './provider-transcript-replay';
 import { appendCloudRunEvent } from './run-store';
 
 const CLOUD_AGENT_APP_ID = 'cloud-agent-next-web';
 
 export type ProviderSessionLifecycleAction = 'archive' | 'compact' | 'fork' | 'replay';
 
-const PROVIDER_TRANSCRIPT_REPLAY_ENTRY_LIMIT = 50;
-const PROVIDER_TRANSCRIPT_REPLAY_SUMMARY_LIMIT = 12;
-const PROVIDER_TRANSCRIPT_REPLAY_SUMMARY_MAX_LENGTH = 240;
-
-const PROVIDER_RECOVERY_MANIFESTS: ProviderSessionRecoveryProviderManifestDto[] = [
-  {
-    provider: 'claude',
-    strategies: [
-      {
-        action: 'resume',
-        status: 'supported',
-        notes: 'Uses provider session binding as the Claude resume/session hint.'
-      },
-      {
-        action: 'archive_and_restart',
-        status: 'supported',
-        notes: 'Archives the active binding and retries without provider resume after resume failure.'
-      },
-      {
-        action: 'replay_transcript',
-        status: 'planned',
-        notes: 'Replay plan and recovery hint are durable; provider-specific transcript injection is not implemented yet.'
-      },
-      {
-        action: 'compact',
-        status: 'planned',
-        notes: 'Provider-neutral compact continuity is active-binding backed; provider-specific compact execution is not implemented yet.'
-      },
-      {
-        action: 'fork',
-        status: 'manual',
-        notes: 'Control-plane lifecycle state is recorded; provider-specific fork execution is not implemented yet.'
-      }
-    ]
-  },
-  {
-    provider: 'codex',
-    strategies: [
-      {
-        action: 'resume',
-        status: 'supported',
-        notes: 'Codex adapter resumes provider thread ids through the Codex SDK resumeThread path.'
-      },
-      {
-        action: 'archive_and_restart',
-        status: 'supported',
-        notes: 'Provider binding can be archived and execution can restart from durable product state.'
-      },
-      {
-        action: 'replay_transcript',
-        status: 'planned',
-        notes: 'Raw transcript storage is available; Codex-specific transcript replay is not implemented yet.'
-      },
-      {
-        action: 'compact',
-        status: 'planned',
-        notes: 'Provider-neutral compact continuity is active-binding backed; Codex-specific compact execution is not implemented yet.'
-      },
-      {
-        action: 'fork',
-        status: 'manual',
-        notes: 'Control-plane lifecycle state is recorded; Codex-specific fork execution is not implemented yet.'
-      }
-    ]
-  }
-];
-
 export interface ProviderSessionSnapshot {
   binding: ProviderSessionBinding;
   replayPlan: ProviderTranscriptReplayPlan;
   transcriptSummary: ProviderTranscriptSummary;
-}
-
-export interface ProviderTranscriptSummary {
-  entryCount: number;
-  entryTypes: Record<string, number>;
-  firstOrdinal: number | null;
-  lastOrdinal: number | null;
-  lastRunId: string | null;
-}
-
-export interface ProviderTranscriptReplayEntryRef {
-  entryType: string;
-  ordinal: number;
-  providerEntryId: string | null;
-  runId: string | null;
-  summary?: string | null;
-}
-
-export interface ProviderTranscriptReplayPlan {
-  available: boolean;
-  entryCount: number;
-  entries: ProviderTranscriptReplayEntryRef[];
-  fromOrdinal: number | null;
-  sourceRunIds: string[];
-  toOrdinal: number | null;
 }
 
 export async function listThreadProviderSessionsForOwner(input: {
@@ -310,21 +223,6 @@ async function findLatestRunId(threadId: string): Promise<string | null> {
   return (await repositories.runRepo.listByThread(threadId, { limit: 1 }))[0]?.id ?? null;
 }
 
-function summarizeProviderTranscript(entries: ProviderTranscriptEntry[]): ProviderTranscriptSummary {
-  const entryTypes: Record<string, number> = {};
-  for (const entry of entries) {
-    entryTypes[entry.entryType] = (entryTypes[entry.entryType] ?? 0) + 1;
-  }
-
-  return {
-    entryCount: entries.length,
-    entryTypes,
-    firstOrdinal: entries[0]?.ordinal ?? null,
-    lastOrdinal: entries.at(-1)?.ordinal ?? null,
-    lastRunId: entries.at(-1)?.runId ?? null
-  };
-}
-
 function toProviderSessionSnapshotDto(snapshot: ProviderSessionSnapshot): ProviderSessionSnapshotDto {
   return {
     binding: toProviderSessionBindingDto(snapshot.binding),
@@ -456,75 +354,4 @@ function readRecoveryStrategy(payload: Record<string, unknown> | null): string |
 
 function toIsoDate(value: Date | null | undefined): string | null {
   return value ? value.toISOString() : null;
-}
-
-function buildProviderTranscriptReplayPlan(entries: ProviderTranscriptEntry[]): ProviderTranscriptReplayPlan {
-  const replayEntries = entries.slice(-PROVIDER_TRANSCRIPT_REPLAY_ENTRY_LIMIT);
-  const summaryStartOrdinal =
-    replayEntries.length > PROVIDER_TRANSCRIPT_REPLAY_SUMMARY_LIMIT
-      ? replayEntries.at(-PROVIDER_TRANSCRIPT_REPLAY_SUMMARY_LIMIT)?.ordinal
-      : replayEntries[0]?.ordinal;
-  const entryRefs = replayEntries.map((entry) => ({
-    entryType: entry.entryType,
-    ordinal: entry.ordinal,
-    providerEntryId: entry.providerEntryId ?? null,
-    runId: entry.runId ?? null,
-    summary: summaryStartOrdinal != null && entry.ordinal >= summaryStartOrdinal ? summarizeProviderTranscriptEntry(entry) : null
-  }));
-  const sourceRunIds = Array.from(
-    new Set(entryRefs.map((entry) => entry.runId).filter((runId): runId is string => Boolean(runId)))
-  );
-
-  return {
-    available: entryRefs.length > 0,
-    entryCount: entries.length,
-    entries: entryRefs,
-    fromOrdinal: entryRefs[0]?.ordinal ?? null,
-    sourceRunIds,
-    toOrdinal: entryRefs.at(-1)?.ordinal ?? null
-  };
-}
-
-function summarizeProviderTranscriptEntry(entry: ProviderTranscriptEntry): string | null {
-  const text = findFirstText(entry.rawJson);
-  if (!text) {
-    return null;
-  }
-
-  const normalized = text.replace(/\s+/g, ' ').trim();
-  if (!normalized) {
-    return null;
-  }
-
-  return normalized.length > PROVIDER_TRANSCRIPT_REPLAY_SUMMARY_MAX_LENGTH
-    ? `${normalized.slice(0, PROVIDER_TRANSCRIPT_REPLAY_SUMMARY_MAX_LENGTH).trimEnd()}...`
-    : normalized;
-}
-
-function findFirstText(value: unknown): string | null {
-  if (typeof value === 'string') {
-    return value;
-  }
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const text = findFirstText(item);
-      if (text) {
-        return text;
-      }
-    }
-    return null;
-  }
-  if (!value || typeof value !== 'object') {
-    return null;
-  }
-
-  const record = value as Record<string, unknown>;
-  for (const key of ['text', 'content', 'result', 'summary', 'message']) {
-    const text = findFirstText(record[key]);
-    if (text) {
-      return text;
-    }
-  }
-
-  return null;
 }

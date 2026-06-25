@@ -8,7 +8,8 @@ const appRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const repoRoot = path.resolve(appRoot, '../..');
 const smokeRoot = path.join(repoRoot, '.cloud-agent-data/cloud-agent-approval-smoke');
 const ownerUserId = 'approval-smoke-admin';
-const permissionRequestId = 'approval-smoke-permission-1';
+const approvedPermissionRequestId = 'approval-smoke-permission-approved';
+const deniedPermissionRequestId = 'approval-smoke-permission-denied';
 
 main().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
@@ -58,93 +59,33 @@ async function main(): Promise<void> {
     threadId: userTurn.thread.id,
     runId: run.id
   };
-  const permissionRequest: PermissionRequest = {
+  await exerciseApprovalDecision({
+    decision: 'approved',
+    permissionRequestId: approvedPermissionRequestId,
+    reason: 'Approved by cloud-agent approval smoke.',
     scope,
-    provider: 'claude',
-    permissionRequestId,
-    toolName: 'Bash',
-    input: {
-      command: 'pwd'
+    services: {
+      DurablePermissionBroker,
+      listRunApprovalRequestsForOwner,
+      recordCloudAgentRuntimeEvent,
+      resolveRunApprovalRequestForOwner
     },
-    title: 'Claude wants to run Bash',
-    displayName: null,
-    description: null,
-    blockedPath: null,
-    decisionReason: null,
-    suggestions: null,
-    agentId: null
-  };
-  const broker = new DurablePermissionBroker({
-    pollMs: 50,
-    timeoutMs: 5_000
-  });
-  const decisionPromise = broker.resolve(permissionRequest);
-
-  await recordCloudAgentRuntimeEvent({
-    ownerUserId,
-    provider: 'claude',
     thread: userTurn.thread,
-    runId: run.id,
-    event: {
-      type: 'permission_requested',
-      payload: {
-        provider: 'claude',
-        permissionRequestId,
-        action: 'Bash',
-        details: {
-          input: {
-            command: 'pwd'
-          },
-          title: 'Claude wants to run Bash',
-          toolName: 'Bash'
-        }
-      }
-    }
-  });
-
-  const pending = await listRunApprovalRequestsForOwner({
-    ownerUserId,
     runId: run.id
   });
-  const approvalRequest = pending?.approvalRequests?.find((request) => request.permissionRequestId === permissionRequestId);
-  if (!approvalRequest || approvalRequest.status !== 'pending') {
-    throw new Error('Approval smoke did not persist a pending approval request.');
-  }
-
-  const resolved = await resolveRunApprovalRequestForOwner({
-    approvalRequestId: approvalRequest.id,
-    body: {
-      decision: 'approved',
-      reason: 'Approved by cloud-agent approval smoke.'
+  await exerciseApprovalDecision({
+    decision: 'denied',
+    permissionRequestId: deniedPermissionRequestId,
+    reason: 'Denied by cloud-agent approval smoke.',
+    scope,
+    services: {
+      DurablePermissionBroker,
+      listRunApprovalRequestsForOwner,
+      recordCloudAgentRuntimeEvent,
+      resolveRunApprovalRequestForOwner
     },
-    ownerUserId,
-    runId: run.id
-  });
-  if (resolved.status !== 200) {
-    throw new Error(`Approval smoke failed to approve request: ${resolved.response.error ?? resolved.status}`);
-  }
-
-  const decision = await decisionPromise;
-  if (decision.decision !== 'approved') {
-    throw new Error(`Expected broker decision approved, got ${decision.decision}.`);
-  }
-
-  await recordCloudAgentRuntimeEvent({
-    ownerUserId,
-    provider: 'claude',
     thread: userTurn.thread,
-    runId: run.id,
-    event: {
-      type: 'approval_resolved',
-      payload: {
-        provider: 'claude',
-        permissionRequestId,
-        decision: decision.decision,
-        status: decision.approvalStatus ?? decision.decision,
-        reason: decision.reason ?? null,
-        resolvedByActorId: decision.resolvedByActorId ?? null
-      }
-    }
+    runId: run.id
   });
 
   const repositories = await getCloudAgentRepositories();
@@ -152,9 +93,13 @@ async function main(): Promise<void> {
     repositories.runApprovalRequestRepo.listByRun(run.id),
     repositories.runEventRepo.listByRun(run.id)
   ]);
-  const finalApproval = approvalRequests.find((request) => request.permissionRequestId === permissionRequestId);
-  if (!finalApproval || finalApproval.status !== 'approved') {
+  const approvedRequest = approvalRequests.find((request) => request.permissionRequestId === approvedPermissionRequestId);
+  const deniedRequest = approvalRequests.find((request) => request.permissionRequestId === deniedPermissionRequestId);
+  if (!approvedRequest || approvedRequest.status !== 'approved') {
     throw new Error('Approval smoke did not persist an approved approval request.');
+  }
+  if (!deniedRequest || deniedRequest.status !== 'denied') {
+    throw new Error('Approval smoke did not persist a denied approval request.');
   }
 
   const eventTypes = events.map((event) => event.type);
@@ -168,15 +113,121 @@ async function main(): Promise<void> {
         runId: run.id,
         threadId: userTurn.thread.id,
         workspaceId: userTurn.thread.workspaceId,
-        brokerDecision: decision.decision,
-        approvalStatus: finalApproval.status,
-        approvalAction: finalApproval.action,
+        approvedStatus: approvedRequest.status,
+        deniedStatus: deniedRequest.status,
+        approvalActions: approvalRequests.map((request) => request.action).sort(),
         eventTypes
       },
       null,
       2
     )
   );
+}
+
+async function exerciseApprovalDecision(input: {
+  decision: 'approved' | 'denied';
+  permissionRequestId: string;
+  reason: string;
+  runId: string;
+  scope: PermissionRequest['scope'];
+  services: {
+    DurablePermissionBroker: typeof import('../lib/durable-permission-broker').DurablePermissionBroker;
+    listRunApprovalRequestsForOwner: typeof import('../lib/run-approval-store').listRunApprovalRequestsForOwner;
+    recordCloudAgentRuntimeEvent: typeof import('../lib/runtime-event-recorder').recordCloudAgentRuntimeEvent;
+    resolveRunApprovalRequestForOwner: typeof import('../lib/run-approval-store').resolveRunApprovalRequestForOwner;
+  };
+  thread: Awaited<ReturnType<typeof import('../lib/thread-store').appendUserMessage>>['thread'];
+}): Promise<void> {
+  const permissionRequest: PermissionRequest = {
+    scope: input.scope,
+    provider: 'claude',
+    permissionRequestId: input.permissionRequestId,
+    toolName: 'Bash',
+    input: {
+      command: 'pwd'
+    },
+    title: 'Claude wants to run Bash',
+    displayName: null,
+    description: null,
+    blockedPath: null,
+    decisionReason: null,
+    suggestions: null,
+    agentId: null
+  };
+  const broker = new input.services.DurablePermissionBroker({
+    pollMs: 50,
+    timeoutMs: 5_000
+  });
+  const decisionPromise = broker.resolve(permissionRequest);
+
+  await input.services.recordCloudAgentRuntimeEvent({
+    ownerUserId,
+    provider: 'claude',
+    thread: input.thread,
+    runId: input.runId,
+    event: {
+      type: 'permission_requested',
+      payload: {
+        provider: 'claude',
+        permissionRequestId: input.permissionRequestId,
+        action: 'Bash',
+        details: {
+          input: {
+            command: 'pwd'
+          },
+          title: 'Claude wants to run Bash',
+          toolName: 'Bash'
+        }
+      }
+    }
+  });
+
+  const pending = await input.services.listRunApprovalRequestsForOwner({
+    ownerUserId,
+    runId: input.runId
+  });
+  const approvalRequest = pending?.approvalRequests?.find(
+    (request) => request.permissionRequestId === input.permissionRequestId
+  );
+  if (!approvalRequest || approvalRequest.status !== 'pending') {
+    throw new Error(`Approval smoke did not persist a pending ${input.decision} approval request.`);
+  }
+
+  const resolved = await input.services.resolveRunApprovalRequestForOwner({
+    approvalRequestId: approvalRequest.id,
+    body: {
+      decision: input.decision,
+      reason: input.reason
+    },
+    ownerUserId,
+    runId: input.runId
+  });
+  if (resolved.status !== 200) {
+    throw new Error(`Approval smoke failed to resolve request: ${resolved.response.error ?? resolved.status}`);
+  }
+
+  const decision = await decisionPromise;
+  if (decision.decision !== input.decision) {
+    throw new Error(`Expected broker decision ${input.decision}, got ${decision.decision}.`);
+  }
+
+  await input.services.recordCloudAgentRuntimeEvent({
+    ownerUserId,
+    provider: 'claude',
+    thread: input.thread,
+    runId: input.runId,
+    event: {
+      type: 'approval_resolved',
+      payload: {
+        provider: 'claude',
+        permissionRequestId: input.permissionRequestId,
+        decision: decision.decision,
+        status: decision.approvalStatus ?? decision.decision,
+        reason: decision.reason ?? null,
+        resolvedByActorId: decision.resolvedByActorId ?? null
+      }
+    }
+  });
 }
 
 function assertIncludes(values: string[], expected: string, label: string): void {

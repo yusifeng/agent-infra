@@ -15,6 +15,7 @@
     "smoke:approval": "tsx ./scripts/cloud-agent-approval-smoke.ts",
     "smoke:audit": "tsx ./scripts/cloud-agent-audit-smoke.ts",
     "smoke:resume": "tsx ./scripts/cloud-agent-resume-smoke.ts",
+    "smoke:resume:fallback": "tsx ./scripts/cloud-agent-resume-fallback-smoke.ts",
     "worker:run": "tsx ./scripts/run-cloud-agent-job.ts",
     "worker:once": "tsx ./scripts/run-next-cloud-agent-job.ts",
     "worker:loop": "tsx ./scripts/run-cloud-agent-worker-loop.ts",
