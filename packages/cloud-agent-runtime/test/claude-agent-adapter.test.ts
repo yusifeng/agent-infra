@@ -193,7 +193,7 @@ describe('ClaudeAgentAdapter', () => {
               id: 'toolu_1',
               name: 'Write',
               input: {
-                file_path: 'snake/index.html',
+                filePath: 'snake/index.html',
                 content: '<!doctype html>'
               }
             }
@@ -275,6 +275,102 @@ describe('ClaudeAgentAdapter', () => {
       changeType: 'modified',
       path: 'snake/index.html',
       toolCallId: 'toolu_1'
+    });
+  });
+
+  it('uses streaming tool input deltas to detect file changes', async () => {
+    async function* fakeQuery() {
+      yield {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_start',
+          index: 0,
+          content_block: {
+            type: 'tool_use',
+            id: 'toolu_stream_1',
+            name: 'Write',
+            input: {}
+          }
+        },
+        parent_tool_use_id: null,
+        uuid: '00000000-0000-4000-8000-000000000010',
+        session_id: '00000000-0000-4000-8000-000000000011'
+      } as const;
+      yield {
+        type: 'stream_event',
+        event: {
+          type: 'content_block_delta',
+          index: 0,
+          delta: {
+            type: 'input_json_delta',
+            partial_json: '{"file_path":"snake/index.html","content":"<!doctype html>"}'
+          }
+        },
+        parent_tool_use_id: null,
+        uuid: '00000000-0000-4000-8000-000000000012',
+        session_id: '00000000-0000-4000-8000-000000000011'
+      } as const;
+      yield {
+        type: 'user',
+        message: {
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'toolu_stream_1',
+              content: 'Wrote snake/index.html'
+            }
+          ]
+        },
+        parent_tool_use_id: null,
+        uuid: '00000000-0000-4000-8000-000000000013',
+        session_id: '00000000-0000-4000-8000-000000000011'
+      } as const;
+      yield {
+        type: 'result',
+        subtype: 'success',
+        duration_ms: 10,
+        duration_api_ms: 8,
+        is_error: false,
+        num_turns: 1,
+        result: 'done',
+        stop_reason: 'end_turn',
+        total_cost_usd: 0,
+        usage: {},
+        modelUsage: {},
+        permission_denials: [],
+        uuid: '00000000-0000-4000-8000-000000000014',
+        session_id: '00000000-0000-4000-8000-000000000011'
+      } as const;
+    }
+
+    const adapter = new ClaudeAgentAdapter({
+      query: fakeQuery,
+      cwd: sandbox.workspacePath
+    });
+    const events: AgentRuntimeEvent[] = [];
+
+    for await (const event of adapter.run({ scope, prompt: 'write snake', sandbox })) {
+      events.push(event);
+    }
+
+    expect(events.map((event) => event.type)).toEqual([
+      'agent_start',
+      'provider_session_bound',
+      'tool_call_started',
+      'tool_call_completed',
+      'file_change_detected',
+      'agent_completed'
+    ]);
+    expect(events.at(3)?.payload).toMatchObject({
+      filePath: 'snake/index.html',
+      toolCallId: 'toolu_stream_1',
+      toolName: 'Write'
+    });
+    expect(events.at(4)?.payload).toMatchObject({
+      changeType: 'modified',
+      path: 'snake/index.html',
+      toolCallId: 'toolu_stream_1'
     });
   });
 

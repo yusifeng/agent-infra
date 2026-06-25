@@ -82,11 +82,18 @@ async function main(): Promise<void> {
     transcriptStore
   });
   const eventTypes: string[] = [];
+  const toolEvents: Array<{ payload: unknown; type: string }> = [];
   const toolNames = new Set<string>();
   const runner = new AdapterAgentRunner({
     adapter,
     onEvent(event) {
       eventTypes.push(event.type);
+      if (event.type.startsWith('tool_call_') || event.type === 'file_change_detected') {
+        toolEvents.push({
+          payload: event.payload,
+          type: event.type
+        });
+      }
       const toolName = event.payload?.toolName;
       if (typeof toolName === 'string') {
         toolNames.add(toolName);
@@ -98,10 +105,10 @@ async function main(): Promise<void> {
     prompt: [
       'This is a strict smoke test. Use exactly these built-in tools, in this order:',
       '1. Use Bash to run: pwd > pwd.txt',
-      '2. Use Read to read read-edit-target.txt',
-      '3. Use Edit to replace before-edit with after-edit in read-edit-target.txt',
-      '4. Use Write to create write-target.txt with exactly this content: write-tool-ok',
-      'Do not use Bash to create or edit read-edit-target.txt or write-target.txt.',
+      '2. Use Read to read /workspace/read-edit-target.txt',
+      '3. Use Edit to replace before-edit with after-edit in /workspace/read-edit-target.txt',
+      '4. Use Write to create /workspace/write-target.txt with exactly this content: write-tool-ok',
+      'Do not use /root paths. Do not use Bash to create or edit read-edit-target.txt or write-target.txt.',
       'After the tools finish, reply with exactly: docker-claude-smoke-ok'
     ].join('\n'),
     sandbox
@@ -130,11 +137,18 @@ async function main(): Promise<void> {
     throw new Error('Docker Claude smoke did not bind a provider session id.');
   }
 
-  assertEventType(eventTypes, 'provider_session_bound');
-  assertEventType(eventTypes, 'tool_call_started');
-  assertEventType(eventTypes, 'tool_call_completed');
-  assertEventType(eventTypes, 'file_change_detected');
-  assertEventType(eventTypes, 'agent_completed');
+  const jsonlPath = path.join(configDir, 'projects/-workspace', `${result.providerSessionId}.jsonl`);
+  if (!existsSync(jsonlPath)) {
+    throw new Error(`Docker Claude smoke did not persist provider session JSONL in configDir: ${jsonlPath}`);
+  }
+
+  assertEventType(eventTypes, 'provider_session_bound', toolEvents);
+  assertEventType(eventTypes, 'tool_call_started', toolEvents);
+  assertEventType(eventTypes, 'tool_call_completed', toolEvents);
+  assertEventType(eventTypes, 'file_change_detected', toolEvents);
+  assertEventType(eventTypes, 'agent_completed', toolEvents);
+  assertNoEventType(eventTypes, 'tool_call_failed', toolEvents);
+  assertNoHostPathLeak(toolEvents);
   for (const toolName of expectedTools) {
     if (!toolNames.has(toolName)) {
       throw new Error(`Expected Docker Claude smoke to use ${toolName}; saw tools: ${[...toolNames].join(', ')}`);
@@ -163,6 +177,7 @@ async function main(): Promise<void> {
         isDeepSeek: config.isDeepSeek,
         model: config.model ?? null,
         providerSessionId: result.providerSessionId,
+        providerSessionJsonl: jsonlPath,
         transcriptEntries: transcript.length,
         workspacePwd: pwdText.trim(),
         eventTypes,
@@ -227,9 +242,40 @@ function readTimeoutMs(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 60_000;
 }
 
-function assertEventType(events: string[], type: string): void {
+function assertEventType(
+  events: string[],
+  type: string,
+  toolEvents: Array<{ payload: unknown; type: string }>
+): void {
   if (!events.includes(type)) {
-    throw new Error(`Expected Docker Claude smoke event ${type}; saw events: ${events.join(', ')}`);
+    throw new Error(
+      [
+        `Expected Docker Claude smoke event ${type}; saw events: ${events.join(', ')}`,
+        `Tool events: ${JSON.stringify(toolEvents, null, 2)}`
+      ].join('\n')
+    );
+  }
+}
+
+function assertNoEventType(
+  events: string[],
+  type: string,
+  toolEvents: Array<{ payload: unknown; type: string }>
+): void {
+  if (events.includes(type)) {
+    throw new Error(
+      [
+        `Expected Docker Claude smoke not to emit ${type}; saw events: ${events.join(', ')}`,
+        `Tool events: ${JSON.stringify(toolEvents, null, 2)}`
+      ].join('\n')
+    );
+  }
+}
+
+function assertNoHostPathLeak(toolEvents: Array<{ payload: unknown; type: string }>): void {
+  const serializedEvents = JSON.stringify(toolEvents);
+  if (serializedEvents.includes(smokeRoot) || serializedEvents.includes(packageRoot) || serializedEvents.includes(repoRoot)) {
+    throw new Error(`Docker Claude smoke leaked a host path in tool events: ${serializedEvents}`);
   }
 }
 

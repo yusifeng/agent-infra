@@ -5,13 +5,21 @@ import type { AgentRuntimeEvent, JsonObject } from './types.js';
 export interface ClaudeToolEventState {
   calls: Map<string, ToolCallContext>;
   completed: Set<string>;
+  contentBlockToolIds: Map<number, string>;
   started: Set<string>;
+  toolInputJsonParts: Map<string, string[]>;
 }
 
 interface ToolCallStart {
+  contentBlockIndex: number | null;
   input: unknown;
   toolCallId: string;
   toolName: string;
+}
+
+interface ToolInputJsonDelta {
+  contentBlockIndex: number;
+  partialJson: string;
 }
 
 interface ToolCallResult {
@@ -29,7 +37,9 @@ export function createClaudeToolEventState(): ClaudeToolEventState {
   return {
     calls: new Map(),
     completed: new Set(),
-    started: new Set()
+    contentBlockToolIds: new Map(),
+    started: new Set(),
+    toolInputJsonParts: new Map()
   };
 }
 
@@ -46,6 +56,9 @@ export function extractClaudeToolRuntimeEvents(
     }
 
     state.started.add(call.toolCallId);
+    if (call.contentBlockIndex !== null) {
+      state.contentBlockToolIds.set(call.contentBlockIndex, call.toolCallId);
+    }
     state.calls.set(call.toolCallId, {
       filePath: extractToolFilePath(call.input),
       toolName: call.toolName
@@ -61,6 +74,26 @@ export function extractClaudeToolRuntimeEvents(
         ...extractCommonToolInputFields(call.input)
       }
     });
+  }
+
+  for (const delta of extractToolInputJsonDeltas(message)) {
+    const toolCallId = state.contentBlockToolIds.get(delta.contentBlockIndex);
+    if (!toolCallId) {
+      continue;
+    }
+
+    const parts = state.toolInputJsonParts.get(toolCallId) ?? [];
+    parts.push(delta.partialJson);
+    state.toolInputJsonParts.set(toolCallId, parts);
+
+    const input = tryParseJsonObject(parts.join(''));
+    const filePath = extractToolFilePath(input);
+    if (filePath) {
+      const context = state.calls.get(toolCallId);
+      if (context) {
+        context.filePath = filePath;
+      }
+    }
   }
 
   for (const result of extractToolCallResults(message)) {
@@ -134,7 +167,7 @@ function extractToolCallStarts(message: SDKMessage): ToolCallStart[] {
   if (message.type === 'stream_event' && isJsonObject(message.event)) {
     const event = message.event;
     if (event.type === 'content_block_start' && isJsonObject(event.content_block)) {
-      return extractToolUseBlocks([event.content_block]);
+      return extractToolUseBlocks([event.content_block], readNumber(event, 'index'));
     }
   }
 
@@ -164,7 +197,7 @@ function extractToolCallResults(message: SDKMessage): ToolCallResult[] {
   return [];
 }
 
-function extractToolUseBlocks(content: unknown): ToolCallStart[] {
+function extractToolUseBlocks(content: unknown, contentBlockIndex: number | null = null): ToolCallStart[] {
   if (!Array.isArray(content)) {
     return [];
   }
@@ -182,12 +215,37 @@ function extractToolUseBlocks(content: unknown): ToolCallStart[] {
 
     return [
       {
+        contentBlockIndex,
         input: block.input,
         toolCallId: id,
         toolName: name
       }
     ];
   });
+}
+
+function extractToolInputJsonDeltas(message: SDKMessage): ToolInputJsonDelta[] {
+  if (message.type !== 'stream_event' || !isJsonObject(message.event)) {
+    return [];
+  }
+
+  const event = message.event;
+  if (event.type !== 'content_block_delta' || !isJsonObject(event.delta)) {
+    return [];
+  }
+
+  const index = readNumber(event, 'index');
+  const partialJson = firstString(event.delta.partial_json);
+  if (index === null || event.delta.type !== 'input_json_delta' || !partialJson) {
+    return [];
+  }
+
+  return [
+    {
+      contentBlockIndex: index,
+      partialJson
+    }
+  ];
 }
 
 function extractToolResultBlocks(content: unknown): ToolCallResult[] {
@@ -220,7 +278,7 @@ function extractCommonToolInputFields(input: unknown): JsonObject {
     return {};
   }
 
-  const filePath = firstString(input.file_path, input.path);
+  const filePath = firstString(input.file_path, input.filePath, input.path);
   const command = firstString(input.command);
 
   return {
@@ -234,7 +292,7 @@ function extractToolFilePath(input: unknown): string | null {
     return null;
   }
 
-  return firstString(input.file_path, input.path);
+  return firstString(input.file_path, input.filePath, input.path);
 }
 
 function isFileWritingTool(toolName: string): boolean {
@@ -267,7 +325,7 @@ function summarizeToolInput(toolName: string, input: unknown): string {
     return toolName;
   }
 
-  const filePath = firstString(input.file_path, input.path);
+  const filePath = firstString(input.file_path, input.filePath, input.path);
   if (filePath) {
     return `${toolName} ${filePath}`;
   }
@@ -327,6 +385,20 @@ function firstString(...values: unknown[]): string | null {
   }
 
   return null;
+}
+
+function readNumber(value: JsonObject, key: string): number | null {
+  const candidate = value[key];
+  return typeof candidate === 'number' && Number.isFinite(candidate) ? candidate : null;
+}
+
+function tryParseJsonObject(value: string): JsonObject | null {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return isJsonObject(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 function truncate(value: string, maxLength: number): string {
