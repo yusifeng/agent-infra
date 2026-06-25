@@ -179,8 +179,8 @@ export class DockerClaudeAgentAdapter implements AgentAdapter {
       for (const line of result.stdout.split('\n')) {
         const permission = parseRunnerPermissionRequest(line);
         if (permission) {
+          yield this.createRunnerPermissionRequestEvent(permission);
           const resolved = await this.resolveRunnerPermission(permission, input);
-          yield resolved.requestEvent;
           yield resolved.resolvedEvent;
           continue;
         }
@@ -203,8 +203,8 @@ export class DockerClaudeAgentAdapter implements AgentAdapter {
         if (event.type === 'stdout_line') {
           const permission = parseRunnerPermissionRequest(event.line);
           if (permission) {
+            yield this.createRunnerPermissionRequestEvent(permission);
             const resolved = await this.resolveRunnerPermission(permission, input);
-            yield resolved.requestEvent;
             event.writeStdin?.(`${JSON.stringify(resolved.decisionMessage)}\n`);
             yield resolved.resolvedEvent;
             continue;
@@ -247,21 +247,8 @@ export class DockerClaudeAgentAdapter implements AgentAdapter {
     input: AgentRunInput
   ): Promise<{
     decisionMessage: RunnerApprovalDecisionMessage;
-    requestEvent: AgentRuntimeEvent;
     resolvedEvent: AgentRuntimeEvent;
   }> {
-    const requestEvent: AgentRuntimeEvent = {
-      type: 'permission_requested',
-      payload: {
-        provider: this.provider,
-        permissionRequestId: event.permissionRequestId,
-        action: event.toolName,
-        details: event.details ?? {
-          input: event.input ?? {},
-          toolName: event.toolName
-        }
-      }
-    };
     const decision =
       this.permissionBroker
         ? await this.permissionBroker.resolve({
@@ -297,7 +284,6 @@ export class DockerClaudeAgentAdapter implements AgentAdapter {
 
     return {
       decisionMessage,
-      requestEvent,
       resolvedEvent: {
         type: 'approval_resolved',
         payload: {
@@ -307,6 +293,21 @@ export class DockerClaudeAgentAdapter implements AgentAdapter {
           status: decision.approvalStatus ?? decision.decision,
           reason: decision.reason ?? null,
           resolvedByActorId: decision.resolvedByActorId ?? null
+        }
+      }
+    };
+  }
+
+  private createRunnerPermissionRequestEvent(event: RunnerPermissionRequestedEvent): AgentRuntimeEvent {
+    return {
+      type: 'permission_requested',
+      payload: {
+        provider: this.provider,
+        permissionRequestId: event.permissionRequestId,
+        action: event.toolName,
+        details: event.details ?? {
+          input: event.input ?? {},
+          toolName: event.toolName
         }
       }
     };

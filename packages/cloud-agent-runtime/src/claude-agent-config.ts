@@ -37,6 +37,7 @@ export function resolveClaudeAgentConfig(input: ClaudeAgentConfigInput): Resolve
   const token = resolveAuthToken(input.env, isCustomBaseUrl);
   const model = readEnv(input.env, 'ANTHROPIC_MODEL') ?? (isDeepSeek ? defaultDeepSeekModel : undefined);
   const workspaceTools = input.toolAllowlist?.length ? input.toolAllowlist : [...DEFAULT_CLAUDE_WORKSPACE_TOOLS];
+  const permissionMode = readPermissionMode(input.env);
 
   return {
     adapterOptions: {
@@ -53,7 +54,7 @@ export function resolveClaudeAgentConfig(input: ClaudeAgentConfigInput): Resolve
       }),
       model,
       mcpServers: input.mcpServers ?? undefined,
-      permissionMode: readPermissionMode(input.env),
+      permissionMode,
       settingSources: [] satisfies SettingSource[],
       skills: input.skills ?? undefined,
       strictMcpConfig: input.strictMcpConfig,
@@ -61,7 +62,7 @@ export function resolveClaudeAgentConfig(input: ClaudeAgentConfigInput): Resolve
       timeoutMs: readTimeoutMs(input.env, input.defaultTimeoutMs ?? DEFAULT_CLAUDE_AGENT_TIMEOUT_MS),
       ...(input.enableBashTool
         ? {
-            allowedTools: workspaceTools,
+            allowedTools: permissionMode === 'default' ? undefined : workspaceTools,
             includePartialMessages: true,
             tools: workspaceTools
           }

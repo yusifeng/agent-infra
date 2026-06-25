@@ -12,6 +12,7 @@
     "build": "next build",
     "start": "next start --port 3011",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "smoke:approval": "tsx ./scripts/cloud-agent-approval-smoke.ts",
     "smoke:audit": "tsx ./scripts/cloud-agent-audit-smoke.ts",
     "smoke:resume": "tsx ./scripts/cloud-agent-resume-smoke.ts",
     "worker:run": "tsx ./scripts/run-cloud-agent-job.ts",

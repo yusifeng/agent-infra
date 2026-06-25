@@ -112,6 +112,22 @@ describe('resolveClaudeAgentConfig', () => {
     expect(config.adapterOptions.tools).toEqual(['Read', 'Edit']);
   });
 
+  it('does not pre-approve workspace tools in default permission mode', () => {
+    const config = resolveClaudeAgentConfig({
+      clientApp: 'test-app',
+      configDir: '/tmp/claude-config',
+      enableBashTool: true,
+      env: {
+        ANTHROPIC_API_KEY: 'sk-test',
+        CLAUDE_AGENT_PERMISSION_MODE: 'default'
+      }
+    });
+
+    expect(config.adapterOptions.allowedTools).toBeUndefined();
+    expect(config.adapterOptions.permissionMode).toBe('default');
+    expect(config.adapterOptions.tools).toEqual(['Bash', 'Read', 'Write', 'Edit']);
+  });
+
   it('passes explicit MCP servers and skills into the SDK options', () => {
     const config = resolveClaudeAgentConfig({
       clientApp: 'test-app',

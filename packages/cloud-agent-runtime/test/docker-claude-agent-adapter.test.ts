@@ -320,6 +320,75 @@ describe('DockerClaudeAgentAdapter', () => {
     });
   });
 
+  it('yields Docker permission requests before waiting on the permission broker', async () => {
+    let permissionRequestObserved = false;
+    const broker: PermissionBroker = {
+      async resolve() {
+        expect(permissionRequestObserved).toBe(true);
+        return {
+          decision: 'approved',
+          resolvedByActorId: 'durable-policy'
+        };
+      }
+    };
+    const adapter = new DockerClaudeAgentAdapter({
+      docker: async () => ({
+        exitCode: 0,
+        stderr: '',
+        stdout: [
+          JSON.stringify({
+            type: 'permission_requested',
+            permissionRequestId: 'toolu_durable_permission_1',
+            toolName: 'Bash',
+            input: {
+              command: 'pwd'
+            }
+          }),
+          JSON.stringify({
+            type: 'sdk_message',
+            message: {
+              type: 'result',
+              subtype: 'success',
+              duration_ms: 10,
+              duration_api_ms: 8,
+              is_error: false,
+              num_turns: 1,
+              result: 'approved',
+              stop_reason: 'end_turn',
+              total_cost_usd: 0,
+              usage: {},
+              modelUsage: {},
+              permission_denials: [],
+              uuid: '00000000-0000-4000-8000-000000000041',
+              session_id: '00000000-0000-4000-8000-000000000042'
+            }
+          })
+        ].join('\n')
+      }),
+      hostConfigDir: '/tmp/agent-home',
+      hostWorkspacePath: '/tmp/workspace',
+      permissionBroker: broker,
+      tools: ['Bash'],
+      allowedTools: ['Bash']
+    });
+    const events: AgentRuntimeEvent[] = [];
+
+    for await (const event of adapter.run({ scope, prompt: 'run pwd', sandbox })) {
+      events.push(event);
+      if (event.type === 'permission_requested') {
+        permissionRequestObserved = true;
+      }
+    }
+
+    expect(events.map((event) => event.type)).toEqual([
+      'agent_start',
+      'permission_requested',
+      'approval_resolved',
+      'provider_session_bound',
+      'agent_completed'
+    ]);
+  });
+
   it('passes resume only when an existing provider session is bound', async () => {
     let runnerInput: Record<string, unknown> | null = null;
     const adapter = new DockerClaudeAgentAdapter({
