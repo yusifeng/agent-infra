@@ -78,6 +78,21 @@ Key files:
 
 This is the current server-side runtime adapter mainline. It translates model/runtime activity into durable records and run events. Runtime provider selection, smoke coverage, tool mapping, and message conversion belong here when they are specific to the Pi adapter.
 
+### `packages/cloud-agent-runtime`
+
+Key files:
+
+- [`packages/cloud-agent-runtime/src/types.ts`](./packages/cloud-agent-runtime/src/types.ts)
+- [`packages/cloud-agent-runtime/src/adapter-agent-runner.ts`](./packages/cloud-agent-runtime/src/adapter-agent-runner.ts)
+- [`packages/cloud-agent-runtime/src/claude-agent-config.ts`](./packages/cloud-agent-runtime/src/claude-agent-config.ts)
+- [`packages/cloud-agent-runtime/src/claude-agent-adapter.ts`](./packages/cloud-agent-runtime/src/claude-agent-adapter.ts)
+- [`packages/cloud-agent-runtime/src/in-memory-transcript-store.ts`](./packages/cloud-agent-runtime/src/in-memory-transcript-store.ts)
+- [`packages/cloud-agent-runtime/src/local-workspace-storage-provider.ts`](./packages/cloud-agent-runtime/src/local-workspace-storage-provider.ts)
+- [`packages/cloud-agent-runtime/src/docker-sandbox-provider.ts`](./packages/cloud-agent-runtime/src/docker-sandbox-provider.ts)
+- [`packages/cloud-agent-runtime/scripts/claude-agent-smoke.ts`](./packages/cloud-agent-runtime/scripts/claude-agent-smoke.ts)
+
+This is the early cloud agent runtime boundary. It defines provider-neutral interfaces for agent adapters, runner execution, sandbox providers, workspace storage providers, provider transcript storage, and secret brokerage. Claude SDK config and smoke behavior live here so consumer apps do not own provider-specific process/env details.
+
 ### `packages/durable-chat-client`
 
 Key files:
@@ -135,6 +150,16 @@ Key files:
 
 This is the first and richest consumer. It is useful for validating the platform end to end: auth, thread catalog behavior, chat routes, runtime streaming, replay, share snapshots, and durable inspection. The risk is that it can attract platform complexity; when logic becomes reusable, move it toward `packages/app`, `packages/durable-chat-client`, `packages/durable-chat-server`, or `packages/runtime-pi`.
 
+### `apps/cloud-agent-next-web`
+
+Key files:
+
+- [`apps/cloud-agent-next-web/app/page.tsx`](./apps/cloud-agent-next-web/app/page.tsx)
+- [`apps/cloud-agent-next-web/app/api/health/route.ts`](./apps/cloud-agent-next-web/app/api/health/route.ts)
+- [`apps/cloud-agent-next-web/lib/runtime-services.ts`](./apps/cloud-agent-next-web/lib/runtime-services.ts)
+
+This is the first cloud agent runtime management surface. Keep App Router pages and routes thin; server-side service composition should live under `lib/`, and reusable runtime behavior should stay in `packages/cloud-agent-runtime` or lower packages. This app should validate the runtime control plane rather than define it.
+
 ### `apps/playground-vite-web`
 
 Key files:
@@ -174,9 +199,12 @@ When a behavior or concept is long-lived, update a source-of-truth doc. When a n
 - Use-case orchestration: `packages/app`.
 - Database schema, repositories, migrations, and persistence tests: `packages/db`.
 - Runtime adapter behavior: `packages/runtime-pi`.
+- Cloud runner provider contracts, sandbox/storage providers, and provider transcript stores:
+  `packages/cloud-agent-runtime`.
 - Shared browser chat behavior: `packages/durable-chat-client`.
 - Shared server route behavior: `packages/durable-chat-server`.
 - Host-specific Next UI/routes/auth wiring: `apps/playground-next-web`.
+- Cloud runtime management UI/routes/service composition: `apps/cloud-agent-next-web`.
 - Host-specific Vite UI validation: `apps/playground-vite-web`.
 - Host-specific Fastify boot/auth/env wiring: `apps/playground-fastify-server`.
 - Public docs: `apps/docs/content`.
@@ -191,6 +219,7 @@ Use the narrowest command that proves the change:
 - DB package tests: `pnpm --filter @agent-infra/db test`
 - Runtime Pi tests/smoke: `pnpm --filter @agent-infra/runtime-pi test` and `pnpm --filter @agent-infra/runtime-pi smoke`
 - Next playground tests: `pnpm --filter playground-next-web test`
+- Cloud agent Next app type safety: `pnpm --filter cloud-agent-next-web typecheck`
 - Vite playground tests: `pnpm --filter playground-vite-web test`
 - Fastify playground tests: `pnpm --filter playground-fastify-server test`
 - Docs dev server: `pnpm dev:docs`
