@@ -118,6 +118,109 @@ describe('DockerClaudeAgentAdapter', () => {
     expect(transcript[0]?.runId).toBe('run-1');
   });
 
+  it('normalizes Docker guest workspace file paths in runtime events', async () => {
+    const adapter = new DockerClaudeAgentAdapter({
+      docker: async () => ({
+        exitCode: 0,
+        stderr: '',
+        stdout: [
+          JSON.stringify({
+            type: 'sdk_message',
+            message: {
+              type: 'stream_event',
+              event: {
+                type: 'content_block_start',
+                index: 0,
+                content_block: {
+                  type: 'tool_use',
+                  id: 'toolu_1',
+                  name: 'Write',
+                  input: {}
+                }
+              },
+              parent_tool_use_id: null,
+              uuid: '00000000-0000-4000-8000-000000000031',
+              session_id: '00000000-0000-4000-8000-000000000032'
+            }
+          }),
+          JSON.stringify({
+            type: 'sdk_message',
+            message: {
+              type: 'stream_event',
+              event: {
+                type: 'content_block_delta',
+                index: 0,
+                delta: {
+                  type: 'input_json_delta',
+                  partial_json: '{"file_path":"/workspace/snake/index.html","content":"ok"}'
+                }
+              },
+              parent_tool_use_id: null,
+              uuid: '00000000-0000-4000-8000-000000000033',
+              session_id: '00000000-0000-4000-8000-000000000032'
+            }
+          }),
+          JSON.stringify({
+            type: 'sdk_message',
+            message: {
+              type: 'user',
+              message: {
+                role: 'user',
+                content: [
+                  {
+                    type: 'tool_result',
+                    tool_use_id: 'toolu_1',
+                    content: 'File created successfully at: /workspace/snake/index.html'
+                  }
+                ]
+              },
+              parent_tool_use_id: null,
+              uuid: '00000000-0000-4000-8000-000000000034',
+              session_id: '00000000-0000-4000-8000-000000000032'
+            }
+          }),
+          JSON.stringify({
+            type: 'sdk_message',
+            message: {
+              type: 'result',
+              subtype: 'success',
+              duration_ms: 10,
+              duration_api_ms: 8,
+              is_error: false,
+              num_turns: 1,
+              result: 'done',
+              stop_reason: 'end_turn',
+              total_cost_usd: 0,
+              usage: {},
+              modelUsage: {},
+              permission_denials: [],
+              uuid: '00000000-0000-4000-8000-000000000035',
+              session_id: '00000000-0000-4000-8000-000000000032'
+            }
+          })
+        ].join('\n')
+      }),
+      hostConfigDir: '/tmp/agent-home',
+      hostWorkspacePath: '/tmp/workspace',
+      tools: ['Write'],
+      allowedTools: ['Write']
+    });
+    const events: AgentRuntimeEvent[] = [];
+
+    for await (const event of adapter.run({ scope, prompt: 'write', sandbox })) {
+      events.push(event);
+    }
+
+    expect(events.find((event) => event.type === 'tool_call_completed')?.payload).toMatchObject({
+      filePath: 'snake/index.html',
+      toolCallId: 'toolu_1'
+    });
+    expect(events.find((event) => event.type === 'file_change_detected')?.payload).toMatchObject({
+      path: 'snake/index.html',
+      toolCallId: 'toolu_1'
+    });
+  });
+
   it('bridges Docker runner permission requests through a permission broker', async () => {
     const permissionRequests: PermissionRequest[] = [];
     const broker: PermissionBroker = {

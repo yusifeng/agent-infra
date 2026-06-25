@@ -408,7 +408,7 @@ export class DockerClaudeAgentAdapter implements AgentAdapter {
     }
 
     for (const toolEvent of extractClaudeToolRuntimeEvents(message, this.provider, state.toolEvents)) {
-      events.push(toolEvent);
+      events.push(this.normalizeRuntimeEventWorkspacePaths(toolEvent));
     }
 
     const partialText = extractPartialAssistantText(message);
@@ -470,6 +470,35 @@ export class DockerClaudeAgentAdapter implements AgentAdapter {
         }
       ]
     });
+  }
+
+  private normalizeRuntimeEventWorkspacePaths(event: AgentRuntimeEvent): AgentRuntimeEvent {
+    if (!event.payload) {
+      return event;
+    }
+
+    const payloadPatch: JsonObject = {};
+    for (const key of ['filePath', 'path'] as const) {
+      const value = event.payload[key];
+      if (typeof value !== 'string') {
+        continue;
+      }
+
+      const relativePath = normalizeGuestWorkspaceRelativePath(value, this.guestWorkspacePath);
+      if (relativePath) {
+        payloadPatch[key] = relativePath;
+      }
+    }
+
+    return Object.keys(payloadPatch).length === 0
+      ? event
+      : {
+          ...event,
+          payload: {
+            ...event.payload,
+            ...payloadPatch
+          }
+        };
   }
 }
 
@@ -697,6 +726,22 @@ async function* streamDockerProcess(input: DockerProcessInput): AsyncIterable<Do
 
 function safeContainerSegment(value: string): string {
   return value.replace(/[^A-Za-z0-9_.-]/g, '-').slice(0, 48);
+}
+
+function normalizeGuestWorkspaceRelativePath(value: string, guestWorkspacePath: string): string | null {
+  const normalized = value.replaceAll('\\', '/');
+  const workspaceRoot = guestWorkspacePath.replace(/\/+$/, '') || '/workspace';
+  if (!normalized.startsWith(`${workspaceRoot}/`)) {
+    return null;
+  }
+
+  const relativePath = normalized.slice(workspaceRoot.length + 1);
+  const parts = relativePath.split('/').filter(Boolean);
+  if (parts.length === 0 || parts.some((part) => part === '.' || part === '..')) {
+    return null;
+  }
+
+  return parts.join('/');
 }
 
 function extractSessionId(message: SDKMessage): string | null {
