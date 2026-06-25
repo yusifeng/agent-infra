@@ -1,0 +1,43 @@
+{
+  "name": "cloud-agent-next-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:deps": "pnpm --filter @agent-infra/core build && pnpm --filter @agent-infra/contracts build && pnpm --filter @agent-infra/db build && pnpm --filter @agent-infra/cloud-agent-runtime build",
+    "prebuild": "pnpm build:deps",
+    "predev": "pnpm build:deps",
+    "pretypecheck": "pnpm build:deps",
+    "dev": "next dev --port 3011",
+    "build": "next build",
+    "start": "next start --port 3011",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "worker:run": "tsx ./scripts/run-cloud-agent-job.ts",
+    "worker:once": "tsx ./scripts/run-next-cloud-agent-job.ts",
+    "worker:loop": "tsx ./scripts/run-cloud-agent-worker-loop.ts",
+    "worker:bullmq": "tsx ./scripts/run-cloud-agent-bullmq-worker.ts"
+  },
+  "dependencies": {
+    "@agent-infra/cloud-agent-runtime": "workspace:*",
+    "@agent-infra/contracts": "workspace:*",
+    "@agent-infra/core": "workspace:*",
+    "@agent-infra/db": "workspace:*",
+    "@fontsource-variable/geist": "^5.2.8",
+    "bullmq": "^5.79.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "0.548.0",
+    "next": "16.2.6",
+    "react": "19.2.6",
+    "react-dom": "19.2.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.0",
+    "@types/node": "^22.15.29",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "postcss": "^8.5.14",
+    "tailwindcss": "^4.3.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.8.3"
+  }
+}

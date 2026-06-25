@@ -10,6 +10,7 @@
     "check:colors:vite": "node scripts/check-color-convergence.mjs apps/playground-vite-web/src --allow-file apps/playground-vite-web/src/theme.css --allow-file apps/playground-vite-web/src/features/durable-chat/components/chat-shell.css",
     "dev": "pnpm --filter playground-next-web dev:prepared",
     "dev:next-web": "pnpm --filter playground-next-web dev:prepared",
+    "dev:cloud-agent-next-web": "pnpm --filter cloud-agent-next-web dev",
     "dev:vite-web": "pnpm --filter playground-vite-web dev",
     "dev:fastify-server": "pnpm --filter playground-fastify-server dev:prepared",
     "dev:fastify-server:sqlite": "pnpm --filter playground-fastify-server dev:prepared:sqlite",

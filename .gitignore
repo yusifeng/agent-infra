@@ -67,6 +67,9 @@ coverage/
 .turbo/
 
 local.db
+.cloud-agent-data/
+packages/cloud-agent-runtime/.tmp/
+tmp/
 chatgpt-response/
 .vercel
 repomix-output/
