@@ -1,4 +1,5 @@
-import { and, asc, desc, eq, gt, inArray, lt, max, or } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
+import { and, asc, count, desc, eq, gt, inArray, isNull, lt, lte, max, or } from 'drizzle-orm';
 import type {
   AnswerCandidate,
   AnswerCandidateRepository,
@@ -6,6 +7,8 @@ import type {
   AnswerSelectionRepository,
   Artifact,
   ArtifactRepository,
+  AgentProfile,
+  AgentProfileRepository,
   ChatShare,
   ChatShareRepository,
   ChatShareSnapshot,
@@ -23,7 +26,11 @@ import type {
   Message,
   MessagePart,
   MessageRepository,
+  CloudAgentWorker,
+  CloudAgentWorkerRepository,
   Run,
+  RunApprovalRequest,
+  RunApprovalRequestRepository,
   RunEvent,
   RunEventRepository,
   RunFeedback,
@@ -32,14 +39,30 @@ import type {
   Thread,
   ThreadRepository,
   ToolInvocation,
-  ToolInvocationRepository
+  ToolInvocationRepository,
+  Workspace,
+  WorkspaceChangeSet,
+  WorkspaceChangeSetRepository,
+  WorkspaceFileChange,
+  WorkspaceFileChangeRepository,
+  WorkspaceFileIndexEntry,
+  WorkspaceFileIndexRepository,
+  WorkspaceSecretRef,
+  WorkspaceSecretRefRepository,
+  WorkspaceRepository,
+  ProviderSessionBinding,
+  ProviderSessionBindingRepository,
+  ProviderTranscriptEntry,
+  ProviderTranscriptRepository
 } from '@agent-infra/core';
 import {
   answerCandidates,
   answerSelections,
+  agentProfiles,
   artifacts,
   chatShareSnapshots,
   chatShares,
+  cloudAgentWorkers,
   datasetExamples,
   datasets,
   evalExampleResults,
@@ -47,11 +70,19 @@ import {
   evalRuns,
   messageParts,
   messages,
+  providerSessionBindings,
+  providerTranscriptEntries,
+  runApprovalRequests,
   runEvents,
   runFeedback,
   runs,
   threads,
-  toolInvocations
+  toolInvocations,
+  workspaces,
+  workspaceChangeSets,
+  workspaceFileChanges,
+  workspaceFileIndex,
+  workspaceSecretRefs
 } from './schema.js';
 
 function isMessageSeqUniqueConstraintError(error: unknown): boolean {
@@ -118,19 +149,438 @@ export class DrizzleThreadRepository implements ThreadRepository {
   }
 }
 
+export class DrizzleWorkspaceRepository implements WorkspaceRepository {
+  constructor(private readonly db: any) {}
+
+  async create(input: Omit<Workspace, 'createdAt' | 'updatedAt'>): Promise<Workspace> {
+    const now = new Date();
+    if (input.defaultForUser) {
+      await this.db
+        .update(workspaces)
+        .set({ defaultForUser: false, updatedAt: now })
+        .where(and(eq(workspaces.appId, input.appId), eq(workspaces.userId, input.userId), eq(workspaces.defaultForUser, true)));
+    }
+    await this.db.insert(workspaces).values({ ...input, createdAt: now, updatedAt: now });
+    return { ...input, createdAt: now, updatedAt: now };
+  }
+
+  async findById(id: string): Promise<Workspace | null> {
+    const [row] = await this.db.select().from(workspaces).where(eq(workspaces.id, id)).limit(1);
+    return row ?? null;
+  }
+
+  async findDefaultByUser(input: { appId: string; userId: string }): Promise<Workspace | null> {
+    const [row] = await this.db
+      .select()
+      .from(workspaces)
+      .where(
+        and(
+          eq(workspaces.appId, input.appId),
+          eq(workspaces.userId, input.userId),
+          eq(workspaces.defaultForUser, true),
+          eq(workspaces.status, 'active')
+        )
+      )
+      .orderBy(desc(workspaces.updatedAt))
+      .limit(1);
+    return row ?? null;
+  }
+
+  async listByUser(input: { appId: string; userId: string }): Promise<Workspace[]> {
+    return this.db
+      .select()
+      .from(workspaces)
+      .where(and(eq(workspaces.appId, input.appId), eq(workspaces.userId, input.userId), eq(workspaces.status, 'active')))
+      .orderBy(desc(workspaces.defaultForUser), asc(workspaces.createdAt));
+  }
+
+  async archive(id: string, archivedAt: Date): Promise<Workspace> {
+    await this.db
+      .update(workspaces)
+      .set({ status: 'archived', archivedAt, updatedAt: archivedAt, defaultForUser: false })
+      .where(eq(workspaces.id, id));
+    const row = await this.findById(id);
+    if (!row) throw new Error(`workspace ${id} not found`);
+    return row;
+  }
+
+  async touch(id: string, updatedAt: Date): Promise<Workspace> {
+    await this.db.update(workspaces).set({ updatedAt }).where(eq(workspaces.id, id));
+    const row = await this.findById(id);
+    if (!row) throw new Error(`workspace ${id} not found`);
+    return row;
+  }
+}
+
+export class DrizzleAgentProfileRepository implements AgentProfileRepository {
+  constructor(private readonly db: any) {}
+
+  async create(input: Omit<AgentProfile, 'createdAt' | 'updatedAt'>): Promise<AgentProfile> {
+    const now = new Date();
+    if (input.defaultForWorkspace) {
+      await this.db
+        .update(agentProfiles)
+        .set({ defaultForWorkspace: false, updatedAt: now })
+        .where(and(eq(agentProfiles.workspaceId, input.workspaceId), eq(agentProfiles.defaultForWorkspace, true)));
+    }
+    await this.db.insert(agentProfiles).values({ ...input, createdAt: now, updatedAt: now });
+    return { ...input, createdAt: now, updatedAt: now };
+  }
+
+  async findById(id: string): Promise<AgentProfile | null> {
+    const [row] = await this.db.select().from(agentProfiles).where(eq(agentProfiles.id, id)).limit(1);
+    return row ?? null;
+  }
+
+  async findDefaultByWorkspace(workspaceId: string): Promise<AgentProfile | null> {
+    const [row] = await this.db
+      .select()
+      .from(agentProfiles)
+      .where(
+        and(
+          eq(agentProfiles.workspaceId, workspaceId),
+          eq(agentProfiles.defaultForWorkspace, true),
+          eq(agentProfiles.status, 'active')
+        )
+      )
+      .orderBy(desc(agentProfiles.updatedAt))
+      .limit(1);
+    return row ?? null;
+  }
+
+  async listByWorkspace(workspaceId: string): Promise<AgentProfile[]> {
+    return this.db
+      .select()
+      .from(agentProfiles)
+      .where(and(eq(agentProfiles.workspaceId, workspaceId), eq(agentProfiles.status, 'active')))
+      .orderBy(desc(agentProfiles.defaultForWorkspace), asc(agentProfiles.createdAt));
+  }
+
+  async update(
+    id: string,
+    patch: Partial<
+      Pick<
+        AgentProfile,
+        | 'name'
+        | 'provider'
+        | 'model'
+        | 'defaultForWorkspace'
+        | 'approvalPolicy'
+        | 'sandboxMode'
+        | 'toolAllowlist'
+        | 'mcpServers'
+        | 'skillRefs'
+        | 'secretRefs'
+        | 'metadata'
+      >
+    >,
+    updatedAt: Date
+  ): Promise<AgentProfile> {
+    const existing = await this.findById(id);
+    if (!existing) throw new Error(`agent profile ${id} not found`);
+    if (patch.defaultForWorkspace) {
+      await this.db
+        .update(agentProfiles)
+        .set({ defaultForWorkspace: false, updatedAt })
+        .where(and(eq(agentProfiles.workspaceId, existing.workspaceId), eq(agentProfiles.defaultForWorkspace, true)));
+    }
+    await this.db.update(agentProfiles).set({ ...patch, updatedAt }).where(eq(agentProfiles.id, id));
+    const row = await this.findById(id);
+    if (!row) throw new Error(`agent profile ${id} not found`);
+    return row;
+  }
+
+  async archive(id: string, archivedAt: Date): Promise<AgentProfile> {
+    await this.db
+      .update(agentProfiles)
+      .set({ status: 'archived', archivedAt, updatedAt: archivedAt, defaultForWorkspace: false })
+      .where(eq(agentProfiles.id, id));
+    const row = await this.findById(id);
+    if (!row) throw new Error(`agent profile ${id} not found`);
+    return row;
+  }
+}
+
+export class DrizzleWorkspaceSecretRefRepository implements WorkspaceSecretRefRepository {
+  constructor(private readonly db: any) {}
+
+  async create(input: Omit<WorkspaceSecretRef, 'createdAt' | 'updatedAt'>): Promise<WorkspaceSecretRef> {
+    const now = new Date();
+    await this.db.insert(workspaceSecretRefs).values({ ...input, createdAt: now, updatedAt: now });
+    return { ...input, createdAt: now, updatedAt: now };
+  }
+
+  async findById(id: string): Promise<WorkspaceSecretRef | null> {
+    const [row] = await this.db.select().from(workspaceSecretRefs).where(eq(workspaceSecretRefs.id, id)).limit(1);
+    return row ?? null;
+  }
+
+  async listByWorkspace(workspaceId: string): Promise<WorkspaceSecretRef[]> {
+    return this.db
+      .select()
+      .from(workspaceSecretRefs)
+      .where(and(eq(workspaceSecretRefs.workspaceId, workspaceId), eq(workspaceSecretRefs.status, 'active')))
+      .orderBy(asc(workspaceSecretRefs.name), asc(workspaceSecretRefs.createdAt));
+  }
+
+  async archive(id: string, archivedAt: Date): Promise<WorkspaceSecretRef> {
+    await this.db
+      .update(workspaceSecretRefs)
+      .set({ status: 'archived', archivedAt, updatedAt: archivedAt })
+      .where(eq(workspaceSecretRefs.id, id));
+    const row = await this.findById(id);
+    if (!row) throw new Error(`workspace secret ref ${id} not found`);
+    return row;
+  }
+}
+
+export class DrizzleWorkspaceFileIndexRepository implements WorkspaceFileIndexRepository {
+  constructor(private readonly db: any) {}
+
+  async upsert(
+    input: Omit<WorkspaceFileIndexEntry, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }
+  ): Promise<WorkspaceFileIndexEntry> {
+    const existing = await this.findByWorkspacePath(input.workspaceId, input.path);
+    const now = new Date();
+    if (existing) {
+      await this.db
+        .update(workspaceFileIndex)
+        .set({
+          kind: input.kind,
+          sizeBytes: input.sizeBytes ?? null,
+          mimeType: input.mimeType ?? null,
+          contentHash: input.contentHash ?? null,
+          previewCapability: input.previewCapability ?? null,
+          metadata: input.metadata ?? null,
+          deletedAt: input.deletedAt ?? null,
+          updatedAt: now
+        })
+        .where(eq(workspaceFileIndex.id, existing.id));
+      const row = await this.findByWorkspacePath(input.workspaceId, input.path);
+      if (!row) throw new Error(`workspace file ${input.workspaceId}:${input.path} not found`);
+      return row;
+    }
+
+    const created = {
+      id: input.id ?? randomUUID(),
+      workspaceId: input.workspaceId,
+      path: input.path,
+      kind: input.kind,
+      sizeBytes: input.sizeBytes ?? null,
+      mimeType: input.mimeType ?? null,
+      contentHash: input.contentHash ?? null,
+      previewCapability: input.previewCapability ?? null,
+      metadata: input.metadata ?? null,
+      deletedAt: input.deletedAt ?? null,
+      createdAt: now,
+      updatedAt: now
+    };
+    await this.db.insert(workspaceFileIndex).values(created);
+    return created;
+  }
+
+  async listByWorkspace(workspaceId: string, options: { includeDeleted?: boolean } = {}): Promise<WorkspaceFileIndexEntry[]> {
+    const predicates = [eq(workspaceFileIndex.workspaceId, workspaceId)];
+    if (!options.includeDeleted) {
+      predicates.push(isNull(workspaceFileIndex.deletedAt));
+    }
+
+    return this.db
+      .select()
+      .from(workspaceFileIndex)
+      .where(and(...predicates))
+      .orderBy(asc(workspaceFileIndex.path));
+  }
+
+  async markDeleted(input: { workspaceId: string; path: string; deletedAt: Date }): Promise<WorkspaceFileIndexEntry> {
+    const existing = await this.findByWorkspacePath(input.workspaceId, input.path);
+    if (!existing) {
+      throw new Error(`workspace file ${input.workspaceId}:${input.path} not found`);
+    }
+
+    await this.db
+      .update(workspaceFileIndex)
+      .set({ deletedAt: input.deletedAt, updatedAt: input.deletedAt })
+      .where(eq(workspaceFileIndex.id, existing.id));
+    const row = await this.findByWorkspacePath(input.workspaceId, input.path);
+    if (!row) throw new Error(`workspace file ${input.workspaceId}:${input.path} not found`);
+    return row;
+  }
+
+  private async findByWorkspacePath(workspaceId: string, filePath: string): Promise<WorkspaceFileIndexEntry | null> {
+    const [row] = await this.db
+      .select()
+      .from(workspaceFileIndex)
+      .where(and(eq(workspaceFileIndex.workspaceId, workspaceId), eq(workspaceFileIndex.path, filePath)))
+      .limit(1);
+    return row ?? null;
+  }
+}
+
+export class DrizzleWorkspaceChangeSetRepository implements WorkspaceChangeSetRepository {
+  constructor(private readonly db: any) {}
+
+  async create(input: Omit<WorkspaceChangeSet, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<WorkspaceChangeSet> {
+    const now = new Date();
+    const created = {
+      id: input.id ?? randomUUID(),
+      workspaceId: input.workspaceId,
+      threadId: input.threadId ?? null,
+      runId: input.runId ?? null,
+      status: input.status,
+      baseSnapshotId: input.baseSnapshotId ?? null,
+      nextSnapshotId: input.nextSnapshotId ?? null,
+      metadata: input.metadata ?? null,
+      createdAt: now,
+      updatedAt: now,
+      resolvedAt: input.resolvedAt ?? null
+    };
+    await this.db.insert(workspaceChangeSets).values(created);
+    return created;
+  }
+
+  async findById(id: string): Promise<WorkspaceChangeSet | null> {
+    const [row] = await this.db.select().from(workspaceChangeSets).where(eq(workspaceChangeSets.id, id)).limit(1);
+    return row ?? null;
+  }
+
+  async listByWorkspace(workspaceId: string, options: { includeResolved?: boolean } = {}): Promise<WorkspaceChangeSet[]> {
+    const predicates = [eq(workspaceChangeSets.workspaceId, workspaceId)];
+    if (!options.includeResolved) {
+      predicates.push(eq(workspaceChangeSets.status, 'pending'));
+    }
+
+    return this.db
+      .select()
+      .from(workspaceChangeSets)
+      .where(and(...predicates))
+      .orderBy(desc(workspaceChangeSets.createdAt));
+  }
+
+  async listByRun(runId: string): Promise<WorkspaceChangeSet[]> {
+    return this.db
+      .select()
+      .from(workspaceChangeSets)
+      .where(eq(workspaceChangeSets.runId, runId))
+      .orderBy(desc(workspaceChangeSets.createdAt));
+  }
+
+  async updateStatus(
+    id: string,
+    status: WorkspaceChangeSet['status'],
+    patch: Partial<Pick<WorkspaceChangeSet, 'metadata' | 'nextSnapshotId' | 'resolvedAt'>> = {}
+  ): Promise<WorkspaceChangeSet> {
+    const updatedAt = new Date();
+    await this.db
+      .update(workspaceChangeSets)
+      .set({
+        status,
+        metadata: patch.metadata,
+        nextSnapshotId: patch.nextSnapshotId,
+        resolvedAt: patch.resolvedAt ?? (status === 'pending' ? null : updatedAt),
+        updatedAt
+      })
+      .where(eq(workspaceChangeSets.id, id));
+    const row = await this.findById(id);
+    if (!row) throw new Error(`workspace change set ${id} not found`);
+    return row;
+  }
+}
+
+export class DrizzleWorkspaceFileChangeRepository implements WorkspaceFileChangeRepository {
+  constructor(private readonly db: any) {}
+
+  async create(input: Omit<WorkspaceFileChange, 'id' | 'createdAt'> & { id?: string }): Promise<WorkspaceFileChange> {
+    const created = {
+      id: input.id ?? randomUUID(),
+      changeSetId: input.changeSetId,
+      workspaceId: input.workspaceId,
+      threadId: input.threadId ?? null,
+      runId: input.runId ?? null,
+      path: input.path,
+      changeType: input.changeType,
+      beforeContentHash: input.beforeContentHash ?? null,
+      afterContentHash: input.afterContentHash ?? null,
+      artifactId: input.artifactId ?? null,
+      metadata: input.metadata ?? null,
+      createdAt: new Date()
+    };
+    await this.db.insert(workspaceFileChanges).values(created);
+    return created;
+  }
+
+  async createMany(inputs: Array<Omit<WorkspaceFileChange, 'id' | 'createdAt'> & { id?: string }>): Promise<WorkspaceFileChange[]> {
+    const created: WorkspaceFileChange[] = [];
+    for (const input of inputs) {
+      created.push(await this.create(input));
+    }
+    return created;
+  }
+
+  async listByChangeSet(changeSetId: string): Promise<WorkspaceFileChange[]> {
+    return this.db
+      .select()
+      .from(workspaceFileChanges)
+      .where(eq(workspaceFileChanges.changeSetId, changeSetId))
+      .orderBy(asc(workspaceFileChanges.path), asc(workspaceFileChanges.createdAt));
+  }
+
+  async listByRun(runId: string): Promise<WorkspaceFileChange[]> {
+    return this.db
+      .select()
+      .from(workspaceFileChanges)
+      .where(eq(workspaceFileChanges.runId, runId))
+      .orderBy(asc(workspaceFileChanges.path), asc(workspaceFileChanges.createdAt));
+  }
+}
+
 export class DrizzleRunRepository implements RunRepository {
   constructor(private readonly db: any) {}
+
+  async countByApp(appId: string): Promise<Partial<Record<Run['status'], number>>> {
+    const rows = await this.db
+      .select({
+        count: count(),
+        status: runs.status
+      })
+      .from(runs)
+      .innerJoin(threads, eq(runs.threadId, threads.id))
+      .where(eq(threads.appId, appId))
+      .groupBy(runs.status);
+    return Object.fromEntries(rows.map((row: any) => [row.status, Number(row.count)]));
+  }
 
   async create(input: Omit<Run, 'createdAt'>): Promise<Run> {
     const createdAt = new Date();
     await this.db.insert(runs).values({ ...input, usageJson: input.usage, createdAt });
-    return { ...input, createdAt };
+    const row = await this.findById(input.id);
+    if (!row) throw new Error(`run ${input.id} not found`);
+    return row;
   }
 
   async findById(id: string): Promise<Run | null> {
     const [row] = await this.db.select().from(runs).where(eq(runs.id, id)).limit(1);
     if (!row) return null;
     return { ...row, usage: row.usageJson };
+  }
+
+  async listByApp(appId: string, options: { limit?: number; statuses?: Run['status'][] } = {}): Promise<Run[]> {
+    const clauses = [eq(threads.appId, appId)];
+    if (options.statuses?.length) {
+      clauses.push(inArray(runs.status, options.statuses));
+    }
+    let query = this.db
+      .select({ run: runs })
+      .from(runs)
+      .innerJoin(threads, eq(runs.threadId, threads.id))
+      .where(and(...clauses))
+      .orderBy(desc(runs.createdAt));
+    if (options.limit && options.limit > 0) {
+      query = query.limit(options.limit);
+    }
+
+    const rows = await query;
+    return rows.map((row: any) => ({ ...row.run, usage: row.run.usageJson }));
   }
 
   async findLatestActiveByThread(threadId: string): Promise<Run | null> {
@@ -163,18 +613,301 @@ export class DrizzleRunRepository implements RunRepository {
     return rows.map((row: any) => ({ ...row, usage: row.usageJson }));
   }
 
+  async claimById(input: { runId: string; workerId: string; leaseExpiresAt: Date; now: Date }): Promise<Run | null> {
+    const existing = await this.findById(input.runId);
+    if (!existing) {
+      return null;
+    }
+
+    await this.db
+      .update(runs)
+      .set({
+        status: 'running',
+        error: null,
+        startedAt: existing.startedAt ?? input.now,
+        finishedAt: null,
+        claimOwner: input.workerId,
+        claimExpiresAt: input.leaseExpiresAt,
+        attemptCount: (existing.attemptCount ?? 0) + 1
+      })
+      .where(
+        and(
+          eq(runs.id, input.runId),
+          or(
+            and(eq(runs.status, 'queued'), or(isNull(runs.nextAttemptAt), lte(runs.nextAttemptAt, input.now))),
+            and(eq(runs.status, 'running'), lt(runs.claimExpiresAt, input.now))
+          )
+        )
+      );
+
+    const claimed = await this.findById(input.runId);
+    return claimed?.claimOwner === input.workerId ? claimed : null;
+  }
+
+  async claimNextQueued(input: { appId: string; workerId: string; leaseExpiresAt: Date; now: Date }): Promise<Run | null> {
+    const [candidate] = await this.db
+      .select({ id: runs.id })
+      .from(runs)
+      .innerJoin(threads, eq(runs.threadId, threads.id))
+      .where(
+        and(
+          eq(threads.appId, input.appId),
+          eq(threads.status, 'active'),
+          or(
+            and(eq(runs.status, 'queued'), or(isNull(runs.nextAttemptAt), lte(runs.nextAttemptAt, input.now))),
+            and(eq(runs.status, 'running'), lt(runs.claimExpiresAt, input.now))
+          )
+        )
+      )
+      .orderBy(asc(runs.createdAt))
+      .limit(1);
+    if (!candidate) {
+      return null;
+    }
+
+    const existing = await this.findById(candidate.id);
+    if (!existing) {
+      return null;
+    }
+
+    await this.db
+      .update(runs)
+      .set({
+        status: 'running',
+        error: null,
+        startedAt: existing.startedAt ?? input.now,
+        finishedAt: null,
+        claimOwner: input.workerId,
+        claimExpiresAt: input.leaseExpiresAt,
+        attemptCount: (existing.attemptCount ?? 0) + 1
+      })
+      .where(
+        and(
+          eq(runs.id, candidate.id),
+          or(
+            and(eq(runs.status, 'queued'), or(isNull(runs.nextAttemptAt), lte(runs.nextAttemptAt, input.now))),
+            and(eq(runs.status, 'running'), lt(runs.claimExpiresAt, input.now))
+          )
+        )
+      );
+
+    const claimed = await this.findById(candidate.id);
+    return claimed?.claimOwner === input.workerId ? claimed : null;
+  }
+
+  async extendClaim(input: { runId: string; workerId: string; leaseExpiresAt: Date; now: Date }): Promise<Run | null> {
+    await this.db
+      .update(runs)
+      .set({
+        claimExpiresAt: input.leaseExpiresAt
+      })
+      .where(
+        and(
+          eq(runs.id, input.runId),
+          eq(runs.status, 'running'),
+          eq(runs.claimOwner, input.workerId),
+          gt(runs.claimExpiresAt, input.now)
+        )
+      );
+
+    const run = await this.findById(input.runId);
+    return run?.claimOwner === input.workerId &&
+      run.status === 'running' &&
+      run.claimExpiresAt &&
+      run.claimExpiresAt.getTime() > input.now.getTime()
+      ? run
+      : null;
+  }
+
   async updateStatus(id: string, status: Run['status'], patch: Partial<Run> = {}): Promise<Run> {
-    const updated = {
-      status,
-      error: patch.error,
-      startedAt: patch.startedAt,
-      finishedAt: patch.finishedAt,
-      usageJson: patch.usage
-    };
+    const terminal = status === 'completed' || status === 'failed' || status === 'cancelled';
+    const updated: Record<string, unknown> = { status };
+    if ('error' in patch) updated.error = patch.error;
+    if ('startedAt' in patch) updated.startedAt = patch.startedAt;
+    if ('finishedAt' in patch) updated.finishedAt = patch.finishedAt;
+    if ('usage' in patch) updated.usageJson = patch.usage;
+    if ('nextAttemptAt' in patch) updated.nextAttemptAt = patch.nextAttemptAt;
+    if (terminal) {
+      updated.claimOwner = null;
+      updated.claimExpiresAt = null;
+    } else {
+      if ('claimOwner' in patch) updated.claimOwner = patch.claimOwner;
+      if ('claimExpiresAt' in patch) updated.claimExpiresAt = patch.claimExpiresAt;
+    }
+    if ('attemptCount' in patch) updated.attemptCount = patch.attemptCount;
     await this.db.update(runs).set(updated).where(eq(runs.id, id));
     const row = await this.findById(id);
     if (!row) throw new Error(`run ${id} not found`);
     return row;
+  }
+}
+
+export class DrizzleCloudAgentWorkerRepository implements CloudAgentWorkerRepository {
+  constructor(private readonly db: any) {}
+
+  async heartbeat(
+    input: Omit<CloudAgentWorker, 'createdAt' | 'updatedAt'> & {
+      heartbeatAt: Date;
+    }
+  ): Promise<CloudAgentWorker> {
+    const existing = await this.findById(input.id);
+    const now = input.heartbeatAt;
+    const metadata = mergeCloudAgentWorkerMetadata(existing?.metadata, input.metadata);
+    const status = shouldDrainCloudAgentWorker(metadata) && input.status !== 'stopped' ? 'draining' : input.status;
+    const values = {
+      id: input.id,
+      appId: input.appId,
+      queueProvider: input.queueProvider,
+      status,
+      concurrency: input.concurrency,
+      activeRunIds: input.activeRunIds ?? null,
+      metadata,
+      startedAt: existing?.startedAt ?? input.startedAt,
+      lastHeartbeatAt: now,
+      stoppedAt: input.stoppedAt ?? null,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now
+    };
+
+    await this.db
+      .insert(cloudAgentWorkers)
+      .values(values)
+      .onConflictDoUpdate({
+        target: cloudAgentWorkers.id,
+        set: {
+          appId: values.appId,
+          queueProvider: values.queueProvider,
+          status: values.status,
+          concurrency: values.concurrency,
+          activeRunIds: values.activeRunIds,
+          metadata: values.metadata,
+          startedAt: values.startedAt,
+          lastHeartbeatAt: values.lastHeartbeatAt,
+          stoppedAt: values.stoppedAt,
+          updatedAt: values.updatedAt
+        }
+      });
+
+    const row = await this.findById(input.id);
+    if (!row) throw new Error(`cloud agent worker ${input.id} not found`);
+    return row;
+  }
+
+  async listByApp(appId: string, options: { since?: Date; limit?: number } = {}): Promise<CloudAgentWorker[]> {
+    const clauses = [eq(cloudAgentWorkers.appId, appId)];
+    if (options.since) {
+      clauses.push(gt(cloudAgentWorkers.lastHeartbeatAt, options.since));
+    }
+
+    let query = this.db
+      .select()
+      .from(cloudAgentWorkers)
+      .where(and(...clauses))
+      .orderBy(desc(cloudAgentWorkers.lastHeartbeatAt));
+    if (options.limit && options.limit > 0) {
+      query = query.limit(options.limit);
+    }
+
+    const rows = await query;
+    return rows.map(toCloudAgentWorker);
+  }
+
+  async markStopped(input: { actorId?: string | null; id: string; reason?: string | null; stoppedAt: Date }): Promise<CloudAgentWorker | null> {
+    const existing = await this.findById(input.id);
+    await this.db
+      .update(cloudAgentWorkers)
+      .set({
+        metadata: mergeStoppedWorkerMetadata(existing?.metadata, input),
+        status: 'stopped',
+        stoppedAt: input.stoppedAt,
+        updatedAt: input.stoppedAt
+      })
+      .where(eq(cloudAgentWorkers.id, input.id));
+    return this.findById(input.id);
+  }
+
+  async markStoppedIfStale(input: {
+    actorId?: string | null;
+    id: string;
+    reason?: string | null;
+    staleBefore: Date;
+    stoppedAt: Date;
+  }): Promise<CloudAgentWorker | null> {
+    const existing = await this.findById(input.id);
+    await this.db
+      .update(cloudAgentWorkers)
+      .set({
+        metadata: mergeStoppedWorkerMetadata(existing?.metadata, input),
+        status: 'stopped',
+        stoppedAt: input.stoppedAt,
+        updatedAt: input.stoppedAt
+      })
+      .where(and(eq(cloudAgentWorkers.id, input.id), lt(cloudAgentWorkers.lastHeartbeatAt, input.staleBefore)));
+    const worker = await this.findById(input.id);
+    return worker?.status === 'stopped' && worker.lastHeartbeatAt.getTime() < input.staleBefore.getTime() ? worker : null;
+  }
+
+  async clearDrain(input: {
+    actorId: string;
+    id: string;
+    reason?: string | null;
+    requestedAt: Date;
+  }): Promise<CloudAgentWorker | null> {
+    const existing = await this.findById(input.id);
+    if (!existing) {
+      return null;
+    }
+
+    await this.db
+      .update(cloudAgentWorkers)
+      .set({
+        metadata: mergeCloudAgentWorkerMetadata(existing.metadata, {
+          control: {
+            drainClearedAt: input.requestedAt.toISOString(),
+            drainClearedByActorId: input.actorId,
+            drainClearReason: input.reason ?? null,
+            desiredStatus: 'active'
+          }
+        }),
+        status: existing.status === 'stopped' ? 'stopped' : 'active',
+        updatedAt: input.requestedAt
+      })
+      .where(eq(cloudAgentWorkers.id, input.id));
+    return this.findById(input.id);
+  }
+
+  async requestDrain(input: {
+    actorId: string;
+    id: string;
+    reason?: string | null;
+    requestedAt: Date;
+  }): Promise<CloudAgentWorker | null> {
+    const existing = await this.findById(input.id);
+    if (!existing) {
+      return null;
+    }
+
+    await this.db
+      .update(cloudAgentWorkers)
+      .set({
+        metadata: mergeCloudAgentWorkerMetadata(existing.metadata, {
+          control: {
+            drainRequestedAt: input.requestedAt.toISOString(),
+            drainRequestedByActorId: input.actorId,
+            drainReason: input.reason ?? null,
+            desiredStatus: 'draining'
+          }
+        }),
+        status: existing.status === 'stopped' ? 'stopped' : 'draining',
+        updatedAt: input.requestedAt
+      })
+      .where(eq(cloudAgentWorkers.id, input.id));
+    return this.findById(input.id);
+  }
+
+  async findById(id: string): Promise<CloudAgentWorker | null> {
+    const [row] = await this.db.select().from(cloudAgentWorkers).where(eq(cloudAgentWorkers.id, id)).limit(1);
+    return row ? toCloudAgentWorker(row) : null;
   }
 }
 
@@ -653,6 +1386,358 @@ export class DrizzleRunEventRepository implements RunEventRepository {
   async nextSeq(runId: string): Promise<number> {
     const result = await this.db.select({ maxSeq: max(runEvents.seq) }).from(runEvents).where(eq(runEvents.runId, runId));
     return (result[0]?.maxSeq ?? 0) + 1;
+  }
+}
+
+export class DrizzleRunApprovalRequestRepository implements RunApprovalRequestRepository {
+  constructor(private readonly db: any) {}
+
+  async create(
+    input: Omit<RunApprovalRequest, 'id' | 'status' | 'createdAt' | 'updatedAt' | 'resolvedAt'> & { id?: string }
+  ): Promise<RunApprovalRequest> {
+    const now = new Date();
+    const created = {
+      id: input.id ?? randomUUID(),
+      workspaceId: input.workspaceId ?? null,
+      threadId: input.threadId,
+      runId: input.runId,
+      provider: input.provider,
+      permissionRequestId: input.permissionRequestId,
+      action: input.action,
+      status: 'pending' as const,
+      detailsJson: input.details ?? null,
+      decision: input.decision ?? null,
+      decisionReason: input.decisionReason ?? null,
+      resolvedByActorId: input.resolvedByActorId ?? null,
+      metadataJson: input.metadata ?? null,
+      expiresAt: input.expiresAt ?? null,
+      createdAt: now,
+      updatedAt: now,
+      resolvedAt: null
+    };
+    await this.db.insert(runApprovalRequests).values(created);
+    const row = await this.findById(created.id);
+    if (!row) throw new Error(`run approval request ${created.id} not found`);
+    return row;
+  }
+
+  async findById(id: string): Promise<RunApprovalRequest | null> {
+    const [row] = await this.db.select().from(runApprovalRequests).where(eq(runApprovalRequests.id, id)).limit(1);
+    return row ? toRunApprovalRequest(row) : null;
+  }
+
+  async findByProviderRequest(input: {
+    runId: string;
+    provider: string;
+    permissionRequestId: string;
+  }): Promise<RunApprovalRequest | null> {
+    const [row] = await this.db
+      .select()
+      .from(runApprovalRequests)
+      .where(
+        and(
+          eq(runApprovalRequests.runId, input.runId),
+          eq(runApprovalRequests.provider, input.provider),
+          eq(runApprovalRequests.permissionRequestId, input.permissionRequestId)
+        )
+      )
+      .limit(1);
+    return row ? toRunApprovalRequest(row) : null;
+  }
+
+  async findPendingByProviderRequest(input: {
+    runId: string;
+    provider: string;
+    permissionRequestId: string;
+  }): Promise<RunApprovalRequest | null> {
+    const [row] = await this.db
+      .select()
+      .from(runApprovalRequests)
+      .where(
+        and(
+          eq(runApprovalRequests.runId, input.runId),
+          eq(runApprovalRequests.provider, input.provider),
+          eq(runApprovalRequests.permissionRequestId, input.permissionRequestId),
+          eq(runApprovalRequests.status, 'pending')
+        )
+      )
+      .limit(1);
+    return row ? toRunApprovalRequest(row) : null;
+  }
+
+  async listByRun(runId: string): Promise<RunApprovalRequest[]> {
+    const rows = await this.db
+      .select()
+      .from(runApprovalRequests)
+      .where(eq(runApprovalRequests.runId, runId))
+      .orderBy(asc(runApprovalRequests.createdAt));
+    return rows.map(toRunApprovalRequest);
+  }
+
+  async resolve(
+    id: string,
+    status: Extract<RunApprovalRequest['status'], 'approved' | 'denied' | 'expired' | 'cancelled'>,
+    patch: Partial<Pick<RunApprovalRequest, 'decision' | 'decisionReason' | 'resolvedByActorId' | 'metadata' | 'resolvedAt'>> = {}
+  ): Promise<RunApprovalRequest> {
+    const resolvedAt = patch.resolvedAt ?? new Date();
+    await this.db
+      .update(runApprovalRequests)
+      .set({
+        status,
+        decision: patch.decision ?? (status === 'approved' || status === 'denied' ? status : null),
+        decisionReason: patch.decisionReason,
+        resolvedByActorId: patch.resolvedByActorId,
+        metadataJson: patch.metadata,
+        updatedAt: resolvedAt,
+        resolvedAt
+      })
+      .where(eq(runApprovalRequests.id, id));
+    const row = await this.findById(id);
+    if (!row) throw new Error(`run approval request ${id} not found`);
+    return row;
+  }
+
+  async resolvePending(
+    id: string,
+    status: Extract<RunApprovalRequest['status'], 'approved' | 'denied' | 'expired' | 'cancelled'>,
+    patch: Partial<Pick<RunApprovalRequest, 'decision' | 'decisionReason' | 'resolvedByActorId' | 'metadata' | 'resolvedAt'>> = {}
+  ): Promise<RunApprovalRequest | null> {
+    const resolvedAt = patch.resolvedAt ?? new Date();
+    const [row] = await this.db
+      .update(runApprovalRequests)
+      .set({
+        status,
+        decision: patch.decision ?? (status === 'approved' || status === 'denied' ? status : null),
+        decisionReason: patch.decisionReason,
+        resolvedByActorId: patch.resolvedByActorId,
+        metadataJson: patch.metadata,
+        updatedAt: resolvedAt,
+        resolvedAt
+      })
+      .where(and(eq(runApprovalRequests.id, id), eq(runApprovalRequests.status, 'pending')))
+      .returning();
+    return row ? toRunApprovalRequest(row) : null;
+  }
+}
+
+function toRunApprovalRequest(row: any): RunApprovalRequest {
+  return {
+    ...row,
+    details: row.detailsJson,
+    metadata: row.metadataJson
+  };
+}
+
+function mergeCloudAgentWorkerMetadata(
+  existing: Record<string, unknown> | null | undefined,
+  incoming: Record<string, unknown> | null | undefined
+): Record<string, unknown> | null {
+  if (!existing && !incoming) {
+    return null;
+  }
+
+  return {
+    ...(existing ?? {}),
+    ...(incoming ?? {}),
+    control: isRecord(incoming?.control) ? incoming.control : existing?.control
+  };
+}
+
+function mergeStoppedWorkerMetadata(
+  existing: Record<string, unknown> | null | undefined,
+  input: {
+    actorId?: string | null;
+    reason?: string | null;
+    stoppedAt: Date;
+  }
+): Record<string, unknown> | null {
+  return mergeCloudAgentWorkerMetadata(existing, {
+    control: {
+      desiredStatus: 'stopped',
+      stoppedAt: input.stoppedAt.toISOString(),
+      stoppedByActorId: input.actorId ?? null,
+      stoppedReason: input.reason ?? null
+    }
+  });
+}
+
+function shouldDrainCloudAgentWorker(metadata: Record<string, unknown> | null | undefined): boolean {
+  return isRecord(metadata?.control) && metadata.control.desiredStatus === 'draining';
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function toCloudAgentWorker(row: any): CloudAgentWorker {
+  return {
+    ...row,
+    activeRunIds: row.activeRunIds ?? null,
+    metadata: row.metadata ?? null
+  };
+}
+
+function providerProjectKeyCondition(column: any, value?: string | null) {
+  return value == null ? isNull(column) : eq(column, value);
+}
+
+export class DrizzleProviderSessionBindingRepository implements ProviderSessionBindingRepository {
+  constructor(private readonly db: any) {}
+
+  async upsertActive(
+    input: Omit<ProviderSessionBinding, 'id' | 'status' | 'createdAt' | 'updatedAt' | 'archivedAt'> & { id?: string }
+  ): Promise<ProviderSessionBinding> {
+    const existing = await this.findActiveByThread({ threadId: input.threadId, provider: input.provider });
+    const now = new Date();
+    if (existing) {
+      await this.db
+        .update(providerSessionBindings)
+        .set({
+          workspaceId: input.workspaceId,
+          runId: input.runId ?? null,
+          providerSessionId: input.providerSessionId,
+          providerProjectKey: input.providerProjectKey ?? null,
+          metadata: input.metadata ?? null,
+          updatedAt: now
+        })
+        .where(eq(providerSessionBindings.id, existing.id));
+      const row = await this.findById(existing.id);
+      if (!row) throw new Error(`provider session binding ${existing.id} not found`);
+      return row;
+    }
+
+    const created = {
+      id: input.id ?? randomUUID(),
+      workspaceId: input.workspaceId,
+      threadId: input.threadId,
+      runId: input.runId ?? null,
+      provider: input.provider,
+      providerSessionId: input.providerSessionId,
+      providerProjectKey: input.providerProjectKey ?? null,
+      status: 'active' as const,
+      metadata: input.metadata ?? null,
+      createdAt: now,
+      updatedAt: now,
+      archivedAt: null
+    };
+    await this.db.insert(providerSessionBindings).values(created);
+    return created;
+  }
+
+  async findActiveByThread(input: { threadId: string; provider: string }): Promise<ProviderSessionBinding | null> {
+    const [row] = await this.db
+      .select()
+      .from(providerSessionBindings)
+      .where(and(eq(providerSessionBindings.threadId, input.threadId), eq(providerSessionBindings.provider, input.provider), eq(providerSessionBindings.status, 'active')))
+      .orderBy(desc(providerSessionBindings.updatedAt))
+      .limit(1);
+    return row ?? null;
+  }
+
+  async listByThread(threadId: string): Promise<ProviderSessionBinding[]> {
+    return this.db
+      .select()
+      .from(providerSessionBindings)
+      .where(eq(providerSessionBindings.threadId, threadId))
+      .orderBy(desc(providerSessionBindings.updatedAt));
+  }
+
+  async updateStatus(
+    id: string,
+    status: ProviderSessionBinding['status'],
+    patch: Partial<Pick<ProviderSessionBinding, 'metadata' | 'archivedAt'>> = {}
+  ): Promise<ProviderSessionBinding> {
+    const updatedAt = new Date();
+    await this.db
+      .update(providerSessionBindings)
+      .set({
+        status,
+        metadata: patch.metadata,
+        archivedAt: patch.archivedAt,
+        updatedAt
+      })
+      .where(eq(providerSessionBindings.id, id));
+    const row = await this.findById(id);
+    if (!row) throw new Error(`provider session binding ${id} not found`);
+    return row;
+  }
+
+  private async findById(id: string): Promise<ProviderSessionBinding | null> {
+    const [row] = await this.db.select().from(providerSessionBindings).where(eq(providerSessionBindings.id, id)).limit(1);
+    return row ?? null;
+  }
+}
+
+export class DrizzleProviderTranscriptRepository implements ProviderTranscriptRepository {
+  constructor(private readonly db: any) {}
+
+  async append(input: Omit<ProviderTranscriptEntry, 'id' | 'ordinal' | 'createdAt'> & { id?: string }): Promise<ProviderTranscriptEntry> {
+    const ordinal = await this.nextOrdinal({
+      provider: input.provider,
+      providerSessionId: input.providerSessionId,
+      providerProjectKey: input.providerProjectKey
+    });
+    const createdAt = new Date();
+    const created = {
+      id: input.id ?? randomUUID(),
+      workspaceId: input.workspaceId,
+      threadId: input.threadId ?? null,
+      runId: input.runId ?? null,
+      provider: input.provider,
+      providerSessionId: input.providerSessionId,
+      providerProjectKey: input.providerProjectKey ?? null,
+      providerEntryId: input.providerEntryId ?? null,
+      ordinal,
+      entryType: input.entryType,
+      rawJson: input.rawJson,
+      createdAt
+    };
+    await this.db.insert(providerTranscriptEntries).values(created);
+    return created;
+  }
+
+  async listByProviderSession(input: {
+    provider: string;
+    providerSessionId: string;
+    providerProjectKey?: string | null;
+  }): Promise<ProviderTranscriptEntry[]> {
+    return this.db
+      .select()
+      .from(providerTranscriptEntries)
+      .where(
+        and(
+          eq(providerTranscriptEntries.provider, input.provider),
+          eq(providerTranscriptEntries.providerSessionId, input.providerSessionId),
+          providerProjectKeyCondition(providerTranscriptEntries.providerProjectKey, input.providerProjectKey)
+        )
+      )
+      .orderBy(asc(providerTranscriptEntries.ordinal));
+  }
+
+  async listByRun(runId: string): Promise<ProviderTranscriptEntry[]> {
+    return this.db
+      .select()
+      .from(providerTranscriptEntries)
+      .where(eq(providerTranscriptEntries.runId, runId))
+      .orderBy(asc(providerTranscriptEntries.createdAt), asc(providerTranscriptEntries.ordinal));
+  }
+
+  async nextOrdinal(input: {
+    provider: string;
+    providerSessionId: string;
+    providerProjectKey?: string | null;
+  }): Promise<number> {
+    const result = await this.db
+      .select({ maxOrdinal: max(providerTranscriptEntries.ordinal) })
+      .from(providerTranscriptEntries)
+      .where(
+        and(
+          eq(providerTranscriptEntries.provider, input.provider),
+          eq(providerTranscriptEntries.providerSessionId, input.providerSessionId),
+          providerProjectKeyCondition(providerTranscriptEntries.providerProjectKey, input.providerProjectKey)
+        )
+      );
+    return (result[0]?.maxOrdinal ?? 0) + 1;
   }
 }
 

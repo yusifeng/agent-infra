@@ -8,6 +8,7 @@ import { Pool } from 'pg';
 import type {
   AnswerCandidateRepository,
   AnswerSelectionRepository,
+  AgentProfileRepository,
   ChatShareRepository,
   ChatShareSnapshotRepository,
   DatasetExampleRepository,
@@ -16,16 +17,26 @@ import type {
   EvalRunCompareTriageRepository,
   EvalRunRepository,
   MessageRepository,
+  CloudAgentWorkerRepository,
+  RunApprovalRequestRepository,
   RunFeedbackRepository,
   RunEventRepository,
   RunRepository,
   ThreadRepository,
-  ToolInvocationRepository
+  ToolInvocationRepository,
+  WorkspaceChangeSetRepository,
+  WorkspaceFileChangeRepository,
+  WorkspaceFileIndexRepository,
+  WorkspaceSecretRefRepository,
+  WorkspaceRepository,
+  ProviderSessionBindingRepository,
+  ProviderTranscriptRepository
 } from '@agent-infra/core';
 
 import {
   DrizzleAnswerCandidateRepository,
   DrizzleAnswerSelectionRepository,
+  DrizzleAgentProfileRepository,
   DrizzleChatShareRepository,
   DrizzleChatShareSnapshotRepository,
   DrizzleDatasetExampleRepository,
@@ -34,15 +45,25 @@ import {
   DrizzleEvalRunCompareTriageRepository,
   DrizzleEvalRunRepository,
   DrizzleMessageRepository,
+  DrizzleCloudAgentWorkerRepository,
+  DrizzleRunApprovalRequestRepository,
   DrizzleRunFeedbackRepository,
   DrizzleRunEventRepository,
   DrizzleRunRepository,
   DrizzleThreadRepository,
-  DrizzleToolInvocationRepository
+  DrizzleToolInvocationRepository,
+  DrizzleWorkspaceChangeSetRepository,
+  DrizzleWorkspaceFileChangeRepository,
+  DrizzleWorkspaceFileIndexRepository,
+  DrizzleWorkspaceSecretRefRepository,
+  DrizzleWorkspaceRepository,
+  DrizzleProviderSessionBindingRepository,
+  DrizzleProviderTranscriptRepository
 } from './repositories.js';
 import {
   SqliteAnswerCandidateRepository,
   SqliteAnswerSelectionRepository,
+  SqliteAgentProfileRepository,
   SqliteChatShareRepository,
   SqliteChatShareSnapshotRepository,
   SqliteDatasetExampleRepository,
@@ -51,11 +72,20 @@ import {
   SqliteEvalRunCompareTriageRepository,
   SqliteEvalRunRepository,
   SqliteMessageRepository,
+  SqliteCloudAgentWorkerRepository,
+  SqliteRunApprovalRequestRepository,
   SqliteRunFeedbackRepository,
   SqliteRunEventRepository,
   SqliteRunRepository,
   SqliteThreadRepository,
-  SqliteToolInvocationRepository
+  SqliteToolInvocationRepository,
+  SqliteWorkspaceChangeSetRepository,
+  SqliteWorkspaceFileChangeRepository,
+  SqliteWorkspaceFileIndexRepository,
+  SqliteWorkspaceSecretRefRepository,
+  SqliteWorkspaceRepository,
+  SqliteProviderSessionBindingRepository,
+  SqliteProviderTranscriptRepository
 } from './repositories-sqlite.js';
 import { SQLITE_SCHEMA_STATEMENTS } from './schema-sqlite.js';
 
@@ -71,10 +101,20 @@ export interface DbConfig {
 
 export interface AgentInfraRepositoryBundle {
   threadRepo: ThreadRepository;
+  workspaceRepo: WorkspaceRepository;
+  agentProfileRepo: AgentProfileRepository;
+  workspaceSecretRefRepo: WorkspaceSecretRefRepository;
+  workspaceFileIndexRepo: WorkspaceFileIndexRepository;
+  workspaceChangeSetRepo: WorkspaceChangeSetRepository;
+  workspaceFileChangeRepo: WorkspaceFileChangeRepository;
   runRepo: RunRepository;
+  cloudAgentWorkerRepo: CloudAgentWorkerRepository;
   messageRepo: MessageRepository;
   toolRepo: ToolInvocationRepository;
   runEventRepo: RunEventRepository;
+  runApprovalRequestRepo: RunApprovalRequestRepository;
+  providerSessionBindingRepo: ProviderSessionBindingRepository;
+  providerTranscriptRepo: ProviderTranscriptRepository;
   chatShareRepo: ChatShareRepository;
   chatShareSnapshotRepo: ChatShareSnapshotRepository;
   answerCandidateRepo: AnswerCandidateRepository;
@@ -88,6 +128,13 @@ export interface AgentInfraRepositoryBundle {
 }
 
 const sqliteTransactionQueues = new Map<string, Promise<void>>();
+
+const SQLITE_ADDITIVE_COLUMN_UPGRADES = [
+  { table: 'runs', column: 'claim_owner', definition: 'TEXT' },
+  { table: 'runs', column: 'claim_expires_at', definition: 'INTEGER' },
+  { table: 'runs', column: 'next_attempt_at', definition: 'INTEGER' },
+  { table: 'runs', column: 'attempt_count', definition: 'INTEGER NOT NULL DEFAULT 0' }
+] as const;
 
 async function withSerializedSqliteTransaction<T>(sqlitePath: string, operation: () => Promise<T>) {
   const pending = sqliteTransactionQueues.get(sqlitePath) ?? Promise.resolve();
@@ -145,10 +192,20 @@ export function createAgentInfraRepositories(mode: DbMode, db: any): AgentInfraR
   if (mode === 'sqlite' || mode === 'turso') {
     return {
       threadRepo: new SqliteThreadRepository(db),
+      workspaceRepo: new SqliteWorkspaceRepository(db),
+      agentProfileRepo: new SqliteAgentProfileRepository(db),
+      workspaceSecretRefRepo: new SqliteWorkspaceSecretRefRepository(db),
+      workspaceFileIndexRepo: new SqliteWorkspaceFileIndexRepository(db),
+      workspaceChangeSetRepo: new SqliteWorkspaceChangeSetRepository(db),
+      workspaceFileChangeRepo: new SqliteWorkspaceFileChangeRepository(db),
       runRepo: new SqliteRunRepository(db),
+      cloudAgentWorkerRepo: new SqliteCloudAgentWorkerRepository(db),
       messageRepo: new SqliteMessageRepository(db),
       toolRepo: new SqliteToolInvocationRepository(db),
       runEventRepo: new SqliteRunEventRepository(db),
+      runApprovalRequestRepo: new SqliteRunApprovalRequestRepository(db),
+      providerSessionBindingRepo: new SqliteProviderSessionBindingRepository(db),
+      providerTranscriptRepo: new SqliteProviderTranscriptRepository(db),
       chatShareRepo: new SqliteChatShareRepository(db),
       chatShareSnapshotRepo: new SqliteChatShareSnapshotRepository(db),
       answerCandidateRepo: new SqliteAnswerCandidateRepository(db),
@@ -164,10 +221,20 @@ export function createAgentInfraRepositories(mode: DbMode, db: any): AgentInfraR
 
   return {
     threadRepo: new DrizzleThreadRepository(db),
+    workspaceRepo: new DrizzleWorkspaceRepository(db),
+    agentProfileRepo: new DrizzleAgentProfileRepository(db),
+    workspaceSecretRefRepo: new DrizzleWorkspaceSecretRefRepository(db),
+    workspaceFileIndexRepo: new DrizzleWorkspaceFileIndexRepository(db),
+    workspaceChangeSetRepo: new DrizzleWorkspaceChangeSetRepository(db),
+    workspaceFileChangeRepo: new DrizzleWorkspaceFileChangeRepository(db),
     runRepo: new DrizzleRunRepository(db),
+    cloudAgentWorkerRepo: new DrizzleCloudAgentWorkerRepository(db),
     messageRepo: new DrizzleMessageRepository(db),
     toolRepo: new DrizzleToolInvocationRepository(db),
     runEventRepo: new DrizzleRunEventRepository(db),
+    runApprovalRequestRepo: new DrizzleRunApprovalRequestRepository(db),
+    providerSessionBindingRepo: new DrizzleProviderSessionBindingRepository(db),
+    providerTranscriptRepo: new DrizzleProviderTranscriptRepository(db),
     chatShareRepo: new DrizzleChatShareRepository(db),
     chatShareSnapshotRepo: new DrizzleChatShareSnapshotRepository(db),
     answerCandidateRepo: new DrizzleAnswerCandidateRepository(db),
@@ -192,9 +259,39 @@ function ensureSqliteSchema(filePath: string) {
 
   for (const statement of SQLITE_SCHEMA_STATEMENTS) {
     sqlite.exec(statement);
+    if (statement.startsWith('CREATE TABLE IF NOT EXISTS runs')) {
+      ensureSqliteAdditiveColumns(sqlite);
+    }
   }
 
   sqlite.close();
+}
+
+function ensureSqliteAdditiveColumns(sqlite: Database.Database) {
+  for (const upgrade of SQLITE_ADDITIVE_COLUMN_UPGRADES) {
+    const columns = sqlite.prepare(`PRAGMA table_info(${upgrade.table})`).all() as Array<{ name: string }>;
+    if (columns.some((column) => column.name === upgrade.column)) {
+      continue;
+    }
+
+    sqlite.exec(`ALTER TABLE ${upgrade.table} ADD COLUMN ${upgrade.column} ${upgrade.definition}`);
+  }
+}
+
+export function createSqliteDbConfig(sqlitePath: string): DbConfig {
+  const resolvedPath = path.resolve(/* turbopackIgnore: true */ sqlitePath);
+  const sqlite = new Database(resolvedPath);
+  sqlite.pragma('foreign_keys = ON');
+
+  return {
+    mode: 'sqlite',
+    db: drizzleSqlite(sqlite),
+    connectionString: `file:${resolvedPath}`,
+    sqlitePath: resolvedPath,
+    bootstrapSchema: async () => {
+      ensureSqliteSchema(resolvedPath);
+    }
+  };
 }
 
 async function ensureTursoSchema(connectionString: string, authToken?: string) {
@@ -264,17 +361,5 @@ export function createDbConfigFromEnv(): DbConfig {
     };
   }
 
-  const sqlitePath = path.resolve(/* turbopackIgnore: true */ process.cwd(), process.env.SQLITE_PATH ?? './local.db');
-  const sqlite = new Database(sqlitePath);
-  sqlite.pragma('foreign_keys = ON');
-
-  return {
-    mode: 'sqlite',
-    db: drizzleSqlite(sqlite),
-    connectionString: `file:${sqlitePath}`,
-    sqlitePath,
-    bootstrapSchema: async () => {
-      ensureSqliteSchema(sqlitePath);
-    }
-  };
+  return createSqliteDbConfig(path.resolve(/* turbopackIgnore: true */ process.cwd(), process.env.SQLITE_PATH ?? './local.db'));
 }

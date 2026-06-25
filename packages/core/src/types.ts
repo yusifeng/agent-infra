@@ -6,6 +6,28 @@ export type ToolInvocationStatus = 'pending' | 'running' | 'completed' | 'failed
 
 export type MessagePartType = 'text' | 'tool-call' | 'tool-result' | 'reasoning' | 'data';
 
+export type WorkspaceStatus = 'active' | 'archived';
+
+export type AgentProfileStatus = 'active' | 'archived';
+
+export type WorkspaceSecretRefStatus = 'active' | 'archived';
+
+export type WorkspaceSecretRefScope = 'tenant' | 'user' | 'workspace';
+
+export type WorkspaceSecretDelivery = 'env' | 'file' | 'proxy';
+
+export type WorkspaceFileKind = 'file' | 'directory';
+
+export type WorkspaceChangeSetStatus = 'pending' | 'merged' | 'discarded';
+
+export type WorkspaceFileChangeType = 'created' | 'modified' | 'deleted';
+
+export type ProviderSessionBindingStatus = 'active' | 'forked' | 'archived';
+
+export type RunApprovalRequestStatus = 'pending' | 'approved' | 'denied' | 'expired' | 'cancelled';
+
+export type CloudAgentWorkerStatus = 'active' | 'draining' | 'stopped';
+
 export type ChatShareScopeType = 'thread';
 
 export type ChatShareStatus = 'active' | 'revoked';
@@ -56,6 +78,111 @@ export interface RunUsageSummaryV1 {
 
 export type RunUsage = RunUsageSummaryV1 | Record<string, unknown>;
 
+export interface Workspace {
+  id: string;
+  appId: string;
+  userId: string;
+  title?: string | null;
+  status: WorkspaceStatus;
+  defaultForUser: boolean;
+  metadata?: Record<string, unknown> | null;
+  createdAt: Date;
+  updatedAt: Date;
+  archivedAt?: Date | null;
+}
+
+export interface AgentProfile {
+  id: string;
+  workspaceId: string;
+  name: string;
+  provider: string;
+  model?: string | null;
+  status: AgentProfileStatus;
+  defaultForWorkspace: boolean;
+  approvalPolicy?: string | null;
+  sandboxMode?: string | null;
+  toolAllowlist?: string[] | null;
+  mcpServers?: Record<string, unknown>[] | null;
+  skillRefs?: string[] | null;
+  secretRefs?: string[] | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: Date;
+  updatedAt: Date;
+  archivedAt?: Date | null;
+}
+
+export interface WorkspaceSecretRef {
+  id: string;
+  workspaceId: string;
+  name: string;
+  scope: WorkspaceSecretRefScope;
+  delivery: WorkspaceSecretDelivery;
+  status: WorkspaceSecretRefStatus;
+  refKey: string;
+  targetName?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: Date;
+  updatedAt: Date;
+  archivedAt?: Date | null;
+}
+
+export interface WorkspaceFileIndexEntry {
+  id: string;
+  workspaceId: string;
+  path: string;
+  kind: WorkspaceFileKind;
+  sizeBytes?: number | null;
+  mimeType?: string | null;
+  contentHash?: string | null;
+  previewCapability?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt?: Date | null;
+}
+
+export interface WorkspaceChangeSet {
+  id: string;
+  workspaceId: string;
+  threadId?: string | null;
+  runId?: string | null;
+  status: WorkspaceChangeSetStatus;
+  baseSnapshotId?: string | null;
+  nextSnapshotId?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: Date;
+  updatedAt: Date;
+  resolvedAt?: Date | null;
+}
+
+export interface WorkspaceFileChange {
+  id: string;
+  changeSetId: string;
+  workspaceId: string;
+  threadId?: string | null;
+  runId?: string | null;
+  path: string;
+  changeType: WorkspaceFileChangeType;
+  beforeContentHash?: string | null;
+  afterContentHash?: string | null;
+  artifactId?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: Date;
+}
+
+export interface CloudArtifactMetadataV1 {
+  schemaVersion: 1;
+  workspaceId?: string | null;
+  producedByRunId?: string | null;
+  sourcePath?: string | null;
+  contentHash?: string | null;
+  mimeType?: string | null;
+  sizeBytes?: number | null;
+  previewCapability?: string | null;
+}
+
+export type ArtifactMetadata = CloudArtifactMetadataV1 | Record<string, unknown>;
+
 export interface Thread {
   id: string;
   appId: string;
@@ -79,7 +206,28 @@ export interface Run {
   error?: string | null;
   startedAt?: Date | null;
   finishedAt?: Date | null;
+  claimOwner?: string | null;
+  claimExpiresAt?: Date | null;
+  nextAttemptAt?: Date | null;
+  attemptCount?: number;
   createdAt: Date;
+}
+
+export type RunStatusCount = Partial<Record<RunStatus, number>>;
+
+export interface CloudAgentWorker {
+  id: string;
+  appId: string;
+  queueProvider: string;
+  status: CloudAgentWorkerStatus;
+  concurrency: number;
+  activeRunIds?: string[] | null;
+  metadata?: Record<string, unknown> | null;
+  startedAt: Date;
+  lastHeartbeatAt: Date;
+  stoppedAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface AnswerCandidate {
@@ -221,6 +369,227 @@ export interface RunEvent {
   createdAt: Date;
 }
 
+export type CloudRunEventType =
+  | 'run_started'
+  | 'agent_message_delta'
+  | 'tool_call_started'
+  | 'tool_call_delta'
+  | 'tool_call_completed'
+  | 'tool_call_failed'
+  | 'file_change_detected'
+  | 'permission_requested'
+  | 'approval_resolved'
+  | 'usage_updated'
+  | 'provider_session_bound'
+  | 'provider_session_lifecycle'
+  | 'provider_session_recovery'
+  | 'secret_broker_audit'
+  | 'mcp_profile_audit'
+  | 'run_requeued'
+  | 'run_completed'
+  | 'run_failed'
+  | 'run_cancelled';
+
+export interface CloudRunEventPayloadBaseV1 {
+  schemaVersion: 1;
+  provider?: string | null;
+  model?: string | null;
+  workspaceId?: string | null;
+  threadId?: string | null;
+  runId?: string | null;
+}
+
+export interface RunStartedEventPayloadV1 extends CloudRunEventPayloadBaseV1 {
+  type: 'run_started';
+  sandboxProvider?: string | null;
+  sandboxSessionId?: string | null;
+  cwd?: string | null;
+}
+
+export interface AgentMessageDeltaEventPayloadV1 extends CloudRunEventPayloadBaseV1 {
+  type: 'agent_message_delta';
+  messageId?: string | null;
+  delta: string;
+}
+
+export interface ToolCallStartedEventPayloadV1 extends CloudRunEventPayloadBaseV1 {
+  type: 'tool_call_started';
+  toolCallId: string;
+  toolName: string;
+  input?: Record<string, unknown> | null;
+  cwd?: string | null;
+}
+
+export interface ToolCallDeltaEventPayloadV1 extends CloudRunEventPayloadBaseV1 {
+  type: 'tool_call_delta';
+  toolCallId: string;
+  stream?: 'stdout' | 'stderr' | 'patch' | 'other' | null;
+  delta: string;
+}
+
+export interface ToolCallCompletedEventPayloadV1 extends CloudRunEventPayloadBaseV1 {
+  type: 'tool_call_completed';
+  toolCallId: string;
+  output?: Record<string, unknown> | null;
+  exitCode?: number | null;
+}
+
+export interface ToolCallFailedEventPayloadV1 extends CloudRunEventPayloadBaseV1 {
+  type: 'tool_call_failed';
+  toolCallId: string;
+  error: string;
+}
+
+export interface FileChangeDetectedEventPayloadV1 extends CloudRunEventPayloadBaseV1 {
+  type: 'file_change_detected';
+  path: string;
+  changeType: 'created' | 'modified' | 'deleted';
+  toolCallId?: string | null;
+  contentHash?: string | null;
+}
+
+export interface PermissionRequestedEventPayloadV1 extends CloudRunEventPayloadBaseV1 {
+  type: 'permission_requested';
+  permissionRequestId: string;
+  action: string;
+  details?: Record<string, unknown> | null;
+}
+
+export interface ApprovalResolvedEventPayloadV1 extends CloudRunEventPayloadBaseV1 {
+  type: 'approval_resolved';
+  permissionRequestId: string;
+  decision: 'approved' | 'denied';
+  status?: 'approved' | 'denied' | 'expired' | 'cancelled' | null;
+  reason?: string | null;
+  resolvedByActorId?: string | null;
+}
+
+export interface UsageUpdatedEventPayloadV1 extends CloudRunEventPayloadBaseV1 {
+  type: 'usage_updated';
+  usage: RunUsageSummaryV1 | Record<string, unknown>;
+}
+
+export interface ProviderSessionBoundEventPayloadV1 extends CloudRunEventPayloadBaseV1 {
+  type: 'provider_session_bound';
+  provider: string;
+  providerSessionId: string;
+  providerProjectKey?: string | null;
+}
+
+export interface ProviderSessionLifecycleEventPayloadV1 extends CloudRunEventPayloadBaseV1 {
+  type: 'provider_session_lifecycle';
+  provider: string;
+  providerSessionId: string;
+  providerProjectKey?: string | null;
+  action: 'archive' | 'compact' | 'fork' | 'replay';
+  bindingStatus: ProviderSessionBindingStatus;
+  reason?: string | null;
+  actorId?: string | null;
+  replayAvailable?: boolean;
+  transcriptEntryCount?: number;
+}
+
+export interface ProviderSessionRecoveryEventPayloadV1 extends CloudRunEventPayloadBaseV1 {
+  type: 'provider_session_recovery';
+  provider: string;
+  strategy: 'archive_and_restart' | 'fork' | 'compact' | 'replay_transcript';
+  reason: string;
+  previousProviderSessionId?: string | null;
+  newProviderSessionId?: string | null;
+}
+
+export interface SecretBrokerAuditEventPayloadV1 extends CloudRunEventPayloadBaseV1 {
+  type: 'secret_broker_audit';
+  purpose: 'agent' | 'mcp' | 'tool' | 'storage';
+  refId: string;
+  refName: string;
+  refKey?: string | null;
+  delivery?: 'env' | 'file' | 'proxy' | null;
+  targetName?: string | null;
+  decision: 'issued' | 'rejected';
+  reason?: string | null;
+  issuedAt: string;
+  expiresAt?: string | null;
+}
+
+export interface McpProfileAuditEntryV1 {
+  name?: string | null;
+  transport?: string | null;
+  decision: 'enabled' | 'skipped';
+  reason?: string | null;
+  target?: string | null;
+  toolAllowlist?: string[] | null;
+}
+
+export interface SkillProfileAuditEntryV1 {
+  ref: string;
+  decision: 'enabled' | 'skipped';
+  reason?: string | null;
+  manifestPath?: string | null;
+  materialization?: 'manifest' | null;
+}
+
+export interface McpProfileAuditEventPayloadV1 extends CloudRunEventPayloadBaseV1 {
+  type: 'mcp_profile_audit';
+  profileId?: string | null;
+  executionMode: 'docker' | 'local';
+  strictMcpConfig: boolean;
+  remoteHostAllowlist?: string[] | null;
+  stdioCommandAllowlist?: string[] | null;
+  skillRefAllowlist?: string[] | null;
+  servers: McpProfileAuditEntryV1[];
+  skills: SkillProfileAuditEntryV1[];
+}
+
+export interface RunCompletedEventPayloadV1 extends CloudRunEventPayloadBaseV1 {
+  type: 'run_completed';
+  finishReason?: string | null;
+}
+
+export interface RunRequeuedEventPayloadV1 extends CloudRunEventPayloadBaseV1 {
+  type: 'run_requeued';
+  reason?: string | null;
+  requeuedByActorId?: string | null;
+  nextAttemptAt?: string | null;
+}
+
+export interface RunFailedEventPayloadV1 extends CloudRunEventPayloadBaseV1 {
+  type: 'run_failed';
+  error: string;
+}
+
+export interface RunCancelledEventPayloadV1 extends CloudRunEventPayloadBaseV1 {
+  type: 'run_cancelled';
+  reason?: string | null;
+  cancelledByActorId?: string | null;
+}
+
+export type CloudRunEventPayloadV1 =
+  | RunStartedEventPayloadV1
+  | AgentMessageDeltaEventPayloadV1
+  | ToolCallStartedEventPayloadV1
+  | ToolCallDeltaEventPayloadV1
+  | ToolCallCompletedEventPayloadV1
+  | ToolCallFailedEventPayloadV1
+  | FileChangeDetectedEventPayloadV1
+  | PermissionRequestedEventPayloadV1
+  | ApprovalResolvedEventPayloadV1
+  | UsageUpdatedEventPayloadV1
+  | ProviderSessionBoundEventPayloadV1
+  | ProviderSessionLifecycleEventPayloadV1
+  | ProviderSessionRecoveryEventPayloadV1
+  | SecretBrokerAuditEventPayloadV1
+  | McpProfileAuditEventPayloadV1
+  | RunRequeuedEventPayloadV1
+  | RunCompletedEventPayloadV1
+  | RunFailedEventPayloadV1
+  | RunCancelledEventPayloadV1;
+
+export type CloudRunEvent = Omit<RunEvent, 'type' | 'payload'> & {
+  type: CloudRunEventType;
+  payload: CloudRunEventPayloadV1;
+};
+
 export interface Message {
   id: string;
   threadId: string;
@@ -264,8 +633,58 @@ export interface Artifact {
   runId?: string | null;
   kind: string;
   uri?: string | null;
+  metadata?: ArtifactMetadata | null;
+  createdAt: Date;
+}
+
+export interface ProviderSessionBinding {
+  id: string;
+  workspaceId: string;
+  threadId: string;
+  runId?: string | null;
+  provider: string;
+  providerSessionId: string;
+  providerProjectKey?: string | null;
+  status: ProviderSessionBindingStatus;
   metadata?: Record<string, unknown> | null;
   createdAt: Date;
+  updatedAt: Date;
+  archivedAt?: Date | null;
+}
+
+export interface ProviderTranscriptEntry {
+  id: string;
+  workspaceId: string;
+  threadId?: string | null;
+  runId?: string | null;
+  provider: string;
+  providerSessionId: string;
+  providerProjectKey?: string | null;
+  providerEntryId?: string | null;
+  ordinal: number;
+  entryType: string;
+  rawJson: unknown;
+  createdAt: Date;
+}
+
+export interface RunApprovalRequest {
+  id: string;
+  workspaceId?: string | null;
+  threadId: string;
+  runId: string;
+  provider: string;
+  permissionRequestId: string;
+  action: string;
+  status: RunApprovalRequestStatus;
+  details?: Record<string, unknown> | null;
+  decision?: 'approved' | 'denied' | null;
+  decisionReason?: string | null;
+  resolvedByActorId?: string | null;
+  metadata?: Record<string, unknown> | null;
+  expiresAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  resolvedAt?: Date | null;
 }
 
 export interface ChatShare {

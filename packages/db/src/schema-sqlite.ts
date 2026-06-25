@@ -12,6 +12,103 @@ export const threads = sqliteTable('threads', {
   archivedAt: integer('archived_at', { mode: 'timestamp_ms' })
 });
 
+export const workspaces = sqliteTable(
+  'workspaces',
+  {
+    id: text('id').primaryKey(),
+    appId: text('app_id').notNull(),
+    userId: text('user_id').notNull(),
+    title: text('title'),
+    status: text('status').notNull(),
+    defaultForUser: integer('default_for_user', { mode: 'boolean' }).notNull(),
+    metadata: text('metadata', { mode: 'json' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+    archivedAt: integer('archived_at', { mode: 'timestamp_ms' })
+  },
+  (table) => ({
+    appUserIdx: index('workspaces_app_id_user_id_idx').on(table.appId, table.userId),
+    defaultUserIdx: index('workspaces_app_id_user_id_default_idx').on(table.appId, table.userId, table.defaultForUser)
+  })
+);
+
+export const agentProfiles = sqliteTable(
+  'agent_profiles',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    name: text('name').notNull(),
+    provider: text('provider').notNull(),
+    model: text('model'),
+    status: text('status').notNull(),
+    defaultForWorkspace: integer('default_for_workspace', { mode: 'boolean' }).notNull(),
+    approvalPolicy: text('approval_policy'),
+    sandboxMode: text('sandbox_mode'),
+    toolAllowlist: text('tool_allowlist', { mode: 'json' }),
+    mcpServers: text('mcp_servers', { mode: 'json' }),
+    skillRefs: text('skill_refs', { mode: 'json' }),
+    secretRefs: text('secret_refs', { mode: 'json' }),
+    metadata: text('metadata', { mode: 'json' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+    archivedAt: integer('archived_at', { mode: 'timestamp_ms' })
+  },
+  (table) => ({
+    workspaceIdx: index('agent_profiles_workspace_id_idx').on(table.workspaceId),
+    workspaceDefaultIdx: index('agent_profiles_workspace_default_idx').on(table.workspaceId, table.defaultForWorkspace)
+  })
+);
+
+export const workspaceSecretRefs = sqliteTable(
+  'workspace_secret_refs',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    name: text('name').notNull(),
+    scope: text('scope').notNull(),
+    delivery: text('delivery').notNull(),
+    status: text('status').notNull(),
+    refKey: text('ref_key').notNull(),
+    targetName: text('target_name'),
+    metadata: text('metadata', { mode: 'json' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+    archivedAt: integer('archived_at', { mode: 'timestamp_ms' })
+  },
+  (table) => ({
+    workspaceIdx: index('workspace_secret_refs_workspace_id_idx').on(table.workspaceId),
+    workspaceNameIdx: index('workspace_secret_refs_workspace_name_idx').on(table.workspaceId, table.name)
+  })
+);
+
+export const workspaceFileIndex = sqliteTable(
+  'workspace_file_index',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    path: text('path').notNull(),
+    kind: text('kind').notNull(),
+    sizeBytes: integer('size_bytes'),
+    mimeType: text('mime_type'),
+    contentHash: text('content_hash'),
+    previewCapability: text('preview_capability'),
+    metadata: text('metadata', { mode: 'json' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+    deletedAt: integer('deleted_at', { mode: 'timestamp_ms' })
+  },
+  (table) => ({
+    workspaceIdx: index('workspace_file_index_workspace_id_idx').on(table.workspaceId),
+    workspacePathUnique: uniqueIndex('workspace_file_index_workspace_path_unique').on(table.workspaceId, table.path)
+  })
+);
+
 export const runs = sqliteTable(
   'runs',
   {
@@ -27,11 +124,91 @@ export const runs = sqliteTable(
     error: text('error'),
     startedAt: integer('started_at', { mode: 'timestamp_ms' }),
     finishedAt: integer('finished_at', { mode: 'timestamp_ms' }),
+    claimOwner: text('claim_owner'),
+    claimExpiresAt: integer('claim_expires_at', { mode: 'timestamp_ms' }),
+    nextAttemptAt: integer('next_attempt_at', { mode: 'timestamp_ms' }),
+    attemptCount: integer('attempt_count').notNull().default(0),
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull()
   },
   (table) => ({
     threadIdIdx: index('runs_thread_id_idx').on(table.threadId),
-    threadTriggerMessageIdx: index('runs_thread_id_trigger_message_id_idx').on(table.threadId, table.triggerMessageId)
+    threadTriggerMessageIdx: index('runs_thread_id_trigger_message_id_idx').on(table.threadId, table.triggerMessageId),
+    statusClaimExpiresAtIdx: index('runs_status_claim_expires_at_idx').on(table.status, table.claimExpiresAt),
+    statusNextAttemptAtIdx: index('runs_status_next_attempt_at_idx').on(table.status, table.nextAttemptAt)
+  })
+);
+
+export const cloudAgentWorkers = sqliteTable(
+  'cloud_agent_workers',
+  {
+    id: text('id').primaryKey(),
+    appId: text('app_id').notNull(),
+    queueProvider: text('queue_provider').notNull(),
+    status: text('status').notNull(),
+    concurrency: integer('concurrency').notNull(),
+    activeRunIds: text('active_run_ids', { mode: 'json' }),
+    metadata: text('metadata', { mode: 'json' }),
+    startedAt: integer('started_at', { mode: 'timestamp_ms' }).notNull(),
+    lastHeartbeatAt: integer('last_heartbeat_at', { mode: 'timestamp_ms' }).notNull(),
+    stoppedAt: integer('stopped_at', { mode: 'timestamp_ms' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
+  },
+  (table) => ({
+    appStatusIdx: index('cloud_agent_workers_app_status_idx').on(table.appId, table.status),
+    heartbeatIdx: index('cloud_agent_workers_last_heartbeat_idx').on(table.lastHeartbeatAt),
+    providerIdx: index('cloud_agent_workers_provider_idx').on(table.queueProvider)
+  })
+);
+
+export const workspaceChangeSets = sqliteTable(
+  'workspace_change_sets',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    threadId: text('thread_id').references(() => threads.id),
+    runId: text('run_id').references(() => runs.id),
+    status: text('status').notNull(),
+    baseSnapshotId: text('base_snapshot_id'),
+    nextSnapshotId: text('next_snapshot_id'),
+    metadata: text('metadata', { mode: 'json' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+    resolvedAt: integer('resolved_at', { mode: 'timestamp_ms' })
+  },
+  (table) => ({
+    workspaceIdx: index('workspace_change_sets_workspace_id_idx').on(table.workspaceId),
+    runIdIdx: index('workspace_change_sets_run_id_idx').on(table.runId),
+    statusIdx: index('workspace_change_sets_status_idx').on(table.status)
+  })
+);
+
+export const workspaceFileChanges = sqliteTable(
+  'workspace_file_changes',
+  {
+    id: text('id').primaryKey(),
+    changeSetId: text('change_set_id')
+      .notNull()
+      .references(() => workspaceChangeSets.id),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    threadId: text('thread_id').references(() => threads.id),
+    runId: text('run_id').references(() => runs.id),
+    path: text('path').notNull(),
+    changeType: text('change_type').notNull(),
+    beforeContentHash: text('before_content_hash'),
+    afterContentHash: text('after_content_hash'),
+    artifactId: text('artifact_id'),
+    metadata: text('metadata', { mode: 'json' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull()
+  },
+  (table) => ({
+    changeSetIdx: index('workspace_file_changes_change_set_id_idx').on(table.changeSetId),
+    runIdIdx: index('workspace_file_changes_run_id_idx').on(table.runId),
+    workspacePathIdx: index('workspace_file_changes_workspace_path_idx').on(table.workspaceId, table.path)
   })
 );
 
@@ -367,6 +544,106 @@ export const runEvents = sqliteTable(
   })
 );
 
+export const runApprovalRequests = sqliteTable(
+  'run_approval_requests',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id').references(() => workspaces.id),
+    threadId: text('thread_id')
+      .notNull()
+      .references(() => threads.id),
+    runId: text('run_id')
+      .notNull()
+      .references(() => runs.id),
+    provider: text('provider').notNull(),
+    permissionRequestId: text('permission_request_id').notNull(),
+    action: text('action').notNull(),
+    status: text('status').notNull(),
+    detailsJson: text('details_json', { mode: 'json' }),
+    decision: text('decision'),
+    decisionReason: text('decision_reason'),
+    resolvedByActorId: text('resolved_by_actor_id'),
+    metadataJson: text('metadata_json', { mode: 'json' }),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+    resolvedAt: integer('resolved_at', { mode: 'timestamp_ms' })
+  },
+  (table) => ({
+    runIdIdx: index('run_approval_requests_run_id_idx').on(table.runId),
+    providerRequestUnique: uniqueIndex('run_approval_requests_run_provider_request_unique').on(
+      table.runId,
+      table.provider,
+      table.permissionRequestId
+    ),
+    statusExpiresAtIdx: index('run_approval_requests_status_expires_at_idx').on(table.status, table.expiresAt)
+  })
+);
+
+export const providerSessionBindings = sqliteTable(
+  'provider_session_bindings',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    threadId: text('thread_id')
+      .notNull()
+      .references(() => threads.id),
+    runId: text('run_id').references(() => runs.id),
+    provider: text('provider').notNull(),
+    providerSessionId: text('provider_session_id').notNull(),
+    providerProjectKey: text('provider_project_key'),
+    status: text('status').notNull(),
+    metadata: text('metadata', { mode: 'json' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+    archivedAt: integer('archived_at', { mode: 'timestamp_ms' })
+  },
+  (table) => ({
+    threadProviderIdx: index('provider_session_bindings_thread_provider_idx').on(table.threadId, table.provider),
+    providerSessionIdx: index('provider_session_bindings_provider_session_idx').on(
+      table.provider,
+      table.providerSessionId,
+      table.providerProjectKey
+    )
+  })
+);
+
+export const providerTranscriptEntries = sqliteTable(
+  'provider_transcript_entries',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    threadId: text('thread_id').references(() => threads.id),
+    runId: text('run_id').references(() => runs.id),
+    provider: text('provider').notNull(),
+    providerSessionId: text('provider_session_id').notNull(),
+    providerProjectKey: text('provider_project_key'),
+    providerEntryId: text('provider_entry_id'),
+    ordinal: integer('ordinal').notNull(),
+    entryType: text('entry_type').notNull(),
+    rawJson: text('raw_json', { mode: 'json' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull()
+  },
+  (table) => ({
+    providerSessionOrdinalUnique: uniqueIndex('provider_transcript_entries_session_ordinal_unique').on(
+      table.provider,
+      table.providerSessionId,
+      table.providerProjectKey,
+      table.ordinal
+    ),
+    providerSessionIdx: index('provider_transcript_entries_provider_session_idx').on(
+      table.provider,
+      table.providerSessionId,
+      table.providerProjectKey
+    ),
+    runIdIdx: index('provider_transcript_entries_run_id_idx').on(table.runId)
+  })
+);
+
 export const artifacts = sqliteTable('artifacts', {
   id: text('id').primaryKey(),
   threadId: text('thread_id')
@@ -433,6 +710,73 @@ export const SQLITE_SCHEMA_STATEMENTS = [
     updated_at INTEGER NOT NULL,
     archived_at INTEGER
   )`,
+  `CREATE TABLE IF NOT EXISTS workspaces (
+    id TEXT PRIMARY KEY,
+    app_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    title TEXT,
+    status TEXT NOT NULL,
+    default_for_user INTEGER NOT NULL,
+    metadata TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    archived_at INTEGER
+  )`,
+  'CREATE INDEX IF NOT EXISTS workspaces_app_id_user_id_idx ON workspaces(app_id, user_id)',
+  'CREATE INDEX IF NOT EXISTS workspaces_app_id_user_id_default_idx ON workspaces(app_id, user_id, default_for_user)',
+  `CREATE TABLE IF NOT EXISTS agent_profiles (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+    name TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    model TEXT,
+    status TEXT NOT NULL,
+    default_for_workspace INTEGER NOT NULL,
+    approval_policy TEXT,
+    sandbox_mode TEXT,
+    tool_allowlist TEXT,
+    mcp_servers TEXT,
+    skill_refs TEXT,
+    secret_refs TEXT,
+    metadata TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    archived_at INTEGER
+  )`,
+  'CREATE INDEX IF NOT EXISTS agent_profiles_workspace_id_idx ON agent_profiles(workspace_id)',
+  'CREATE INDEX IF NOT EXISTS agent_profiles_workspace_default_idx ON agent_profiles(workspace_id, default_for_workspace)',
+  `CREATE TABLE IF NOT EXISTS workspace_secret_refs (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+    name TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    delivery TEXT NOT NULL,
+    status TEXT NOT NULL,
+    ref_key TEXT NOT NULL,
+    target_name TEXT,
+    metadata TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    archived_at INTEGER
+  )`,
+  'CREATE INDEX IF NOT EXISTS workspace_secret_refs_workspace_id_idx ON workspace_secret_refs(workspace_id)',
+  'CREATE INDEX IF NOT EXISTS workspace_secret_refs_workspace_name_idx ON workspace_secret_refs(workspace_id, name)',
+  `CREATE TABLE IF NOT EXISTS workspace_file_index (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+    path TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    size_bytes INTEGER,
+    mime_type TEXT,
+    content_hash TEXT,
+    preview_capability TEXT,
+    metadata TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    deleted_at INTEGER
+  )`,
+  'CREATE INDEX IF NOT EXISTS workspace_file_index_workspace_id_idx ON workspace_file_index(workspace_id)',
+  'CREATE UNIQUE INDEX IF NOT EXISTS workspace_file_index_workspace_path_unique ON workspace_file_index(workspace_id, path)',
   `CREATE TABLE IF NOT EXISTS runs (
     id TEXT PRIMARY KEY,
     thread_id TEXT NOT NULL REFERENCES threads(id),
@@ -444,10 +788,66 @@ export const SQLITE_SCHEMA_STATEMENTS = [
     error TEXT,
     started_at INTEGER,
     finished_at INTEGER,
+    claim_owner TEXT,
+    claim_expires_at INTEGER,
+    next_attempt_at INTEGER,
+    attempt_count INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL
   )`,
   'CREATE INDEX IF NOT EXISTS runs_thread_id_idx ON runs(thread_id)',
   'CREATE INDEX IF NOT EXISTS runs_thread_id_trigger_message_id_idx ON runs(thread_id, trigger_message_id)',
+  'CREATE INDEX IF NOT EXISTS runs_status_claim_expires_at_idx ON runs(status, claim_expires_at)',
+  'CREATE INDEX IF NOT EXISTS runs_status_next_attempt_at_idx ON runs(status, next_attempt_at)',
+  `CREATE TABLE IF NOT EXISTS cloud_agent_workers (
+    id TEXT PRIMARY KEY,
+    app_id TEXT NOT NULL,
+    queue_provider TEXT NOT NULL,
+    status TEXT NOT NULL,
+    concurrency INTEGER NOT NULL,
+    active_run_ids TEXT,
+    metadata TEXT,
+    started_at INTEGER NOT NULL,
+    last_heartbeat_at INTEGER NOT NULL,
+    stopped_at INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  'CREATE INDEX IF NOT EXISTS cloud_agent_workers_app_status_idx ON cloud_agent_workers(app_id, status)',
+  'CREATE INDEX IF NOT EXISTS cloud_agent_workers_last_heartbeat_idx ON cloud_agent_workers(last_heartbeat_at)',
+  'CREATE INDEX IF NOT EXISTS cloud_agent_workers_provider_idx ON cloud_agent_workers(queue_provider)',
+  `CREATE TABLE IF NOT EXISTS workspace_change_sets (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+    thread_id TEXT REFERENCES threads(id),
+    run_id TEXT REFERENCES runs(id),
+    status TEXT NOT NULL,
+    base_snapshot_id TEXT,
+    next_snapshot_id TEXT,
+    metadata TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    resolved_at INTEGER
+  )`,
+  'CREATE INDEX IF NOT EXISTS workspace_change_sets_workspace_id_idx ON workspace_change_sets(workspace_id)',
+  'CREATE INDEX IF NOT EXISTS workspace_change_sets_run_id_idx ON workspace_change_sets(run_id)',
+  'CREATE INDEX IF NOT EXISTS workspace_change_sets_status_idx ON workspace_change_sets(status)',
+  `CREATE TABLE IF NOT EXISTS workspace_file_changes (
+    id TEXT PRIMARY KEY,
+    change_set_id TEXT NOT NULL REFERENCES workspace_change_sets(id),
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+    thread_id TEXT REFERENCES threads(id),
+    run_id TEXT REFERENCES runs(id),
+    path TEXT NOT NULL,
+    change_type TEXT NOT NULL,
+    before_content_hash TEXT,
+    after_content_hash TEXT,
+    artifact_id TEXT,
+    metadata TEXT,
+    created_at INTEGER NOT NULL
+  )`,
+  'CREATE INDEX IF NOT EXISTS workspace_file_changes_change_set_id_idx ON workspace_file_changes(change_set_id)',
+  'CREATE INDEX IF NOT EXISTS workspace_file_changes_run_id_idx ON workspace_file_changes(run_id)',
+  'CREATE INDEX IF NOT EXISTS workspace_file_changes_workspace_path_idx ON workspace_file_changes(workspace_id, path)',
   `CREATE TABLE IF NOT EXISTS messages (
     id TEXT PRIMARY KEY,
     thread_id TEXT NOT NULL REFERENCES threads(id),
@@ -646,6 +1046,61 @@ export const SQLITE_SCHEMA_STATEMENTS = [
   'CREATE INDEX IF NOT EXISTS run_events_run_id_idx ON run_events(run_id)',
   'CREATE INDEX IF NOT EXISTS run_events_thread_id_idx ON run_events(thread_id)',
   'CREATE UNIQUE INDEX IF NOT EXISTS run_events_run_id_seq_unique ON run_events(run_id, seq)',
+  `CREATE TABLE IF NOT EXISTS run_approval_requests (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT REFERENCES workspaces(id),
+    thread_id TEXT NOT NULL REFERENCES threads(id),
+    run_id TEXT NOT NULL REFERENCES runs(id),
+    provider TEXT NOT NULL,
+    permission_request_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    status TEXT NOT NULL,
+    details_json TEXT,
+    decision TEXT,
+    decision_reason TEXT,
+    resolved_by_actor_id TEXT,
+    metadata_json TEXT,
+    expires_at INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    resolved_at INTEGER
+  )`,
+  'CREATE INDEX IF NOT EXISTS run_approval_requests_run_id_idx ON run_approval_requests(run_id)',
+  'CREATE UNIQUE INDEX IF NOT EXISTS run_approval_requests_run_provider_request_unique ON run_approval_requests(run_id, provider, permission_request_id)',
+  'CREATE INDEX IF NOT EXISTS run_approval_requests_status_expires_at_idx ON run_approval_requests(status, expires_at)',
+  `CREATE TABLE IF NOT EXISTS provider_session_bindings (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+    thread_id TEXT NOT NULL REFERENCES threads(id),
+    run_id TEXT REFERENCES runs(id),
+    provider TEXT NOT NULL,
+    provider_session_id TEXT NOT NULL,
+    provider_project_key TEXT,
+    status TEXT NOT NULL,
+    metadata TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    archived_at INTEGER
+  )`,
+  'CREATE INDEX IF NOT EXISTS provider_session_bindings_thread_provider_idx ON provider_session_bindings(thread_id, provider)',
+  'CREATE INDEX IF NOT EXISTS provider_session_bindings_provider_session_idx ON provider_session_bindings(provider, provider_session_id, provider_project_key)',
+  `CREATE TABLE IF NOT EXISTS provider_transcript_entries (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(id),
+    thread_id TEXT REFERENCES threads(id),
+    run_id TEXT REFERENCES runs(id),
+    provider TEXT NOT NULL,
+    provider_session_id TEXT NOT NULL,
+    provider_project_key TEXT,
+    provider_entry_id TEXT,
+    ordinal INTEGER NOT NULL,
+    entry_type TEXT NOT NULL,
+    raw_json TEXT,
+    created_at INTEGER NOT NULL
+  )`,
+  'CREATE UNIQUE INDEX IF NOT EXISTS provider_transcript_entries_session_ordinal_unique ON provider_transcript_entries(provider, provider_session_id, provider_project_key, ordinal)',
+  'CREATE INDEX IF NOT EXISTS provider_transcript_entries_provider_session_idx ON provider_transcript_entries(provider, provider_session_id, provider_project_key)',
+  'CREATE INDEX IF NOT EXISTS provider_transcript_entries_run_id_idx ON provider_transcript_entries(run_id)',
   `CREATE TABLE IF NOT EXISTS artifacts (
     id TEXT PRIMARY KEY,
     thread_id TEXT NOT NULL REFERENCES threads(id),

@@ -11,9 +11,21 @@ import type {
   MessagePartType,
   MessageRole,
   RunFeedbackValue,
+  RunApprovalRequestStatus,
   RunUsageSummaryV1,
   RunStatus,
-  ToolInvocationStatus
+  ToolInvocationStatus,
+  WorkspaceStatus,
+  AgentProfileStatus,
+  WorkspaceChangeSetStatus,
+  WorkspaceFileChangeType,
+  WorkspaceFileKind,
+  WorkspaceSecretDelivery,
+  WorkspaceSecretRefScope,
+  WorkspaceSecretRefStatus,
+  ProviderSessionBindingStatus,
+  CloudRunEventPayloadV1,
+  ArtifactMetadata
 } from '@agent-infra/core';
 
 export type IsoDateString = string;
@@ -28,6 +40,119 @@ export interface ThreadDto {
   createdAt: IsoDateString;
   updatedAt: IsoDateString;
   archivedAt?: IsoDateString | null;
+}
+
+export interface WorkspaceDto {
+  id: string;
+  appId: string;
+  userId: string;
+  title?: string | null;
+  status: WorkspaceStatus;
+  defaultForUser: boolean;
+  metadata?: Record<string, unknown> | null;
+  createdAt: IsoDateString;
+  updatedAt: IsoDateString;
+  archivedAt?: IsoDateString | null;
+}
+
+export interface AgentProfileDto {
+  id: string;
+  workspaceId: string;
+  name: string;
+  provider: string;
+  model?: string | null;
+  status: AgentProfileStatus;
+  defaultForWorkspace: boolean;
+  approvalPolicy?: string | null;
+  sandboxMode?: string | null;
+  toolAllowlist?: string[] | null;
+  mcpServers?: Record<string, unknown>[] | null;
+  skillRefs?: string[] | null;
+  secretRefs?: string[] | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: IsoDateString;
+  updatedAt: IsoDateString;
+  archivedAt?: IsoDateString | null;
+}
+
+export interface WorkspaceSecretRefDto {
+  id: string;
+  workspaceId: string;
+  name: string;
+  scope: WorkspaceSecretRefScope;
+  delivery: WorkspaceSecretDelivery;
+  status: WorkspaceSecretRefStatus;
+  refKey: string;
+  targetName?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: IsoDateString;
+  updatedAt: IsoDateString;
+  archivedAt?: IsoDateString | null;
+}
+
+export interface WorkspaceFileIndexEntryDto {
+  id: string;
+  workspaceId: string;
+  path: string;
+  kind: WorkspaceFileKind;
+  sizeBytes?: number | null;
+  mimeType?: string | null;
+  contentHash?: string | null;
+  previewCapability?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: IsoDateString;
+  updatedAt: IsoDateString;
+  deletedAt?: IsoDateString | null;
+}
+
+export interface WorkspaceChangeSetDto {
+  id: string;
+  workspaceId: string;
+  threadId?: string | null;
+  runId?: string | null;
+  status: WorkspaceChangeSetStatus;
+  baseSnapshotId?: string | null;
+  nextSnapshotId?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: IsoDateString;
+  updatedAt: IsoDateString;
+  resolvedAt?: IsoDateString | null;
+}
+
+export interface WorkspaceFileChangeDto {
+  id: string;
+  changeSetId: string;
+  workspaceId: string;
+  threadId?: string | null;
+  runId?: string | null;
+  path: string;
+  changeType: WorkspaceFileChangeType;
+  beforeContentHash?: string | null;
+  afterContentHash?: string | null;
+  artifactId?: string | null;
+  metadata?: Record<string, unknown> | null;
+  diff?: WorkspaceFileChangeDiffDto | null;
+  createdAt: IsoDateString;
+}
+
+export interface WorkspaceFileChangeDiffDto {
+  status: 'available' | 'unavailable';
+  format?: 'unified' | null;
+  reason?: string | null;
+  beforePath?: string | null;
+  afterPath?: string | null;
+  unifiedDiff?: string | null;
+  truncated?: boolean;
+}
+
+export interface ArtifactDto {
+  id: string;
+  threadId: string;
+  runId?: string | null;
+  kind: string;
+  uri?: string | null;
+  metadata?: ArtifactMetadata | null;
+  createdAt: IsoDateString;
 }
 
 export type RunUsageDto = RunUsageSummaryV1 | Record<string, unknown>;
@@ -113,6 +238,26 @@ export interface RunFeedbackDto {
   value: RunFeedbackValue;
   createdAt: IsoDateString;
   updatedAt: IsoDateString;
+}
+
+export interface RunApprovalRequestDto {
+  id: string;
+  workspaceId?: string | null;
+  threadId: string;
+  runId: string;
+  provider: string;
+  permissionRequestId: string;
+  action: string;
+  status: RunApprovalRequestStatus;
+  details?: Record<string, unknown> | null;
+  decision?: 'approved' | 'denied' | null;
+  decisionReason?: string | null;
+  resolvedByActorId?: string | null;
+  metadata?: Record<string, unknown> | null;
+  expiresAt?: IsoDateString | null;
+  createdAt: IsoDateString;
+  updatedAt: IsoDateString;
+  resolvedAt?: IsoDateString | null;
 }
 
 export interface DatasetDto {
@@ -341,6 +486,111 @@ export interface RunEventDto {
   createdAt: IsoDateString;
 }
 
+export interface CloudRunEventDto extends Omit<RunEventDto, 'type' | 'payload'> {
+  type: CloudRunEventPayloadV1['type'];
+  payload: CloudRunEventPayloadV1;
+}
+
+export interface ProviderSessionBindingDto {
+  id: string;
+  workspaceId: string;
+  threadId: string;
+  runId?: string | null;
+  provider: string;
+  providerSessionId: string;
+  providerProjectKey?: string | null;
+  status: ProviderSessionBindingStatus;
+  metadata?: Record<string, unknown> | null;
+  createdAt: IsoDateString;
+  updatedAt: IsoDateString;
+  archivedAt?: IsoDateString | null;
+}
+
+export interface ProviderTranscriptEntryDto {
+  id: string;
+  workspaceId: string;
+  threadId?: string | null;
+  runId?: string | null;
+  provider: string;
+  providerSessionId: string;
+  providerProjectKey?: string | null;
+  providerEntryId?: string | null;
+  ordinal: number;
+  entryType: string;
+  rawJson: unknown;
+  createdAt: IsoDateString;
+}
+
+export interface ProviderTranscriptSummaryDto {
+  entryCount: number;
+  entryTypes: Record<string, number>;
+  firstOrdinal: number | null;
+  lastOrdinal: number | null;
+  lastRunId: string | null;
+}
+
+export interface ProviderTranscriptReplayEntryRefDto {
+  entryType: string;
+  ordinal: number;
+  providerEntryId: string | null;
+  runId: string | null;
+  summary?: string | null;
+}
+
+export interface ProviderTranscriptReplayPlanDto {
+  available: boolean;
+  entryCount: number;
+  entries: ProviderTranscriptReplayEntryRefDto[];
+  fromOrdinal: number | null;
+  sourceRunIds: string[];
+  toOrdinal: number | null;
+}
+
+export interface ProviderSessionRecommendedActionDto {
+  action: 'resume' | 'archive_and_restart' | 'fork' | 'compact' | 'replay_transcript';
+  reason: string;
+  status: 'manual' | 'planned' | 'supported';
+}
+
+export interface ProviderSessionSnapshotDto {
+  binding: ProviderSessionBindingDto;
+  replayPlan: ProviderTranscriptReplayPlanDto;
+  recommendedActions: ProviderSessionRecommendedActionDto[];
+  transcriptSummary: ProviderTranscriptSummaryDto;
+}
+
+export interface ProviderSessionRecoveryStrategyDto {
+  action: 'resume' | 'archive_and_restart' | 'fork' | 'compact' | 'replay_transcript';
+  status: 'manual' | 'planned' | 'supported';
+  notes?: string | null;
+}
+
+export interface ProviderSessionRecoveryProviderManifestDto {
+  provider: string;
+  strategies: ProviderSessionRecoveryStrategyDto[];
+}
+
+export interface ProviderSessionRecoveryReportDto {
+  schemaVersion: 1;
+  threadId: string;
+  providerManifests: ProviderSessionRecoveryProviderManifestDto[];
+  sessions: ProviderSessionSnapshotDto[];
+  lifecycleEvents: CloudRunEventDto[];
+  recoveryEvents: CloudRunEventDto[];
+  sourceRuns: RunDto[];
+  strategyCounts: Record<string, number>;
+}
+
+export interface RunObservabilityDto {
+  schemaVersion: 1;
+  run: RunDto;
+  events: CloudRunEventDto[];
+  approvalRequests: RunApprovalRequestDto[];
+  toolInvocations: ToolInvocationDto[];
+  workspaceFileChanges: WorkspaceFileChangeDto[];
+  providerTranscript: ProviderTranscriptEntryDto[];
+}
+
 export interface RunTimelineProjectionDto {
   schemaVersion: 1;
   items: RunTimelineItemDto[];
@@ -544,6 +794,11 @@ export interface SetRunFeedbackRequestDto {
   value: RunFeedbackValue;
 }
 
+export interface ResolveRunApprovalRequestDto {
+  decision: 'approved' | 'denied';
+  reason?: string | null;
+}
+
 export interface CreateDatasetRequestDto {
   name: string;
   description?: string | null;
@@ -650,6 +905,21 @@ export interface EvalRunCompareTriageResponseDto {
 
 export interface RunFeedbackResponseDto {
   runFeedback?: RunFeedbackDto | null;
+  error?: string;
+}
+
+export interface RunApprovalRequestsResponseDto {
+  approvalRequests?: RunApprovalRequestDto[];
+  error?: string;
+}
+
+export interface RunApprovalRequestResponseDto {
+  approvalRequest?: RunApprovalRequestDto;
+  error?: string;
+}
+
+export interface CancelRunResponseDto {
+  run?: RunDto;
   error?: string;
 }
 
