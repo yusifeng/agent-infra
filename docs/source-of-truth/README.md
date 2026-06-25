@@ -58,6 +58,10 @@
   - durable transcript pagination 的 `threadId + seq` cursor 基础、
     `limit/before/after` 查询语义、`pageInfo` 边界、分层职责，
     以及 live overlay 与 durable page window 的关系
+- `cloud-agent-runtime-model.md`
+  - 云端 Agent Runtime 的 product thread、run、provider session binding、
+    raw provider transcript、normalized runtime events、workspace/sandbox、
+    Docker lifecycle、provider 差异、secret/MCP/skill 和 recovery 边界
 
 ## 不适合放在这里的内容
 

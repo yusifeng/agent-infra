@@ -281,6 +281,10 @@ approval、sandbox 和 tracing 上发生大量重叠。
   programmatic Codex CLI workflows/CI 更适合 API key 方式。Codex 会把登录信息缓存在
   `~/.codex/auth.json` 或 OS credential store；如果使用 file storage，应把
   `auth.json` 当成 secret。
+- 2026-06-25 新增本地开发验证路径：`CODEX_AUTH_MODE=codex-home` + `CODEX_HOME`
+  可以从本机 Codex 登录目录复制 `auth.json` 到当前 provider config dir。这个路径只
+  复制 auth 文件，不复制本机 `config.toml`、MCP、plugin 或 project trust 设置；它
+  只用于本地 smoke/web 验证，不是正式多租户 secret/auth 策略。
 
 这些事实落到我们的 provider 层，映射应是：
 
@@ -315,14 +319,15 @@ approval、sandbox 和 tracing 上发生大量重叠。
 - `packages/cloud-agent-runtime` 已经有 `CodexAgentAdapter` 雏形，也已经依赖
   `@openai/codex-sdk`。它目前覆盖了 start/resume、`runStreamed()`、raw transcript
   保存、agent message、command execution、MCP tool call 和 file change 的基本映射。
-- `apps/cloud-agent-next-web` 还没有真正接通 Codex。`prepareCloudAgentTurn()` 在
-  `provider === "codex"` 时仍返回 fallback 文案，provider picker 也仍把 Codex 标为
-  planned。
-- 现有 `CodexAgentAdapter` 需要先做类型/行为收口，不能直接认为已经完成：
-  新 thread 首个 `provider_session_bound` 的发出时机要验证；`turnOptions.signal`
-  是否应该接 `AbortController` 要补齐；`item.updated` 是否需要投影中间进度要明确；
-  `turn.completed.usage` 目前没有 normalized event；authentication/baseUrl/configDir
-  还没有接入 cloud Next app 的 provider config。
+- `apps/cloud-agent-next-web` 已经把 Codex 接入 `prepareCloudAgentTurn()` 的真实
+  provider path。Codex local adapter 和 Docker adapter 都能通过同一套
+  `ProviderSessionBinding`、`ProviderTranscriptStore` 和 normalized runtime events
+  进入 app 主链路。
+- 现有 `CodexAgentAdapter` 仍需要类型/行为收口，不能直接认为已经完成：新 thread
+  首个 `provider_session_bound` 的发出时机要持续测试；`item.updated` 是否需要投影
+  中间进度要明确；usage projection 需要进入 typed runtime event；authentication、
+  baseUrl、configDir 和 `codex-home` dev auth materialization 需要从“可运行”进一步
+  收成清晰的 provider config/auth boundary。
 - Codex SDK 是 CLI wrapper，所以接入 Docker 时不能只把 npm SDK 装在宿主机。
   正确的 sandbox 路径应类似 Claude Docker adapter：容器内安装 SDK/CLI，容器内
   `CODEX_HOME` / config dir / sessions 持久到隔离 provider home，workspace mount
@@ -339,30 +344,128 @@ approval、sandbox 和 tracing 上发生大量重叠。
   一个 Responses-compatible gateway/adapter；直接把 Claude 的
   `https://api.deepseek.com/anthropic` 或 DeepSeek OpenAI Chat base URL 填给 Codex
   不足以跑通。
+- 2026-06-25 随后新增 `CODEX_AUTH_MODE=codex-home` 本机 Codex 登录复用路径后，
+  Codex local smoke 和 Docker smoke 都已经可以跑通。Docker smoke 验证了 Codex
+  SDK/CLI 在容器内执行，公开 cwd 为 `/workspace`，并能产生 provider session id、
+  raw transcript 和 normalized command execution events。该路径只用于本地开发和
+  架构验证，不是正式 secret/auth 策略。
 
 接下来代码切片建议：
 
-1. **先收紧 package adapter**：基于当前安装的 `@openai/codex-sdk` 类型，给
+1. **已完成：先收紧 package adapter**：基于当前安装的 `@openai/codex-sdk` 类型，给
    `CodexAgentAdapter` 加 deterministic fake-client tests，覆盖 new thread binding、
    resume、agent message、command execution、file change、MCP call、turn failure、
    timeout/abort、raw transcript append。
-2. **再加 Codex config resolver**：类似 `resolveClaudeAgentConfig`，集中读取
+2. **已完成：再加 Codex config resolver**：类似 `resolveClaudeAgentConfig`，集中读取
    `OPENAI_API_KEY` / `CODEX_API_KEY`、base URL、model、reasoning effort、
    sandbox mode、approval policy、web search/network、`CODEX_HOME` / config dir、
    env allowlist。默认低成本、低推理；不要在 smoke 中默认高价模型或高 reasoning。
-3. **接 app provider factory**：把 `prepareCloudAgentTurn()` 里的 Codex fallback
-   替换为真实 `CodexAgentAdapter` local dev 路径，同时把 transcript store、
-   provider session binding、workspace path、secret env、profile audit 接入同一套
-   app runtime。此时明确 local 不是隔离路径。
-4. **补 Codex smoke**：用最小 prompt 验证 thread id 持久化、第二 turn resume、
+3. **已完成：接 app provider factory**：把 `prepareCloudAgentTurn()` 里的 Codex
+   fallback 替换为真实 provider adapter 路径，同时把 transcript store、provider
+   session binding、workspace path、secret env 接入同一套 app runtime。`local`
+   明确是不隔离开发逃生口；默认执行面可以走 Docker。
+4. **部分完成：补 Codex smoke**：用最小 prompt 验证 thread id 持久化、第二 turn resume、
    raw transcript、normalized run events、usage/raw event 保存。若真实 SDK auth
-   不可用，至少保留 fake-client deterministic tests 和 fail-fast diagnostics。
-5. **做 DockerCodexAgentAdapter**：构建 Codex runtime image，让 SDK/CLI 在容器内跑，
+   不可用，至少保留 fake-client deterministic tests 和 fail-fast diagnostics。当前
+   local/docker smoke 都已证明 DeepSeek 直连会卡在 Responses protocol 404。
+5. **已完成基础版：做 DockerCodexAgentAdapter**：构建 Codex runtime image，让 SDK/CLI 在容器内跑，
    `pwd` 返回 `/workspace`，写文件只进入用户 workspace mount，Codex home/session
-   只进入隔离 provider config dir，secret 只通过 SecretBroker 注入。
+   只进入隔离 provider config dir，secret 只通过 SecretBroker 注入。2026-06-25
+   Docker smoke 预检已验证容器 `pwd === /workspace`；随后 Codex SDK 直连 DeepSeek
+   失败于 `wss://api.deepseek.com/responses` 404，属于 provider protocol 不匹配。
 6. **再验证 Codex 横向反证**：同一产品 `Thread / Run / Message / RunEvent /
    ToolInvocation / ProviderTranscript / WorkspaceChange` 链路能同时解释 Claude 和
    Codex；如果某个字段只有 Claude 能表达，再回到 provider-neutral type 收口。
+
+### 2026-06-25 Refactor Baseline
+
+这次整理不是继续扩功能，而是把已经跑起来的 Claude + Codex 双 provider 路径收成
+一条更清楚的 runtime 标准路径。当前应该按下面边界执行：
+
+| 层级 | 当前职责 | 整理方向 |
+| --- | --- | --- |
+| `apps/cloud-agent-next-web` routes | Next request/response、临时登录、owner/thread 检查、SSE/stream attach、错误映射 | route 变薄，把 message POST、event replay/follow 和 worker orchestration 下沉到 app-local service |
+| `apps/cloud-agent-next-web` runtime composition | 读取 env、解析 profile/MCP/skills/secrets、选择 local/docker adapter、接 DB stores | 先 app-local 拆分 `agent-runtime.ts`，稳定后再移动纯 helper 到 package |
+| `packages/cloud-agent-runtime` provider layer | `AgentAdapter`、Claude/Codex local adapters、Docker adapters、transcript store interface、sandbox/storage/secret/permission types | 强化 typed runtime events，抽共享 Docker process plumbing，保留 provider runner 私有协议 |
+| provider native SDK | Claude Code SDK、Codex SDK/CLI 的 agent loop、native resume/thread/session、raw events | 只作为 execution engine 和 provider-owned transcript/resume 资料，不成为产品主数据 |
+| durable app/db facts | `Thread`、`Run`、`Message`、`RunEvent`、`ToolInvocation`、`ProviderSessionBinding`、`ProviderTranscript`、workspace diff/index | 继续作为跨 SDK 的控制面和审计事实 |
+
+当前已确认的 provider/sandbox 状态：
+
+- Claude local path 是不隔离开发逃生口；Docker Claude path 才是 `/workspace`
+  隔离验证主线。
+- Codex local path 同样是不隔离开发逃生口；Docker Codex path 已验证容器内
+  `pwd === /workspace`，并通过 `codex-home` dev auth 完成本地 smoke。
+- `codex-home` 只复制本机 Codex 登录 `auth.json` 到 provider config dir，不复制
+  宿主 `config.toml`、MCP、plugin 或 project trust 设置；它必须继续被视为 dev-only
+  auth materializer。
+- Docker smoke 的默认临时目录放在仓库根 `.tmp/cloud-agent-runtime/...`，而不是
+  package 内 `.tmp` 或 macOS `/tmp`/`/var/folders`。这样既避免 Vitest 误发现 smoke
+  临时文件，也能保证 Docker Desktop/Colima 可以 bind mount。
+- Claude/Codex Docker adapters 已共享 `docker-agent-process` 的 Docker args、mount、
+  env、stdout/stderr streaming、timeout、container name 和 guest path normalization
+  基础设施；provider runner IPC 仍然分开，Claude 继续消费 `SDKMessage`，Codex
+  继续消费 `ThreadEvent`。
+- raw provider transcript 必须继续写 `ProviderTranscriptStore`；UI 和 app 主链路
+  应消费 normalized `RunEvent` / `Message` / `ToolInvocation`。
+- 多个 thread 默认共享同一用户 workspace；未来需要 private run workspace 时，
+  应通过 workspace scope policy 增加覆盖，而不是把当前 thread id 写死为 workspace
+  目录名。
+- `apps/cloud-agent-next-web/lib/agent-runtime.ts` 已拆成 app-local runtime modules：
+  `agent-runtime-scope.ts` 管 paths/scope/credentials materialization，
+  `agent-runtime-secrets.ts` 管 workspace secret refs 和 file/env delivery，
+  `agent-runtime-profile.ts` 管 profile/MCP/skills/audit，
+  `agent-runtime-provider-factory.ts` 管 Claude/Codex local/docker adapter 创建，
+  `agent-runtime-config.ts` 管 execution mode/timeouts/Codex inner sandbox，
+  `agent-runtime-continuity.ts` 管 provider session replay/compact continuity。主文件
+  现在保留 turn composition、fallback streaming 和 provider 分支编排。
+
+接下来整理优先级：
+
+1. 先补 characterization 和文档基线，避免在不知道当前行为的情况下搬代码。
+2. 先强化 `AgentRuntimeEvent` 的 typed builders，让 Claude/Codex mapper 进入同一
+   normalized event contract。
+3. 再抽 Docker command/mount/env/stdout JSONL/timeout 等共享执行 plumbing，但不要
+   合并 Claude/Codex runner IPC。
+4. 然后 app-local 拆分 `agent-runtime.ts`、message route、event stream 和 worker
+   orchestration。
+5. 最后收口 provider session recovery、permission/approval、secret/MCP/profile
+   边界，并把稳定事实提升到 `docs/source-of-truth`。
+
+当前基线验证命令：
+
+```bash
+PATH=/Users/david/.nvm/versions/node/v22.17.1/bin:$PATH \
+  pnpm --filter @agent-infra/cloud-agent-runtime test
+
+PATH=/Users/david/.nvm/versions/node/v22.17.1/bin:$PATH \
+  pnpm --filter @agent-infra/cloud-agent-runtime typecheck
+
+PATH=/Users/david/.nvm/versions/node/v22.17.1/bin:$PATH \
+  pnpm --filter cloud-agent-next-web typecheck
+
+PATH=/Users/david/.nvm/versions/node/v22.17.1/bin:/opt/homebrew/bin:$PATH \
+  CODEX_AUTH_MODE=codex-home \
+  CODEX_HOME=/Users/david/.codex \
+  CODEX_AGENT_TIMEOUT_MS=60000 \
+  pnpm --filter @agent-infra/cloud-agent-runtime smoke:codex
+
+PATH=/Users/david/.nvm/versions/node/v22.17.1/bin:/opt/homebrew/bin:$PATH \
+  CODEX_AUTH_MODE=codex-home \
+  CODEX_HOME=/Users/david/.codex \
+  CODEX_AGENT_TIMEOUT_MS=90000 \
+  pnpm --filter @agent-infra/cloud-agent-runtime smoke:codex:docker
+```
+
+2026-06-25 当前结果：runtime package tests、runtime typecheck、cloud Next app
+typecheck、Claude local smoke、Claude Docker smoke、app Codex streamed path 均通过。
+Codex local smoke 和 Codex Docker smoke 在当前 shell env 下走 DeepSeek fallback，失败于
+`wss://api.deepseek.com/responses` 404；DeepSeek 当前 OpenAI-compatible API 是
+Chat Completions，而 Codex SDK 请求 Responses protocol。Codex Docker smoke 的容器
+preflight 已证明 `pwd === /workspace`。Claude Docker smoke 通过 DeepSeek
+Anthropic-compatible endpoint 与 `deepseek-v4-flash` 验证了 `Bash`、`Read`、
+`Edit`、`Write`，provider session JSONL 存在于隔离 provider config dir，
+workspace `pwd === /workspace`。
 
 已核对的主要资料：
 
@@ -1814,6 +1917,163 @@ client 测，再做真实 Claude/Codex smoke。
 SDK-neutral event/store、sandbox/worker 执行面、session resume、SecretBroker、
 permission bridge、workspace diff 和后端 observability 做成稳定边界。信任等级、
 网络策略、容器生命周期仍会影响安全验收，但不阻塞第一版本地/内部 MVP 继续推进。
+
+## 2026-06-25 Cleanup 进度与 recovery 缺口
+
+当前 cleanup 已经把几个容易失控的 app-local 文件拆开：`agent-runtime.ts` 只保留
+turn composition，message route 的 POST orchestration 移到
+`thread-message-route-service.ts`，run event replay/live attach 复用
+`run-event-follow-stream.ts`，worker 的 job loading、attempt execution、failure
+handling、lease/retry、final message assembly 和 provider session recovery 判断也已
+拆成独立模块。
+
+provider session recovery 现在的边界是：
+
+- `provider-session-manifest.ts` 保存各 provider 支持/计划中的 recovery action。
+- `provider-transcript-replay.ts` 只负责 raw transcript summary 与 replay plan
+  构建。
+- `provider-session-store.ts` 继续负责 owner 校验、DB transition、lifecycle event
+  写入和 DTO/report 拼装。
+- `provider-session-recovery.ts` 负责 worker 在 resume 失败时如何选择
+  `archive_and_restart` / `compact` / `replay_transcript` 策略。
+
+还没有被真实 run 证明的 recovery 缺口：
+
+1. 同一个产品 thread 的第二条消息是否一定带上 provider-native resume id。
+2. dev server 重启后，DB 中的 provider binding 与 provider config home / JSONL /
+   Codex sessions 是否能共同恢复同一 provider session。
+3. Docker mode 下 config home volume 是否稳定到足以支持 resume，而不是只保存了
+   DB binding。
+4. resume 失败后的 archive-and-restart fallback 是否只触发一次，且事件序列足够解释
+   旧 binding 为什么被归档。
+5. replay/compact 目前是 control-plane metadata，不是 provider-native transcript
+   injection；在真实 provider-specific replay 实现前，不能把它当完整恢复能力。
+
+## 2026-06-25 Permission / Approval 边界
+
+当前 provider-neutral approval 事实是 `permission_requested` 与
+`approval_resolved` 事件，加上 `run_approval_requests` 持久化表。Claude adapter 已经
+可以通过 Claude Agent SDK 的 permission callback / Docker runner permission bridge
+接入这套 durable approval bridge：provider 发出 permission request，app 写入 pending
+approval，UI/API 决策后 broker 返回 allow/deny，adapter 再继续或失败。
+
+Codex 的边界不能简单照搬 Claude 的 `canUseTool` 形态。官方 Codex 文档把 sandbox 和
+approval 分成两层：sandbox/permission profile 定义技术边界，approval policy 定义何时
+越界需要请求审批。Codex 的常规控制面应先通过 `CODEX_SANDBOX_MODE`、
+`CODEX_APPROVAL_POLICY`、未来 permission profile / config materialization 表达。对
+Codex 来说，第一版 provider-neutral 事件可以继续记录 approval outcome，但不应该假设
+Codex SDK 会像 Claude 一样给我们每个工具调用一个自定义 `canUseTool` callback。
+
+因此当前策略是：
+
+- Claude 继续作为 durable permission bridge 的参考实现。
+- Codex 第一版以 provider config 的 sandbox/approval policy 约束执行边界。
+- 如果 Codex 后续 SDK/CLI 暴露结构化 approval request，再映射到同一套
+  `permission_requested` / `approval_resolved` 事件。
+- dev allow / non-interactive mode 必须通过 env/config 显式开启，并且在 run event 或
+  provider diagnostics 中可追踪；不能用隐藏默认值绕过审计。
+- approval-required mode 只有在 UI/API 能 resolve pending request 时才能作为默认模式。
+
+已核对的 Codex 官方资料包括：
+
+- https://developers.openai.com/codex/permissions
+- https://developers.openai.com/codex/agent-approvals-security
+- https://developers.openai.com/codex/concepts/sandboxing
+- https://developers.openai.com/codex/noninteractive
+- https://developers.openai.com/codex/config-reference
+
+## 2026-06-25 Runtime event contract
+
+provider adapter 输出两层事实：raw provider transcript 与 normalized runtime events。raw
+transcript 用于 provider-native debug/resume；normalized runtime events 用于 app
+持久化、stream、tool trace、approval、workspace diff 和 observability。
+
+provider adapter 的 required events：
+
+- `agent_start`：每个 run 至少一次，记录 provider、cwd/thread/run 范围。
+- `agent_message_delta` 或 `agent_completed`：成功 run 必须能还原最终 assistant
+  content；如果 provider 只给最终消息，可以只发 `agent_completed`。
+- `agent_completed` / `agent_failed`：每条 adapter execution 必须以成功或失败事件收尾。
+- `tool_call_started` / `tool_call_completed` / `tool_call_failed`：provider 暴露工具事实时
+  必须映射，不能只塞进 raw transcript。
+- `provider_session_bound`：provider 产生可 resume session/thread id 时必须发出。
+- `permission_requested` / `approval_resolved`：provider 进入 durable approval bridge
+  时必须发出。
+
+best-effort events：
+
+- `usage_updated`：provider 暴露 token/usage 时发出；没有 usage 时不阻塞 run。
+- `file_change_detected`：工具事件能直接识别文件路径时发出；否则由 workspace diff
+  fallback 兜底。
+- `provider_transcript_mirrored`：用于标记 raw transcript mirror 状态，不是 UI 主线。
+- `provider_session_recovery`：resume/replay/compact/fallback 发生时发出。
+
+provider-specific extension 的规则：
+
+- extension payload 可以保留在 normalized event 的 `payload` 中，但必须仍满足事件的
+  required keys。
+- app route 不应该读取 Claude/Codex raw SDK 字段；需要展示或审计时先进入
+  `RunEvent` / `ToolInvocation` / `ProviderTranscript`。
+- 对无法跨 provider 对齐的原始字段，优先保存到 `ProviderTranscriptStore`，而不是扩成
+  产品消息字段。
+
+失败路径 expectations：
+
+- 认证失败：`agent_failed` -> `run_failed`，error 中保留 provider 返回的可读原因，
+  但不包含 secret。
+- timeout：`agent_failed` -> `run_failed`，error 明确 timeout ms。
+- tool failed：尽量发 `tool_call_failed`，run 是否失败由 provider terminal event 决定。
+- permission denied/expired/cancelled：先发 `approval_resolved`，再由 provider/worker
+  映射成 `tool_call_failed` 或 `agent_failed`。
+- resume failed：发 `provider_session_recovery`，按 documented policy archive/fallback。
+- Docker exit 非 0：发 `agent_failed`，stderr 可摘要化进入 error；host path 不能泄漏到
+  model-visible output。
+
+## 2026-06-25 Smoke 结果
+
+本轮 cleanup 后已跑过的验收：
+
+- `pnpm --filter @agent-infra/cloud-agent-runtime test`：21 个 test file / 85 个 tests 通过。
+- `pnpm --filter @agent-infra/cloud-agent-runtime typecheck`：通过。
+- `pnpm --filter cloud-agent-next-web typecheck`：通过。
+- `pnpm --filter @agent-infra/cloud-agent-runtime smoke:claude`：通过，DeepSeek
+  Anthropic-compatible endpoint，`deepseek-v4-flash`，5s timeout。
+- `pnpm --filter @agent-infra/cloud-agent-runtime smoke:claude:docker`：通过，容器内
+  cwd 是 `/workspace`，Bash/Read/Edit/Write 均完成，provider session JSONL 写入
+  provider config dir，raw transcript 有 643 条。
+- `pnpm --filter cloud-agent-next-web smoke:approval`：通过，approved 和 denied 两条
+  durable approval 路径都落入 `run_approval_requests` 和
+  `permission_requested` / `approval_resolved` events。
+- `pnpm --filter cloud-agent-next-web smoke:resume`：通过，Docker Claude 同一 thread
+  第二次 run 复用同一个 provider session id，两个 run 都有 transcript，第二次 run
+  有 Bash invocation，workspace file index 包含 `resume-proof.txt` 和 `resume-pwd.txt`。
+- `pnpm --filter cloud-agent-next-web smoke:resume:fallback`：通过，注入无效 Claude
+  provider session 后，旧 binding 被归档，新 provider session 重新绑定，并持久化
+  `provider_session_recovery` event。这个 smoke 同时暴露并修复了 Docker container
+  lifecycle 问题：同一 run 内发生合法重试时，container name 不能只由 run id 决定；
+  当前 Docker provider 使用 run id 前缀加 per-invocation nonce，避免 fallback 重试撞名。
+- Web/API streamed Claude message：通过，`POST /api/threads/new/messages` 返回
+  `user_message`、`assistant_delta` 和 `completed`，assistant 内容为
+  `web-stream-smoke-ok`。
+- Web/API file-writing message：通过，stream 返回 `tool_call`、`file_change` 和
+  `completed`，文件写到 admin 默认 workspace 的 `web-smoke/file.txt`，内容为
+  `web-file-smoke-ok`。
+- Run event replay API：通过，`GET /api/runs/:runId/events` 能回放 completed run 的
+  `run_started`、`provider_session_bound`、tool events、`file_change_detected`、
+  message deltas 和 `run_completed`。
+- Web/API streamed Codex message：通过，dev server 当前环境能返回
+  `codex-error-smoke` 并绑定 Codex provider session。
+
+当前没有通过但已解释的 smoke：
+
+- `pnpm --filter @agent-infra/cloud-agent-runtime smoke:codex` 和
+  `smoke:codex:docker` 在当前 shell env 下走 DeepSeek fallback，失败于
+  `wss://api.deepseek.com/responses` 404。DeepSeek 当前 OpenAI-compatible API 是
+  Chat Completions，而 Codex SDK 请求 Responses protocol；这需要 Responses-compatible
+  endpoint/gateway 或显式 Codex/OpenAI auth。Docker Codex preflight 已证明容器 cwd 是
+  `/workspace`。
+- in-app browser automation 连接到的 browser 对象处于 closed state，本轮没有完成真实
+  浏览器点击/刷新验证；已用 API stream + replay 验证对应后端行为。
 
 ## 已核对资料
 
