@@ -13,6 +13,7 @@
     "start": "next start --port 3011",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "smoke:audit": "tsx ./scripts/cloud-agent-audit-smoke.ts",
+    "smoke:resume": "tsx ./scripts/cloud-agent-resume-smoke.ts",
     "worker:run": "tsx ./scripts/run-cloud-agent-job.ts",
     "worker:once": "tsx ./scripts/run-next-cloud-agent-job.ts",
     "worker:loop": "tsx ./scripts/run-cloud-agent-worker-loop.ts",
