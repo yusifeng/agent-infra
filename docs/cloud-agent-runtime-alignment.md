@@ -220,6 +220,157 @@ Claude-only 产品模型，而是我们接入 Claude 这个 provider 时必须�
 - TypeScript session store examples：
   https://github.com/anthropics/claude-agent-sdk-typescript/tree/main/examples/session-stores
 
+### 2026-06-25 Codex SDK provider 接入准则
+
+这一节用于约束第二个真实 SDK 的接入。结论是：当前项目应该优先适配
+**Codex SDK**，而不是先把 OpenAI Agents SDK 作为第二条 provider 主线。
+
+原因很直接：我们正在做的是云端 coding agent runtime，不是通用业务 Agent
+应用框架。Codex SDK 官方定位是把 Codex agent 嵌入 workflow 和 app，TypeScript
+SDK 通过 `Codex` client 控制本地 Codex agent thread，支持 `startThread()`、
+`resumeThread()`、`thread.run()` 和 `thread.runStreamed()`；它的 thread/run/
+sandbox/working directory 语义更接近 Claude Code SDK。OpenAI Agents SDK 则是
+更上层的通用 agent 应用框架，拥有自己的 Agent、Runner、Session、Tool、
+Handoff、Guardrail、Tracing、Sandbox agent 和 HITL 机制。它很强，但它会和我们
+正在建设的 runtime control plane 在 orchestration、session、tool execution、
+approval、sandbox 和 tracing 上发生大量重叠。
+
+因此，短期接入策略是：
+
+- Codex SDK 作为 `AgentAdapter` provider，和 Claude Code SDK 平级。
+- Agents SDK 暂不作为第二 provider 主线；后续如果要做业务型 Agent、multi-agent
+  orchestration，或“业务 Agent 把代码任务委托给 Codex”，再考虑把 Agents SDK
+  放在更上层，甚至把 Codex 当成 Agents SDK 的工具。
+- 不让 Codex SDK 接管我们的产品层 state。Codex thread id、`~/.codex/sessions`
+  和 raw JSONL/events 都是 provider-owned resume/debug 资料；产品事实仍然是
+  `Thread / Run / Message / RunEvent / ToolInvocation / Workspace /
+  ProviderSessionBinding / ProviderTranscript`。
+
+官方资料和当前包核对后的高置信事实：
+
+- Codex SDK TypeScript 需要 Node.js 18+，主要入口是
+  `import { Codex } from "@openai/codex-sdk"`，然后 `new Codex()`、
+  `startThread()`、`run()` / `runStreamed()`。
+- `run()` 会缓冲到 turn 结束；`runStreamed()` 返回 async generator，可消费
+  structured events。对我们来说，`runStreamed()` 是 provider adapter 主入口，
+  因为它能投影 tool calls、streaming response、file changes 和 usage。
+- 同一个 `Thread` instance 连续 `run()` 可以继续同一会话；失去内存对象后可用
+  `resumeThread(threadId)` 恢复。SDK 文档说明 thread 持久化在
+  `~/.codex/sessions`。
+- Codex 默认在当前 working directory 运行；可用 `workingDirectory` 指定目录。
+  为避免非 git repo 报错，可在创建 thread 时传 `skipGitRepoCheck: true`。
+- `Codex({ env })` 可以控制传给 Codex CLI 子进程的环境变量。若提供 `env`，
+  SDK 不继承 `process.env`；SDK 会再注入必需变量，例如 `CODEX_API_KEY`。
+  `baseUrl` 会转换为 Codex CLI 的 `--config openai_base_url=...`。
+- 当前安装的 `@openai/codex-sdk@0.142.0` README 明确写着：TypeScript SDK
+  wraps `codex` CLI from `@openai/codex`，通过 stdin/stdout JSONL 与 CLI 交换
+  events。这意味着它不是纯 HTTP client；它会启动本地 Codex CLI 进程。
+- 当前安装包类型中，`ThreadOptions` 包含 `model`、`sandboxMode`、
+  `workingDirectory`、`skipGitRepoCheck`、`modelReasoningEffort`、
+  `networkAccessEnabled`、`webSearchMode`、`approvalPolicy`、
+  `additionalDirectories`。
+- 当前安装包类型中，`SandboxMode` 是 `"read-only" | "workspace-write" |
+  "danger-full-access"`，`ApprovalMode` 是 `"never" | "on-request" |
+  "on-failure" | "untrusted"`。
+- 当前安装包类型中，`ThreadEvent` 覆盖 `thread.started`、`turn.started`、
+  `turn.completed`、`turn.failed`、`item.started`、`item.updated`、
+  `item.completed`、`error`；item 覆盖 `agent_message`、`reasoning`、
+  `command_execution`、`file_change`、`mcp_tool_call`、`web_search`、
+  `todo_list`、`error`。
+- OpenAI Codex auth 文档说明 Codex app/CLI/IDE 可以使用 ChatGPT 登录或 API key；
+  programmatic Codex CLI workflows/CI 更适合 API key 方式。Codex 会把登录信息缓存在
+  `~/.codex/auth.json` 或 OS credential store；如果使用 file storage，应把
+  `auth.json` 当成 secret。
+
+这些事实落到我们的 provider 层，映射应是：
+
+- `Codex` client construction -> provider factory。它只能接收经过 SecretBroker
+  和 profile policy 收口后的 `apiKey`、`baseUrl`、`env`、`config`。
+- `startThread()` / `resumeThread()` -> `ProviderSessionBinding`。产品层 thread
+  id 不能直接当 Codex thread id；首次 run 由 Codex 产生 `thread.started.thread_id`，
+  adapter 捕获后写入 binding，后续 run 用 binding 恢复。
+- `runStreamed()` async generator -> `AgentAdapter.run()`。adapter 消费 raw
+  `ThreadEvent`，先写 `ProviderTranscriptStore`，再投影成 normalized
+  `AgentRuntimeEvent`。
+- `item.completed(agent_message)` -> `agent_message_delta` / final assistant content。
+  当前 Codex SDK 类型没有 token-level text delta；第一版可以把 completed
+  `agent_message.text` 作为完整 delta。
+- `command_execution` -> `tool_call_started` / `tool_call_completed` /
+  `tool_call_failed`。
+- `file_change` -> `file_change_detected`，再由 worker 结束后的 workspace diff
+  扫描补充真实文件事实。
+- `mcp_tool_call` -> provider-neutral tool lifecycle；MCP 配置仍必须由我们的 profile
+  / policy 生成，不能直接让 Codex CLI 继承宿主机用户 MCP 配置。
+- `turn.completed.usage` -> 后续 usage summary。第一版可以先保留 raw transcript，
+  再把 usage 投影进 run event 或 observability usage model。
+- Codex `sandboxMode` 只是 provider-native sandbox 配置，不替代我们的
+  `SandboxProvider`。在 Docker runtime 中，Codex SDK/CLI process 应该运行在容器内，
+  `workingDirectory` 应该是 guest `/workspace`；host 只看到 mounted user workspace。
+- Codex `~/.codex/sessions` / `CODEX_HOME` / auth cache 对应 Claude 的 provider
+  config dir 问题。多用户环境必须把 Codex home/config/session/cache 指到按
+  user/workspace/provider 隔离的目录，不能使用宿主服务用户的 `~/.codex`。
+
+当前代码状态和风险：
+
+- `packages/cloud-agent-runtime` 已经有 `CodexAgentAdapter` 雏形，也已经依赖
+  `@openai/codex-sdk`。它目前覆盖了 start/resume、`runStreamed()`、raw transcript
+  保存、agent message、command execution、MCP tool call 和 file change 的基本映射。
+- `apps/cloud-agent-next-web` 还没有真正接通 Codex。`prepareCloudAgentTurn()` 在
+  `provider === "codex"` 时仍返回 fallback 文案，provider picker 也仍把 Codex 标为
+  planned。
+- 现有 `CodexAgentAdapter` 需要先做类型/行为收口，不能直接认为已经完成：
+  新 thread 首个 `provider_session_bound` 的发出时机要验证；`turnOptions.signal`
+  是否应该接 `AbortController` 要补齐；`item.updated` 是否需要投影中间进度要明确；
+  `turn.completed.usage` 目前没有 normalized event；authentication/baseUrl/configDir
+  还没有接入 cloud Next app 的 provider config。
+- Codex SDK 是 CLI wrapper，所以接入 Docker 时不能只把 npm SDK 装在宿主机。
+  正确的 sandbox 路径应类似 Claude Docker adapter：容器内安装 SDK/CLI，容器内
+  `CODEX_HOME` / config dir / sessions 持久到隔离 provider home，workspace mount
+  到 `/workspace`，SDK 在容器内 spawn Codex CLI。
+- 如果先做 local/host Codex smoke，它只能证明 event mapping 和 provider binding，
+  不能证明企业 runtime 的 sandbox 隔离。local 模式必须标记为开发逃生口，不能作为
+  sandbox 主路径。
+
+接下来代码切片建议：
+
+1. **先收紧 package adapter**：基于当前安装的 `@openai/codex-sdk` 类型，给
+   `CodexAgentAdapter` 加 deterministic fake-client tests，覆盖 new thread binding、
+   resume、agent message、command execution、file change、MCP call、turn failure、
+   timeout/abort、raw transcript append。
+2. **再加 Codex config resolver**：类似 `resolveClaudeAgentConfig`，集中读取
+   `OPENAI_API_KEY` / `CODEX_API_KEY`、base URL、model、reasoning effort、
+   sandbox mode、approval policy、web search/network、`CODEX_HOME` / config dir、
+   env allowlist。默认低成本、低推理；不要在 smoke 中默认高价模型或高 reasoning。
+3. **接 app provider factory**：把 `prepareCloudAgentTurn()` 里的 Codex fallback
+   替换为真实 `CodexAgentAdapter` local dev 路径，同时把 transcript store、
+   provider session binding、workspace path、secret env、profile audit 接入同一套
+   app runtime。此时明确 local 不是隔离路径。
+4. **补 Codex smoke**：用最小 prompt 验证 thread id 持久化、第二 turn resume、
+   raw transcript、normalized run events、usage/raw event 保存。若真实 SDK auth
+   不可用，至少保留 fake-client deterministic tests 和 fail-fast diagnostics。
+5. **做 DockerCodexAgentAdapter**：构建 Codex runtime image，让 SDK/CLI 在容器内跑，
+   `pwd` 返回 `/workspace`，写文件只进入用户 workspace mount，Codex home/session
+   只进入隔离 provider config dir，secret 只通过 SecretBroker 注入。
+6. **再验证 Codex 横向反证**：同一产品 `Thread / Run / Message / RunEvent /
+   ToolInvocation / ProviderTranscript / WorkspaceChange` 链路能同时解释 Claude 和
+   Codex；如果某个字段只有 Claude 能表达，再回到 provider-neutral type 收口。
+
+已核对的主要资料：
+
+- Codex SDK：
+  https://developers.openai.com/codex/sdk
+- Codex authentication：
+  https://developers.openai.com/codex/auth
+- 本地 npm 包 `@openai/codex-sdk@0.142.0` README / `dist/index.d.ts`
+- OpenAI Agents SDK TypeScript overview：
+  https://openai.github.io/openai-agents-js/
+- OpenAI Agents SDK running agents：
+  https://openai.github.io/openai-agents-js/guides/running-agents/
+- OpenAI Agents SDK sessions：
+  https://openai.github.io/openai-agents-js/guides/sessions/
+- OpenAI Agents SDK human-in-the-loop：
+  https://openai.github.io/openai-agents-js/guides/human-in-the-loop/
+
 ## 已确认决策
 
 这些结论先作为后续讨论和 TODO 的基线；除非明确推翻，后面不再反复重开：
