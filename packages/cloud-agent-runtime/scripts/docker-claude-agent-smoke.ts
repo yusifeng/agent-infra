@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, rm } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -23,6 +23,7 @@ const workspacePath = path.join(smokeRoot, 'workspace');
 const configDir = path.join(smokeRoot, 'claude-config');
 const credentialsDir = path.join(smokeRoot, 'credentials');
 const image = process.env.CLOUD_AGENT_CLAUDE_DOCKER_IMAGE?.trim() || DEFAULT_CLAUDE_AGENT_DOCKER_IMAGE;
+const expectedTools = ['Bash', 'Read', 'Edit', 'Write'] as const;
 
 main().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
@@ -40,6 +41,7 @@ async function main(): Promise<void> {
     mkdir(configDir, { recursive: true }),
     mkdir(credentialsDir, { recursive: true })
   ]);
+  await writeFile(path.join(workspacePath, 'read-edit-target.txt'), 'before-edit\n');
 
   const config = resolveClaudeAgentConfig({
     clientApp: 'agent-infra/cloud-agent-runtime-docker-smoke',
@@ -47,7 +49,7 @@ async function main(): Promise<void> {
     defaultTimeoutMs: readTimeoutMs(),
     enableBashTool: true,
     env: process.env,
-    toolAllowlist: ['Bash']
+    toolAllowlist: [...expectedTools]
   });
 
   if (!config.configured) {
@@ -79,19 +81,28 @@ async function main(): Promise<void> {
     image,
     transcriptStore
   });
-  const events: string[] = [];
+  const eventTypes: string[] = [];
+  const toolNames = new Set<string>();
   const runner = new AdapterAgentRunner({
     adapter,
     onEvent(event) {
-      events.push(event.type);
+      eventTypes.push(event.type);
+      const toolName = event.payload?.toolName;
+      if (typeof toolName === 'string') {
+        toolNames.add(toolName);
+      }
     }
   });
   const result = await runner.run({
     scope,
     prompt: [
-      'Use the Bash tool once to run exactly this command:',
-      "pwd > pwd.txt && printf 'docker-claude-smoke-ok\\n' > smoke.txt",
-      'Then reply with exactly: docker-claude-smoke-ok'
+      'This is a strict smoke test. Use exactly these built-in tools, in this order:',
+      '1. Use Bash to run: pwd > pwd.txt',
+      '2. Use Read to read read-edit-target.txt',
+      '3. Use Edit to replace before-edit with after-edit in read-edit-target.txt',
+      '4. Use Write to create write-target.txt with exactly this content: write-tool-ok',
+      'Do not use Bash to create or edit read-edit-target.txt or write-target.txt.',
+      'After the tools finish, reply with exactly: docker-claude-smoke-ok'
     ].join('\n'),
     sandbox
   });
@@ -105,13 +116,40 @@ async function main(): Promise<void> {
     throw new Error(`Expected Docker Claude cwd to be /workspace, got ${JSON.stringify(pwdText.trim())}.`);
   }
 
-  const smokeText = await readFile(path.join(workspacePath, 'smoke.txt'), 'utf8');
-  if (smokeText !== 'docker-claude-smoke-ok\n') {
-    throw new Error(`Unexpected smoke artifact content: ${JSON.stringify(smokeText)}.`);
+  const editedText = await readFile(path.join(workspacePath, 'read-edit-target.txt'), 'utf8');
+  if (editedText !== 'after-edit\n') {
+    throw new Error(`Expected Edit tool to update read-edit-target.txt, got ${JSON.stringify(editedText)}.`);
+  }
+
+  const writtenText = await readFile(path.join(workspacePath, 'write-target.txt'), 'utf8');
+  if (writtenText.trim() !== 'write-tool-ok') {
+    throw new Error(`Expected Write tool to create write-target.txt, got ${JSON.stringify(writtenText)}.`);
   }
 
   if (!result.providerSessionId) {
     throw new Error('Docker Claude smoke did not bind a provider session id.');
+  }
+
+  assertEventType(eventTypes, 'provider_session_bound');
+  assertEventType(eventTypes, 'tool_call_started');
+  assertEventType(eventTypes, 'tool_call_completed');
+  assertEventType(eventTypes, 'file_change_detected');
+  assertEventType(eventTypes, 'agent_completed');
+  for (const toolName of expectedTools) {
+    if (!toolNames.has(toolName)) {
+      throw new Error(`Expected Docker Claude smoke to use ${toolName}; saw tools: ${[...toolNames].join(', ')}`);
+    }
+  }
+
+  const transcript = await transcriptStore.load({
+    scope,
+    key: {
+      provider: 'claude',
+      providerSessionId: result.providerSessionId
+    }
+  });
+  if (transcript.length === 0) {
+    throw new Error('Docker Claude smoke did not persist raw provider transcript entries.');
   }
 
   console.log(
@@ -125,8 +163,10 @@ async function main(): Promise<void> {
         isDeepSeek: config.isDeepSeek,
         model: config.model ?? null,
         providerSessionId: result.providerSessionId,
+        transcriptEntries: transcript.length,
         workspacePwd: pwdText.trim(),
-        eventTypes: events
+        eventTypes,
+        toolNames: [...toolNames].sort()
       },
       null,
       2
@@ -185,6 +225,12 @@ function readTimeoutMs(): number {
   const raw = process.env.CLOUD_AGENT_DOCKER_CLAUDE_SMOKE_TIMEOUT_MS?.trim();
   const parsed = raw ? Number(raw) : 60_000;
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 60_000;
+}
+
+function assertEventType(events: string[], type: string): void {
+  if (!events.includes(type)) {
+    throw new Error(`Expected Docker Claude smoke event ${type}; saw events: ${events.join(', ')}`);
+  }
 }
 
 function runCommand(
