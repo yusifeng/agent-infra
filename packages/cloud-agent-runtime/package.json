@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "smoke:claude": "tsx ./scripts/claude-agent-smoke.ts",
+    "smoke:claude:docker": "tsx ./scripts/docker-claude-agent-smoke.ts",
     "smoke:docker": "tsx ./scripts/docker-smoke.ts"
   },
   "devDependencies": {
