@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 
 import { diffFileHashes, scanFileHashes } from './filesystem.js';
+import { buildDockerRuntimeArgs, type DockerContainerRuntime } from './docker-agent-process.js';
 import type {
   NetworkPolicy,
   SandboxExecInput,
@@ -43,6 +44,7 @@ export interface DockerSandboxProviderOptions {
   docker?: DockerCommandRunner;
   name?: string;
   containerPrefix?: string;
+  runtime?: DockerContainerRuntime;
   workspaceTargetPath?: string;
 }
 
@@ -50,6 +52,7 @@ export class DockerSandboxProvider implements SandboxProvider {
   readonly name: string;
   private readonly docker: DockerCommandRunner;
   private readonly containerPrefix: string;
+  private readonly runtime?: DockerContainerRuntime;
   private readonly workspaceTargetPath: string;
   private readonly sessions = new Map<string, DockerSandboxRecord>();
 
@@ -57,6 +60,7 @@ export class DockerSandboxProvider implements SandboxProvider {
     this.name = options.name ?? 'docker';
     this.docker = options.docker ?? createDockerCliRunner();
     this.containerPrefix = options.containerPrefix ?? 'agent-infra';
+    this.runtime = options.runtime;
     this.workspaceTargetPath = options.workspaceTargetPath ?? '/workspace';
   }
 
@@ -71,6 +75,7 @@ export class DockerSandboxProvider implements SandboxProvider {
     const containerName = `${this.containerPrefix}-${sessionId}`;
     const args = [
       'run',
+      ...buildDockerRuntimeArgs(this.runtime),
       '--detach',
       '--name',
       containerName,

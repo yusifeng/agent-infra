@@ -17,6 +17,8 @@ export interface DockerProcessResult {
 
 export type DockerProcessRunner = (input: DockerProcessInput) => Promise<DockerProcessResult>;
 
+export type DockerContainerRuntime = 'runc' | 'runsc';
+
 export interface DockerMount {
   source: string;
   target: string;
@@ -29,6 +31,7 @@ export interface DockerRunArgsInput {
   env?: Record<string, string>;
   image: string;
   mounts: DockerMount[];
+  runtime?: DockerContainerRuntime;
   workdir: string;
 }
 
@@ -52,6 +55,7 @@ export function buildDockerRunArgs(input: DockerRunArgsInput): string[] {
     'run',
     '--rm',
     '-i',
+    ...buildDockerRuntimeArgs(input.runtime),
     '--name',
     input.containerName,
     '--workdir',
@@ -61,6 +65,23 @@ export function buildDockerRunArgs(input: DockerRunArgsInput): string[] {
     input.image,
     ...input.command
   ];
+}
+
+export function buildDockerRuntimeArgs(runtime: DockerContainerRuntime | undefined): string[] {
+  return runtime ? ['--runtime', runtime] : [];
+}
+
+export function parseDockerContainerRuntime(value: string | null | undefined): DockerContainerRuntime | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed === 'default') {
+    return undefined;
+  }
+
+  if (trimmed === 'runc' || trimmed === 'runsc') {
+    return trimmed;
+  }
+
+  throw new Error(`Unsupported Docker runtime: ${trimmed}. Expected "runc", "runsc", "default", or unset.`);
 }
 
 export function runDockerProcess(input: DockerProcessInput): Promise<DockerProcessResult> {

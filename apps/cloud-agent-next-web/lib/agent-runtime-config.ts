@@ -1,4 +1,5 @@
 import type { AgentProfile } from '@agent-infra/core';
+import { parseDockerContainerRuntime, type DockerContainerRuntime } from '@agent-infra/cloud-agent-runtime';
 
 import type { AgentProviderId } from './provider-config';
 
@@ -36,6 +37,10 @@ export function readCodexDockerInnerSandboxMode(
   }
 
   return 'danger-full-access';
+}
+
+export function readDockerRuntime(env: Record<string, string | undefined>): DockerContainerRuntime | undefined {
+  return parseDockerContainerRuntime(env.CLOUD_AGENT_DOCKER_RUNTIME);
 }
 
 function readClaudeExecutionMode(

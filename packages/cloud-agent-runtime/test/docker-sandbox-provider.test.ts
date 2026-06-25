@@ -80,6 +80,31 @@ describe('DockerSandboxProvider', () => {
     }
   });
 
+  it('passes the configured Docker runtime when creating the container', async () => {
+    const { rootDir, materialization } = await createWorkspace();
+    const calls: DockerCommandInput[] = [];
+    try {
+      const provider = new DockerSandboxProvider({
+        docker: async (input) => {
+          calls.push(input);
+          return { exitCode: 0, stdout: 'container-1\n', stderr: '' };
+        },
+        runtime: 'runsc'
+      });
+
+      await provider.create({
+        scope,
+        workspace: materialization,
+        image: 'node:22-bookworm',
+        policy
+      });
+
+      expect(calls[0]?.args.slice(0, 3)).toEqual(['run', '--runtime', 'runsc']);
+    } finally {
+      await rm(rootDir, { force: true, recursive: true });
+    }
+  });
+
   it('enforces exec environment allowlist', async () => {
     const { rootDir, materialization } = await createWorkspace();
     try {

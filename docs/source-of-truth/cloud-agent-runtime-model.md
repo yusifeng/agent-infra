@@ -204,7 +204,11 @@ provider session materialization 策略。
 
 ## Known Current Limits
 
-- Docker 是当前 baseline，不是最终生产安全边界。
+- Docker 是当前 baseline，不是最终生产安全边界。本机 worker 阶段的第二沙箱
+  方向是 Docker 外层 runtime 可配置：默认保持 Docker 原生 runtime（通常是
+  `runc`），Linux host 可用 `CLOUD_AGENT_DOCKER_RUNTIME=runsc` 选择
+  gVisor/runsc。KubernetesPodSandboxProvider + RuntimeClass 是后续生产部署
+  路径，不是本机阶段的第一目标。
 - Codex SDK 需要 Responses-compatible endpoint；DeepSeek Chat Completions-compatible
   endpoint 不能直接满足 Codex SDK 的 `/responses` protocol。
 - `apps/cloud-agent-next-web` 是验证 surface，不是永久产品边界。

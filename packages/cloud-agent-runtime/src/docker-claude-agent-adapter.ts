@@ -15,6 +15,7 @@ import {
   buildDockerRunArgs,
   normalizeGuestWorkspaceRelativePath,
   streamDockerProcess,
+  type DockerContainerRuntime,
   type DockerProcessInput,
   type DockerProcessResult,
   type DockerProcessRunner
@@ -53,6 +54,7 @@ export interface DockerClaudeAgentAdapterOptions {
   guestConfigDir?: string;
   hostCredentialsDir?: string | null;
   guestCredentialsDir?: string;
+  dockerRuntime?: DockerContainerRuntime;
   docker?: DockerProcessRunner;
   permissionBroker?: PermissionBroker;
   transcriptStore?: ProviderTranscriptStore;
@@ -82,6 +84,7 @@ export class DockerClaudeAgentAdapter implements AgentAdapter {
   private readonly guestConfigDir: string;
   private readonly hostCredentialsDir: string | null;
   private readonly guestCredentialsDir: string;
+  private readonly dockerRuntime?: DockerContainerRuntime;
   private readonly docker?: DockerProcessRunner;
   private readonly permissionBroker?: PermissionBroker;
   private readonly transcriptStore?: ProviderTranscriptStore;
@@ -106,6 +109,7 @@ export class DockerClaudeAgentAdapter implements AgentAdapter {
     this.guestConfigDir = options.guestConfigDir ?? '/agent-home';
     this.hostCredentialsDir = options.hostCredentialsDir ?? null;
     this.guestCredentialsDir = options.guestCredentialsDir ?? '/agent-credentials';
+    this.dockerRuntime = options.dockerRuntime;
     this.docker = options.docker;
     this.permissionBroker = options.permissionBroker;
     this.transcriptStore = options.transcriptStore;
@@ -308,6 +312,7 @@ export class DockerClaudeAgentAdapter implements AgentAdapter {
         },
         ...this.buildCredentialsMounts()
       ],
+      runtime: this.dockerRuntime,
       workdir: this.guestWorkspacePath
     });
   }

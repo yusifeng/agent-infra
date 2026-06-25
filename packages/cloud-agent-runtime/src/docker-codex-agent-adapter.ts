@@ -15,6 +15,7 @@ import {
   buildDockerRunArgs,
   normalizeGuestWorkspaceRelativePath,
   streamDockerProcess,
+  type DockerContainerRuntime,
   type DockerProcessInput,
   type DockerProcessRunner
 } from './docker-agent-process.js';
@@ -48,6 +49,7 @@ export interface DockerCodexAgentAdapterOptions {
   guestConfigDir?: string;
   hostCredentialsDir?: string | null;
   guestCredentialsDir?: string;
+  dockerRuntime?: DockerContainerRuntime;
   docker?: DockerProcessRunner;
   transcriptStore?: ProviderTranscriptStore;
 }
@@ -73,6 +75,7 @@ export class DockerCodexAgentAdapter implements AgentAdapter {
   private readonly guestConfigDir: string;
   private readonly hostCredentialsDir: string | null;
   private readonly guestCredentialsDir: string;
+  private readonly dockerRuntime?: DockerContainerRuntime;
   private readonly docker?: DockerProcessRunner;
   private readonly transcriptStore?: ProviderTranscriptStore;
 
@@ -95,6 +98,7 @@ export class DockerCodexAgentAdapter implements AgentAdapter {
     this.guestConfigDir = options.guestConfigDir ?? '/agent-home';
     this.hostCredentialsDir = options.hostCredentialsDir ?? null;
     this.guestCredentialsDir = options.guestCredentialsDir ?? '/agent-credentials';
+    this.dockerRuntime = options.dockerRuntime;
     this.docker = options.docker;
     this.transcriptStore = options.transcriptStore;
   }
@@ -206,6 +210,7 @@ export class DockerCodexAgentAdapter implements AgentAdapter {
         },
         ...this.buildCredentialsMounts()
       ],
+      runtime: this.dockerRuntime,
       workdir: this.guestWorkspacePath
     });
   }

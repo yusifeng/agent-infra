@@ -7,6 +7,7 @@ import {
   DEFAULT_CLAUDE_AGENT_DOCKER_IMAGE,
   DockerClaudeAgentAdapter,
   InMemoryProviderTranscriptStore,
+  parseDockerContainerRuntime,
   resolveClaudeAgentConfig,
   type RuntimeScope,
   type SandboxSession
@@ -28,6 +29,7 @@ const workspacePath = path.join(smokeRoot, 'workspace');
 const configDir = path.join(smokeRoot, 'claude-config');
 const credentialsDir = path.join(smokeRoot, 'credentials');
 const image = process.env.CLOUD_AGENT_CLAUDE_DOCKER_IMAGE?.trim() || DEFAULT_CLAUDE_AGENT_DOCKER_IMAGE;
+const dockerRuntime = parseDockerContainerRuntime(process.env.CLOUD_AGENT_DOCKER_RUNTIME);
 const expectedTools = ['Bash', 'Read', 'Edit', 'Write'] as const;
 
 main().catch((error: unknown) => {
@@ -79,6 +81,7 @@ async function main(): Promise<void> {
     hostCredentialsDir: credentialsDir,
     hostWorkspacePath: workspacePath,
     image,
+    dockerRuntime,
     transcriptStore
   });
   const eventTypes: string[] = [];
@@ -173,6 +176,7 @@ async function main(): Promise<void> {
         provider: 'claude',
         mode: 'docker',
         image,
+        dockerRuntime: dockerRuntime ?? 'default',
         baseUrl: config.baseUrl,
         isDeepSeek: config.isDeepSeek,
         model: config.model ?? null,

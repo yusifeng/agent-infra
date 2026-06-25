@@ -502,9 +502,15 @@ workspace `pwd === /workspace`。
 - 第一版先实现 `DockerSandboxProvider`。目标是把本地学习版和内部 MVP
   跑起来：每个 run 在受控容器里执行，只挂载当前 workspace，限制资源，
   把网络、secret、MCP、文件同步都通过明确接口收口。
+- 个人/本机 worker 阶段不先引入 Kubernetes。当前第二沙箱方向是让 Docker
+  外层 runtime 可配置：默认使用 Docker 自带 runtime（通常是 `runc`），在
+  Linux host 或低成本 VPS 上可显式配置 `CLOUD_AGENT_DOCKER_RUNTIME=runsc`
+  走 gVisor/runsc。这个能力用于验证更强容器隔离，不复制出一套
+  `GVisorSandboxProvider`。
 - Docker-first 不是最终安全承诺。它用于验证 control plane、runner、
   workspace materialization、agent adapter 和 policy enforcement 的形状；
-  后续可以加 Daytona/E2B/gVisor/Firecracker 等 provider。
+  后续可以加 KubernetesPodSandboxProvider、Daytona/E2B、Firecracker 等
+  provider。
 - Ripple 的价值主要是学习 control plane：user sandbox、session/job、
   connector auth、permission request、Codex app-server bridge。它不是我们
   最终强多租户沙箱的直接复制对象。
@@ -1638,11 +1644,16 @@ Web route 应该负责创建任务、鉴权、stream/attach，不应该直接承
 1. 本地 POC / 内部 MVP：`DockerSandboxProvider`。一个 run 一个受控容器，
    不共享 home，不共享 `.claude` / `.codex`，不放 raw secret，workspace
    通过只属于当前用户/工作区的目录或 volume 挂载。
-2. 更安全的自托管多租户：Docker + gVisor、read-only root、非 root 用户、
+2. 本机 worker / 低成本 Linux VPS 增强版：仍使用 `DockerSandboxProvider`，
+   但通过 `CLOUD_AGENT_DOCKER_RUNTIME=runsc` 选择 gVisor/runsc。默认不传
+   runtime 参数，保持 Docker 原生行为；配置 `runsc` 前必须在宿主机安装并
+   smoke 验证 gVisor。
+3. 更安全的自托管多租户：KubernetesPodSandboxProvider + RuntimeClass，
+   优先 `gvisor`，后续可切 `kata`，同时配合 read-only root、非 root 用户、
    resource limit、无直接网络、所有 egress 走 proxy/tool gateway。
-3. 公共用户或不可信代码：Firecracker microVM、独立 VM，或 E2B/Daytona/
+4. 公共用户或不可信代码：Firecracker microVM、独立 VM，或 E2B/Daytona/
    Modal 这类 managed sandbox provider。
-4. 企业级隔离：tenant-dedicated worker pool、node pool、bucket、KMS key、
+5. 企业级隔离：tenant-dedicated worker pool、node pool、bucket、KMS key、
    stricter audit/egress。
 
 核心问题不是“Docker 要不要用”，而是“第一阶段是否允许不可信代码/MCP/

@@ -7,6 +7,7 @@ import {
   DockerCodexAgentAdapter,
   InMemoryProviderTranscriptStore,
   materializeCodexHomeAuth,
+  parseDockerContainerRuntime,
   resolveCodexAgentConfig,
   type RuntimeScope,
   type SandboxSession
@@ -27,6 +28,7 @@ const workspacePath = path.join(smokeRoot, 'workspace');
 const configDir = path.join(smokeRoot, 'codex-home');
 const credentialsDir = path.join(smokeRoot, 'credentials');
 const image = process.env.CLOUD_AGENT_CODEX_DOCKER_IMAGE?.trim() || DEFAULT_CODEX_AGENT_DOCKER_IMAGE;
+const dockerRuntime = parseDockerContainerRuntime(process.env.CLOUD_AGENT_DOCKER_RUNTIME);
 
 main().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
@@ -79,6 +81,7 @@ async function main(): Promise<void> {
     hostCredentialsDir: credentialsDir,
     hostWorkspacePath: workspacePath,
     image,
+    dockerRuntime,
     sandboxMode: 'danger-full-access',
     transcriptStore
   });
@@ -142,6 +145,7 @@ async function main(): Promise<void> {
         provider: 'codex',
         mode: 'docker',
         image,
+        dockerRuntime: dockerRuntime ?? 'default',
         apiKeySource: config.apiKeySource,
         baseUrl: config.baseUrl,
         isDeepSeek: config.isDeepSeek,
@@ -165,6 +169,7 @@ async function assertContainerPwd(): Promise<void> {
   const result = await runCommand('docker', [
     'run',
     '--rm',
+    ...(dockerRuntime ? ['--runtime', dockerRuntime] : []),
     '--workdir',
     '/workspace',
     '--mount',

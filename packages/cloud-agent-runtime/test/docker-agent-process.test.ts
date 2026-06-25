@@ -4,6 +4,7 @@ import {
   buildDockerContainerName,
   buildDockerRunArgs,
   normalizeGuestWorkspaceRelativePath,
+  parseDockerContainerRuntime,
   safeContainerSegment
 } from '../src/docker-agent-process';
 
@@ -51,6 +52,28 @@ describe('docker-agent-process', () => {
       'node',
       '/opt/agent-runtime/runner.mjs'
     ]);
+  });
+
+  it('adds a Docker runtime when one is configured', () => {
+    const args = buildDockerRunArgs({
+      command: ['node', '/opt/agent-runtime/runner.mjs'],
+      containerName: 'agent-infra-test-run',
+      image: 'agent-infra/test:local',
+      mounts: [],
+      runtime: 'runsc',
+      workdir: '/workspace'
+    });
+
+    expect(args.slice(0, 5)).toEqual(['run', '--rm', '-i', '--runtime', 'runsc']);
+  });
+
+  it('parses only supported Docker runtime names', () => {
+    expect(parseDockerContainerRuntime(undefined)).toBeUndefined();
+    expect(parseDockerContainerRuntime('')).toBeUndefined();
+    expect(parseDockerContainerRuntime('default')).toBeUndefined();
+    expect(parseDockerContainerRuntime('runc')).toBe('runc');
+    expect(parseDockerContainerRuntime('runsc')).toBe('runsc');
+    expect(() => parseDockerContainerRuntime('custom-runtime')).toThrow('Unsupported Docker runtime');
   });
 
   it('normalizes guest workspace paths without allowing traversal', () => {

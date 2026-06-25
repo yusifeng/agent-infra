@@ -16,7 +16,12 @@ import {
   createDurablePermissionBrokerFromEnv,
   shouldUseDurablePermissionBroker
 } from './durable-permission-broker';
-import { readCodexDockerInnerSandboxMode, readWebClaudeAgentTimeoutMs, readWebCodexAgentTimeoutMs } from './agent-runtime-config';
+import {
+  readCodexDockerInnerSandboxMode,
+  readDockerRuntime,
+  readWebClaudeAgentTimeoutMs,
+  readWebCodexAgentTimeoutMs
+} from './agent-runtime-config';
 import { createDbProviderTranscriptStore } from './provider-transcript-store';
 import type { resolveCloudWorkspaceRuntimePaths } from './workspace-runtime';
 
@@ -72,6 +77,7 @@ export async function createCodexAdapterForTurn(input: {
             guestCredentialsDir: input.guestCredentialsDir,
             hostWorkspacePath: input.runtimePaths.hostWorkspacePath,
             image: input.env.CLOUD_AGENT_CODEX_DOCKER_IMAGE?.trim() || DEFAULT_CODEX_AGENT_DOCKER_IMAGE,
+            dockerRuntime: readDockerRuntime(input.env),
             sandboxMode: readCodexDockerInnerSandboxMode(input.env),
             transcriptStore: createDbProviderTranscriptStore()
           })
@@ -129,6 +135,7 @@ export function createClaudeAdapterForTurn(input: {
             guestCredentialsDir: input.guestCredentialsDir,
             hostWorkspacePath: input.runtimePaths.hostWorkspacePath,
             image: input.env.CLOUD_AGENT_CLAUDE_DOCKER_IMAGE?.trim() || DEFAULT_CLAUDE_AGENT_DOCKER_IMAGE,
+            dockerRuntime: readDockerRuntime(input.env),
             permissionBroker,
             transcriptStore: createDbProviderTranscriptStore()
           })

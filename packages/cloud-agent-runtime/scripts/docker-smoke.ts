@@ -5,12 +5,14 @@ import { spawn } from 'node:child_process';
 import {
   DockerSandboxProvider,
   LocalWorkspaceStorageProvider,
+  parseDockerContainerRuntime,
   type RuntimeScope,
   type SandboxSession,
   type WorkspaceSnapshotRef
 } from '../src/index.js';
 
 const image = process.env.CLOUD_AGENT_RUNTIME_SMOKE_IMAGE?.trim() || 'alpine:3.20';
+const dockerRuntime = parseDockerContainerRuntime(process.env.CLOUD_AGENT_DOCKER_RUNTIME);
 
 async function ensureDockerAvailable(): Promise<void> {
   await new Promise<void>((resolve, reject) => {
@@ -64,7 +66,8 @@ async function main(): Promise<void> {
       snapshot: baseSnapshot
     });
     sandbox = new DockerSandboxProvider({
-      containerPrefix: 'agent-infra-smoke'
+      containerPrefix: 'agent-infra-smoke',
+      runtime: dockerRuntime
     });
 
     session = await sandbox.create({
@@ -122,6 +125,7 @@ async function main(): Promise<void> {
         {
           ok: true,
           image,
+          dockerRuntime: dockerRuntime ?? 'default',
           changeCount: changeSet.changes.length,
           changedPaths: changeSet.changes.map((change) => change.path),
           nextSnapshotId: nextSnapshot.id
